@@ -27,17 +27,24 @@ export default function CoachPage() {
     const allWorkouts = getWorkoutHistory();
     const recentWorkouts = getWorkoutsFromLast7Days(allWorkouts);
     const weeklyVolume = getVolumeByMuscleGroup(recentWorkouts);
-    const recentWorkoutsForApi = [...allWorkouts]
-      .sort(
-        (a, b) =>
-          new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-      )
-      .slice(0, 5);
+    const statsSnapshot = getStats(allWorkouts);
 
-    const payload = {
+    const recentExerciseNames = new Set<string>();
+    const sorted = [...allWorkouts].sort(
+      (a, b) =>
+        new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    );
+    for (const w of sorted.slice(0, 5)) {
+      for (const ex of w.exercises ?? []) {
+        if (ex.name?.trim()) recentExerciseNames.add(ex.name.trim());
+      }
+    }
+
+    const trainingSummary = {
+      totalWorkouts: statsSnapshot.totalWorkouts,
       weeklyVolume,
-      trainingFrequency: recentWorkouts.length,
-      recentWorkouts: recentWorkoutsForApi,
+      recentExercises: Array.from(recentExerciseNames),
+      totalSets: statsSnapshot.totalSets,
     };
 
     setIsLoading(true);
@@ -45,7 +52,7 @@ export default function CoachPage() {
       const res = await fetch("/api/coach-analysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(trainingSummary),
       });
       const data = await res.json();
       if (res.ok && Array.isArray(data.analysis)) {

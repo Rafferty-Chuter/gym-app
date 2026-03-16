@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export type CoachAnalysisBody = {
+/**
+ * Training summary sent from the Coach page for AI analysis.
+ */
+export type TrainingSummaryBody = {
+  totalWorkouts: number;
   weeklyVolume: Record<string, number>;
-  trainingFrequency: number;
-  recentWorkouts: {
-    completedAt: string;
-    exercises: { name: string; sets: { weight: string; reps: string }[] }[];
-  }[];
+  recentExercises: string[];
+  totalSets: number;
 };
 
 export type CoachAnalysisResponse = {
@@ -14,37 +15,38 @@ export type CoachAnalysisResponse = {
 };
 
 /**
- * Placeholder AI-style response. Replace with real AI model call later.
+ * Simulated AI response. Replace with real AI model call later.
  */
-function getPlaceholderAnalysis(_payload: CoachAnalysisBody): string[] {
-  return [
-    "Your recent training looks consistent.",
-    "Chest and back volume are in a good range.",
-    "Leg volume may be slightly low compared to upper body—consider adding a dedicated leg day if needed.",
-    "Continue progressing your main lifts and keep logging workouts.",
-  ];
+function getPlaceholderAnalysis(_summary: TrainingSummaryBody): string[] {
+  return ["AI analysis placeholder."];
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as CoachAnalysisBody;
-    const { weeklyVolume, trainingFrequency, recentWorkouts } = body;
+    const body = (await request.json()) as TrainingSummaryBody;
+    const { totalWorkouts, weeklyVolume, recentExercises, totalSets } = body;
 
     if (
+      typeof totalWorkouts !== "number" ||
       weeklyVolume == null ||
-      typeof trainingFrequency !== "number" ||
-      !Array.isArray(recentWorkouts)
+      typeof weeklyVolume !== "object" ||
+      !Array.isArray(recentExercises) ||
+      typeof totalSets !== "number"
     ) {
       return NextResponse.json(
-        { error: "Missing or invalid body: weeklyVolume, trainingFrequency, recentWorkouts required." },
+        {
+          error:
+            "Missing or invalid body: totalWorkouts, weeklyVolume, recentExercises, totalSets required.",
+        },
         { status: 400 }
       );
     }
 
     const analysis = getPlaceholderAnalysis({
+      totalWorkouts,
       weeklyVolume: weeklyVolume ?? {},
-      trainingFrequency,
-      recentWorkouts: recentWorkouts ?? [],
+      recentExercises: recentExercises ?? [],
+      totalSets,
     });
 
     return NextResponse.json({ analysis } satisfies CoachAnalysisResponse);
