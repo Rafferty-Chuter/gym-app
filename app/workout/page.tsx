@@ -3,6 +3,39 @@ import { useState, useEffect } from "react";
 import { useWorkoutStore } from "@/lib/workout-store";
 
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
+const WORKOUT_HISTORY_KEY = "workoutHistory";
+
+type StoredWorkout = {
+  completedAt: string;
+  exercises: { name: string; sets: { weight: string; reps: string }[] }[];
+};
+
+function getLastPerformanceForExercise(exerciseName: string): { weight: string; reps: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
+    if (!raw) return null;
+    const workouts: StoredWorkout[] = JSON.parse(raw);
+    if (!Array.isArray(workouts)) return null;
+    const normalized = exerciseName.trim().toLowerCase();
+    const sorted = [...workouts].sort(
+      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    );
+    for (const workout of sorted) {
+      const exercise = workout.exercises?.find(
+        (ex) => ex.name?.trim().toLowerCase() === normalized
+      );
+      if (exercise?.sets?.length) {
+        const lastSet = exercise.sets[exercise.sets.length - 1];
+        if (lastSet?.weight != null && lastSet?.reps != null)
+          return { weight: String(lastSet.weight), reps: String(lastSet.reps) };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export default function WorkoutPage() {
   const { addWorkout } = useWorkoutStore();
@@ -24,6 +57,21 @@ export default function WorkoutPage() {
   } | null>(null);
   const [editWeight, setEditWeight] = useState("");
   const [editReps, setEditReps] = useState("");
+  const [lastPerformance, setLastPerformance] = useState<
+    Record<string, { weight: string; reps: string } | null>
+  >({});
+
+  useEffect(() => {
+    if (exercises.length === 0) {
+      setLastPerformance({});
+      return;
+    }
+    const map: Record<string, { weight: string; reps: string } | null> = {};
+    for (const ex of exercises) {
+      map[ex.name] = getLastPerformanceForExercise(ex.name);
+    }
+    setLastPerformance(map);
+  }, [exercises.map((e) => e.name).join(",")]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -51,12 +99,28 @@ export default function WorkoutPage() {
   function finishWorkout() {
     if (exercises.length === 0) return;
     const totalSets = exercises.reduce((total, ex) => total + ex.sets.length, 0);
-    addWorkout({
+    const completed = {
       completedAt: new Date().toISOString(),
       exercises: exercises.map(({ name, sets }) => ({ name, sets })),
       totalExercises: exercises.length,
       totalSets,
-    });
+    };
+    addWorkout(completed);
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
+        const history: StoredWorkout[] = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(history)) {
+          history.push({
+            completedAt: completed.completedAt,
+            exercises: completed.exercises,
+          });
+          localStorage.setItem(WORKOUT_HISTORY_KEY, JSON.stringify(history));
+        }
+      } catch {
+        // ignore
+      }
+    }
     setShowSummary(true);
   }
 
@@ -247,6 +311,12 @@ export default function WorkoutPage() {
                       </button>
                     </div>
                   </div>
+
+                  <p className="text-xs text-zinc-400 mb-2">
+                    {lastPerformance[exercise.name]
+                      ? `Last: ${lastPerformance[exercise.name]!.weight}kg × ${lastPerformance[exercise.name]!.reps}`
+                      : "No previous data"}
+                  </p>
 
                   {exercise.sets.length === 0 ? (
                     <p className="text-zinc-400 text-xs">
