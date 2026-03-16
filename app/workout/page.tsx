@@ -211,25 +211,34 @@ export default function WorkoutPage() {
                   key={exercise.id}
                   className={`p-4 rounded-xl border ${
                     exercise.id === activeExerciseId
-                      ? "bg-zinc-900 border-zinc-500"
+                      ? "bg-zinc-800 border-zinc-400 ring-2 ring-zinc-400/50"
                       : "bg-zinc-900 border-zinc-800"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2 gap-2">
-                    <h3 className="font-semibold">{exercise.name}</h3>
                     <div className="flex items-center gap-2">
-                      {exercise.id !== activeExerciseId && (
-                        <button
-                          onClick={() => {
-                            setActiveExerciseId(exercise.id);
-                            setWeight("");
-                            setReps("");
-                          }}
-                          className="text-xs px-2 py-1 rounded-full border border-zinc-600 text-zinc-200 hover:bg-zinc-800"
-                        >
-                          Log sets
-                        </button>
+                      <h3 className="font-semibold">{exercise.name}</h3>
+                      {exercise.id === activeExerciseId && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-500 text-white">
+                          Logging here
+                        </span>
                       )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setActiveExerciseId(exercise.id);
+                          setWeight("");
+                          setReps("");
+                        }}
+                        className={`text-xs px-2 py-1 rounded-full border ${
+                          exercise.id === activeExerciseId
+                            ? "border-zinc-400 bg-zinc-600 text-white"
+                            : "border-zinc-600 text-zinc-200 hover:bg-zinc-800"
+                        }`}
+                      >
+                        Log sets
+                      </button>
                       <button
                         onClick={() => deleteExercise(exercise.id)}
                         className="text-xs px-2 py-1 rounded-full border border-red-500/70 text-red-300 hover:bg-red-900/30"
