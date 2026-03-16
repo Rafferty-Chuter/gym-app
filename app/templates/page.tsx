@@ -35,6 +35,9 @@ export default function TemplatesPage() {
   const [exerciseInput, setExerciseInput] = useState("");
   const [exercises, setExercises] = useState<string[]>([]);
   const [savedTemplates, setSavedTemplates] = useState<WorkoutTemplate[]>([]);
+  const [editingTemplateIndex, setEditingTemplateIndex] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [addExercisePerTemplate, setAddExercisePerTemplate] = useState<Record<number, string>>({});
 
   function startWorkoutFromTemplate(template: WorkoutTemplate) {
     if (typeof window === "undefined") return;
@@ -43,6 +46,11 @@ export default function TemplatesPage() {
       JSON.stringify({ exercises: template.exercises })
     );
     router.push("/workout");
+  }
+
+  function applyTemplates(updated: WorkoutTemplate[]) {
+    saveTemplatesToStorage(updated);
+    setSavedTemplates(updated);
   }
 
   useEffect(() => {
@@ -66,10 +74,61 @@ export default function TemplatesPage() {
     };
 
     const updated = [...getStoredTemplates(), newTemplate];
-    saveTemplatesToStorage(updated);
-    setSavedTemplates(updated);
+    applyTemplates(updated);
     setTemplateName("");
     setExercises([]);
+  }
+
+  function startRename(index: number) {
+    setEditingTemplateIndex(index);
+    setRenameValue(savedTemplates[index].name);
+  }
+
+  function saveRename() {
+    if (editingTemplateIndex === null) return;
+    const name = renameValue.trim();
+    if (!name) {
+      setEditingTemplateIndex(null);
+      return;
+    }
+    const updated = savedTemplates.map((t, i) =>
+      i === editingTemplateIndex ? { ...t, name } : t
+    );
+    applyTemplates(updated);
+    setEditingTemplateIndex(null);
+    setRenameValue("");
+  }
+
+  function deleteTemplate(index: number) {
+    const updated = savedTemplates.filter((_, i) => i !== index);
+    applyTemplates(updated);
+    if (editingTemplateIndex === index) setEditingTemplateIndex(null);
+    setAddExercisePerTemplate((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+  }
+
+  function removeExerciseFromTemplate(templateIndex: number, exerciseIndex: number) {
+    const template = savedTemplates[templateIndex];
+    const updatedExercises = template.exercises.filter((_, i) => i !== exerciseIndex);
+    const updated = savedTemplates.map((t, i) =>
+      i === templateIndex ? { ...t, exercises: updatedExercises } : t
+    );
+    applyTemplates(updated);
+  }
+
+  function addExerciseToTemplate(templateIndex: number) {
+    const value = (addExercisePerTemplate[templateIndex] ?? "").trim();
+    if (!value) return;
+    const updated = savedTemplates.map((t, i) =>
+      i === templateIndex
+        ? { ...t, exercises: [...t.exercises, value] }
+        : t
+    );
+    applyTemplates(updated);
+    setAddExercisePerTemplate((prev) => ({ ...prev, [templateIndex]: "" }));
   }
 
   return (
@@ -144,20 +203,99 @@ export default function TemplatesPage() {
                   key={index}
                   className="p-4 rounded-xl bg-zinc-900 border border-zinc-800"
                 >
-                  <div className="flex items-center justify-between gap-4 mb-2">
-                    <h3 className="font-semibold text-white">{template.name}</h3>
-                    <button
-                      onClick={() => startWorkoutFromTemplate(template)}
-                      className="text-sm px-3 py-1.5 rounded-lg bg-white text-black font-medium hover:bg-zinc-200 transition"
-                    >
-                      Start Workout
-                    </button>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    {editingTemplateIndex === index ? (
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && saveRename()}
+                          className="flex-1 min-w-0 p-2 rounded-lg bg-zinc-800 border border-zinc-600 text-white text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500"
+                          autoFocus
+                        />
+                        <button
+                          onClick={saveRename}
+                          className="text-xs px-2 py-1.5 rounded-lg bg-zinc-600 text-white hover:bg-zinc-500"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingTemplateIndex(null);
+                            setRenameValue("");
+                          }}
+                          className="text-xs px-2 py-1.5 rounded-lg border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <h3 className="font-semibold text-white">{template.name}</h3>
+                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => startWorkoutFromTemplate(template)}
+                        className="text-sm px-3 py-1.5 rounded-lg bg-white text-black font-medium hover:bg-zinc-200 transition"
+                      >
+                        Start Workout
+                      </button>
+                      {editingTemplateIndex !== index && (
+                        <>
+                          <button
+                            onClick={() => startRename(index)}
+                            className="text-sm px-3 py-1.5 rounded-lg border border-zinc-600 text-zinc-200 hover:bg-zinc-800 transition"
+                          >
+                            Rename Template
+                          </button>
+                          <button
+                            onClick={() => deleteTemplate(index)}
+                            className="text-sm px-3 py-1.5 rounded-lg border border-red-500/70 text-red-300 hover:bg-red-900/30 transition"
+                          >
+                            Delete Template
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <ul className="text-sm text-zinc-300 space-y-1">
+
+                  <ul className="text-sm text-zinc-300 space-y-1.5 mb-3">
                     {template.exercises.map((ex, i) => (
-                      <li key={i}>{i + 1}. {ex}</li>
+                      <li key={i} className="flex items-center justify-between gap-2">
+                        <span>{i + 1}. {ex}</span>
+                        <button
+                          onClick={() => removeExerciseFromTemplate(index, i)}
+                          className="text-xs px-2 py-1 rounded border border-zinc-600 text-zinc-400 hover:bg-zinc-800"
+                        >
+                          Remove
+                        </button>
+                      </li>
                     ))}
                   </ul>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={addExercisePerTemplate[index] ?? ""}
+                      onChange={(e) =>
+                        setAddExercisePerTemplate((prev) => ({
+                          ...prev,
+                          [index]: e.target.value,
+                        }))
+                      }
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && addExerciseToTemplate(index)
+                      }
+                      placeholder="Add exercise to this template"
+                      className="flex-1 min-w-0 p-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500"
+                    />
+                    <button
+                      onClick={() => addExerciseToTemplate(index)}
+                      className="text-sm px-3 py-2 rounded-lg bg-zinc-700 text-white hover:bg-zinc-600 transition"
+                    >
+                      Add
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
