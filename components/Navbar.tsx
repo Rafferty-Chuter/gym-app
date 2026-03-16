@@ -40,6 +40,12 @@ export default function Navbar() {
         >
           Volume
         </Link>
+        <Link
+          href="/coach"
+          className="text-white font-medium hover:text-zinc-300 transition"
+        >
+          Coach
+        </Link>
       </div>
     </nav>
   );

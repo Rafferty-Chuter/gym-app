@@ -31,9 +31,12 @@ export default function Home() {
             History
           </Link>
 
-          <button className="w-full rounded-xl border border-zinc-700 bg-zinc-950 py-4 hover:bg-zinc-800 transition">
+          <Link
+            href="/coach"
+            className="block w-full rounded-xl border border-zinc-700 bg-zinc-950 py-4 hover:bg-zinc-800 transition text-center"
+          >
             AI Coach
-          </button>
+          </Link>
         </div>
       </div>
     </main>
