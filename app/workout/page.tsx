@@ -1,6 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWorkoutStore } from "@/lib/workout-store";
+
+const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 
 export default function WorkoutPage() {
   const { addWorkout } = useWorkoutStore();
@@ -22,6 +24,29 @@ export default function WorkoutPage() {
   } | null>(null);
   const [editWeight, setEditWeight] = useState("");
   const [editReps, setEditReps] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = sessionStorage.getItem(TEMPLATE_FOR_WORKOUT_KEY);
+    if (!raw) return;
+    try {
+      const { exercises: exerciseNames } = JSON.parse(raw) as {
+        exercises: string[];
+      };
+      sessionStorage.removeItem(TEMPLATE_FOR_WORKOUT_KEY);
+      if (!Array.isArray(exerciseNames) || exerciseNames.length === 0) return;
+      const now = Date.now();
+      const initial = exerciseNames.map((name, i) => ({
+        id: now + i,
+        name,
+        sets: [] as { weight: string; reps: string }[],
+      }));
+      setExercises(initial);
+      setActiveExerciseId(initial[0].id);
+    } catch {
+      sessionStorage.removeItem(TEMPLATE_FOR_WORKOUT_KEY);
+    }
+  }, []);
 
   function finishWorkout() {
     if (exercises.length === 0) return;

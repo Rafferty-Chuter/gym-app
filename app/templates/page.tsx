@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 const STORAGE_KEY = "workoutTemplates";
 
@@ -26,11 +27,23 @@ function saveTemplatesToStorage(templates: WorkoutTemplate[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
 }
 
+const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
+
 export default function TemplatesPage() {
+  const router = useRouter();
   const [templateName, setTemplateName] = useState("");
   const [exerciseInput, setExerciseInput] = useState("");
   const [exercises, setExercises] = useState<string[]>([]);
   const [savedTemplates, setSavedTemplates] = useState<WorkoutTemplate[]>([]);
+
+  function startWorkoutFromTemplate(template: WorkoutTemplate) {
+    if (typeof window === "undefined") return;
+    sessionStorage.setItem(
+      TEMPLATE_FOR_WORKOUT_KEY,
+      JSON.stringify({ exercises: template.exercises })
+    );
+    router.push("/workout");
+  }
 
   useEffect(() => {
     setSavedTemplates(getStoredTemplates());
@@ -131,7 +144,15 @@ export default function TemplatesPage() {
                   key={index}
                   className="p-4 rounded-xl bg-zinc-900 border border-zinc-800"
                 >
-                  <h3 className="font-semibold text-white mb-2">{template.name}</h3>
+                  <div className="flex items-center justify-between gap-4 mb-2">
+                    <h3 className="font-semibold text-white">{template.name}</h3>
+                    <button
+                      onClick={() => startWorkoutFromTemplate(template)}
+                      className="text-sm px-3 py-1.5 rounded-lg bg-white text-black font-medium hover:bg-zinc-200 transition"
+                    >
+                      Start Workout
+                    </button>
+                  </div>
                   <ul className="text-sm text-zinc-300 space-y-1">
                     {template.exercises.map((ex, i) => (
                       <li key={i}>{i + 1}. {ex}</li>
