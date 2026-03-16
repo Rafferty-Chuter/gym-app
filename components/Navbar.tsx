@@ -17,6 +17,12 @@ export default function Navbar() {
           Start Workout
         </Link>
         <Link
+          href="/templates"
+          className="text-white font-medium hover:text-zinc-300 transition"
+        >
+          Templates
+        </Link>
+        <Link
           href="/history"
           className="text-white font-medium hover:text-zinc-300 transition"
         >

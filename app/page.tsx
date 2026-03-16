@@ -17,9 +17,12 @@ export default function Home() {
             Start Workout
           </Link>
 
-          <button className="w-full rounded-xl border border-zinc-700 bg-zinc-950 py-4 hover:bg-zinc-800 transition">
+          <Link
+            href="/templates"
+            className="block w-full rounded-xl border border-zinc-700 bg-zinc-950 py-4 hover:bg-zinc-800 transition text-center"
+          >
             Templates
-          </button>
+          </Link>
 
           <Link
             href="/history"
