@@ -34,6 +34,12 @@ export default function Navbar() {
         >
           Progress
         </Link>
+        <Link
+          href="/volume"
+          className="text-white font-medium hover:text-zinc-300 transition"
+        >
+          Volume
+        </Link>
       </div>
     </nav>
   );
