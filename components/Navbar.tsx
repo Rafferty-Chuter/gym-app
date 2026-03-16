@@ -28,6 +28,12 @@ export default function Navbar() {
         >
           History
         </Link>
+        <Link
+          href="/progress"
+          className="text-white font-medium hover:text-zinc-300 transition"
+        >
+          Progress
+        </Link>
       </div>
     </nav>
   );
