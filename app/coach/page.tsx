@@ -16,16 +16,48 @@ export default function CoachPage() {
     totalSets: 0,
   });
   const [analysis, setAnalysis] = useState<string[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const workouts = getWorkoutHistory();
     setStats(getStats(workouts));
   }, []);
 
-  function handleAnalyze() {
+  async function handleAnalyze() {
     const allWorkouts = getWorkoutHistory();
     const recentWorkouts = getWorkoutsFromLast7Days(allWorkouts);
     const weeklyVolume = getVolumeByMuscleGroup(recentWorkouts);
+    const recentWorkoutsForApi = [...allWorkouts]
+      .sort(
+        (a, b) =>
+          new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+      )
+      .slice(0, 5);
+
+    const payload = {
+      weeklyVolume,
+      trainingFrequency: recentWorkouts.length,
+      recentWorkouts: recentWorkoutsForApi,
+    };
+
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/coach-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.analysis)) {
+        setAnalysis(data.analysis);
+        return;
+      }
+    } catch {
+      // fall through to rule-based feedback
+    } finally {
+      setIsLoading(false);
+    }
+
     setAnalysis(generateFeedback(allWorkouts, recentWorkouts, weeklyVolume));
   }
 
@@ -45,9 +77,10 @@ export default function CoachPage() {
 
         <button
           onClick={handleAnalyze}
-          className="w-full py-3 rounded-xl bg-white text-black font-semibold hover:bg-zinc-100 transition"
+          disabled={isLoading}
+          className="w-full py-3 rounded-xl bg-white text-black font-semibold hover:bg-zinc-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Analyze Recent Training
+          {isLoading ? "Analyzing…" : "Analyze Recent Training"}
         </button>
 
         {analysis !== null && (
