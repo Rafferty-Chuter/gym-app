@@ -16,6 +16,12 @@ export default function WorkoutPage() {
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
   const [showSummary, setShowSummary] = useState(false);
+  const [editingSet, setEditingSet] = useState<{
+    exerciseId: number;
+    setIndex: number;
+  } | null>(null);
+  const [editWeight, setEditWeight] = useState("");
+  const [editReps, setEditReps] = useState("");
 
   function finishWorkout() {
     if (exercises.length === 0) return;
@@ -75,6 +81,7 @@ export default function WorkoutPage() {
           : exercise
       )
     );
+    if (editingSet?.exerciseId === exerciseId) setEditingSet(null);
   }
 
   function deleteExercise(exerciseId: number) {
@@ -82,6 +89,37 @@ export default function WorkoutPage() {
     setActiveExerciseId((current) =>
       current === exerciseId ? null : current
     );
+    if (editingSet?.exerciseId === exerciseId) setEditingSet(null);
+  }
+
+  function startEditingSet(exerciseId: number, setIndex: number) {
+    const exercise = exercises.find((ex) => ex.id === exerciseId);
+    const set = exercise?.sets[setIndex];
+    if (!set) return;
+    setEditingSet({ exerciseId, setIndex });
+    setEditWeight(set.weight);
+    setEditReps(set.reps);
+  }
+
+  function saveSetEdit() {
+    if (editingSet === null || !editWeight.trim() || !editReps.trim()) return;
+    setExercises((prev) =>
+      prev.map((exercise) =>
+        exercise.id === editingSet.exerciseId
+          ? {
+              ...exercise,
+              sets: exercise.sets.map((set, index) =>
+                index === editingSet.setIndex
+                  ? { weight: editWeight.trim(), reps: editReps.trim() }
+                  : set
+              ),
+            }
+          : exercise
+      )
+    );
+    setEditingSet(null);
+    setEditWeight("");
+    setEditReps("");
   }
 
   return (
@@ -182,22 +220,67 @@ export default function WorkoutPage() {
                     </p>
                   ) : (
                     <ul className="space-y-1 text-sm text-zinc-100">
-                      {exercise.sets.map((set, index) => (
-                        <li
-                          key={index}
-                          className="flex items-center justify-between gap-2"
-                        >
-                          <span>
-                            Set {index + 1} — {set.weight}kg × {set.reps}
-                          </span>
-                          <button
-                            onClick={() => deleteSet(exercise.id, index)}
-                            className="text-xs px-2 py-1 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                      {exercise.sets.map((set, index) => {
+                        const isEditing =
+                          editingSet?.exerciseId === exercise.id &&
+                          editingSet?.setIndex === index;
+                        return (
+                          <li
+                            key={index}
+                            className="flex items-center justify-between gap-2 flex-wrap"
                           >
-                            Delete
-                          </button>
-                        </li>
-                      ))}
+                            {isEditing ? (
+                              <>
+                                <span className="text-zinc-400">
+                                  Set {index + 1}
+                                </span>
+                                <input
+                                  type="text"
+                                  value={editWeight}
+                                  onChange={(e) => setEditWeight(e.target.value)}
+                                  placeholder="Weight"
+                                  className="w-20 p-2 rounded bg-zinc-800 border border-zinc-600 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                                />
+                                <input
+                                  type="text"
+                                  value={editReps}
+                                  onChange={(e) => setEditReps(e.target.value)}
+                                  placeholder="Reps"
+                                  className="w-16 p-2 rounded bg-zinc-800 border border-zinc-600 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                                />
+                                <button
+                                  onClick={saveSetEdit}
+                                  className="text-xs px-2 py-1 rounded border border-zinc-500 bg-zinc-700 text-white hover:bg-zinc-600"
+                                >
+                                  Save
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span>
+                                  Set {index + 1} — {set.weight}kg × {set.reps}
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() =>
+                                      startEditingSet(exercise.id, index)
+                                    }
+                                    className="text-xs px-2 py-1 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => deleteSet(exercise.id, index)}
+                                    className="text-xs px-2 py-1 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>
