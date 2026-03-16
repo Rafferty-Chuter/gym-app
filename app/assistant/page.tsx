@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { getTrainingSummary } from "@/utils/trainingSummary";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -48,14 +49,17 @@ export default function AssistantPage() {
       });
 
       const data = await res.json();
-      if (res.ok && typeof data.reply === "string") {
-        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Sorry, I couldn’t get a response. Please try again." },
-        ]);
-      }
+if (res.ok && typeof data.reply === "string") {
+  setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+} else {
+  setMessages((prev) => [
+    ...prev,
+    {
+      role: "assistant",
+      content: `Error: ${data.error ?? "Sorry, I couldn’t get a response. Please try again."}`,
+    },
+  ]);
+}
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -69,6 +73,12 @@ export default function AssistantPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 flex flex-col">
       <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0">
+        <Link
+          href="/"
+          className="text-zinc-400 hover:text-white transition text-sm mb-4 inline-block"
+        >
+          ← Home
+        </Link>
         <h1 className="text-3xl font-bold mb-4">Assistant</h1>
         <p className="text-zinc-400 text-sm mb-4">
           Ask about your training. I’ll use your workout history to help.
