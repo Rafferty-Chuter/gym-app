@@ -46,6 +46,12 @@ export default function Navbar() {
         >
           Coach
         </Link>
+        <Link
+          href="/assistant"
+          className="text-white font-medium hover:text-zinc-300 transition"
+        >
+          Assistant
+        </Link>
       </div>
     </nav>
   );
