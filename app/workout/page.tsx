@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
+import { useWorkoutStore } from "@/lib/workout-store";
 
 export default function WorkoutPage() {
+  const { addWorkout } = useWorkoutStore();
   const [exerciseName, setExerciseName] = useState("");
   const [exercises, setExercises] = useState<
     {
@@ -13,6 +15,19 @@ export default function WorkoutPage() {
   const [activeExerciseId, setActiveExerciseId] = useState<number | null>(null);
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
+  const [showSummary, setShowSummary] = useState(false);
+
+  function finishWorkout() {
+    if (exercises.length === 0) return;
+    const totalSets = exercises.reduce((total, ex) => total + ex.sets.length, 0);
+    addWorkout({
+      completedAt: new Date().toISOString(),
+      exercises: exercises.map(({ name, sets }) => ({ name, sets })),
+      totalExercises: exercises.length,
+      totalSets,
+    });
+    setShowSummary(true);
+  }
 
   function addExercise() {
     const trimmed = exerciseName.trim();
@@ -47,6 +62,26 @@ export default function WorkoutPage() {
 
     setWeight("");
     setReps("");
+  }
+
+  function deleteSet(exerciseId: number, setIndex: number) {
+    setExercises((prev) =>
+      prev.map((exercise) =>
+        exercise.id === exerciseId
+          ? {
+              ...exercise,
+              sets: exercise.sets.filter((_, index) => index !== setIndex),
+            }
+          : exercise
+      )
+    );
+  }
+
+  function deleteExercise(exerciseId: number) {
+    setExercises((prev) => prev.filter((exercise) => exercise.id !== exerciseId));
+    setActiveExerciseId((current) =>
+      current === exerciseId ? null : current
+    );
   }
 
   return (
@@ -117,20 +152,28 @@ export default function WorkoutPage() {
                       : "bg-zinc-900 border-zinc-800"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-2 gap-2">
                     <h3 className="font-semibold">{exercise.name}</h3>
-                    {exercise.id !== activeExerciseId && (
+                    <div className="flex items-center gap-2">
+                      {exercise.id !== activeExerciseId && (
+                        <button
+                          onClick={() => {
+                            setActiveExerciseId(exercise.id);
+                            setWeight("");
+                            setReps("");
+                          }}
+                          className="text-xs px-2 py-1 rounded-full border border-zinc-600 text-zinc-200 hover:bg-zinc-800"
+                        >
+                          Log sets
+                        </button>
+                      )}
                       <button
-                        onClick={() => {
-                          setActiveExerciseId(exercise.id);
-                          setWeight("");
-                          setReps("");
-                        }}
-                        className="text-xs px-2 py-1 rounded-full border border-zinc-600 text-zinc-200 hover:bg-zinc-800"
+                        onClick={() => deleteExercise(exercise.id)}
+                        className="text-xs px-2 py-1 rounded-full border border-red-500/70 text-red-300 hover:bg-red-900/30"
                       >
-                        Log sets
+                        Delete Exercise
                       </button>
-                    )}
+                    </div>
                   </div>
 
                   {exercise.sets.length === 0 ? (
@@ -140,8 +183,19 @@ export default function WorkoutPage() {
                   ) : (
                     <ul className="space-y-1 text-sm text-zinc-100">
                       {exercise.sets.map((set, index) => (
-                        <li key={index}>
-                          Set {index + 1} — {set.weight}kg × {set.reps}
+                        <li
+                          key={index}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span>
+                            Set {index + 1} — {set.weight}kg × {set.reps}
+                          </span>
+                          <button
+                            onClick={() => deleteSet(exercise.id, index)}
+                            className="text-xs px-2 py-1 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                          >
+                            Delete
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -151,7 +205,35 @@ export default function WorkoutPage() {
             </div>
           )}
         </div>
+
+        <div className="mt-8">
+          <button
+            onClick={finishWorkout}
+            className="w-full bg-white text-black py-3 rounded-xl font-semibold hover:bg-zinc-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={exercises.length === 0}
+          >
+            Finish Workout
+          </button>
+
+          {showSummary && (
+            <section className="mt-6 p-4 rounded-xl bg-zinc-900 border border-zinc-800">
+              <h2 className="text-xl font-semibold mb-4">Workout Summary</h2>
+              <p className="text-zinc-300 mb-2">
+                {exercises.length} exercise{exercises.length !== 1 ? "s" : ""} ·{" "}
+                {exercises.reduce((total, ex) => total + ex.sets.length, 0)} total sets
+              </p>
+              <ul className="space-y-2 text-sm text-zinc-200">
+                {exercises.map((exercise) => (
+                  <li key={exercise.id}>
+                    {exercise.name} — {exercise.sets.length} set
+                    {exercise.sets.length !== 1 ? "s" : ""}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
       </div>
     </main>
-  );
+  )
 }
