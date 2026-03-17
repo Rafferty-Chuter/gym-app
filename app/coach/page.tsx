@@ -7,6 +7,7 @@ import {
   getWorkoutsFromLast7Days,
   getVolumeByMuscleGroup,
   generateFeedback,
+  type CoachFeedbackSections,
 } from "@/lib/trainingAnalysis";
 
 export default function CoachPage() {
@@ -15,7 +16,7 @@ export default function CoachPage() {
     totalExercises: 0,
     totalSets: 0,
   });
-  const [analysis, setAnalysis] = useState<string[] | null>(null);
+  const [analysis, setAnalysis] = useState<CoachFeedbackSections | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -56,7 +57,11 @@ export default function CoachPage() {
       });
       const data = await res.json();
       if (res.ok && Array.isArray(data.analysis)) {
-        setAnalysis(data.analysis);
+        setAnalysis({
+          volume: [],
+          progression: [],
+          recommendations: data.analysis,
+        });
         return;
       }
     } catch {
@@ -92,12 +97,40 @@ export default function CoachPage() {
 
         {analysis !== null && (
           <div className="mt-6 p-4 rounded-xl bg-zinc-900 border border-zinc-800">
-            <h2 className="text-lg font-semibold mb-2 text-zinc-200">Analysis</h2>
-            <ul className="list-disc list-inside space-y-1.5 text-zinc-300 text-sm">
-              {analysis.map((item, i) => (
-                <li key={i}>{item}</li>
-              ))}
-            </ul>
+            <h2 className="text-lg font-semibold mb-4 text-zinc-200">Analysis</h2>
+
+            {analysis.volume.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-zinc-300 mb-2">Volume</h3>
+                <ul className="list-disc list-inside space-y-1.5 text-zinc-300 text-sm">
+                  {analysis.volume.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {analysis.progression.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-zinc-300 mb-2">Progression</h3>
+                <ul className="list-disc list-inside space-y-1.5 text-zinc-300 text-sm">
+                  {analysis.progression.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {analysis.recommendations.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-300 mb-2">Recommendations</h3>
+                <ul className="list-disc list-inside space-y-1.5 text-zinc-300 text-sm">
+                  {analysis.recommendations.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>

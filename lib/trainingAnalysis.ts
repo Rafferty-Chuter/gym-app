@@ -80,21 +80,81 @@ export function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string
   return counts;
 }
 
+/** Best set = highest weight; if equal, highest reps. */
+function getBestSet(sets: { weight: string; reps: string }[]): { weight: number; reps: number } | null {
+  if (!sets?.length) return null;
+  let best = { weight: 0, reps: 0 };
+  for (const s of sets) {
+    const w = parseFloat(String(s?.weight ?? 0)) || 0;
+    const r = parseFloat(String(s?.reps ?? 0)) || 0;
+    if (w > best.weight || (w === best.weight && r > best.reps)) best = { weight: w, reps: r };
+  }
+  return best.weight > 0 || best.reps > 0 ? best : null;
+}
+
+function getProgressionFeedback(workouts: StoredWorkout[]): string[] {
+  const lines: string[] = [];
+  const sorted = [...workouts].sort(
+    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+  );
+  const recent = sorted[0];
+  const previous = sorted[1];
+  if (!recent?.exercises?.length || !previous?.exercises?.length) return lines;
+
+  const prevByName: Record<string, { name: string; sets: { weight: string; reps: string }[] }> = {};
+  for (const ex of previous.exercises) {
+    const key = ex.name?.trim().toLowerCase() ?? "";
+    if (key && !prevByName[key]) prevByName[key] = ex;
+  }
+
+  for (const ex of recent.exercises) {
+    const name = ex.name?.trim() || "Exercise";
+    const key = name.toLowerCase();
+    const prevEx = prevByName[key];
+    if (!prevEx?.sets?.length) continue;
+
+    const recentBest = getBestSet(ex.sets ?? []);
+    const previousBest = getBestSet(prevEx.sets ?? []);
+    if (!recentBest || !previousBest) continue;
+
+    const prevStr = `${previousBest.weight}kg × ${previousBest.reps}`;
+    const recentStr = `${recentBest.weight}kg × ${recentBest.reps}`;
+
+    if (recentBest.weight > previousBest.weight || (recentBest.weight === previousBest.weight && recentBest.reps > previousBest.reps)) {
+      lines.push(`${name}: improved from ${prevStr} to ${recentStr}. Consider increasing load or reps next session.`);
+    } else if (recentBest.weight === previousBest.weight && recentBest.reps === previousBest.reps) {
+      lines.push(`${name}: unchanged (${recentStr}). Try to beat reps or keep load steady.`);
+    } else {
+      lines.push(`${name}: declined slightly. Maintain load, check fatigue and recovery.`);
+    }
+  }
+
+  return lines;
+}
+
+export type CoachFeedbackSections = {
+  volume: string[];
+  progression: string[];
+  recommendations: string[];
+};
+
 export function generateFeedback(
   allWorkouts: StoredWorkout[],
   recentWorkouts: StoredWorkout[],
   weeklyVolume: Record<string, number>
-): string[] {
-  const feedback: string[] = [];
+): CoachFeedbackSections {
+  const volume: string[] = [];
+  const progression: string[] = [];
+  const recommendations: string[] = [];
 
   if (allWorkouts.length === 0) {
-    feedback.push("There isn't enough data yet. Log some workouts to get feedback.");
-    return feedback;
+    recommendations.push("There isn't enough data yet. Log some workouts to get feedback.");
+    return { volume, progression, recommendations };
   }
 
   const workoutsLast7Days = recentWorkouts.length;
   if (workoutsLast7Days <= 1) {
-    feedback.push("Training frequency may be low. Aim for at least 2–3 sessions per week if you can.");
+    recommendations.push("Training frequency may be low. Aim for at least 2–3 sessions per week if you can.");
   }
 
   const groupLabels: Record<string, string> = {
@@ -109,11 +169,11 @@ export function generateFeedback(
     const sets = weeklyVolume[group] ?? 0;
     const label = groupLabels[group];
     if (sets < 8) {
-      feedback.push(`${label}: ${sets} sets → low, consider increasing volume`);
+      volume.push(`${label}: ${sets} sets → low, consider increasing volume`);
     } else if (sets <= 20) {
-      feedback.push(`${label}: ${sets} sets → good range`);
+      volume.push(`${label}: ${sets} sets → good range`);
     } else {
-      feedback.push(`${label}: ${sets} sets → slightly high, monitor recovery`);
+      volume.push(`${label}: ${sets} sets → slightly high, monitor recovery`);
     }
   }
 
@@ -123,26 +183,31 @@ export function generateFeedback(
   const upperTotal = chest + back;
 
   if (upperTotal > 0 && legs < upperTotal * 0.5) {
-    feedback.push("Leg volume is low compared to upper body. Consider adding more squat, hinge, or leg work.");
+    volume.push("Leg volume is low compared to upper body. Consider adding more squat, hinge, or leg work.");
   }
 
   if (chest >= 10 && chest <= 20) {
-    feedback.push("Chest volume looks reasonable for the week.");
+    volume.push("Chest volume looks reasonable for the week.");
   } else if (chest > 20) {
-    feedback.push("Chest volume is on the higher side. Ensure you're recovering well.");
+    volume.push("Chest volume is on the higher side. Ensure you're recovering well.");
   }
 
   if (back > 0 && chest > 0 && back > chest * 1.5) {
-    feedback.push("Back volume is high relative to chest. Consider balancing push and pull for upper body.");
+    volume.push("Back volume is high relative to chest. Consider balancing push and pull for upper body.");
   }
 
-  if (chest >= 10 && back >= 10 && legs >= 8 && workoutsLast7Days >= 2 && feedback.length === 0) {
-    feedback.push("Your recent training looks consistent. Keep progressing your main lifts.");
+  const progressionLines = getProgressionFeedback(allWorkouts);
+  if (progressionLines.length > 0) {
+    progression.push(...progressionLines);
   }
 
-  if (feedback.length === 0 && allWorkouts.length > 0) {
-    feedback.push("Keep logging workouts. More data will allow better feedback.");
+  if (allWorkouts.length > 0 && recommendations.length === 0) {
+    if (chest >= 10 && back >= 10 && legs >= 8 && workoutsLast7Days >= 2) {
+      recommendations.push("Your recent training looks consistent. Keep progressing your main lifts.");
+    } else {
+      recommendations.push("Keep logging workouts. More data will allow better feedback.");
+    }
   }
 
-  return feedback;
+  return { volume, progression, recommendations };
 }
