@@ -97,6 +97,26 @@ export function generateFeedback(
     feedback.push("Training frequency may be low. Aim for at least 2–3 sessions per week if you can.");
   }
 
+  const groupLabels: Record<string, string> = {
+    chest: "Chest",
+    back: "Back",
+    legs: "Legs",
+    shoulders: "Shoulders",
+    arms: "Arms",
+  };
+  const volumeOrder = ["chest", "back", "legs", "shoulders", "arms"] as const;
+  for (const group of volumeOrder) {
+    const sets = weeklyVolume[group] ?? 0;
+    const label = groupLabels[group];
+    if (sets < 8) {
+      feedback.push(`${label}: ${sets} sets → low, consider increasing volume`);
+    } else if (sets <= 20) {
+      feedback.push(`${label}: ${sets} sets → good range`);
+    } else {
+      feedback.push(`${label}: ${sets} sets → slightly high, monitor recovery`);
+    }
+  }
+
   const chest = weeklyVolume.chest ?? 0;
   const back = weeklyVolume.back ?? 0;
   const legs = weeklyVolume.legs ?? 0;
