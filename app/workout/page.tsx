@@ -10,6 +10,17 @@ type StoredWorkout = {
   exercises: { name: string; sets: { weight: string; reps: string }[] }[];
 };
 
+function getBestSet(sets: { weight: string; reps: string }[]): { weight: number; reps: number } | null {
+  if (!sets?.length) return null;
+  let best = { weight: 0, reps: 0 };
+  for (const s of sets) {
+    const w = parseFloat(String(s?.weight ?? 0)) || 0;
+    const r = parseFloat(String(s?.reps ?? 0)) || 0;
+    if (w > best.weight || (w === best.weight && r > best.reps)) best = { weight: w, reps: r };
+  }
+  return best.weight > 0 || best.reps > 0 ? best : null;
+}
+
 function getLastPerformanceForExercise(exerciseName: string): { weight: string; reps: string } | null {
   if (typeof window === "undefined") return null;
   try {
@@ -32,6 +43,90 @@ function getLastPerformanceForExercise(exerciseName: string): { weight: string; 
       }
     }
     return null;
+  } catch {
+    return null;
+  }
+}
+
+const COMPOUND_KEYWORDS = [
+  "bench",
+  "squat",
+  "row",
+  "shoulder press",
+  "overhead press",
+  "hack squat",
+  "leg press",
+  "pulldown",
+];
+const ISOLATION_KEYWORDS = [
+  "curl",
+  "hammer curl",
+  "lateral raise",
+  "tricep",
+  "extension",
+  "fly",
+  "calf",
+];
+
+function isCompoundLift(exerciseName: string): boolean {
+  const name = exerciseName.trim().toLowerCase();
+  if (ISOLATION_KEYWORDS.some((kw) => name.includes(kw))) return false;
+  if (COMPOUND_KEYWORDS.some((kw) => name.includes(kw))) return true;
+  return true; // default compound (conservative)
+}
+
+function getNextTargetForExercise(exerciseName: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
+    if (!raw) return null;
+    const workouts: StoredWorkout[] = JSON.parse(raw);
+    if (!Array.isArray(workouts)) return null;
+    const normalized = exerciseName.trim().toLowerCase();
+    const sorted = [...workouts].sort(
+      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    );
+    const occurrences: { weight: number; reps: number }[] = [];
+    for (const workout of sorted) {
+      const exercise = workout.exercises?.find(
+        (ex) => ex.name?.trim().toLowerCase() === normalized
+      );
+      const best = exercise?.sets?.length ? getBestSet(exercise.sets) : null;
+      if (best) occurrences.push(best);
+      if (occurrences.length >= 5) break;
+    }
+    if (occurrences.length < 2) return null;
+
+    const recent = occurrences[0];
+    const previous = occurrences[1];
+    const compound = isCompoundLift(exerciseName);
+
+    const improved =
+      recent.weight > previous.weight ||
+      (recent.weight === previous.weight && recent.reps > previous.reps);
+    const unchanged =
+      recent.weight === previous.weight && recent.reps === previous.reps;
+
+    const repTargetLo = Math.min(recent.reps + 1, 12);
+    const repTargetHi = Math.min(recent.reps + 2, 14);
+
+    if (compound) {
+      if (improved) {
+        const w = Math.round((recent.weight + 2.5) * 10) / 10;
+        return `${w}kg × ${repTargetLo}–${repTargetHi}`;
+      }
+      return `${recent.weight}kg × ${repTargetLo}–${repTargetHi}`;
+    }
+
+    // Isolation: prefer rep progression
+    const strongRepCount = occurrences.slice(0, 3).filter((o) => o.reps >= 10).length;
+    const canAddWeight = strongRepCount >= 2 && recent.reps >= 10;
+
+    if (canAddWeight) {
+      const w = Math.round((recent.weight + 1.25) * 10) / 10;
+      return `${w}kg × 8–10`;
+    }
+    return `${recent.weight}kg × ${repTargetLo}–${repTargetHi}`;
   } catch {
     return null;
   }
@@ -60,17 +155,22 @@ export default function WorkoutPage() {
   const [lastPerformance, setLastPerformance] = useState<
     Record<string, { weight: string; reps: string } | null>
   >({});
+  const [nextTarget, setNextTarget] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     if (exercises.length === 0) {
       setLastPerformance({});
+      setNextTarget({});
       return;
     }
-    const map: Record<string, { weight: string; reps: string } | null> = {};
+    const lastMap: Record<string, { weight: string; reps: string } | null> = {};
+    const targetMap: Record<string, string | null> = {};
     for (const ex of exercises) {
-      map[ex.name] = getLastPerformanceForExercise(ex.name);
+      lastMap[ex.name] = getLastPerformanceForExercise(ex.name);
+      targetMap[ex.name] = getNextTargetForExercise(ex.name);
     }
-    setLastPerformance(map);
+    setLastPerformance(lastMap);
+    setNextTarget(targetMap);
   }, [exercises.map((e) => e.name).join(",")]);
 
   useEffect(() => {
@@ -312,11 +412,18 @@ export default function WorkoutPage() {
                     </div>
                   </div>
 
-                  <p className="text-xs text-zinc-400 mb-2">
-                    {lastPerformance[exercise.name]
-                      ? `Last: ${lastPerformance[exercise.name]!.weight}kg × ${lastPerformance[exercise.name]!.reps}`
-                      : "No previous data"}
-                  </p>
+                  <div className="mb-2 space-y-0.5">
+                    <p className="text-xs text-zinc-400">
+                      {lastPerformance[exercise.name]
+                        ? `Last: ${lastPerformance[exercise.name]!.weight}kg × ${lastPerformance[exercise.name]!.reps}`
+                        : "No previous data"}
+                    </p>
+                    {nextTarget[exercise.name] && (
+                      <p className="text-xs text-zinc-500">
+                        Target: {nextTarget[exercise.name]}
+                      </p>
+                    )}
+                  </div>
 
                   {exercise.sets.length === 0 ? (
                     <p className="text-zinc-400 text-xs">

@@ -35,21 +35,24 @@ async function getAssistantReply(
 
   const context = `Training data: ${trainingSummary.totalWorkouts} total workouts, ${trainingSummary.totalSets} total sets, ${trainingSummary.totalExercises} exercise types. Weekly volume (last 7 days): ${weeklyVolumeStr}. Recent exercises: ${(trainingSummary.recentExercises ?? []).join(", ") || "none"}.`;
 
-  const completion = await openai.chat.completions.create({
+  const response = await openai.responses.create({
     model: "gpt-4.1-mini",
-    messages: [
-      {
-        role: "system",
-        content: `You are a friendly strength training assistant. You have access to the user's training summary. Use it to give relevant, concise answers. Be encouraging and practical.`,
-      },
-      {
-        role: "user",
-        content: `[Context: ${context}]\n\nUser question: ${message}`,
-      },
-    ],
+    input: `
+  You are a friendly strength training assistant.
+  
+  Use the user's training data to answer their question clearly and practically.
+  
+  Training context:
+  ${context}
+  
+  User question:
+  ${message}
+  
+  Respond concisely and helpfully.
+  `,
   });
-
-  const reply = completion.choices[0]?.message?.content?.trim();
+  
+  const reply = response.output_text?.trim();
   if (!reply) throw new Error("Empty response from model");
   return reply;
 }
@@ -84,9 +87,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ reply } satisfies AssistantResponse);
   } catch (err) {
+    console.error("Assistant route error:", err);
+  
     const message = err instanceof Error ? err.message : "Invalid request.";
     const status =
       message.includes("OPENAI") || message.includes("Empty response") ? 500 : 400;
+  
     return NextResponse.json({ error: message }, { status });
   }
 }

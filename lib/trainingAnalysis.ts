@@ -121,11 +121,11 @@ function getProgressionFeedback(workouts: StoredWorkout[]): string[] {
     const recentStr = `${recentBest.weight}kg × ${recentBest.reps}`;
 
     if (recentBest.weight > previousBest.weight || (recentBest.weight === previousBest.weight && recentBest.reps > previousBest.reps)) {
-      lines.push(`${name}: improved from ${prevStr} to ${recentStr}. Consider increasing load or reps next session.`);
+      lines.push(`${name}: improved from ${prevStr} to ${recentStr}. Progressing well.`);
     } else if (recentBest.weight === previousBest.weight && recentBest.reps === previousBest.reps) {
-      lines.push(`${name}: unchanged (${recentStr}). Try to beat reps or keep load steady.`);
+      lines.push(`${name}: unchanged (${recentStr}). Try adding 1 rep next session.`);
     } else {
-      lines.push(`${name}: declined slightly. Maintain load, check fatigue and recovery.`);
+      lines.push(`${name}: declined slightly. Maintain weight, check recovery.`);
     }
   }
 
