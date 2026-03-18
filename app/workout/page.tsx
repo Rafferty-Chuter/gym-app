@@ -1,6 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useWorkoutStore } from "@/lib/workout-store";
+import {
+  getWorkoutHistory,
+  getWorkoutsFromLast7Days,
+  getVolumeByMuscleGroup,
+} from "@/lib/trainingAnalysis";
 
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
@@ -48,16 +54,39 @@ function getLastPerformanceForExercise(exerciseName: string): { weight: string; 
   }
 }
 
-const COMPOUND_KEYWORDS = [
-  "bench",
+type ExerciseCategory =
+  | "barbell_compound"
+  | "machine_compound"
+  | "dumbbell_compound"
+  | "isolation";
+
+const BARBELL_KEYWORDS = [
+  "barbell",
+  "bb ",
+  " bb",
+  "bench press",
   "squat",
-  "row",
-  "shoulder press",
+  "deadlift",
+  "barbell row",
+  "bent over row",
+  "ohp",
   "overhead press",
-  "hack squat",
-  "leg press",
-  "pulldown",
+  "power clean",
+  "front squat",
+  "back squat",
 ];
+const MACHINE_KEYWORDS = [
+  "leg press",
+  "hack squat",
+  "pulldown",
+  "lat pulldown",
+  "chest press",
+  "cable",
+  "machine",
+  "seated row",
+  "pec deck",
+];
+const DUMBBELL_KEYWORDS = ["dumbbell", "dumbbells", "db ", " db", "kettlebell"];
 const ISOLATION_KEYWORDS = [
   "curl",
   "hammer curl",
@@ -66,22 +95,79 @@ const ISOLATION_KEYWORDS = [
   "extension",
   "fly",
   "calf",
+  "skullcrusher",
+  "pushdown",
+  "face pull",
 ];
 
-function isCompoundLift(exerciseName: string): boolean {
-  const name = exerciseName.trim().toLowerCase();
-  if (ISOLATION_KEYWORDS.some((kw) => name.includes(kw))) return false;
-  if (COMPOUND_KEYWORDS.some((kw) => name.includes(kw))) return true;
-  return true; // default compound (conservative)
+function getExerciseCategory(name: string): ExerciseCategory {
+  const n = name.trim().toLowerCase();
+  if (ISOLATION_KEYWORDS.some((kw) => n.includes(kw))) return "isolation";
+  if (BARBELL_KEYWORDS.some((kw) => n.includes(kw))) return "barbell_compound";
+  if (MACHINE_KEYWORDS.some((kw) => n.includes(kw))) return "machine_compound";
+  if (DUMBBELL_KEYWORDS.some((kw) => n.includes(kw))) return "dumbbell_compound";
+  return "machine_compound";
 }
 
-function getNextTargetForExercise(exerciseName: string): string | null {
+const TINY_LOAD_EXERCISES = [
+  "lateral raise",
+  "curl",
+  "hammer curl",
+  "tricep",
+  "extension",
+  "fly",
+  "pushdown",
+  "face pull",
+];
+
+function isTinyLoadExercise(name: string): boolean {
+  const n = name.trim().toLowerCase();
+  return TINY_LOAD_EXERCISES.some((kw) => n.includes(kw));
+}
+
+type TargetData = {
+  baseTarget: string;
+  recentPerformances: { weight: number; reps: number }[];
+  exerciseType: "compound" | "isolation";
+  weeklyVolume: Record<string, number>;
+};
+
+function computeConfidence(
+  occurrences: { weight: number; reps: number }[],
+  category: ExerciseCategory
+): "low" | "medium" | "high" {
+  if (occurrences.length < 3) return "low";
+  const recent = occurrences[0];
+  const repThreshold = category === "isolation" ? 10 : 8;
+  const strongCount = occurrences.slice(0, 4).filter((o) => o.reps >= repThreshold).length;
+  const improving = occurrences.slice(0, 3).every((_, i) => {
+    if (i >= occurrences.length - 1) return true;
+    const curr = occurrences[i];
+    const older = occurrences[i + 1];
+    return (
+      curr.weight > older.weight ||
+      (curr.weight === older.weight && curr.reps >= older.reps)
+    );
+  });
+  const declined =
+    occurrences.length >= 2 &&
+    (recent.weight < occurrences[1].weight ||
+      (recent.weight === occurrences[1].weight && recent.reps < occurrences[1].reps));
+  if (declined || strongCount < 2) return "low";
+  if (category === "isolation") {
+    return strongCount >= 4 && improving ? "high" : "medium";
+  }
+  if (category === "dumbbell_compound") {
+    return strongCount >= 4 && improving ? "high" : "medium";
+  }
+  return strongCount >= 3 && improving ? "high" : "medium";
+}
+
+function getTargetDataForExercise(exerciseName: string): TargetData | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
-    if (!raw) return null;
-    const workouts: StoredWorkout[] = JSON.parse(raw);
-    if (!Array.isArray(workouts)) return null;
+    const workouts = getWorkoutHistory();
+    if (!workouts?.length) return null;
     const normalized = exerciseName.trim().toLowerCase();
     const sorted = [...workouts].sort(
       (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -98,41 +184,100 @@ function getNextTargetForExercise(exerciseName: string): string | null {
     if (occurrences.length < 2) return null;
 
     const recent = occurrences[0];
-    const previous = occurrences[1];
-    const compound = isCompoundLift(exerciseName);
+    const category = getExerciseCategory(exerciseName);
+    const confidence = computeConfidence(occurrences, category);
+    const tinyLoad = isTinyLoadExercise(exerciseName);
 
-    const improved =
-      recent.weight > previous.weight ||
-      (recent.weight === previous.weight && recent.reps > previous.reps);
-    const unchanged =
-      recent.weight === previous.weight && recent.reps === previous.reps;
-
-    const repTargetLo = Math.min(recent.reps + 1, 12);
+    const repTarget = Math.min(recent.reps + 1, 12);
     const repTargetHi = Math.min(recent.reps + 2, 14);
 
-    if (compound) {
-      if (improved) {
-        const w = Math.round((recent.weight + 2.5) * 10) / 10;
-        return `${w}kg × ${repTargetLo}–${repTargetHi}`;
+    const defaultTarget = `${recent.weight}kg × ${repTarget}`;
+
+    if (confidence === "low") {
+      return buildTargetData(
+        defaultTarget,
+        occurrences,
+        category,
+        workouts
+      );
+    }
+
+    let baseTarget: string;
+
+    if (category === "isolation") {
+      const strongCount = occurrences.slice(0, 4).filter((o) => o.reps >= 10).length;
+      const canAddWeight = confidence === "high" && strongCount >= 4 && recent.reps >= 12;
+      if (canAddWeight && tinyLoad) {
+        const jump = recent.weight < 10 ? 0.5 : 1;
+        const w = Math.round((recent.weight + jump) * 10) / 10;
+        baseTarget = `${w}kg × 8–10`;
+      } else if (canAddWeight && !tinyLoad) {
+        const w = Math.round((recent.weight + 1.25) * 10) / 10;
+        baseTarget = `${w}kg × 8–10`;
+      } else {
+        baseTarget = `${recent.weight}kg × ${repTarget}–${repTargetHi}`;
       }
-      return `${recent.weight}kg × ${repTargetLo}–${repTargetHi}`;
+    } else if (category === "dumbbell_compound") {
+      const strongCount = occurrences.slice(0, 4).filter((o) => o.reps >= 8).length;
+      const canAddWeight = confidence === "high" && strongCount >= 4 && recent.reps >= 10;
+      if (canAddWeight) {
+        const w = Math.round((recent.weight + 1.25) * 10) / 10;
+        baseTarget = `${w}kg × ${Math.min(recent.reps, 10)}–${Math.min(recent.reps + 1, 12)}`;
+      } else {
+        baseTarget = `${recent.weight}kg × ${repTarget}–${repTargetHi}`;
+      }
+    } else if (category === "barbell_compound") {
+      const strongCount = occurrences.slice(0, 3).filter((o) => o.reps >= 6).length;
+      const canAddWeight = confidence === "high" && strongCount >= 3 && recent.reps >= 8;
+      if (canAddWeight) {
+        const w = Math.round((recent.weight + 2.5) * 10) / 10;
+        const lo = Math.max(5, Math.min(recent.reps - 2, 8));
+        const hi = Math.min(10, recent.reps);
+        baseTarget = `${w}kg × ${lo}–${hi}`;
+      } else {
+        baseTarget = `${recent.weight}kg × ${repTarget}–${repTargetHi}`;
+      }
+    } else {
+      const strongCount = occurrences.slice(0, 3).filter((o) => o.reps >= 8).length;
+      const canAddWeight = confidence === "high" && strongCount >= 3 && recent.reps >= 10;
+      if (canAddWeight) {
+        const w = Math.round((recent.weight + 2) * 10) / 10;
+        const lo = Math.max(6, Math.min(recent.reps - 2, 10));
+        const hi = Math.min(12, recent.reps);
+        baseTarget = `${w}kg × ${lo}–${hi}`;
+      } else {
+        baseTarget = `${recent.weight}kg × ${repTarget}–${repTargetHi}`;
+      }
     }
 
-    // Isolation: prefer rep progression
-    const strongRepCount = occurrences.slice(0, 3).filter((o) => o.reps >= 10).length;
-    const canAddWeight = strongRepCount >= 2 && recent.reps >= 10;
-
-    if (canAddWeight) {
-      const w = Math.round((recent.weight + 1.25) * 10) / 10;
-      return `${w}kg × 8–10`;
-    }
-    return `${recent.weight}kg × ${repTargetLo}–${repTargetHi}`;
+    return buildTargetData(baseTarget, occurrences, category, workouts);
   } catch {
     return null;
   }
 }
 
+function buildTargetData(
+  baseTarget: string,
+  occurrences: { weight: number; reps: number }[],
+  category: ExerciseCategory,
+  workouts: StoredWorkout[]
+): TargetData {
+  const last7Days = getWorkoutsFromLast7Days(workouts);
+  const weeklyVolume = getVolumeByMuscleGroup(last7Days);
+  return {
+    baseTarget,
+    recentPerformances: occurrences,
+    exerciseType: category === "isolation" ? "isolation" : "compound",
+    weeklyVolume,
+  };
+}
+
+function getNextTargetForExercise(exerciseName: string): string | null {
+  return getTargetDataForExercise(exerciseName)?.baseTarget ?? null;
+}
+
 export default function WorkoutPage() {
+  const router = useRouter();
   const { addWorkout } = useWorkoutStore();
   const [exerciseName, setExerciseName] = useState("");
   const [exercises, setExercises] = useState<
@@ -171,6 +316,33 @@ export default function WorkoutPage() {
     }
     setLastPerformance(lastMap);
     setNextTarget(targetMap);
+
+    const ac = new AbortController();
+    for (const ex of exercises) {
+      const data = getTargetDataForExercise(ex.name);
+      if (!data) continue;
+      fetch("/api/refine-target", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          exerciseName: ex.name,
+          recentPerformances: data.recentPerformances,
+          exerciseType: data.exerciseType,
+          weeklyVolume: data.weeklyVolume,
+          baseTarget: data.baseTarget,
+        }),
+        signal: ac.signal,
+      })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Refine failed"))))
+        .then((res: { target?: string }) => {
+          const t = res?.target;
+          if (typeof t === "string" && t.trim()) {
+            setNextTarget((prev) => ({ ...prev, [ex.name]: t }));
+          }
+        })
+        .catch(() => {});
+    }
+    return () => ac.abort();
   }, [exercises.map((e) => e.name).join(",")]);
 
   useEffect(() => {
@@ -510,21 +682,35 @@ export default function WorkoutPage() {
           </button>
 
           {showSummary && (
-            <section className="mt-6 p-4 rounded-xl bg-zinc-900 border border-zinc-800">
-              <h2 className="text-xl font-semibold mb-4">Workout Summary</h2>
-              <p className="text-zinc-300 mb-2">
-                {exercises.length} exercise{exercises.length !== 1 ? "s" : ""} ·{" "}
-                {exercises.reduce((total, ex) => total + ex.sets.length, 0)} total sets
-              </p>
-              <ul className="space-y-2 text-sm text-zinc-200">
-                {exercises.map((exercise) => (
-                  <li key={exercise.id}>
-                    {exercise.name} — {exercise.sets.length} set
-                    {exercise.sets.length !== 1 ? "s" : ""}
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+              onClick={(e) => e.target === e.currentTarget && router.push("/")}
+            >
+              <div
+                className="w-full max-w-md p-6 rounded-xl bg-zinc-900 border border-zinc-700 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 className="text-xl font-semibold mb-4">Workout Summary</h2>
+                <p className="text-zinc-300 mb-4">
+                  {exercises.length} exercise{exercises.length !== 1 ? "s" : ""} ·{" "}
+                  {exercises.reduce((total, ex) => total + ex.sets.length, 0)} total sets
+                </p>
+                <ul className="space-y-2 text-sm text-zinc-200 mb-6">
+                  {exercises.map((exercise) => (
+                    <li key={exercise.id}>
+                      {exercise.name} — {exercise.sets.length} set
+                      {exercise.sets.length !== 1 ? "s" : ""}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => router.push("/")}
+                  className="w-full bg-white text-black py-3 rounded-xl font-semibold hover:bg-zinc-100 transition"
+                >
+                  Back to Home
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
