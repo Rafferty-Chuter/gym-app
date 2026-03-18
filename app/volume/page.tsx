@@ -74,9 +74,14 @@ export default function VolumePage() {
   });
 
   useEffect(() => {
-    const all = getWorkoutHistory();
-    const recent = getWorkoutsFromLast7Days(all);
-    setVolume(getVolumeByMuscleGroup(recent));
+    function apply() {
+      const all = getWorkoutHistory();
+      const recent = getWorkoutsFromLast7Days(all);
+      setVolume(getVolumeByMuscleGroup(recent));
+    }
+    apply();
+    window.addEventListener("workoutHistoryChanged", apply);
+    return () => window.removeEventListener("workoutHistoryChanged", apply);
   }, []);
 
   const labels: Record<string, string> = {
@@ -87,6 +92,43 @@ export default function VolumePage() {
     arms: "Arms",
   };
 
+  function getStatus(sets: number): "low" | "good" | "high" {
+    if (sets < 8) return "low";
+    if (sets <= 20) return "good";
+    return "high";
+  }
+
+  function getStatusClasses(status: "low" | "good" | "high") {
+    if (status === "low") return "text-red-300/80 bg-red-500/10 border-red-500/20";
+    if (status === "good") return "text-teal-300/80 bg-teal-500/10 border-teal-500/20";
+    return "text-amber-300/80 bg-amber-500/10 border-amber-500/20";
+  }
+
+  function getBarColor(status: "low" | "good" | "high") {
+    if (status === "low") return "bg-red-400/60";
+    if (status === "good") return "bg-teal-400/60";
+    return "bg-amber-400/60";
+  }
+
+  const insights = (() => {
+    const labelGroup = (g: string) => labels[g] ?? g;
+    const entries = (Object.keys(volume) as (keyof typeof volume)[]).map((g) => {
+      const sets = volume[g] ?? 0;
+      const status = getStatus(sets);
+      return { group: String(g), sets, status, msg: `${labelGroup(String(g))} volume is ${status}` };
+    });
+    const lows = entries.filter((e) => e.status === "low").sort((a, b) => a.sets - b.sets);
+    const highs = entries.filter((e) => e.status === "high").sort((a, b) => b.sets - a.sets);
+    const picked: string[] = [];
+    if (lows[0]) picked.push(lows[0].msg);
+    if (picked.length < 2 && highs[0]) picked.push(highs[0].msg);
+    if (picked.length < 2) {
+      const good = entries.find((e) => e.status === "good");
+      if (good) picked.push(`${labelGroup(good.group)} volume is good`);
+    }
+    return picked.slice(0, 2);
+  })();
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
@@ -95,16 +137,54 @@ export default function VolumePage() {
           Total sets per muscle group in the last 7 days
         </p>
 
+        {insights.length > 0 && (
+          <div className="mb-4 rounded-xl bg-zinc-900 border border-zinc-800 p-4">
+            <p className="text-xs text-zinc-500 mb-2">Insights</p>
+            <ul className="text-sm text-zinc-300 space-y-1">
+              {insights.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <ul className="space-y-3">
-          {(Object.keys(volume) as (keyof typeof volume)[]).map((group) => (
-            <li
-              key={group}
-              className="flex items-center justify-between py-3 px-4 rounded-xl bg-zinc-900 border border-zinc-800"
-            >
-              <span className="font-medium text-zinc-100">{labels[group]}</span>
-              <span className="text-zinc-300">{volume[group]} sets</span>
-            </li>
-          ))}
+          {(Object.keys(volume) as (keyof typeof volume)[]).map((group) => {
+            const sets = volume[group] ?? 0;
+            const status = getStatus(sets);
+            const statusClasses = getStatusClasses(status);
+
+            // Visual indicator: 0–30 sets mapped to 0–100% (caps at 30)
+            const pct = Math.max(0, Math.min(100, Math.round((Math.min(sets, 30) / 30) * 100)));
+
+            return (
+              <li
+                key={group}
+                className="py-3 px-4 rounded-xl bg-zinc-900 border border-zinc-800"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-zinc-100">{labels[group]}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full border ${statusClasses}`}
+                    >
+                      {status}
+                    </span>
+                    <span className="text-zinc-300 tabular-nums">{sets} sets</span>
+                  </div>
+                </div>
+
+                <div className="mt-2 h-2 w-full rounded-full bg-zinc-800 overflow-hidden">
+                  <div
+                    className={`h-full ${getBarColor(status)}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </main>

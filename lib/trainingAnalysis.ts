@@ -8,7 +8,8 @@ const WORKOUT_HISTORY_KEY = "workoutHistory";
 export type StoredWorkout = {
   completedAt: string;
   name?: string;
-  exercises: { name: string; sets: { weight: string; reps: string }[] }[];
+  durationSec?: number;
+  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string }[] }[];
 };
 
 const MUSCLE_GROUP_KEYWORDS: Record<string, string[]> = {

@@ -65,7 +65,12 @@ export default function ProgressPage() {
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
 
   useEffect(() => {
-    setWorkouts(getWorkoutHistory());
+    function apply() {
+      setWorkouts(getWorkoutHistory());
+    }
+    apply();
+    window.addEventListener("workoutHistoryChanged", apply);
+    return () => window.removeEventListener("workoutHistoryChanged", apply);
   }, []);
 
   const exerciseNames = getUniqueExerciseNames(workouts);

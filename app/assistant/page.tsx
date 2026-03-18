@@ -11,13 +11,19 @@ export default function AssistantPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const listEndRef = useRef<HTMLDivElement>(null);
+  const starterPrompts = [
+    "How is my training looking this week?",
+    "Am I doing enough chest volume?",
+    "What should I improve next session?",
+    "Am I neglecting any muscle groups?",
+  ] as const;
 
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function handleSend() {
-    const text = input.trim();
+  async function handleSend(textOverride?: string) {
+    const text = (textOverride ?? input).trim();
     if (!text || isLoading) return;
 
     setInput("");
@@ -113,6 +119,24 @@ if (res.ok && typeof data.reply === "string") {
           <div ref={listEndRef} />
         </div>
 
+        {messages.length === 0 && !isLoading && (
+          <div className="mb-3">
+            <p className="text-xs text-zinc-500 mb-2">Try one of these:</p>
+            <div className="flex flex-wrap gap-2">
+              {starterPrompts.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => handleSend(p)}
+                  className="text-left text-sm px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-200 hover:bg-zinc-800/60 transition"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <input
             type="text"
@@ -121,12 +145,12 @@ if (res.ok && typeof data.reply === "string") {
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
             placeholder="Ask about your training..."
             disabled={isLoading}
-            className="flex-1 min-w-0 p-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 disabled:opacity-50"
+            className="flex-1 min-w-0 p-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 focus-accent disabled:opacity-50"
           />
           <button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={isLoading || !input.trim()}
-            className="px-4 py-3 rounded-xl bg-white text-black font-semibold hover:bg-zinc-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-3 rounded-xl btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Send
           </button>

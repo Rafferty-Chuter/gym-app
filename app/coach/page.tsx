@@ -20,8 +20,13 @@ export default function CoachPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const workouts = getWorkoutHistory();
-    setStats(getStats(workouts));
+    function refresh() {
+      const workouts = getWorkoutHistory();
+      setStats(getStats(workouts));
+    }
+    refresh();
+    window.addEventListener("workoutHistoryChanged", refresh);
+    return () => window.removeEventListener("workoutHistoryChanged", refresh);
   }, []);
 
   async function handleAnalyze() {
@@ -90,7 +95,7 @@ export default function CoachPage() {
         <button
           onClick={handleAnalyze}
           disabled={isLoading}
-          className="w-full py-3 rounded-xl bg-white text-black font-semibold hover:bg-zinc-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3 rounded-xl btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Analyzing…" : "Analyze Recent Training"}
         </button>

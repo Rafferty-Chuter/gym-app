@@ -15,7 +15,8 @@ export type CompletedWorkout = {
   id: number;
   completedAt: string; // ISO date string
   name?: string;
-  exercises: { name: string; sets: { weight: string; reps: string }[] }[];
+  durationSec?: number;
+  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string }[] }[];
   totalExercises: number;
   totalSets: number;
 };
@@ -23,12 +24,14 @@ export type CompletedWorkout = {
 type StoredWorkout = {
   completedAt: string;
   name?: string;
-  exercises: { name: string; sets: { weight: string; reps: string }[] }[];
+  durationSec?: number;
+  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string }[] }[];
 };
 
 type WorkoutStore = {
   workouts: CompletedWorkout[];
   addWorkout: (workout: Omit<CompletedWorkout, "id">) => void;
+  removeWorkoutAtIndex: (index: number) => void;
 };
 
 const WorkoutContext = createContext<WorkoutStore | undefined>(undefined);
@@ -44,6 +47,7 @@ function loadFromStorage(): CompletedWorkout[] {
       id: new Date(w.completedAt).getTime() + i,
       completedAt: w.completedAt,
       name: w.name,
+      durationSec: w.durationSec,
       exercises: w.exercises ?? [],
       totalExercises: w.exercises?.length ?? 0,
       totalSets: w.exercises?.reduce((sum, ex) => sum + (ex.sets?.length ?? 0), 0) ?? 0,
@@ -59,6 +63,7 @@ function saveToStorage(workouts: CompletedWorkout[]) {
     const toStore: StoredWorkout[] = workouts.map((w) => ({
       completedAt: w.completedAt,
       name: w.name,
+      durationSec: w.durationSec,
       exercises: w.exercises,
     }));
     localStorage.setItem(WORKOUT_HISTORY_KEY, JSON.stringify(toStore));
@@ -85,8 +90,21 @@ export function WorkoutStoreProvider({ children }: { children: ReactNode }) {
     setWorkouts(next);
   }, []);
 
+  const removeWorkoutAtIndex = useCallback((index: number) => {
+    const stored = loadFromStorage();
+    if (index < 0 || index >= stored.length) return;
+    const next = stored.filter((_, i) => i !== index);
+    saveToStorage(next);
+    setWorkouts(next);
+    try {
+      window.dispatchEvent(new CustomEvent("workoutHistoryChanged"));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   return (
-    <WorkoutContext.Provider value={{ workouts, addWorkout }}>
+    <WorkoutContext.Provider value={{ workouts, addWorkout, removeWorkoutAtIndex }}>
       {children}
     </WorkoutContext.Provider>
   );

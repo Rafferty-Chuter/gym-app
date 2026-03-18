@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkoutStore } from "@/lib/workout-store";
 import {
@@ -312,8 +312,9 @@ export default function WorkoutPage() {
     {
       id: number;
       name: string;
-      sets: { weight: string; reps: string }[];
+      sets: { weight: string; reps: string; done?: boolean }[];
       targetSets?: number;
+      restSec: number;
     }[]
   >([]);
   const [showSummary, setShowSummary] = useState(false);
@@ -322,8 +323,13 @@ export default function WorkoutPage() {
   >({});
   const [nextTarget, setNextTarget] = useState<Record<string, string | null>>({});
   const [workoutName, setWorkoutName] = useState("");
+  const [templateName, setTemplateName] = useState<string | null>(null);
   const [routineSaved, setRoutineSaved] = useState(false);
+  const addExerciseInputRef = useRef<HTMLInputElement | null>(null);
+  const setInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [pendingFocus, setPendingFocus] = useState<{ exerciseId: number; setIndex: number } | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [restByExercise, setRestByExercise] = useState<Record<number, { remainingSec: number; running: boolean }>>({});
 
   useEffect(() => {
     const t0 = Date.now();
@@ -332,6 +338,36 @@ export default function WorkoutPage() {
     }, 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const anyRunning = Object.values(restByExercise).some((t) => t.running && t.remainingSec > 0);
+    if (!anyRunning) return;
+    const id = window.setInterval(() => {
+      setRestByExercise((prev) => {
+        const next: typeof prev = { ...prev };
+        for (const [k, t] of Object.entries(prev)) {
+          const idNum = Number(k);
+          if (!t?.running || t.remainingSec <= 0) continue;
+          const remainingSec = t.remainingSec - 1;
+          next[idNum] = remainingSec <= 0 ? { remainingSec: 0, running: false } : { remainingSec, running: true };
+        }
+        return next;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [restByExercise]);
+
+  useEffect(() => {
+    if (!pendingFocus) return;
+    const key = `${pendingFocus.exerciseId}-${pendingFocus.setIndex}-weight`;
+    const el = setInputRefs.current[key];
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.select?.();
+    });
+    setPendingFocus(null);
+  }, [pendingFocus, exercises]);
 
   const totalSetsLogged = exercises.reduce((total, ex) => total + ex.sets.length, 0);
 
@@ -343,6 +379,44 @@ export default function WorkoutPage() {
     return `${m}:${String(s).padStart(2, "0")}`;
   }
 
+  function formatRest(sec: number) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  function startExerciseRest(exerciseId: number, seconds: number) {
+    setRestByExercise((prev) => ({
+      ...prev,
+      [exerciseId]: { remainingSec: Math.max(0, seconds), running: seconds > 0 },
+    }));
+  }
+
+  function resetExerciseRest(exerciseId: number) {
+    setRestByExercise((prev) => ({
+      ...prev,
+      [exerciseId]: { remainingSec: 0, running: false },
+    }));
+  }
+
+  function adjustExerciseRest(exerciseId: number, delta: number) {
+    setExercises((prev) =>
+      prev.map((ex) =>
+        ex.id === exerciseId
+          ? { ...ex, restSec: Math.max(0, Math.min(600, (ex.restSec ?? 90) + delta)) }
+          : ex
+      )
+    );
+  }
+
+  function setExerciseRest(exerciseId: number, restSec: number) {
+    setExercises((prev) =>
+      prev.map((ex) =>
+        ex.id === exerciseId ? { ...ex, restSec: Math.max(0, Math.min(600, restSec)) } : ex
+      )
+    );
+  }
+
   function saveAsRoutineFromSession() {
     if (typeof window === "undefined") return;
     try {
@@ -352,7 +426,7 @@ export default function WorkoutPage() {
       const templates = Array.isArray(existing) ? existing : [];
 
       const name =
-        workoutName.trim() ||
+        getWorkoutDisplayName().trim() ||
         `Routine ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 
       const routine = {
@@ -363,6 +437,7 @@ export default function WorkoutPage() {
             1,
             Math.min(20, (ex.targetSets ?? (ex.sets.length || 3)))
           ),
+          restSec: ex.restSec ?? 90,
         })),
       };
 
@@ -421,21 +496,30 @@ export default function WorkoutPage() {
     const raw = sessionStorage.getItem(TEMPLATE_FOR_WORKOUT_KEY);
     if (!raw) return;
     try {
-      const data = JSON.parse(raw) as { exercises: unknown[] };
+      const data = JSON.parse(raw) as { exercises: unknown[]; templateName?: string };
       const exercisesData = data?.exercises;
+      const tName = typeof data?.templateName === "string" ? data.templateName.trim() : "";
       sessionStorage.removeItem(TEMPLATE_FOR_WORKOUT_KEY);
       if (!Array.isArray(exercisesData) || exercisesData.length === 0) return;
+      if (tName) {
+        setTemplateName(tName);
+        setWorkoutName((prev) => (prev.trim() ? prev : tName));
+      }
       const now = Date.now();
       const initial = exercisesData.map((ex, i) => {
         const name = typeof ex === "string" ? ex : (ex as { name?: string })?.name ?? "Exercise";
         const targetSets = typeof ex === "object" && ex !== null && "targetSets" in ex
           ? Math.max(1, Math.min(20, Number((ex as { targetSets?: number }).targetSets) || 3))
           : undefined;
+        const restSec = typeof ex === "object" && ex !== null && "restSec" in ex
+          ? Math.max(0, Math.min(600, Number((ex as { restSec?: number }).restSec) || 90))
+          : 90;
         return {
           id: now + i,
           name,
           sets: [] as { weight: string; reps: string }[],
           targetSets,
+          restSec,
         };
       });
       setExercises(initial);
@@ -444,14 +528,27 @@ export default function WorkoutPage() {
     }
   }, []);
 
+  function getWorkoutDisplayName() {
+    const user = workoutName.trim();
+    if (user) return user;
+    const t = (templateName ?? "").trim();
+    if (t) return t;
+    const first = exercises[0]?.name?.trim();
+    if (first) return `${first} Workout`;
+    return "Workout";
+  }
+
   function finishWorkout() {
     if (exercises.length === 0) return;
     setRoutineSaved(false);
+    setRestByExercise({});
     const totalSets = exercises.reduce((total, ex) => total + ex.sets.length, 0);
+    const finalName = getWorkoutDisplayName();
     const completed = {
       completedAt: new Date().toISOString(),
-      name: workoutName.trim() || undefined,
-      exercises: exercises.map(({ name, sets }) => ({ name, sets })),
+      name: finalName,
+      durationSec: elapsedSec,
+      exercises: exercises.map(({ name, sets, restSec }) => ({ name, sets, restSec })),
       totalExercises: exercises.length,
       totalSets,
     };
@@ -461,12 +558,16 @@ export default function WorkoutPage() {
 
   function addExercise(nameOverride?: string) {
     const trimmed = (nameOverride ?? exerciseName).trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      addExerciseInputRef.current?.focus();
+      return;
+    }
 
     const newExercise = {
       id: Date.now(),
       name: trimmed,
       sets: [],
+      restSec: 90,
     };
 
     setExercises((prev) => [...prev, newExercise]);
@@ -474,16 +575,19 @@ export default function WorkoutPage() {
   }
 
   function addSetRow(exerciseId: number) {
+    const ex = exercises.find((e) => e.id === exerciseId);
+    const nextIndex = ex?.sets?.length ?? 0;
     setExercises((prev) =>
       prev.map((exercise) =>
         exercise.id === exerciseId
           ? {
               ...exercise,
-              sets: [...exercise.sets, { weight: "", reps: "" }],
+              sets: [...exercise.sets, { weight: "", reps: "", done: false }],
             }
           : exercise
       )
     );
+    setPendingFocus({ exerciseId, setIndex: nextIndex });
   }
 
   function updateSetValue(
@@ -496,11 +600,45 @@ export default function WorkoutPage() {
       prev.map((exercise) => {
         if (exercise.id !== exerciseId) return exercise;
         const sets = [...exercise.sets];
-        while (sets.length <= setIndex) sets.push({ weight: "", reps: "" });
+        while (sets.length <= setIndex) sets.push({ weight: "", reps: "", done: false });
         sets[setIndex] = { ...sets[setIndex], [field]: value };
         return { ...exercise, sets };
       })
     );
+  }
+
+  function toggleSetDone(exerciseId: number, setIndex: number) {
+    setExercises((prev) =>
+      prev.map((exercise) => {
+        if (exercise.id !== exerciseId) return exercise;
+        if (setIndex < 0 || setIndex >= exercise.sets.length) return exercise;
+        const sets = [...exercise.sets];
+        const current = sets[setIndex] ?? { weight: "", reps: "", done: false };
+        const done = !Boolean(current.done);
+        sets[setIndex] = { ...current, done };
+        return { ...exercise, sets };
+      })
+    );
+
+    // When a set is completed, start the rest timer for this exercise.
+    const ex = exercises.find((e) => e.id === exerciseId);
+    if (ex) {
+      const current = ex.sets[setIndex];
+      const willBeDone = !Boolean(current?.done);
+      if (willBeDone) {
+        startExerciseRest(exerciseId, ex.restSec ?? 90);
+        // If planned sets exist and we just completed the last logged set, auto-create the next slot.
+        if (ex.targetSets && ex.sets.length < ex.targetSets && setIndex === ex.sets.length - 1) {
+          setExercises((prev) =>
+            prev.map((exercise) =>
+              exercise.id === exerciseId
+                ? { ...exercise, sets: [...exercise.sets, { weight: "", reps: "", done: false }] }
+                : exercise
+            )
+          );
+        }
+      }
+    }
   }
 
   function deleteSet(exerciseId: number, setIndex: number) {
@@ -526,57 +664,86 @@ export default function WorkoutPage() {
         exercises.length > 0 ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "pb-6"
       }`}
     >
-      <div className="max-w-3xl mx-auto px-4 pt-4 sm:px-6 sm:pt-6">
+      {/* subtle depth on large screens */}
+      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-zinc-900/10 via-transparent to-transparent" />
+
+      <div className="relative max-w-[560px] mx-auto px-4 pt-4 sm:px-6 sm:pt-6">
         <header className="mb-5">
-          <div className="mb-3">
-            <label className="block text-xs text-zinc-500 mb-1">Workout name</label>
-            <input
-              type="text"
-              placeholder="Push Day"
-              value={workoutName}
-              onChange={(e) => setWorkoutName(e.target.value)}
-              className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-600 placeholder-zinc-500 text-base"
-            />
+          <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 shadow-md shadow-black/30 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight leading-tight">
+                Workout
+              </h1>
+              <div className="flex items-center gap-2 text-xs text-zinc-400">
+                <span className="tabular-nums px-2 py-1 rounded-full bg-zinc-950/60 border border-zinc-800">
+                  {formatElapsed(elapsedSec)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-zinc-400 mb-1">
+                Workout name
+              </label>
+              <input
+                type="text"
+                placeholder="Push Day"
+                value={workoutName}
+                onChange={(e) => setWorkoutName(e.target.value)}
+                className="w-full p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 focus-accent placeholder-zinc-500 text-base"
+              />
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2 text-sm text-zinc-300">
+              <span className="px-3 py-1.5 rounded-full bg-zinc-950/60 border border-zinc-800">
+                <span className="text-zinc-500 mr-2">Exercises</span>
+                <span className="tabular-nums">{exercises.length}</span>
+              </span>
+              <span className="px-3 py-1.5 rounded-full bg-zinc-950/60 border border-zinc-800">
+                <span className="text-zinc-500 mr-2">Sets</span>
+                <span className="tabular-nums">{totalSetsLogged}</span>
+              </span>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-400 mb-3">
-            <span className="tabular-nums">
-              <span className="text-zinc-500">Time </span>
-              {formatElapsed(elapsedSec)}
-            </span>
-            <span>
-              <span className="text-zinc-500">Exercises </span>
-              {exercises.length}
-            </span>
-            <span>
-              <span className="text-zinc-500">Sets </span>
-              {totalSetsLogged}
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Workout</h1>
         </header>
 
         {exercises.length === 0 ? (
-          <div className="min-h-[min(60vh,420px)] flex flex-col items-center justify-center px-4 text-center">
-            <p className="text-lg text-zinc-300 font-medium mb-6">Start your workout</p>
-            <input
-              placeholder="Exercise name"
-              value={exerciseName}
-              onChange={(e) => setExerciseName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                addExercise((e.target as HTMLInputElement).value);
-              }}
-              className="w-full max-w-sm mb-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-600 text-center"
-            />
-            <button
-              type="button"
-              onClick={() => addExercise()}
-              disabled={!exerciseName.trim()}
-              className="w-full max-w-sm py-4 rounded-2xl bg-white text-black text-lg font-semibold hover:bg-zinc-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              + Add Exercise
-            </button>
+          <div className="min-h-[min(62vh,460px)] flex items-center justify-center px-2 lg:items-start lg:pt-10">
+            <div className="w-full max-w-md rounded-3xl bg-zinc-900/60 border border-zinc-800 shadow-md shadow-black/35 p-6 sm:p-7">
+              <div className="mb-5">
+                <p className="text-xl font-semibold tracking-tight text-white">
+                  Start your workout
+                </p>
+                <p className="text-sm text-zinc-400 mt-1">
+                  Add your first exercise to begin logging sets.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <input
+                  ref={addExerciseInputRef}
+                  placeholder="Exercise name"
+                  value={exerciseName}
+                  onChange={(e) => setExerciseName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    addExercise((e.target as HTMLInputElement).value);
+                  }}
+                  className="w-full p-3 rounded-2xl bg-zinc-950/60 border border-zinc-800 focus-accent text-base shadow-sm shadow-black/10"
+                />
+                <button
+                  type="button"
+                  onClick={() => addExercise()}
+                  className="w-full py-4 rounded-2xl btn-primary text-base"
+                >
+                  + Add Exercise
+                </button>
+                <p className="text-xs text-zinc-500 text-center pt-1">
+                  Tip: press Enter to add quickly.
+                </p>
+              </div>
+            </div>
           </div>
         ) : (
           <>
@@ -584,14 +751,12 @@ export default function WorkoutPage() {
               {exercises.map((exercise) => (
                 <div
                   key={exercise.id}
-                  className={`p-4 rounded-2xl border ${
-                    "bg-zinc-900 border-zinc-800"
-                  }`}
+                  className="p-4 rounded-2xl border bg-zinc-900/60 border-zinc-800 shadow-sm shadow-black/20"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold truncate">{exercise.name}</h3>
+                        <h3 className="font-semibold tracking-tight truncate">{exercise.name}</h3>
                       </div>
                       <div className="mt-1 flex flex-col gap-0.5">
                         <p className="text-xs text-zinc-400">
@@ -627,54 +792,126 @@ export default function WorkoutPage() {
                         { length: Math.max(planned, exercise.sets.length, 0) },
                         (_, i) => i
                       );
+                      const nextIdx = exercise.sets.findIndex((s) => !s?.done);
+                      const effectiveNextIdx = nextIdx === -1 ? exercise.sets.length : nextIdx;
                       return (
                         <div>
-                          <div className="grid grid-cols-[64px_1fr_1fr_72px] gap-2 text-xs text-zinc-500 mb-2">
-                            <span>Set</span>
-                            <span>Weight</span>
-                            <span>Reps</span>
-                            <span className="text-right"> </span>
-                          </div>
                           <ul className="space-y-2 text-sm text-zinc-100">
                           {slots.map((index) => {
                             const set = exercise.sets[index];
                             const lastSet = lastSets[index];
                             const hasLast = lastSet && (lastSet.weight || lastSet.reps);
                             const isEditable = index < exercise.sets.length;
+                            const isDone = Boolean(set?.done);
+                            const isNext = isEditable && !isDone && index === effectiveNextIdx;
                             const placeholder = hasLast
                               ? `${lastSet!.weight}kg × ${lastSet!.reps}`
                               : "";
                             return (
                               <li key={index}>
-                                <div className="grid grid-cols-[64px_1fr_1fr_72px] gap-2 items-center">
-                                  <span className="text-xs text-zinc-400">
-                                    Set {index + 1}
-                                  </span>
+                                {(() => {
+                                  const timer = restByExercise[exercise.id] ?? { remainingSec: 0, running: false };
+                                  const isActive = timer.running && timer.remainingSec > 0;
+                                  return (
+                                    <>
+                                      {isNext && isActive && (
+                                        <div className="mb-1 text-xs text-zinc-300">
+                                          <span className="text-zinc-500">Rest </span>
+                                          <span className="tabular-nums text-[color:var(--color-accent)]">
+                                            {formatRest(timer.remainingSec)}
+                                          </span>
+                                        </div>
+                                      )}
+                                      <div
+                                        className={`grid grid-cols-[58px_1fr_1fr_66px] sm:grid-cols-[64px_1fr_1fr_72px] gap-2 items-center rounded-xl ${
+                                          isNext ? "ring-1 ring-[color:var(--color-accent)]/40 bg-zinc-950/20" : ""
+                                        } ${isDone ? "opacity-60" : ""}`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          {isEditable ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleSetDone(exercise.id, index)}
+                                              className={`h-8 w-8 rounded-full border flex items-center justify-center transition ${
+                                                isDone
+                                                  ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/15 text-[color:var(--color-accent)]"
+                                                  : "border-zinc-800 text-zinc-300 hover:bg-zinc-800/40"
+                                              }`}
+                                              aria-label={`Mark set ${index + 1} complete`}
+                                            >
+                                              ✓
+                                            </button>
+                                          ) : (
+                                            <span className="h-8 w-8" />
+                                          )}
+                                          <span className="text-xs text-zinc-400 tabular-nums">
+                                            {index + 1}
+                                          </span>
+                                        </div>
                                   <input
+                                    ref={(el) => {
+                                      setInputRefs.current[`${exercise.id}-${index}-weight`] = el;
+                                    }}
+                                    type="text"
                                     inputMode="decimal"
-                                    placeholder={isEditable ? "kg" : placeholder ? `last: ${placeholder}` : "kg"}
+                                    enterKeyHint="next"
+                                    autoComplete="off"
+                                    placeholder={
+                                      isEditable
+                                        ? "kg"
+                                        : placeholder
+                                          ? `last: ${placeholder}`
+                                          : "kg"
+                                    }
                                     value={set?.weight ?? ""}
                                     onChange={(e) =>
                                       updateSetValue(exercise.id, index, "weight", e.target.value)
                                     }
+                                    onKeyDown={(e) => {
+                                      if (e.key !== "Enter") return;
+                                      e.preventDefault();
+                                      const repsKey = `${exercise.id}-${index}-reps`;
+                                      setInputRefs.current[repsKey]?.focus();
+                                      setInputRefs.current[repsKey]?.select?.();
+                                    }}
                                     disabled={!isEditable}
-                                    className="w-full p-2 rounded-lg bg-zinc-950/50 border border-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 disabled:opacity-60 disabled:cursor-not-allowed placeholder-zinc-600"
+                                    aria-label={`Set ${index + 1} weight`}
+                                    className="w-full h-11 px-3 rounded-xl bg-zinc-950/60 border border-zinc-800 text-sm focus-accent disabled:opacity-60 disabled:cursor-not-allowed placeholder-zinc-600 tabular-nums"
                                   />
                                   <input
+                                    ref={(el) => {
+                                      setInputRefs.current[`${exercise.id}-${index}-reps`] = el;
+                                    }}
+                                    type="text"
                                     inputMode="numeric"
-                                    placeholder={isEditable ? "reps" : (hasLast ? "reps" : "reps")}
+                                    enterKeyHint={index === exercise.sets.length - 1 ? "done" : "next"}
+                                    autoComplete="off"
+                                    placeholder={isEditable ? "reps" : "reps"}
                                     value={set?.reps ?? ""}
                                     onChange={(e) =>
                                       updateSetValue(exercise.id, index, "reps", e.target.value)
                                     }
+                                    onKeyDown={(e) => {
+                                      if (e.key !== "Enter") return;
+                                      e.preventDefault();
+                                      // If this is the last editable row, add another set for fast logging.
+                                      if (index === exercise.sets.length - 1) {
+                                        addSetRow(exercise.id);
+                                        return;
+                                      }
+                                      const nextWeightKey = `${exercise.id}-${index + 1}-weight`;
+                                      setInputRefs.current[nextWeightKey]?.focus();
+                                      setInputRefs.current[nextWeightKey]?.select?.();
+                                    }}
                                     disabled={!isEditable}
-                                    className="w-full p-2 rounded-lg bg-zinc-950/50 border border-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 disabled:opacity-60 disabled:cursor-not-allowed placeholder-zinc-600"
+                                    aria-label={`Set ${index + 1} reps`}
+                                    className="w-full h-11 px-3 rounded-xl bg-zinc-950/60 border border-zinc-800 text-sm focus-accent disabled:opacity-60 disabled:cursor-not-allowed placeholder-zinc-600 tabular-nums"
                                   />
                                   <div className="flex justify-end">
                                     {isEditable ? (
                                       <button
                                         onClick={() => deleteSet(exercise.id, index)}
-                                        className="text-xs px-2 py-1 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                                        className="h-11 px-3 rounded-xl border border-zinc-800 text-xs text-zinc-300 hover:bg-zinc-800/60 transition"
                                       >
                                         Delete
                                       </button>
@@ -684,7 +921,10 @@ export default function WorkoutPage() {
                                       </span>
                                     )}
                                   </div>
-                                </div>
+                                      </div>
+                                    </>
+                                  );
+                                })()}
                                 {!isEditable && hasLast && (
                                   <p className="mt-1 text-[11px] text-zinc-500">
                                     Last: {lastSet!.weight}kg × {lastSet!.reps}
@@ -695,12 +935,93 @@ export default function WorkoutPage() {
                           })}
                           </ul>
 
-                          <button
-                            onClick={() => addSetRow(exercise.id)}
-                            className="w-full mt-3 py-2.5 rounded-xl bg-white text-black font-semibold hover:bg-zinc-100 transition"
-                          >
-                            Add Set
-                          </button>
+                          {(() => {
+                            const rest = exercise.restSec ?? 90;
+                            const timer = restByExercise[exercise.id] ?? { remainingSec: 0, running: false };
+                            const isActive = timer.running && timer.remainingSec > 0;
+                            return (
+                              <div className="mt-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-zinc-500">Rest</span>
+                                    <span
+                                      className={`tabular-nums px-2 py-1 rounded-full border ${
+                                        isActive
+                                          ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/10 text-zinc-100"
+                                          : "border-zinc-800 bg-zinc-950/60 text-zinc-300"
+                                      }`}
+                                    >
+                                      {formatRest(isActive ? timer.remainingSec : rest)}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    {isActive ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => resetExerciseRest(exercise.id)}
+                                        className="text-xs px-2.5 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-800/60 transition"
+                                      >
+                                        Reset
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => startExerciseRest(exercise.id, rest)}
+                                        className="text-xs px-2.5 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-800/60 transition"
+                                      >
+                                        Start
+                                      </button>
+                                    )}
+
+                                    <details className="relative">
+                                      <summary className="list-none cursor-pointer select-none text-xs px-2.5 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-800/60 transition">
+                                        Rest options
+                                      </summary>
+                                      <div className="absolute right-0 mt-2 w-56 rounded-xl bg-zinc-950 border border-zinc-800 shadow-xl p-2 z-10">
+                                        <div className="flex flex-wrap gap-2 p-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => adjustExerciseRest(exercise.id, -15)}
+                                            className="text-xs px-2 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-900 transition"
+                                          >
+                                            −15s
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => adjustExerciseRest(exercise.id, 15)}
+                                            className="text-xs px-2 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-900 transition"
+                                          >
+                                            +15s
+                                          </button>
+                                          {[60, 90, 120, 180].map((s) => (
+                                            <button
+                                              key={s}
+                                              type="button"
+                                              onClick={() => {
+                                                setExerciseRest(exercise.id, s);
+                                                startExerciseRest(exercise.id, s);
+                                              }}
+                                              className="text-xs px-2 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-900 transition"
+                                            >
+                                              {s / 60}m
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </details>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={() => addSetRow(exercise.id)}
+                                  className="w-full py-3 rounded-xl btn-primary"
+                                >
+                                  Add Set
+                                </button>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })()}
@@ -709,10 +1030,11 @@ export default function WorkoutPage() {
               ))}
             </section>
 
-            <section className="mt-8 mb-4 p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800">
+            <section className="mt-8 mb-4 p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 shadow-sm shadow-black/20">
               <label className="block text-xs text-zinc-500 mb-2">Add another exercise</label>
               <div className="flex gap-2">
                 <input
+                  ref={addExerciseInputRef}
                   placeholder="Exercise name"
                   value={exerciseName}
                   onChange={(e) => setExerciseName(e.target.value)}
@@ -721,13 +1043,12 @@ export default function WorkoutPage() {
                     e.preventDefault();
                     addExercise((e.target as HTMLInputElement).value);
                   }}
-                  className="flex-1 min-w-0 p-3 rounded-xl bg-zinc-950 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-600 text-base"
+                  className="flex-1 min-w-0 p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 focus-accent text-base"
                 />
                 <button
                   type="button"
                   onClick={() => addExercise()}
-                  disabled={!exerciseName.trim()}
-                  className="shrink-0 px-4 py-3 rounded-xl bg-zinc-200 text-black font-semibold hover:bg-zinc-100 transition disabled:opacity-40"
+                  className="shrink-0 px-4 py-3 rounded-xl btn-primary"
                 >
                   Add
                 </button>
@@ -747,9 +1068,7 @@ export default function WorkoutPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <h2 className="text-xl font-semibold mb-4">Workout Summary</h2>
-                {workoutName.trim() && (
-                  <p className="text-zinc-200 font-medium mb-2">{workoutName.trim()}</p>
-                )}
+                <p className="text-zinc-200 font-medium mb-2">{getWorkoutDisplayName()}</p>
                 <p className="text-zinc-300 mb-4">
                   {exercises.length} exercise{exercises.length !== 1 ? "s" : ""} ·{" "}
                   {exercises.reduce((total, ex) => total + ex.sets.length, 0)} total sets
@@ -766,13 +1085,13 @@ export default function WorkoutPage() {
                   <button
                     onClick={saveAsRoutineFromSession}
                     disabled={routineSaved || exercises.length === 0}
-                    className="w-full py-3 rounded-xl font-semibold border border-zinc-600 text-zinc-100 hover:bg-zinc-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full py-3 rounded-xl font-semibold border border-[color:var(--color-accent)] text-[color:var(--color-accent)] hover:bg-zinc-800/60 transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {routineSaved ? "Routine Saved" : "Save as Routine"}
                   </button>
                   <button
                     onClick={() => router.push("/")}
-                    className="w-full bg-white text-black py-3 rounded-xl font-semibold hover:bg-zinc-100 transition"
+                    className="w-full py-3 rounded-xl btn-primary"
                   >
                     Back to Home
                   </button>
@@ -789,7 +1108,7 @@ export default function WorkoutPage() {
             <button
               type="button"
               onClick={finishWorkout}
-              className="w-full bg-white text-black py-3.5 rounded-xl font-semibold text-base hover:bg-zinc-100 transition"
+              className="w-full py-3.5 rounded-xl btn-primary text-base"
             >
               Finish Workout
             </button>
