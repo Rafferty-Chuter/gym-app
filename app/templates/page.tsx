@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useUnit } from "@/lib/unit-preference";
 
 const STORAGE_KEY = "workoutTemplates";
 
@@ -21,17 +23,18 @@ function normalizeTemplate(t: { name: string; exercises: unknown[] }): WorkoutTe
     name: t.name,
     exercises: t.exercises.map((ex) =>
       typeof ex === "string"
-        ? { name: ex, targetSets: 3, restSec: 90 }
+        ? { name: ex, targetSets: 3 }
         : typeof ex === "object" && ex !== null && "name" in ex
           ? {
               name: String((ex as { name: unknown }).name),
               targetSets: Math.max(1, Number((ex as { targetSets?: unknown }).targetSets) || 3),
-              restSec: Math.max(
-                0,
-                Math.min(600, Number((ex as { restSec?: unknown }).restSec) || 90)
-              ),
+              restSec:
+                (ex as { restSec?: unknown }).restSec != null &&
+                Number.isFinite(Number((ex as { restSec?: unknown }).restSec))
+                  ? Math.max(0, Math.min(600, Number((ex as { restSec?: unknown }).restSec)))
+                  : undefined,
             }
-          : { name: "Exercise", targetSets: 3, restSec: 90 }
+          : { name: "Exercise", targetSets: 3 }
     ),
   };
 }
@@ -58,23 +61,25 @@ const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const { unit, setUnit } = useUnit();
   const [templateName, setTemplateName] = useState("");
   const [exerciseInput, setExerciseInput] = useState("");
   const [exerciseSetsInput, setExerciseSetsInput] = useState(3);
-  const [exerciseRestSecInput, setExerciseRestSecInput] = useState(90);
+  const [restSecInput, setRestSecInput] = useState("90");
   const [exercises, setExercises] = useState<TemplateExercise[]>([]);
   const [savedTemplates, setSavedTemplates] = useState<WorkoutTemplate[]>([]);
   const [editingTemplateIndex, setEditingTemplateIndex] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [addExercisePerTemplate, setAddExercisePerTemplate] = useState<Record<number, string>>({});
   const [addExerciseSetsPerTemplate, setAddExerciseSetsPerTemplate] = useState<Record<number, number>>({});
-  const [addExerciseRestSecPerTemplate, setAddExerciseRestSecPerTemplate] = useState<Record<number, number>>({});
+  const [addExerciseRestSecPerTemplate, setAddExerciseRestSecPerTemplate] = useState<Record<number, string>>({});
+  const [editingTemplateDraft, setEditingTemplateDraft] = useState<WorkoutTemplate | null>(null);
   const [editingExercise, setEditingExercise] = useState<{
     templateIndex: number;
     exerciseIndex: number;
     name: string;
     targetSets: number;
-    restSec: number;
+    restSecInput: string;
   } | null>(null);
 
   function startWorkoutFromTemplate(template: WorkoutTemplate) {
@@ -99,11 +104,11 @@ export default function TemplatesPage() {
     const trimmed = exerciseInput.trim();
     if (!trimmed) return;
     const sets = Math.max(1, Math.min(20, exerciseSetsInput));
-    const restSec = Math.max(0, Math.min(600, exerciseRestSecInput));
-    setExercises((prev) => [...prev, { name: trimmed, targetSets: sets, restSec }]);
+    const restSec = Math.max(0, Math.min(600, parseInt(restSecInput, 10) || 0));
+    setExercises((prev) => [...prev, { name: trimmed, targetSets: sets, ...(restSec > 0 ? { restSec } : {}) }]);
     setExerciseInput("");
     setExerciseSetsInput(3);
-    setExerciseRestSecInput(90);
+    setRestSecInput("90");
   }
 
   function saveTemplate() {
@@ -119,6 +124,31 @@ export default function TemplatesPage() {
     applyTemplates(updated);
     setTemplateName("");
     setExercises([]);
+  }
+
+  function startEditTemplate(index: number) {
+    setEditingTemplateIndex(index);
+    setEditingTemplateDraft(JSON.parse(JSON.stringify(savedTemplates[index])));
+    setEditingExercise(null);
+  }
+
+  function saveEditTemplate() {
+    if (editingTemplateIndex === null || !editingTemplateDraft) return;
+    const name = editingTemplateDraft.name.trim();
+    if (!name) return;
+    const updated = savedTemplates.map((t, i) =>
+      i === editingTemplateIndex ? { ...editingTemplateDraft, name, exercises: editingTemplateDraft.exercises } : t
+    );
+    applyTemplates(updated);
+    setEditingTemplateIndex(null);
+    setEditingTemplateDraft(null);
+    setEditingExercise(null);
+  }
+
+  function cancelEditTemplate() {
+    setEditingTemplateIndex(null);
+    setEditingTemplateDraft(null);
+    setEditingExercise(null);
   }
 
   function startRename(index: number) {
@@ -144,7 +174,10 @@ export default function TemplatesPage() {
   function deleteTemplate(index: number) {
     const updated = savedTemplates.filter((_, i) => i !== index);
     applyTemplates(updated);
-    if (editingTemplateIndex === index) setEditingTemplateIndex(null);
+    if (editingTemplateIndex === index) {
+      setEditingTemplateIndex(null);
+      setEditingTemplateDraft(null);
+    }
     if (editingExercise?.templateIndex === index) setEditingExercise(null);
     setAddExercisePerTemplate((prev) => {
       const next = { ...prev };
@@ -154,6 +187,13 @@ export default function TemplatesPage() {
   }
 
   function removeExerciseFromTemplate(templateIndex: number, exerciseIndex: number) {
+    if (editingTemplateDraft && editingTemplateIndex === templateIndex) {
+      setEditingTemplateDraft((prev) =>
+        prev ? { ...prev, exercises: prev.exercises.filter((_, i) => i !== exerciseIndex) } : null
+      );
+      setEditingExercise(null);
+      return;
+    }
     const template = savedTemplates[templateIndex];
     const updatedExercises = template.exercises.filter((_, i) => i !== exerciseIndex);
     const updated = savedTemplates.map((t, i) =>
@@ -166,8 +206,15 @@ export default function TemplatesPage() {
     const value = (addExercisePerTemplate[templateIndex] ?? "").trim();
     if (!value) return;
     const sets = Math.max(1, Math.min(20, addExerciseSetsPerTemplate[templateIndex] ?? 3));
-    const restSec = Math.max(0, Math.min(600, addExerciseRestSecPerTemplate[templateIndex] ?? 90));
-    const newEx: TemplateExercise = { name: value, targetSets: sets, restSec };
+    const restSecVal = Math.max(0, Math.min(600, parseInt(addExerciseRestSecPerTemplate[templateIndex] ?? "90", 10) || 0));
+    const newEx: TemplateExercise = { name: value, targetSets: sets, ...(restSecVal > 0 ? { restSec: restSecVal } : {}) };
+    if (editingTemplateDraft && editingTemplateIndex === templateIndex) {
+      setEditingTemplateDraft((prev) => (prev ? { ...prev, exercises: [...prev.exercises, newEx] } : null));
+      setAddExercisePerTemplate((prev) => ({ ...prev, [templateIndex]: "" }));
+      setAddExerciseSetsPerTemplate((prev) => ({ ...prev, [templateIndex]: 3 }));
+      setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [templateIndex]: "90" }));
+      return;
+    }
     const updated = savedTemplates.map((t, i) =>
       i === templateIndex
         ? { ...t, exercises: [...t.exercises, newEx] }
@@ -176,37 +223,52 @@ export default function TemplatesPage() {
     applyTemplates(updated);
     setAddExercisePerTemplate((prev) => ({ ...prev, [templateIndex]: "" }));
     setAddExerciseSetsPerTemplate((prev) => ({ ...prev, [templateIndex]: 3 }));
-    setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [templateIndex]: 90 }));
+    setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [templateIndex]: "90" }));
   }
 
   function startEditExercise(templateIndex: number, exerciseIndex: number) {
-    const ex = savedTemplates[templateIndex]?.exercises[exerciseIndex];
+    const source =
+      editingTemplateDraft && editingTemplateIndex === templateIndex
+        ? editingTemplateDraft.exercises
+        : savedTemplates[templateIndex]?.exercises;
+    const ex = source?.[exerciseIndex];
     if (!ex) return;
     setEditingExercise({
       templateIndex,
       exerciseIndex,
       name: ex.name,
       targetSets: ex.targetSets,
-      restSec: ex.restSec ?? 90,
+      restSecInput: ex.restSec != null ? String(ex.restSec) : "",
     });
   }
 
   function saveEditExercise() {
     if (!editingExercise) return;
-    const { templateIndex, exerciseIndex, name, targetSets, restSec } = editingExercise;
+    const { templateIndex, exerciseIndex, name, targetSets, restSecInput } = editingExercise;
     const trimmed = name.trim();
     if (!trimmed) {
       setEditingExercise(null);
       return;
     }
     const sets = Math.max(1, Math.min(20, targetSets));
-    const rest = Math.max(0, Math.min(600, restSec));
+    const restSec = Math.max(0, Math.min(600, parseInt(restSecInput, 10) || 0));
+    const updatedEx: TemplateExercise = { name: trimmed, targetSets: sets, ...(restSec > 0 ? { restSec } : {}) };
+    if (editingTemplateDraft && editingTemplateIndex === templateIndex) {
+      setEditingTemplateDraft((prev) => {
+        if (!prev) return null;
+        const next = [...prev.exercises];
+        next[exerciseIndex] = updatedEx;
+        return { ...prev, exercises: next };
+      });
+      setEditingExercise(null);
+      return;
+    }
     const updated = savedTemplates.map((t, i) =>
       i === templateIndex
         ? {
             ...t,
             exercises: t.exercises.map((ex, j) =>
-              j === exerciseIndex ? { name: trimmed, targetSets: sets, restSec: rest } : ex
+              j === exerciseIndex ? updatedEx : ex
             ),
           }
         : t
@@ -218,7 +280,32 @@ export default function TemplatesPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Templates</h1>
+        <div className="mb-6 flex flex-wrap items-center gap-4">
+          <Link
+            href="/"
+            className="text-zinc-400 hover:text-white transition text-sm"
+          >
+            ← Home
+          </Link>
+          <h1 className="text-3xl font-bold">Templates</h1>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-zinc-500">Units:</span>
+            {(["kg", "lb"] as const).map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => setUnit(u)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                  unit === u
+                    ? "bg-zinc-700 text-white"
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60"
+                }`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <section className="mb-8 space-y-4">
           <div>
@@ -264,15 +351,17 @@ export default function TemplatesPage() {
                   type="number"
                   min={0}
                   max={600}
-                  value={exerciseRestSecInput}
-                  onChange={(e) =>
-                    setExerciseRestSecInput(
-                      Math.max(0, Math.min(600, parseInt(e.target.value, 10) || 0))
-                    )
-                  }
-                  className="w-20 p-3 rounded-xl bg-zinc-900 border border-zinc-700 focus-accent"
+                  placeholder="0"
+                  value={restSecInput}
+                  onChange={(e) => setRestSecInput(e.target.value)}
+                  onBlur={() => {
+                    const n = parseInt(restSecInput, 10);
+                    if (!Number.isNaN(n) && n >= 0 && n <= 600) setRestSecInput(String(n));
+                    else if (restSecInput.trim() === "") setRestSecInput("");
+                  }}
+                  className="w-16 p-3 rounded-xl bg-zinc-900 border border-zinc-700 focus-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-                <span className="text-sm text-zinc-500">s</span>
+                <span className="text-sm text-zinc-500">s (0 = no rest)</span>
               </div>
               <button
                 onClick={addExercise}
@@ -290,7 +379,9 @@ export default function TemplatesPage() {
                 {exercises.map((ex, i) => (
                   <li key={i} className="text-zinc-200">
                     {i + 1}. {ex.name} — {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""}{" "}
-                    <span className="text-zinc-500">• {ex.restSec ?? 90}s rest</span>
+                    <span className="text-zinc-500">
+                      • {ex.restSec != null && ex.restSec > 0 ? `${ex.restSec}s rest` : "no rest"}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -310,13 +401,40 @@ export default function TemplatesPage() {
           <section>
             <h2 className="text-xl font-semibold mb-4">Saved templates</h2>
             <ul className="space-y-4">
-              {savedTemplates.map((template, index) => (
+              {savedTemplates.map((template, index) => {
+                const isEditMode = editingTemplateIndex === index && editingTemplateDraft;
+                const data = isEditMode ? editingTemplateDraft! : template;
+                return (
                 <li
                   key={index}
                   className="p-4 rounded-xl bg-zinc-900 border border-zinc-800"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                    {editingTemplateIndex === index ? (
+                    {isEditMode ? (
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={data.name}
+                          onChange={(e) =>
+                            setEditingTemplateDraft((p) => (p ? { ...p, name: e.target.value } : null))
+                          }
+                          placeholder="Template name"
+                          className="flex-1 min-w-0 p-2 rounded-lg bg-zinc-800 border border-zinc-600 text-white text-sm focus-accent"
+                        />
+                        <button
+                          onClick={saveEditTemplate}
+                          className="text-xs px-2 py-1.5 rounded-lg bg-[color:var(--color-accent)] text-[color:var(--color-accent-foreground)] font-medium hover:opacity-90"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelEditTemplate}
+                          className="text-xs px-2 py-1.5 rounded-lg border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : editingTemplateIndex === index ? (
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <input
                           type="text"
@@ -350,41 +468,50 @@ export default function TemplatesPage() {
                         </p>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        onClick={() => startWorkoutFromTemplate(template)}
-                        className="text-sm px-3 py-1.5 rounded-lg btn-primary"
-                      >
-                        Start Workout
-                      </button>
-                      {editingTemplateIndex !== index && (
-                        <details className="relative">
-                          <summary className="list-none cursor-pointer select-none text-sm px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 transition">
-                            Options
-                          </summary>
-                          <div className="absolute right-0 mt-2 w-48 rounded-xl bg-zinc-950 border border-zinc-800 shadow-xl p-2 z-10">
-                            <button
-                              type="button"
-                              onClick={() => startRename(index)}
-                              className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-zinc-900 transition text-zinc-200"
-                            >
-                              Rename
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteTemplate(index)}
-                              className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-red-900/30 transition text-red-300"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </details>
-                      )}
-                    </div>
+                    {!isEditMode && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => startWorkoutFromTemplate(template)}
+                          className="text-sm px-3 py-1.5 rounded-lg btn-primary"
+                        >
+                          Start Workout
+                        </button>
+                        {editingTemplateIndex !== index && (
+                          <details className="relative">
+                            <summary className="list-none cursor-pointer select-none text-sm px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 transition">
+                              Options
+                            </summary>
+                            <div className="absolute right-0 mt-2 w-48 rounded-xl bg-zinc-950 border border-zinc-800 shadow-xl p-2 z-10">
+                              <button
+                                type="button"
+                                onClick={() => startEditTemplate(index)}
+                                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-zinc-900 transition text-zinc-200"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => startRename(index)}
+                                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-zinc-900 transition text-zinc-200"
+                              >
+                                Rename
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteTemplate(index)}
+                                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-red-900/30 transition text-red-300"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <ul className="text-sm text-zinc-300 space-y-1.5 mb-4">
-                    {template.exercises.map((ex, i) => {
+                    {data.exercises.map((ex, i) => {
                       const isEditing =
                         editingExercise?.templateIndex === index &&
                         editingExercise?.exerciseIndex === i;
@@ -413,19 +540,27 @@ export default function TemplatesPage() {
                                 className="w-12 p-2 rounded bg-zinc-800 border border-zinc-600 text-sm"
                               />
                               <span className="text-zinc-500 text-xs">sets</span>
+                              <label className="text-zinc-500 text-xs">Rest</label>
                               <input
                                 type="number"
                                 min={0}
                                 max={600}
-                                value={editingExercise.restSec}
+                                placeholder="0"
+                                value={editingExercise.restSecInput}
                                 onChange={(e) =>
-                                  setEditingExercise((p) =>
-                                    p && { ...p, restSec: Math.max(0, Math.min(600, parseInt(e.target.value, 10) || 0)) }
-                                  )
+                                  setEditingExercise((p) => p ? { ...p, restSecInput: e.target.value } : null)
                                 }
-                                className="w-16 p-2 rounded bg-zinc-800 border border-zinc-600 text-sm"
+                                onBlur={() =>
+                                  setEditingExercise((p) => {
+                                    if (!p) return p;
+                                    const n = parseInt(p.restSecInput, 10);
+                                    const normalized = !Number.isNaN(n) && n >= 0 && n <= 600 ? String(n) : p.restSecInput.trim() === "" ? "" : p.restSecInput;
+                                    return normalized !== p.restSecInput ? { ...p, restSecInput: normalized } : p;
+                                  })
+                                }
+                                className="w-14 p-2 rounded bg-zinc-800 border border-zinc-600 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
-                              <span className="text-zinc-500 text-xs">sec</span>
+                              <span className="text-zinc-500 text-xs">s</span>
                               <button
                                 onClick={saveEditExercise}
                                 className="text-xs px-2 py-1 rounded border border-zinc-500 bg-zinc-600 hover:bg-zinc-500"
@@ -444,7 +579,7 @@ export default function TemplatesPage() {
                               <span className="min-w-0 truncate">
                                 {i + 1}. {ex.name}{" "}
                                 <span className="text-zinc-500">
-                                  — {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""} • {ex.restSec ?? 90}s rest
+                                  — {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""} • {ex.restSec != null && ex.restSec > 0 ? `${ex.restSec}s rest` : "no rest"}
                                 </span>
                               </span>
                               <details className="relative">
@@ -513,14 +648,18 @@ export default function TemplatesPage() {
                         type="number"
                         min={0}
                         max={600}
-                        value={addExerciseRestSecPerTemplate[index] ?? 90}
+                        placeholder="0"
+                        value={addExerciseRestSecPerTemplate[index] ?? "90"}
                         onChange={(e) =>
-                          setAddExerciseRestSecPerTemplate((prev) => ({
-                            ...prev,
-                            [index]: Math.max(0, Math.min(600, parseInt(e.target.value, 10) || 0)),
-                          }))
+                          setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [index]: e.target.value }))
                         }
-                        className="w-16 p-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white focus-accent"
+                        onBlur={() => {
+                          const v = addExerciseRestSecPerTemplate[index] ?? "90";
+                          const n = parseInt(v, 10);
+                          if (!Number.isNaN(n) && n >= 0 && n <= 600) setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [index]: String(n) }));
+                          else if (String(v).trim() === "") setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [index]: "" }));
+                        }}
+                        className="w-14 p-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white focus-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <span className="text-xs text-zinc-500">s</span>
                     </div>
@@ -532,7 +671,8 @@ export default function TemplatesPage() {
                     </button>
                   </div>
                 </li>
-              ))}
+              );
+            })}
             </ul>
           </section>
         )}

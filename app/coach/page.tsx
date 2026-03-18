@@ -9,8 +9,10 @@ import {
   generateFeedback,
   type CoachFeedbackSections,
 } from "@/lib/trainingAnalysis";
+import { useUnit } from "@/lib/unit-preference";
 
 export default function CoachPage() {
+  const { unit, setUnit } = useUnit();
   const [stats, setStats] = useState({
     totalWorkouts: 0,
     totalExercises: 0,
@@ -75,13 +77,32 @@ export default function CoachPage() {
       setIsLoading(false);
     }
 
-    setAnalysis(generateFeedback(allWorkouts, recentWorkouts, weeklyVolume));
+    setAnalysis(generateFeedback(allWorkouts, recentWorkouts, weeklyVolume, unit));
   }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Coach</h1>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-3xl font-bold">Coach</h1>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-zinc-500">Units:</span>
+            {(["kg", "lb"] as const).map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => setUnit(u)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                  unit === u
+                    ? "bg-zinc-700 text-white"
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60"
+                }`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <section className="mb-6 p-4 rounded-xl bg-zinc-900 border border-zinc-800">
           <h2 className="text-lg font-semibold mb-3 text-zinc-200">Your stats</h2>

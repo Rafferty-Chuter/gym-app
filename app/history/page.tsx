@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { getWorkoutHistory } from "@/lib/trainingAnalysis";
 import { useWorkoutStore } from "@/lib/workout-store";
+import { useUnit } from "@/lib/unit-preference";
 
 type WorkoutRow = {
   completedAt: string;
@@ -10,7 +11,7 @@ type WorkoutRow = {
   durationSec?: number;
   totalExercises: number;
   totalSets: number;
-  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string }[] }[];
+  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string; notes?: string }[] }[];
 };
 
 function mapStoredToRows(stored: ReturnType<typeof getWorkoutHistory>): WorkoutRow[] {
@@ -24,13 +25,14 @@ function mapStoredToRows(stored: ReturnType<typeof getWorkoutHistory>): WorkoutR
       w.exercises?.map((ex) => ({
         name: ex.name,
         restSec: ex.restSec,
-        sets: ex.sets?.map((s) => ({ weight: String(s.weight), reps: String(s.reps) })) ?? [],
+        sets: ex.sets?.map((s) => ({ weight: String(s.weight), reps: String(s.reps), notes: s.notes })) ?? [],
       })) ?? [],
   }));
 }
 
 export default function HistoryPage() {
   const { removeWorkoutAtIndex } = useWorkoutStore();
+  const { unit, setUnit } = useUnit();
   const [workouts, setWorkouts] = useState<WorkoutRow[]>([]);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
@@ -84,7 +86,7 @@ export default function HistoryPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
-        <div className="mb-6 flex items-center gap-4">
+        <div className="mb-6 flex flex-wrap items-center gap-4">
           <Link
             href="/"
             className="text-zinc-400 hover:text-white transition text-sm"
@@ -92,6 +94,23 @@ export default function HistoryPage() {
             ← Home
           </Link>
           <h1 className="text-3xl font-bold">Workout History</h1>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-zinc-500">Units:</span>
+            {(["kg", "lb"] as const).map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => setUnit(u)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                  unit === u
+                    ? "bg-zinc-700 text-white"
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60"
+                }`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
         </div>
 
         {workouts.length === 0 ? (
@@ -176,7 +195,10 @@ export default function HistoryPage() {
                               <ul className="space-y-1 text-sm text-zinc-300">
                                 {ex.sets.map((s, setIdx) => (
                                   <li key={setIdx} className="tabular-nums">
-                                    Set {setIdx + 1} — {s.weight}kg x {s.reps}
+                                    Set {setIdx + 1} — {s.weight}{unit} × {s.reps}
+                                    {s.notes?.trim() && (
+                                      <p className="text-xs text-zinc-500 mt-0.5 pl-0">{s.notes.trim()}</p>
+                                    )}
                                   </li>
                                 ))}
                               </ul>

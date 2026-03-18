@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   getWorkoutHistory,
   getWorkoutsFromLast7Days,
   getVolumeByMuscleGroup,
 } from "@/lib/trainingAnalysis";
+import { hasActiveWorkout } from "@/lib/activeWorkout";
+import { useUnit } from "@/lib/unit-preference";
 
 const TEMPLATES_STORAGE_KEY = "workoutTemplates";
 
@@ -26,8 +29,16 @@ function readTemplateNames(): string[] {
 }
 
 export default function Home() {
+  const pathname = usePathname();
+  const { unit, setUnit } = useUnit();
   const [workouts, setWorkouts] = useState<ReturnType<typeof getWorkoutHistory>>([]);
   const [templateNames, setTemplateNames] = useState<string[]>([]);
+  const [hasMounted, setHasMounted] = useState(false);
+  const [hasActive, setHasActive] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     function load() {
@@ -38,6 +49,10 @@ export default function Home() {
     window.addEventListener("workoutHistoryChanged", load);
     return () => window.removeEventListener("workoutHistoryChanged", load);
   }, []);
+
+  useEffect(() => {
+    if (hasMounted && pathname === "/") setHasActive(hasActiveWorkout());
+  }, [hasMounted, pathname]);
 
   const lastWorkout = useMemo(() => {
     if (!workouts.length) return null;
@@ -201,6 +216,23 @@ export default function Home() {
           <p className="text-zinc-500/90 mt-2 text-sm">
             Pick up where you left off.
           </p>
+          <div className="mt-4 flex items-center gap-2">
+            <span className="text-xs text-zinc-500">Units:</span>
+            {(["kg", "lb"] as const).map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => setUnit(u)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                  unit === u
+                    ? "bg-zinc-700 text-white"
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60"
+                }`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
         </header>
 
         <div className="relative isolate mb-4 mt-4">
@@ -217,7 +249,7 @@ export default function Home() {
             href="/workout"
             className="relative z-10 block w-full rounded-2xl py-8 text-center text-lg font-bold tracking-tight text-white transition-all duration-150 ease-out will-change-transform overflow-hidden bg-gradient-to-br from-emerald-500 via-teal-500 to-teal-600 shadow-[0_4px_0_0_rgba(6,95,70,0.5),0_14px_36px_-10px_rgba(20,184,166,0.38),0_18px_44px_-14px_rgba(16,185,129,0.22),0_10px_28px_rgba(0,0,0,0.45)] ring-1 ring-white/15 hover:shadow-[0_4px_0_0_rgba(6,95,70,0.45),0_16px_40px_-8px_rgba(20,184,166,0.42),0_22px_50px_-12px_rgba(16,185,129,0.26),0_12px_32px_rgba(0,0,0,0.5)] hover:scale-[1.02] hover:brightness-[1.05] active:translate-y-[2px] active:scale-[0.99] active:shadow-[0_2px_0_0_rgba(6,95,70,0.5),0_10px_26px_rgba(20,184,166,0.22)]"
           >
-            Start Workout
+            {hasMounted && hasActive ? "Resume Workout" : "Start Workout"}
           </Link>
         </div>
 

@@ -6,7 +6,7 @@ const WORKOUT_HISTORY_KEY = "workoutHistory";
 
 type StoredWorkout = {
   completedAt: string;
-  exercises: { name: string; sets: { weight: string; reps: string }[] }[];
+  exercises: { name: string; sets: { weight: string; reps: string; notes?: string }[] }[];
 };
 
 const MUSCLE_GROUP_KEYWORDS: Record<string, string[]> = {

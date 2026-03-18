@@ -4,7 +4,7 @@ export type StoredWorkout = {
   completedAt: string;
   name?: string;
   durationSec?: number;
-  exercises: { name: string; sets: { weight: string; reps: string }[] }[];
+  exercises: { name: string; sets: { weight: string; reps: string; notes?: string }[] }[];
 };
 
 const MUSCLE_GROUP_KEYWORDS: Record<string, string[]> = {

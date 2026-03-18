@@ -16,7 +16,7 @@ export type CompletedWorkout = {
   completedAt: string; // ISO date string
   name?: string;
   durationSec?: number;
-  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string }[] }[];
+  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string; notes?: string }[] }[];
   totalExercises: number;
   totalSets: number;
 };
@@ -25,7 +25,7 @@ type StoredWorkout = {
   completedAt: string;
   name?: string;
   durationSec?: number;
-  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string }[] }[];
+  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string; notes?: string }[] }[];
 };
 
 type WorkoutStore = {

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useUnit } from "@/lib/unit-preference";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
 type StoredWorkout = {
   completedAt: string;
-  exercises: { name: string; sets: { weight: string; reps: string }[] }[];
+  exercises: { name: string; sets: { weight: string; reps: string; notes?: string }[] }[];
 };
 
 function getWorkoutHistory(): StoredWorkout[] {
@@ -40,12 +41,12 @@ function getUniqueExerciseNames(workouts: StoredWorkout[]): string[] {
 function getAllSetsForExercise(
   workouts: StoredWorkout[],
   exerciseName: string
-): { weight: string; reps: string }[] {
+): { weight: string; reps: string; notes?: string }[] {
   const normalized = exerciseName.trim().toLowerCase();
   const sorted = [...workouts].sort(
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
   );
-  const sets: { weight: string; reps: string }[] = [];
+  const sets: { weight: string; reps: string; notes?: string }[] = [];
   for (const workout of sorted) {
     const exercise = workout.exercises?.find(
       (ex) => ex.name?.trim().toLowerCase() === normalized
@@ -53,7 +54,7 @@ function getAllSetsForExercise(
     if (exercise?.sets?.length) {
       for (const set of exercise.sets) {
         if (set?.weight != null && set?.reps != null)
-          sets.push({ weight: String(set.weight), reps: String(set.reps) });
+          sets.push({ weight: String(set.weight), reps: String(set.reps), notes: (set as { notes?: string }).notes });
       }
     }
   }
@@ -61,6 +62,7 @@ function getAllSetsForExercise(
 }
 
 export default function ProgressPage() {
+  const { unit } = useUnit();
   const [workouts, setWorkouts] = useState<StoredWorkout[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
 
@@ -135,7 +137,10 @@ export default function ProgressPage() {
                           key={index}
                           className="text-zinc-200 py-1 border-b border-zinc-800 last:border-0"
                         >
-                          {set.weight}kg × {set.reps}
+                          {set.weight}{unit} × {set.reps}
+                          {set.notes?.trim() && (
+                            <p className="text-xs text-zinc-500 mt-0.5">{set.notes.trim()}</p>
+                          )}
                         </li>
                       ))}
                     </ul>

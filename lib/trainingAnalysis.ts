@@ -9,7 +9,7 @@ export type StoredWorkout = {
   completedAt: string;
   name?: string;
   durationSec?: number;
-  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string }[] }[];
+  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string; notes?: string }[] }[];
 };
 
 const MUSCLE_GROUP_KEYWORDS: Record<string, string[]> = {
@@ -94,7 +94,7 @@ function getBestSet(sets: { weight: string; reps: string }[]): { weight: number;
   return best.weight > 0 || best.reps > 0 ? best : null;
 }
 
-function getProgressionFeedback(workouts: StoredWorkout[]): string[] {
+function getProgressionFeedback(workouts: StoredWorkout[], unit: "kg" | "lb" = "kg"): string[] {
   const lines: string[] = [];
   const sorted = [...workouts].sort(
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -119,8 +119,8 @@ function getProgressionFeedback(workouts: StoredWorkout[]): string[] {
     const previousBest = getBestSet(prevEx.sets ?? []);
     if (!recentBest || !previousBest) continue;
 
-    const prevStr = `${previousBest.weight}kg × ${previousBest.reps}`;
-    const recentStr = `${recentBest.weight}kg × ${recentBest.reps}`;
+    const prevStr = `${previousBest.weight}${unit} × ${previousBest.reps}`;
+    const recentStr = `${recentBest.weight}${unit} × ${recentBest.reps}`;
 
     if (recentBest.weight > previousBest.weight || (recentBest.weight === previousBest.weight && recentBest.reps > previousBest.reps)) {
       lines.push(`${name}: improved from ${prevStr} to ${recentStr}. Progressing well.`);
@@ -143,7 +143,8 @@ export type CoachFeedbackSections = {
 export function generateFeedback(
   allWorkouts: StoredWorkout[],
   recentWorkouts: StoredWorkout[],
-  weeklyVolume: Record<string, number>
+  weeklyVolume: Record<string, number>,
+  unit: "kg" | "lb" = "kg"
 ): CoachFeedbackSections {
   const volume: string[] = [];
   const progression: string[] = [];
@@ -198,7 +199,7 @@ export function generateFeedback(
     volume.push("Back volume is high relative to chest. Consider balancing push and pull for upper body.");
   }
 
-  const progressionLines = getProgressionFeedback(allWorkouts);
+  const progressionLines = getProgressionFeedback(allWorkouts, unit);
   if (progressionLines.length > 0) {
     progression.push(...progressionLines);
   }
