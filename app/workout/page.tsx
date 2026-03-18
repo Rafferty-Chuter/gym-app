@@ -54,6 +54,34 @@ function getLastPerformanceForExercise(exerciseName: string): { weight: string; 
   }
 }
 
+function getLastSetsForExercise(exerciseName: string): { weight: string; reps: string }[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
+    if (!raw) return [];
+    const workouts: StoredWorkout[] = JSON.parse(raw);
+    if (!Array.isArray(workouts)) return [];
+    const normalized = exerciseName.trim().toLowerCase();
+    const sorted = [...workouts].sort(
+      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    );
+    for (const workout of sorted) {
+      const exercise = workout.exercises?.find(
+        (ex) => ex.name?.trim().toLowerCase() === normalized
+      );
+      if (exercise?.sets?.length) {
+        return exercise.sets.map((s) => ({
+          weight: String(s?.weight ?? ""),
+          reps: String(s?.reps ?? ""),
+        }));
+      }
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 type ExerciseCategory =
   | "barbell_compound"
   | "machine_compound"
@@ -285,22 +313,65 @@ export default function WorkoutPage() {
       id: number;
       name: string;
       sets: { weight: string; reps: string }[];
+      targetSets?: number;
     }[]
   >([]);
-  const [activeExerciseId, setActiveExerciseId] = useState<number | null>(null);
-  const [weight, setWeight] = useState("");
-  const [reps, setReps] = useState("");
   const [showSummary, setShowSummary] = useState(false);
-  const [editingSet, setEditingSet] = useState<{
-    exerciseId: number;
-    setIndex: number;
-  } | null>(null);
-  const [editWeight, setEditWeight] = useState("");
-  const [editReps, setEditReps] = useState("");
   const [lastPerformance, setLastPerformance] = useState<
     Record<string, { weight: string; reps: string } | null>
   >({});
   const [nextTarget, setNextTarget] = useState<Record<string, string | null>>({});
+  const [workoutName, setWorkoutName] = useState("");
+  const [routineSaved, setRoutineSaved] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+
+  useEffect(() => {
+    const t0 = Date.now();
+    const id = window.setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - t0) / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const totalSetsLogged = exercises.reduce((total, ex) => total + ex.sets.length, 0);
+
+  function formatElapsed(sec: number) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  function saveAsRoutineFromSession() {
+    if (typeof window === "undefined") return;
+    try {
+      const STORAGE_KEY = "workoutTemplates";
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const existing = raw ? JSON.parse(raw) : [];
+      const templates = Array.isArray(existing) ? existing : [];
+
+      const name =
+        workoutName.trim() ||
+        `Routine ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+
+      const routine = {
+        name,
+        exercises: exercises.map((ex) => ({
+          name: ex.name,
+          targetSets: Math.max(
+            1,
+            Math.min(20, (ex.targetSets ?? (ex.sets.length || 3)))
+          ),
+        })),
+      };
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...templates, routine]));
+      setRoutineSaved(true);
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     if (exercises.length === 0) {
@@ -350,19 +421,24 @@ export default function WorkoutPage() {
     const raw = sessionStorage.getItem(TEMPLATE_FOR_WORKOUT_KEY);
     if (!raw) return;
     try {
-      const { exercises: exerciseNames } = JSON.parse(raw) as {
-        exercises: string[];
-      };
+      const data = JSON.parse(raw) as { exercises: unknown[] };
+      const exercisesData = data?.exercises;
       sessionStorage.removeItem(TEMPLATE_FOR_WORKOUT_KEY);
-      if (!Array.isArray(exerciseNames) || exerciseNames.length === 0) return;
+      if (!Array.isArray(exercisesData) || exercisesData.length === 0) return;
       const now = Date.now();
-      const initial = exerciseNames.map((name, i) => ({
-        id: now + i,
-        name,
-        sets: [] as { weight: string; reps: string }[],
-      }));
+      const initial = exercisesData.map((ex, i) => {
+        const name = typeof ex === "string" ? ex : (ex as { name?: string })?.name ?? "Exercise";
+        const targetSets = typeof ex === "object" && ex !== null && "targetSets" in ex
+          ? Math.max(1, Math.min(20, Number((ex as { targetSets?: number }).targetSets) || 3))
+          : undefined;
+        return {
+          id: now + i,
+          name,
+          sets: [] as { weight: string; reps: string }[],
+          targetSets,
+        };
+      });
       setExercises(initial);
-      setActiveExerciseId(initial[0].id);
     } catch {
       sessionStorage.removeItem(TEMPLATE_FOR_WORKOUT_KEY);
     }
@@ -370,34 +446,21 @@ export default function WorkoutPage() {
 
   function finishWorkout() {
     if (exercises.length === 0) return;
+    setRoutineSaved(false);
     const totalSets = exercises.reduce((total, ex) => total + ex.sets.length, 0);
     const completed = {
       completedAt: new Date().toISOString(),
+      name: workoutName.trim() || undefined,
       exercises: exercises.map(({ name, sets }) => ({ name, sets })),
       totalExercises: exercises.length,
       totalSets,
     };
     addWorkout(completed);
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
-        const history: StoredWorkout[] = raw ? JSON.parse(raw) : [];
-        if (Array.isArray(history)) {
-          history.push({
-            completedAt: completed.completedAt,
-            exercises: completed.exercises,
-          });
-          localStorage.setItem(WORKOUT_HISTORY_KEY, JSON.stringify(history));
-        }
-      } catch {
-        // ignore
-      }
-    }
     setShowSummary(true);
   }
 
-  function addExercise() {
-    const trimmed = exerciseName.trim();
+  function addExercise(nameOverride?: string) {
+    const trimmed = (nameOverride ?? exerciseName).trim();
     if (!trimmed) return;
 
     const newExercise = {
@@ -407,28 +470,37 @@ export default function WorkoutPage() {
     };
 
     setExercises((prev) => [...prev, newExercise]);
-    setActiveExerciseId(newExercise.id);
     setExerciseName("");
-    setWeight("");
-    setReps("");
   }
 
-  function addSet() {
-    if (activeExerciseId === null || !weight.trim() || !reps.trim()) return;
-
+  function addSetRow(exerciseId: number) {
     setExercises((prev) =>
       prev.map((exercise) =>
-        exercise.id === activeExerciseId
+        exercise.id === exerciseId
           ? {
               ...exercise,
-              sets: [...exercise.sets, { weight: weight.trim(), reps: reps.trim() }],
+              sets: [...exercise.sets, { weight: "", reps: "" }],
             }
           : exercise
       )
     );
+  }
 
-    setWeight("");
-    setReps("");
+  function updateSetValue(
+    exerciseId: number,
+    setIndex: number,
+    field: "weight" | "reps",
+    value: string
+  ) {
+    setExercises((prev) =>
+      prev.map((exercise) => {
+        if (exercise.id !== exerciseId) return exercise;
+        const sets = [...exercise.sets];
+        while (sets.length <= setIndex) sets.push({ weight: "", reps: "" });
+        sets[setIndex] = { ...sets[setIndex], [field]: value };
+        return { ...exercise, sets };
+      })
+    );
   }
 
   function deleteSet(exerciseId: number, setIndex: number) {
@@ -442,245 +514,229 @@ export default function WorkoutPage() {
           : exercise
       )
     );
-    if (editingSet?.exerciseId === exerciseId) setEditingSet(null);
   }
 
   function deleteExercise(exerciseId: number) {
     setExercises((prev) => prev.filter((exercise) => exercise.id !== exerciseId));
-    setActiveExerciseId((current) =>
-      current === exerciseId ? null : current
-    );
-    if (editingSet?.exerciseId === exerciseId) setEditingSet(null);
-  }
-
-  function startEditingSet(exerciseId: number, setIndex: number) {
-    const exercise = exercises.find((ex) => ex.id === exerciseId);
-    const set = exercise?.sets[setIndex];
-    if (!set) return;
-    setEditingSet({ exerciseId, setIndex });
-    setEditWeight(set.weight);
-    setEditReps(set.reps);
-  }
-
-  function saveSetEdit() {
-    if (editingSet === null || !editWeight.trim() || !editReps.trim()) return;
-    setExercises((prev) =>
-      prev.map((exercise) =>
-        exercise.id === editingSet.exerciseId
-          ? {
-              ...exercise,
-              sets: exercise.sets.map((set, index) =>
-                index === editingSet.setIndex
-                  ? { weight: editWeight.trim(), reps: editReps.trim() }
-                  : set
-              ),
-            }
-          : exercise
-      )
-    );
-    setEditingSet(null);
-    setEditWeight("");
-    setEditReps("");
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Start Workout</h1>
+    <main
+      className={`min-h-screen bg-zinc-950 text-white ${
+        exercises.length > 0 ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "pb-6"
+      }`}
+    >
+      <div className="max-w-3xl mx-auto px-4 pt-4 sm:px-6 sm:pt-6">
+        <header className="mb-5">
+          <div className="mb-3">
+            <label className="block text-xs text-zinc-500 mb-1">Workout name</label>
+            <input
+              type="text"
+              placeholder="Push Day"
+              value={workoutName}
+              onChange={(e) => setWorkoutName(e.target.value)}
+              className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-600 placeholder-zinc-500 text-base"
+            />
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-400 mb-3">
+            <span className="tabular-nums">
+              <span className="text-zinc-500">Time </span>
+              {formatElapsed(elapsedSec)}
+            </span>
+            <span>
+              <span className="text-zinc-500">Exercises </span>
+              {exercises.length}
+            </span>
+            <span>
+              <span className="text-zinc-500">Sets </span>
+              {totalSetsLogged}
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Workout</h1>
+        </header>
 
-        <div className="space-y-4 mb-8">
-          <input
-            placeholder="Exercise name"
-            value={exerciseName}
-            onChange={(e) => setExerciseName(e.target.value)}
-            className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-500"
-          />
-
-          <button
-            onClick={addExercise}
-            className="w-full bg-white text-black py-3 rounded-xl font-semibold hover:bg-zinc-100 transition"
-          >
-            Add Exercise
-          </button>
-
-          <div className="h-px bg-zinc-800" />
-
-          <input
-            placeholder="Weight"
-            value={weight}
-            onChange={(e) => setWeight(e.target.value)}
-            className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-500"
-          />
-
-          <input
-            placeholder="Reps"
-            value={reps}
-            onChange={(e) => setReps(e.target.value)}
-            className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-500"
-          />
-
-          <button
-            onClick={addSet}
-            className="w-full bg-zinc-200 text-black py-3 rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 transition"
-            disabled={activeExerciseId === null}
-          >
-            Add Set
-          </button>
-          {activeExerciseId === null && (
-            <p className="text-sm text-zinc-400">
-              Add an exercise first, then log sets for it.
-            </p>
-          )}
-        </div>
-
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Logged Exercises</h2>
-
-          {exercises.length === 0 ? (
-            <p className="text-zinc-400 text-sm">
-              No exercises logged yet. Start by adding one above.
-            </p>
-          ) : (
-            <div className="space-y-4">
+        {exercises.length === 0 ? (
+          <div className="min-h-[min(60vh,420px)] flex flex-col items-center justify-center px-4 text-center">
+            <p className="text-lg text-zinc-300 font-medium mb-6">Start your workout</p>
+            <input
+              placeholder="Exercise name"
+              value={exerciseName}
+              onChange={(e) => setExerciseName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                addExercise((e.target as HTMLInputElement).value);
+              }}
+              className="w-full max-w-sm mb-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-600 text-center"
+            />
+            <button
+              type="button"
+              onClick={() => addExercise()}
+              disabled={!exerciseName.trim()}
+              className="w-full max-w-sm py-4 rounded-2xl bg-white text-black text-lg font-semibold hover:bg-zinc-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              + Add Exercise
+            </button>
+          </div>
+        ) : (
+          <>
+            <section className="space-y-3 sm:space-y-4">
               {exercises.map((exercise) => (
                 <div
                   key={exercise.id}
-                  className={`p-4 rounded-xl border ${
-                    exercise.id === activeExerciseId
-                      ? "bg-zinc-800 border-zinc-400 ring-2 ring-zinc-400/50"
-                      : "bg-zinc-900 border-zinc-800"
+                  className={`p-4 rounded-2xl border ${
+                    "bg-zinc-900 border-zinc-800"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2 gap-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">{exercise.name}</h3>
-                      {exercise.id === activeExerciseId && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-500 text-white">
-                          Logging here
-                        </span>
-                      )}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold truncate">{exercise.name}</h3>
+                      </div>
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        <p className="text-xs text-zinc-400">
+                          {lastPerformance[exercise.name]
+                            ? `Last: ${lastPerformance[exercise.name]!.weight}kg × ${lastPerformance[exercise.name]!.reps}`
+                            : "No previous data"}
+                        </p>
+                        {nextTarget[exercise.name] && (
+                          <p className="text-xs text-zinc-500">
+                            Target: {nextTarget[exercise.name]}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setActiveExerciseId(exercise.id);
-                          setWeight("");
-                          setReps("");
-                        }}
-                        className={`text-xs px-2 py-1 rounded-full border ${
-                          exercise.id === activeExerciseId
-                            ? "border-zinc-400 bg-zinc-600 text-white"
-                            : "border-zinc-600 text-zinc-200 hover:bg-zinc-800"
-                        }`}
-                      >
-                        Log sets
-                      </button>
+
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => deleteExercise(exercise.id)}
-                        className="text-xs px-2 py-1 rounded-full border border-red-500/70 text-red-300 hover:bg-red-900/30"
+                        className="text-xs px-3 py-1.5 rounded-full border border-red-500/70 text-red-300 hover:bg-red-900/30 transition"
                       >
-                        Delete Exercise
+                        Delete
                       </button>
                     </div>
                   </div>
 
-                  <div className="mb-2 space-y-0.5">
-                    <p className="text-xs text-zinc-400">
-                      {lastPerformance[exercise.name]
-                        ? `Last: ${lastPerformance[exercise.name]!.weight}kg × ${lastPerformance[exercise.name]!.reps}`
-                        : "No previous data"}
-                    </p>
-                    {nextTarget[exercise.name] && (
-                      <p className="text-xs text-zinc-500">
-                        Target: {nextTarget[exercise.name]}
-                      </p>
-                    )}
-                  </div>
-
-                  {exercise.sets.length === 0 ? (
-                    <p className="text-zinc-400 text-xs">
-                      No sets logged yet for this exercise.
-                    </p>
-                  ) : (
-                    <ul className="space-y-1 text-sm text-zinc-100">
-                      {exercise.sets.map((set, index) => {
-                        const isEditing =
-                          editingSet?.exerciseId === exercise.id &&
-                          editingSet?.setIndex === index;
-                        return (
-                          <li
-                            key={index}
-                            className="flex items-center justify-between gap-2 flex-wrap"
-                          >
-                            {isEditing ? (
-                              <>
-                                <span className="text-zinc-400">
-                                  Set {index + 1}
-                                </span>
-                                <input
-                                  type="text"
-                                  value={editWeight}
-                                  onChange={(e) => setEditWeight(e.target.value)}
-                                  placeholder="Weight"
-                                  className="w-20 p-2 rounded bg-zinc-800 border border-zinc-600 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-500"
-                                />
-                                <input
-                                  type="text"
-                                  value={editReps}
-                                  onChange={(e) => setEditReps(e.target.value)}
-                                  placeholder="Reps"
-                                  className="w-16 p-2 rounded bg-zinc-800 border border-zinc-600 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-500"
-                                />
-                                <button
-                                  onClick={saveSetEdit}
-                                  className="text-xs px-2 py-1 rounded border border-zinc-500 bg-zinc-700 text-white hover:bg-zinc-600"
-                                >
-                                  Save
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <span>
-                                  Set {index + 1} — {set.weight}kg × {set.reps}
-                                </span>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() =>
-                                      startEditingSet(exercise.id, index)
+                  <div className="mt-3 pt-3 border-t border-zinc-800">
+                    {(() => {
+                      const lastSets = getLastSetsForExercise(exercise.name);
+                      const hasTargetSets =
+                        exercise.targetSets != null && exercise.targetSets > 0;
+                      const planned = hasTargetSets ? exercise.targetSets! : 0;
+                      const slots = Array.from(
+                        { length: Math.max(planned, exercise.sets.length, 0) },
+                        (_, i) => i
+                      );
+                      return (
+                        <div>
+                          <div className="grid grid-cols-[64px_1fr_1fr_72px] gap-2 text-xs text-zinc-500 mb-2">
+                            <span>Set</span>
+                            <span>Weight</span>
+                            <span>Reps</span>
+                            <span className="text-right"> </span>
+                          </div>
+                          <ul className="space-y-2 text-sm text-zinc-100">
+                          {slots.map((index) => {
+                            const set = exercise.sets[index];
+                            const lastSet = lastSets[index];
+                            const hasLast = lastSet && (lastSet.weight || lastSet.reps);
+                            const isEditable = index < exercise.sets.length;
+                            const placeholder = hasLast
+                              ? `${lastSet!.weight}kg × ${lastSet!.reps}`
+                              : "";
+                            return (
+                              <li key={index}>
+                                <div className="grid grid-cols-[64px_1fr_1fr_72px] gap-2 items-center">
+                                  <span className="text-xs text-zinc-400">
+                                    Set {index + 1}
+                                  </span>
+                                  <input
+                                    inputMode="decimal"
+                                    placeholder={isEditable ? "kg" : placeholder ? `last: ${placeholder}` : "kg"}
+                                    value={set?.weight ?? ""}
+                                    onChange={(e) =>
+                                      updateSetValue(exercise.id, index, "weight", e.target.value)
                                     }
-                                    className="text-xs px-2 py-1 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => deleteSet(exercise.id, index)}
-                                    className="text-xs px-2 py-1 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
-                                  >
-                                    Delete
-                                  </button>
+                                    disabled={!isEditable}
+                                    className="w-full p-2 rounded-lg bg-zinc-950/50 border border-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 disabled:opacity-60 disabled:cursor-not-allowed placeholder-zinc-600"
+                                  />
+                                  <input
+                                    inputMode="numeric"
+                                    placeholder={isEditable ? "reps" : (hasLast ? "reps" : "reps")}
+                                    value={set?.reps ?? ""}
+                                    onChange={(e) =>
+                                      updateSetValue(exercise.id, index, "reps", e.target.value)
+                                    }
+                                    disabled={!isEditable}
+                                    className="w-full p-2 rounded-lg bg-zinc-950/50 border border-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 disabled:opacity-60 disabled:cursor-not-allowed placeholder-zinc-600"
+                                  />
+                                  <div className="flex justify-end">
+                                    {isEditable ? (
+                                      <button
+                                        onClick={() => deleteSet(exercise.id, index)}
+                                        className="text-xs px-2 py-1 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                                      >
+                                        Delete
+                                      </button>
+                                    ) : (
+                                      <span className="text-[11px] text-zinc-500 text-right">
+                                        {hasLast ? " " : " "}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                              </>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
+                                {!isEditable && hasLast && (
+                                  <p className="mt-1 text-[11px] text-zinc-500">
+                                    Last: {lastSet!.weight}kg × {lastSet!.reps}
+                                  </p>
+                                )}
+                              </li>
+                            );
+                          })}
+                          </ul>
+
+                          <button
+                            onClick={() => addSetRow(exercise.id)}
+                            className="w-full mt-3 py-2.5 rounded-xl bg-white text-black font-semibold hover:bg-zinc-100 transition"
+                          >
+                            Add Set
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               ))}
-            </div>
-          )}
-        </div>
+            </section>
 
-        <div className="mt-8">
-          <button
-            onClick={finishWorkout}
-            className="w-full bg-white text-black py-3 rounded-xl font-semibold hover:bg-zinc-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
-            disabled={exercises.length === 0}
-          >
-            Finish Workout
-          </button>
+            <section className="mt-8 mb-4 p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800">
+              <label className="block text-xs text-zinc-500 mb-2">Add another exercise</label>
+              <div className="flex gap-2">
+                <input
+                  placeholder="Exercise name"
+                  value={exerciseName}
+                  onChange={(e) => setExerciseName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    addExercise((e.target as HTMLInputElement).value);
+                  }}
+                  className="flex-1 min-w-0 p-3 rounded-xl bg-zinc-950 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-600 text-base"
+                />
+                <button
+                  type="button"
+                  onClick={() => addExercise()}
+                  disabled={!exerciseName.trim()}
+                  className="shrink-0 px-4 py-3 rounded-xl bg-zinc-200 text-black font-semibold hover:bg-zinc-100 transition disabled:opacity-40"
+                >
+                  Add
+                </button>
+              </div>
+            </section>
+          </>
+        )}
 
+        <div className="mt-4">
           {showSummary && (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
@@ -691,6 +747,9 @@ export default function WorkoutPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <h2 className="text-xl font-semibold mb-4">Workout Summary</h2>
+                {workoutName.trim() && (
+                  <p className="text-zinc-200 font-medium mb-2">{workoutName.trim()}</p>
+                )}
                 <p className="text-zinc-300 mb-4">
                   {exercises.length} exercise{exercises.length !== 1 ? "s" : ""} ·{" "}
                   {exercises.reduce((total, ex) => total + ex.sets.length, 0)} total sets
@@ -703,17 +762,40 @@ export default function WorkoutPage() {
                     </li>
                   ))}
                 </ul>
-                <button
-                  onClick={() => router.push("/")}
-                  className="w-full bg-white text-black py-3 rounded-xl font-semibold hover:bg-zinc-100 transition"
-                >
-                  Back to Home
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={saveAsRoutineFromSession}
+                    disabled={routineSaved || exercises.length === 0}
+                    className="w-full py-3 rounded-xl font-semibold border border-zinc-600 text-zinc-100 hover:bg-zinc-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {routineSaved ? "Routine Saved" : "Save as Routine"}
+                  </button>
+                  <button
+                    onClick={() => router.push("/")}
+                    className="w-full bg-white text-black py-3 rounded-xl font-semibold hover:bg-zinc-100 transition"
+                  >
+                    Back to Home
+                  </button>
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {exercises.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <div className="max-w-3xl mx-auto">
+            <button
+              type="button"
+              onClick={finishWorkout}
+              className="w-full bg-white text-black py-3.5 rounded-xl font-semibold text-base hover:bg-zinc-100 transition"
+            >
+              Finish Workout
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

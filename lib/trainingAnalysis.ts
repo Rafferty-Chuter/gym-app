@@ -7,6 +7,7 @@ const WORKOUT_HISTORY_KEY = "workoutHistory";
 
 export type StoredWorkout = {
   completedAt: string;
+  name?: string;
   exercises: { name: string; sets: { weight: string; reps: string }[] }[];
 };
 
