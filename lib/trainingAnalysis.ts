@@ -3,8 +3,8 @@
  * Used by the Coach page and can be reused for AI analysis.
  */
 
-import type { TrainingFocus } from "@/lib/training-focus";
-import type { ExperienceLevel } from "@/lib/experience-level";
+import type { TrainingFocus } from "@/lib/trainingFocus";
+import type { ExperienceLevel } from "@/lib/experienceLevel";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 

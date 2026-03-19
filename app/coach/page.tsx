@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   getWorkoutHistory,
   getStats,
@@ -10,9 +11,13 @@ import {
   type CoachFeedbackSections,
 } from "@/lib/trainingAnalysis";
 import { useUnit } from "@/lib/unit-preference";
+import { useTrainingFocus } from "@/lib/trainingFocus";
+import { useExperienceLevel } from "@/lib/experienceLevel";
 
 export default function CoachPage() {
   const { unit, setUnit } = useUnit();
+  const { focus } = useTrainingFocus();
+  const { experienceLevel } = useExperienceLevel();
   const [stats, setStats] = useState({
     totalWorkouts: 0,
     totalExercises: 0,
@@ -77,25 +82,25 @@ export default function CoachPage() {
       setIsLoading(false);
     }
 
-    setAnalysis(generateFeedback(allWorkouts, recentWorkouts, weeklyVolume, unit));
+    setAnalysis(generateFeedback(allWorkouts, recentWorkouts, weeklyVolume, unit, focus, experienceLevel));
   }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-3xl font-bold">Coach</h1>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500">Units:</span>
+          <Link href="/" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
+            ← Home
+          </Link>
+          <h1 className="text-3xl font-bold text-white">Coach</h1>
+          <div className="inline-flex items-center rounded-full border border-teal-900/40 bg-zinc-900/70 p-0.5">
             {(["kg", "lb"] as const).map((u) => (
               <button
                 key={u}
                 type="button"
                 onClick={() => setUnit(u)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
-                  unit === u
-                    ? "bg-zinc-700 text-white"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60"
+                className={`min-w-[2.25rem] rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                  unit === u ? "bg-teal-500/25 text-teal-100 shadow-sm shadow-teal-950/30" : "text-app-tertiary hover:text-app-secondary"
                 }`}
               >
                 {u}
@@ -104,12 +109,12 @@ export default function CoachPage() {
           </div>
         </div>
 
-        <section className="mb-6 p-4 rounded-xl bg-zinc-900 border border-zinc-800">
-          <h2 className="text-lg font-semibold mb-3 text-zinc-200">Your stats</h2>
-          <ul className="space-y-2 text-zinc-300">
-            <li>Total workouts logged: {stats.totalWorkouts}</li>
-            <li>Total exercises logged: {stats.totalExercises}</li>
-            <li>Total sets logged: {stats.totalSets}</li>
+        <section className="card-app mb-6">
+          <h2 className="label-section mb-2">Your stats</h2>
+          <ul className="space-y-2 text-app-secondary text-sm">
+            <li>Total workouts logged: <span className="text-white font-medium">{stats.totalWorkouts}</span></li>
+            <li>Total exercises logged: <span className="text-white font-medium">{stats.totalExercises}</span></li>
+            <li>Total sets logged: <span className="text-white font-medium">{stats.totalSets}</span></li>
           </ul>
         </section>
 
@@ -122,13 +127,13 @@ export default function CoachPage() {
         </button>
 
         {analysis !== null && (
-          <div className="mt-6 p-4 rounded-xl bg-zinc-900 border border-zinc-800">
-            <h2 className="text-lg font-semibold mb-4 text-zinc-200">Analysis</h2>
+          <div className="card-app mt-6">
+            <h2 className="text-lg font-bold text-white mb-4">Analysis</h2>
 
             {analysis.volume.length > 0 && (
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-zinc-300 mb-2">Volume</h3>
-                <ul className="list-disc list-inside space-y-1.5 text-zinc-300 text-sm">
+                <h3 className="label-section mb-2">Volume</h3>
+                <ul className="list-disc list-inside space-y-1.5 text-app-secondary text-sm">
                   {analysis.volume.map((item, i) => (
                     <li key={i}>{item}</li>
                   ))}
@@ -138,8 +143,8 @@ export default function CoachPage() {
 
             {analysis.progression.length > 0 && (
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-zinc-300 mb-2">Progression</h3>
-                <ul className="list-disc list-inside space-y-1.5 text-zinc-300 text-sm">
+                <h3 className="label-section mb-2">Progression</h3>
+                <ul className="list-disc list-inside space-y-1.5 text-app-secondary text-sm">
                   {analysis.progression.map((item, i) => (
                     <li key={i}>{item}</li>
                   ))}
@@ -149,8 +154,8 @@ export default function CoachPage() {
 
             {analysis.recommendations.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold text-zinc-300 mb-2">Recommendations</h3>
-                <ul className="list-disc list-inside space-y-1.5 text-zinc-300 text-sm">
+                <h3 className="label-section mb-2">Recommendations</h3>
+                <ul className="list-disc list-inside space-y-1.5 text-app-secondary text-sm">
                   {analysis.recommendations.map((item, i) => (
                     <li key={i}>{item}</li>
                   ))}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useTrainingFocus, type TrainingFocus } from "@/lib/trainingFocus";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
@@ -64,7 +66,28 @@ function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string, numbe
   return counts;
 }
 
+function getFocusAwareInsightMessage(
+  focus: TrainingFocus,
+  groupLabel: string,
+  status: "low" | "good" | "high"
+): string {
+  if (focus === "Hypertrophy") {
+    if (status === "low") return `${groupLabel} volume is low for muscle growth — consider adding sets.`;
+    if (status === "good") return `${groupLabel} volume is in a good range for hypertrophy.`;
+    return `${groupLabel} volume is on the higher side — prioritize recovery.`;
+  }
+  if (focus === "Powerlifting") {
+    if (status === "low") return `${groupLabel}: ${status} volume this week.`;
+    return `${groupLabel}: ${status} volume.`;
+  }
+  if (focus === "General Fitness") {
+    return `${groupLabel} volume this week: ${status}.`;
+  }
+  return `${groupLabel} volume is ${status}.`;
+}
+
 export default function VolumePage() {
+  const { focus } = useTrainingFocus();
   const [volume, setVolume] = useState<Record<string, number>>({
     chest: 0,
     back: 0,
@@ -98,16 +121,16 @@ export default function VolumePage() {
     return "high";
   }
 
-  function getStatusClasses(status: "low" | "good" | "high") {
-    if (status === "low") return "text-red-300/80 bg-red-500/10 border-red-500/20";
-    if (status === "good") return "text-teal-300/80 bg-teal-500/10 border-teal-500/20";
-    return "text-amber-300/80 bg-amber-500/10 border-amber-500/20";
+  function getStatusChipClass(status: "low" | "good" | "high") {
+    if (status === "low") return "chip-low";
+    if (status === "good") return "chip-moderate";
+    return "chip-high";
   }
 
   function getBarColor(status: "low" | "good" | "high") {
-    if (status === "low") return "bg-red-400/60";
-    if (status === "good") return "bg-teal-400/60";
-    return "bg-amber-400/60";
+    if (status === "low") return "bg-rose-400/60";
+    if (status === "good") return "bg-emerald-400/60";
+    return "bg-sky-400/60";
   }
 
   const insights = (() => {
@@ -115,7 +138,8 @@ export default function VolumePage() {
     const entries = (Object.keys(volume) as (keyof typeof volume)[]).map((g) => {
       const sets = volume[g] ?? 0;
       const status = getStatus(sets);
-      return { group: String(g), sets, status, msg: `${labelGroup(String(g))} volume is ${status}` };
+      const msg = getFocusAwareInsightMessage(focus, labelGroup(String(g)), status);
+      return { group: String(g), sets, status, msg };
     });
     const lows = entries.filter((e) => e.status === "low").sort((a, b) => a.sets - b.sets);
     const highs = entries.filter((e) => e.status === "high").sort((a, b) => b.sets - a.sets);
@@ -124,7 +148,7 @@ export default function VolumePage() {
     if (picked.length < 2 && highs[0]) picked.push(highs[0].msg);
     if (picked.length < 2) {
       const good = entries.find((e) => e.status === "good");
-      if (good) picked.push(`${labelGroup(good.group)} volume is good`);
+      if (good) picked.push(getFocusAwareInsightMessage(focus, labelGroup(good.group), "good"));
     }
     return picked.slice(0, 2);
   })();
@@ -132,15 +156,20 @@ export default function VolumePage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2">Weekly Volume</h1>
-        <p className="text-zinc-400 text-sm mb-6">
+        <div className="mb-6 flex flex-wrap items-center gap-4">
+          <Link href="/" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
+            ← Home
+          </Link>
+          <h1 className="text-3xl font-bold text-white">Weekly Volume</h1>
+        </div>
+        <p className="text-app-secondary text-sm mb-6">
           Total sets per muscle group in the last 7 days
         </p>
 
         {insights.length > 0 && (
-          <div className="mb-4 rounded-xl bg-zinc-900 border border-zinc-800 p-4">
-            <p className="text-xs text-zinc-500 mb-2">Insights</p>
-            <ul className="text-sm text-zinc-300 space-y-1">
+          <div className="card-app mb-4">
+            <p className="label-section mb-2">Insights</p>
+            <ul className="text-sm text-app-secondary space-y-1">
               {insights.map((t) => (
                 <li key={t}>{t}</li>
               ))}
@@ -152,33 +181,25 @@ export default function VolumePage() {
           {(Object.keys(volume) as (keyof typeof volume)[]).map((group) => {
             const sets = volume[group] ?? 0;
             const status = getStatus(sets);
-            const statusClasses = getStatusClasses(status);
-
-            // Visual indicator: 0–30 sets mapped to 0–100% (caps at 30)
+            const chipClass = getStatusChipClass(status);
             const pct = Math.max(0, Math.min(100, Math.round((Math.min(sets, 30) / 30) * 100)));
 
             return (
-              <li
-                key={group}
-                className="py-3 px-4 rounded-xl bg-zinc-900 border border-zinc-800"
-              >
+              <li key={group} className="card-app">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-medium text-zinc-100">{labels[group]}</p>
+                    <p className="font-semibold text-white">{labels[group]}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full border ${statusClasses}`}
-                    >
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${chipClass}`}>
                       {status}
                     </span>
-                    <span className="text-zinc-300 tabular-nums">{sets} sets</span>
+                    <span className="text-app-meta tabular-nums">{sets} sets</span>
                   </div>
                 </div>
-
-                <div className="mt-2 h-2 w-full rounded-full bg-zinc-800 overflow-hidden">
+                <div className="mt-2 h-2 w-full rounded-full bg-zinc-800/80 overflow-hidden">
                   <div
-                    className={`h-full ${getBarColor(status)}`}
+                    className={`h-full rounded-full ${getBarColor(status)}`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>

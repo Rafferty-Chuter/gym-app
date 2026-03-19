@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -10,6 +10,8 @@ import {
 } from "@/lib/trainingAnalysis";
 import { hasActiveWorkout } from "@/lib/activeWorkout";
 import { useUnit } from "@/lib/unit-preference";
+import { useTrainingFocus, TRAINING_FOCUS_OPTIONS, type TrainingFocus } from "@/lib/trainingFocus";
+import { useExperienceLevel, EXPERIENCE_LEVEL_OPTIONS, type ExperienceLevel } from "@/lib/experienceLevel";
 
 const TEMPLATES_STORAGE_KEY = "workoutTemplates";
 
@@ -28,9 +30,108 @@ function readTemplateNames(): string[] {
   }
 }
 
+type ProfileModalProps = {
+  focus: TrainingFocus;
+  setFocus: (f: TrainingFocus) => void;
+  experienceLevel: ExperienceLevel;
+  setExperienceLevel: (e: ExperienceLevel) => void;
+  unit: "kg" | "lb";
+  setUnit: (u: "kg" | "lb") => void;
+  onClose: () => void;
+};
+
+function ProfileModal({
+  focus,
+  setFocus,
+  experienceLevel,
+  setExperienceLevel,
+  unit,
+  setUnit,
+  onClose,
+}: ProfileModalProps) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="profile-modal-title"
+      onClick={onClose}
+    >
+      <div
+        className="rounded-2xl border border-teal-950/50 bg-zinc-900 p-6 w-full max-w-sm shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="profile-modal-title" className="text-lg font-bold text-white mb-4">
+          Profile
+        </h2>
+        <p className="text-app-secondary text-sm mb-4">
+          Edit your training preferences. Used to tailor advice across the app.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label className="label-section block mb-1.5">Training focus</label>
+            <select
+              value={focus}
+              onChange={(e) => setFocus(e.target.value as TrainingFocus)}
+              className="input-app w-full px-3 py-2.5 text-sm"
+            >
+              {TRAINING_FOCUS_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label-section block mb-1.5">Experience level</label>
+            <select
+              value={experienceLevel}
+              onChange={(e) => setExperienceLevel(e.target.value as ExperienceLevel)}
+              className="input-app w-full px-3 py-2.5 text-sm"
+            >
+              {EXPERIENCE_LEVEL_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label-section block mb-1.5">Units</label>
+            <div className="flex gap-2">
+              {(["kg", "lb"] as const).map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => setUnit(u)}
+                  className={`flex-1 py-2.5 rounded-xl border text-sm font-semibold transition ${
+                    unit === u
+                      ? "border-teal-500/50 bg-teal-950/40 text-teal-100"
+                      : "border-teal-900/40 bg-zinc-800/80 text-app-secondary hover:text-white"
+                  }`}
+                >
+                  {u}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-6 flex gap-2 justify-end">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const pathname = usePathname();
   const { unit, setUnit } = useUnit();
+  const { focus, setFocus } = useTrainingFocus();
+  const { experienceLevel, setExperienceLevel } = useExperienceLevel();
+  const [profileOpen, setProfileOpen] = useState(false);
   const [workouts, setWorkouts] = useState<ReturnType<typeof getWorkoutHistory>>([]);
   const [templateNames, setTemplateNames] = useState<string[]>([]);
   const [hasMounted, setHasMounted] = useState(false);
@@ -185,10 +286,10 @@ export default function Home() {
         : `${templateNames.length} routines · ${templateNames[0]}, ${templateNames[1]}`;
 
   const cardClass =
-    "block w-full rounded-2xl border border-zinc-600/50 bg-zinc-900 p-5 shadow-lg shadow-black/35 transition-all duration-150 ease-out will-change-transform hover:-translate-y-1 hover:shadow-xl hover:shadow-black/45 hover:border-zinc-500/55 hover:scale-[1.01] active:scale-[0.99] text-left";
+    "block w-full rounded-2xl border border-teal-950/40 bg-gradient-to-br from-zinc-900 from-[42%] via-zinc-900 to-teal-950/35 p-5 shadow-lg shadow-black/50 transition-all duration-200 ease-out will-change-transform hover:-translate-y-0.5 hover:shadow-[0_14px_44px_-10px_rgba(0,0,0,0.55),0_0_48px_-20px_rgba(45,212,191,0.14)] hover:border-teal-500/22 active:scale-[0.995] text-left group";
 
   const fabClass =
-    "fixed z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[color:var(--color-accent)] to-teal-600 text-[color:var(--color-accent-foreground)] shadow-[0_8px_32px_rgba(20,184,166,0.35),0_4px_16px_rgba(0,0,0,0.45)] ring-1 ring-white/15 transition-all duration-150 ease-out hover:scale-105 hover:shadow-[0_10px_40px_rgba(20,184,166,0.42)] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/60 bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-[max(1.5rem,env(safe-area-inset-right))]";
+    "fixed z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[color:var(--color-accent)] to-teal-500 text-[color:var(--color-accent-foreground)] shadow-[0_6px_28px_rgba(45,212,191,0.32),0_4px_18px_rgba(0,0,0,0.5)] ring-1 ring-teal-300/25 transition-all duration-150 ease-out hover:scale-[1.05] hover:shadow-[0_8px_36px_rgba(45,212,191,0.4),0_6px_20px_rgba(0,0,0,0.45)] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/55 bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-[max(1.5rem,env(safe-area-inset-right))]";
 
   function greeting() {
     const h = new Date().getHours();
@@ -199,116 +300,169 @@ export default function Home() {
   }
 
   function chipClass(text: string) {
-    if (text.endsWith("— Low")) return "bg-red-500/10 border-red-500/20 text-red-200/90";
-    if (text.endsWith("— High")) return "bg-amber-500/10 border-amber-500/20 text-amber-200/90";
-    // Moderate
-    return "bg-teal-500/10 border-teal-500/20 text-teal-200/90";
+    if (text.endsWith("— Low"))
+      return "bg-rose-500/16 border-rose-400/35 text-rose-100 shadow-sm shadow-rose-950/20";
+    if (text.endsWith("— High"))
+      return "bg-sky-500/16 border-sky-400/35 text-sky-100 shadow-sm shadow-sky-950/25";
+    return "bg-emerald-500/15 border-emerald-400/32 text-emerald-100 shadow-sm shadow-emerald-950/20";
   }
+
+  const heroCard =
+    "lg:col-span-2 rounded-2xl border border-teal-950/40 bg-gradient-to-br from-zinc-900 from-[42%] to-teal-950/35 p-5 shadow-lg shadow-black/50 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_44px_-10px_rgba(0,0,0,0.55),0_0_48px_-20px_rgba(45,212,191,0.12)] hover:border-teal-500/22";
+
+  const statCard =
+    "rounded-2xl border border-teal-950/40 bg-gradient-to-br from-zinc-900 from-[42%] to-cyan-950/30 p-5 shadow-lg shadow-black/50 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_44px_-10px_rgba(0,0,0,0.55),0_0_48px_-20px_rgba(34,211,238,0.1)] hover:border-cyan-500/20";
+
+  const coachShell =
+    "rounded-2xl border border-teal-950/40 bg-gradient-to-br from-zinc-900 from-[38%] via-zinc-900 to-teal-950/38 shadow-lg shadow-black/50 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_44px_-10px_rgba(0,0,0,0.55),0_0_48px_-20px_rgba(45,212,191,0.12)] hover:border-teal-500/22 overflow-hidden";
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white relative pb-28">
+      <div
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_90%_45%_at_50%_-8%,rgba(45,212,191,0.09),transparent_58%)]"
+        aria-hidden
+      />
       <div className="relative mx-auto max-w-3xl px-6 py-8">
-        <header className="mb-9">
-          <p className="text-sm text-zinc-500/75">{greeting()}</p>
-          <h1 className="text-4xl font-bold tracking-tight mt-2 leading-tight text-zinc-50">
+        <header className="mb-7">
+          <p className="text-sm text-home-tertiary">{greeting()}</p>
+          <h1 className="text-4xl font-bold tracking-tight mt-1.5 leading-tight text-white">
             Ready to train?
           </h1>
-          <p className="text-zinc-500/90 mt-2 text-sm">
-            Pick up where you left off.
-          </p>
-          <div className="mt-4 flex items-center gap-2">
-            <span className="text-xs text-zinc-500">Units:</span>
-            {(["kg", "lb"] as const).map((u) => (
-              <button
-                key={u}
-                type="button"
-                onClick={() => setUnit(u)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
-                  unit === u
-                    ? "bg-zinc-700 text-white"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60"
-                }`}
+          <p className="text-home-secondary mt-2 text-sm">Pick up where you left off.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div
+              className="inline-flex items-center rounded-full border border-teal-900/40 bg-zinc-900/70 p-0.5"
+              role="group"
+              aria-label="Weight units"
+            >
+              {(["kg", "lb"] as const).map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => setUnit(u)}
+                  className={`min-w-[2.25rem] rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                    unit === u
+                      ? "bg-teal-500/25 text-teal-100 shadow-sm shadow-teal-950/30"
+                      : "text-home-tertiary hover:text-home-secondary"
+                  }`}
+                >
+                  {u}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-medium text-home-tertiary">Focus</span>
+              <select
+                value={focus}
+                onChange={(e) => setFocus(e.target.value as typeof focus)}
+                className="rounded-lg border border-teal-900/40 bg-zinc-900/70 px-2.5 py-1.5 text-[11px] font-medium text-white focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+                aria-label="Training focus"
               >
-                {u}
-              </button>
-            ))}
+                {TRAINING_FOCUS_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => setProfileOpen(true)}
+              className="text-[11px] font-medium text-home-tertiary hover:text-home-secondary transition"
+            >
+              Profile
+            </button>
           </div>
         </header>
 
-        <div className="relative isolate mb-4 mt-4">
-          {/* Tighter, slightly upper-biased so nothing reads into the card row below */}
+        {profileOpen && (
+          <ProfileModal
+            focus={focus}
+            setFocus={setFocus}
+            experienceLevel={experienceLevel}
+            setExperienceLevel={setExperienceLevel}
+            unit={unit}
+            setUnit={setUnit}
+            onClose={() => setProfileOpen(false)}
+          />
+        )}
+
+        <div className="relative isolate mb-5 mt-2">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-[42%] z-0 h-8 -translate-y-1/2"
+            className="pointer-events-none absolute inset-x-0 top-1/2 z-0 h-28 -translate-y-1/2 opacity-90"
             style={{
               background:
-                "radial-gradient(ellipse min(72%, 220px) 14px at 50% 45%, rgba(16, 185, 129, 0.016) 0%, rgba(20, 184, 166, 0.006) 42%, transparent 52%)",
+                "radial-gradient(ellipse 58% 75% at 50% 50%, rgba(52, 211, 153, 0.12) 0%, rgba(20, 184, 166, 0.06) 42%, transparent 68%)",
             }}
           />
           <Link
             href="/workout"
-            className="relative z-10 block w-full rounded-2xl py-8 text-center text-lg font-bold tracking-tight text-white transition-all duration-150 ease-out will-change-transform overflow-hidden bg-gradient-to-br from-emerald-500 via-teal-500 to-teal-600 shadow-[0_4px_0_0_rgba(6,95,70,0.5),0_14px_36px_-10px_rgba(20,184,166,0.38),0_18px_44px_-14px_rgba(16,185,129,0.22),0_10px_28px_rgba(0,0,0,0.45)] ring-1 ring-white/15 hover:shadow-[0_4px_0_0_rgba(6,95,70,0.45),0_16px_40px_-8px_rgba(20,184,166,0.42),0_22px_50px_-12px_rgba(16,185,129,0.26),0_12px_32px_rgba(0,0,0,0.5)] hover:scale-[1.02] hover:brightness-[1.05] active:translate-y-[2px] active:scale-[0.99] active:shadow-[0_2px_0_0_rgba(6,95,70,0.5),0_10px_26px_rgba(20,184,166,0.22)]"
+            className="relative z-10 block w-full rounded-2xl py-8 text-center text-lg font-bold tracking-tight text-white transition-all duration-150 ease-out will-change-transform overflow-hidden bg-gradient-to-br from-emerald-400 via-teal-500 to-teal-600 shadow-[0_4px_0_0_rgba(6,95,70,0.55),0_16px_44px_-8px_rgba(34,197,94,0.35),0_22px_50px_-12px_rgba(20,184,166,0.28),0_10px_32px_rgba(0,0,0,0.48)] ring-1 ring-emerald-200/20 hover:shadow-[0_4px_0_0_rgba(6,95,70,0.48),0_20px_52px_-6px_rgba(52,211,153,0.38),0_28px_60px_-14px_rgba(20,184,166,0.3),0_12px_36px_rgba(0,0,0,0.52)] hover:scale-[1.02] hover:brightness-[1.04] active:translate-y-[2px] active:scale-[0.99]"
           >
             {hasMounted && hasActive ? "Resume Workout" : "Start Workout"}
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-5">
-          <section className="lg:col-span-2 rounded-2xl border border-zinc-600/50 bg-zinc-900 p-5 shadow-lg shadow-black/40 transition-all duration-150 ease-out will-change-transform hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50 hover:border-zinc-500/55">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-xs text-zinc-500/80">Last Workout</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-5 items-stretch">
+          <section className={`${heroCard} flex flex-col min-h-[8rem]`}>
+            <div className="flex flex-1 items-start justify-between gap-4">
+              <div className="min-w-0 flex flex-col">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary">
+                  Last session
+                </p>
                 {lastWorkout ? (
                   <>
-                    <p className="mt-1 text-lg font-semibold text-zinc-100 truncate">
+                    <p className="mt-1.5 text-lg font-bold text-white truncate">
                       {workoutDisplayName(lastWorkout)}
                     </p>
-                    <p className="mt-1 text-sm text-zinc-500">
+                    <p className="mt-auto pt-2 text-sm text-home-secondary">
                       {formatDateTime(lastWorkout.completedAt)}
                       {lastWorkoutAgo ? ` · ${lastWorkoutAgo}` : ""}
                     </p>
                   </>
                 ) : (
-                  <p className="mt-2 text-sm text-zinc-500 leading-relaxed">
+                  <p className="mt-2 text-sm text-home-secondary leading-relaxed flex-1">
                     No sessions yet. Tap Start Workout above.
                   </p>
                 )}
               </div>
               <Link
                 href="/history"
-                className="shrink-0 text-sm font-medium px-3 py-2 rounded-xl border border-zinc-600/60 bg-zinc-800/50 text-zinc-200 transition-all duration-150 ease-out hover:bg-zinc-800 hover:scale-[1.04] hover:border-zinc-500/50 active:scale-[0.98]"
+                className="shrink-0 text-xs font-semibold px-3 py-2 rounded-xl border border-teal-800/35 bg-teal-950/25 text-home-secondary transition-all duration-150 hover:border-teal-500/30 hover:bg-teal-950/40 hover:text-teal-200 active:scale-[0.98]"
               >
                 History
               </Link>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-zinc-600/50 bg-zinc-900 p-5 shadow-lg shadow-black/35 transition-all duration-150 ease-out will-change-transform hover:-translate-y-1 hover:shadow-xl hover:shadow-black/45 hover:border-zinc-500/55">
-            <p className="text-xs text-zinc-500/80 mb-2">Weekly stats</p>
-            <div className="flex items-center justify-between text-sm text-zinc-300">
+          <section className={`${statCard} flex flex-col min-h-[8rem]`}>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary mb-1.5">
+              Weekly stats
+            </p>
+            <div className="flex items-baseline justify-between gap-2 text-sm font-medium text-home-secondary">
               <span>
                 {thisWeek.workoutsCount} workout{thisWeek.workoutsCount !== 1 ? "s" : ""}
               </span>
-              <span>{thisWeek.totalSets} sets</span>
+              <span className="tabular-nums text-home-meta">{thisWeek.totalSets} sets</span>
             </div>
             {thisWeek.volumeLabels.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {thisWeek.volumeLabels.map((t) => (
                   <span
                     key={t}
-                    className={`text-xs px-2 py-1 rounded-full border ${chipClass(t)}`}
+                    className={`text-[11px] font-medium px-2.5 py-1 rounded-full border ${chipClass(t)}`}
                   >
                     {t}
                   </span>
                 ))}
               </div>
             )}
-            <Link
-              href="/volume"
-              className="mt-3 inline-flex text-xs font-medium text-teal-400/90 hover:text-teal-300 transition-colors"
-            >
-              Volume detail →
-            </Link>
+            <div className="mt-auto pt-3">
+              <Link href="/volume" className="link-home-accent text-xs inline-flex">
+                Volume detail →
+              </Link>
+            </div>
           </section>
         </div>
 
@@ -316,11 +470,16 @@ export default function Home() {
           <Link href="/templates" className={cardClass}>
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500/80">Templates</p>
-                <h2 className="mt-1 text-lg font-semibold text-zinc-100">Routines</h2>
-                <p className="mt-2 text-sm text-zinc-500 leading-relaxed">{templatesPreview}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary">
+                  Templates
+                </p>
+                <h2 className="mt-1.5 text-lg font-bold text-white">Routines</h2>
+                <p className="mt-2 text-sm text-home-secondary leading-relaxed">{templatesPreview}</p>
               </div>
-              <span className="shrink-0 text-zinc-600 text-sm pt-1" aria-hidden>
+              <span
+                className="shrink-0 text-teal-500/45 group-hover:text-teal-400/70 text-sm pt-1 transition-colors"
+                aria-hidden
+              >
                 →
               </span>
             </div>
@@ -329,44 +488,56 @@ export default function Home() {
           <Link href="/history" className={cardClass}>
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500/80">History</p>
-                <h2 className="mt-1 text-lg font-semibold text-zinc-100">Past sessions</h2>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary">
+                  History
+                </p>
+                <h2 className="mt-1.5 text-lg font-bold text-white">Past sessions</h2>
                 {recentWorkoutsPreview.length === 0 ? (
-                  <p className="mt-2 text-sm text-zinc-500 leading-relaxed">No workouts logged yet.</p>
+                  <p className="mt-2 text-sm text-home-secondary leading-relaxed">
+                    No workouts logged yet.
+                  </p>
                 ) : (
-                  <ul className="mt-2 space-y-1.5 text-sm text-zinc-500">
+                  <ul className="mt-2 space-y-1.5 text-sm">
                     {recentWorkoutsPreview.map((w) => (
                       <li key={w.completedAt + workoutDisplayName(w)} className="truncate">
-                        <span className="text-zinc-300">{workoutDisplayName(w)}</span>
-                        <span className="text-zinc-600"> · {formatShortAgo(w.completedAt)}</span>
+                        <span className="text-white font-medium">{workoutDisplayName(w)}</span>
+                        <span className="text-home-meta"> · {formatShortAgo(w.completedAt)}</span>
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
-              <span className="shrink-0 text-zinc-600 text-sm pt-1" aria-hidden>
+              <span
+                className="shrink-0 text-teal-500/45 group-hover:text-teal-400/70 text-sm pt-1 transition-colors"
+                aria-hidden
+              >
                 →
               </span>
             </div>
           </Link>
 
-          <div className="rounded-2xl border border-zinc-600/50 bg-zinc-900 shadow-lg shadow-black/35 transition-all duration-150 ease-out will-change-transform hover:-translate-y-1 hover:shadow-xl hover:shadow-black/45 hover:border-zinc-500/55 hover:scale-[1.01] overflow-hidden">
+          <div className={coachShell}>
             <Link
               href="/assistant"
-              className="block p-5 text-left transition-colors hover:bg-zinc-800/25 active:bg-zinc-800/35"
+              className="block p-5 text-left transition-colors hover:bg-teal-950/15 active:bg-teal-950/25"
             >
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500/80">Assistant</p>
-              <h2 className="mt-1 text-lg font-semibold text-zinc-100">AI Coach</h2>
-              <p className="mt-2 text-sm text-zinc-500 leading-relaxed">{coachCardPreview}</p>
-              <p className="mt-4 text-sm font-semibold text-teal-400/95">Ask a question →</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary">
+                Assistant
+              </p>
+              <h2 className="mt-1.5 text-lg font-bold text-white">AI Coach</h2>
+              <p className="mt-2 text-sm text-home-secondary leading-relaxed">{coachCardPreview}</p>
+              <p className="mt-4 text-sm link-home-accent">Ask a question →</p>
             </Link>
-            <div className="border-t border-zinc-700/60 bg-zinc-950/40 px-5 py-3">
+            <div className="border-t border-teal-950/50 bg-gradient-to-r from-zinc-950/60 via-teal-950/10 to-zinc-950/60 px-5 py-3">
               <Link
                 href="/coach"
-                className="flex items-center justify-between gap-3 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="group/coachrow flex items-center justify-between gap-3 text-sm text-home-secondary transition-colors duration-150 hover:text-teal-300"
               >
                 <span>Weekly AI training report</span>
-                <span className="text-zinc-600 shrink-0" aria-hidden>
+                <span
+                  className="text-teal-500/45 shrink-0 transition-colors group-hover/coachrow:text-teal-400/85"
+                  aria-hidden
+                >
                   →
                 </span>
               </Link>
