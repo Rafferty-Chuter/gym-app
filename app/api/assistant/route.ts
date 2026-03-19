@@ -10,6 +10,14 @@ export type AssistantBody = {
     weeklyVolume: Record<string, number>;
     recentExercises: string[];
   };
+  trainingFocus?: string;
+  experienceLevel?: string;
+  unit?: string;
+  exerciseTrends?: Array<{
+    exercise: string;
+    trend: string;
+    recentPerformances: Array<{ completedAt: string; weight: number; reps: number }>;
+  }>;
 };
 
 export type AssistantResponse = {
@@ -18,7 +26,9 @@ export type AssistantResponse = {
 
 async function getAssistantReply(
   message: string,
-  trainingSummary: AssistantBody["trainingSummary"]
+  trainingSummary: AssistantBody["trainingSummary"],
+  profile: { trainingFocus?: string; experienceLevel?: string; unit?: string },
+  exerciseTrends: NonNullable<AssistantBody["exerciseTrends"]>
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -34,6 +44,21 @@ async function getAssistantReply(
       .join("; ") || "none logged";
 
   const context = `Training data: ${trainingSummary.totalWorkouts} total workouts, ${trainingSummary.totalSets} total sets, ${trainingSummary.totalExercises} exercise types. Weekly volume (last 7 days): ${weeklyVolumeStr}. Recent exercises: ${(trainingSummary.recentExercises ?? []).join(", ") || "none"}.`;
+  const trendsStr =
+    exerciseTrends.length > 0
+      ? exerciseTrends
+          .map(
+            (t) =>
+              `${t.exercise}: ${t.trend} (last ${t.recentPerformances.length} sessions; best set range ${t.recentPerformances[0]?.weight ?? "?"}×${t.recentPerformances[0]?.reps ?? "?"} → ${t.recentPerformances[t.recentPerformances.length - 1]?.weight ?? "?"}×${t.recentPerformances[t.recentPerformances.length - 1]?.reps ?? "?"})`
+          )
+          .join(". ")
+      : "";
+  const profileStr =
+    [profile.trainingFocus && `Training focus: ${profile.trainingFocus}`,
+     profile.experienceLevel && `Experience level: ${profile.experienceLevel}`,
+     profile.unit && `Preferred units: ${profile.unit}`]
+      .filter(Boolean)
+      .join(". ") || "";
 
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -41,6 +66,8 @@ async function getAssistantReply(
   You are a friendly strength training assistant.
   
   Use the user's training data to answer their question clearly and practically.
+  ${profileStr ? `User profile (tailor advice to these): ${profileStr}.` : ""}
+  ${trendsStr ? `Exercise progression trends (use to reference improvement or plateaus): ${trendsStr}.` : ""}
   
   Training context:
   ${context}
@@ -60,7 +87,7 @@ async function getAssistantReply(
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as AssistantBody;
-    const { message, trainingSummary } = body;
+    const { message, trainingSummary, trainingFocus, experienceLevel, unit, exerciseTrends } = body;
 
     if (typeof message !== "string" || !message.trim()) {
       return NextResponse.json(
@@ -75,15 +102,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const reply = await getAssistantReply(message.trim(), {
-      totalWorkouts: Number(trainingSummary.totalWorkouts) || 0,
-      totalExercises: Number(trainingSummary.totalExercises) || 0,
-      totalSets: Number(trainingSummary.totalSets) || 0,
-      weeklyVolume: trainingSummary.weeklyVolume ?? {},
-      recentExercises: Array.isArray(trainingSummary.recentExercises)
-        ? trainingSummary.recentExercises
-        : [],
-    });
+    const reply = await getAssistantReply(
+      message.trim(),
+      {
+        totalWorkouts: Number(trainingSummary.totalWorkouts) || 0,
+        totalExercises: Number(trainingSummary.totalExercises) || 0,
+        totalSets: Number(trainingSummary.totalSets) || 0,
+        weeklyVolume: trainingSummary.weeklyVolume ?? {},
+        recentExercises: Array.isArray(trainingSummary.recentExercises)
+          ? trainingSummary.recentExercises
+          : [],
+      },
+      { trainingFocus, experienceLevel, unit },
+      exerciseTrends ?? []
+    );
 
     return NextResponse.json({ reply } satisfies AssistantResponse);
   } catch (err) {

@@ -3,7 +3,16 @@
  * Used by the Coach page and can be reused for AI analysis.
  */
 
+import type { TrainingFocus } from "@/lib/training-focus";
+import type { ExperienceLevel } from "@/lib/experience-level";
+
 const WORKOUT_HISTORY_KEY = "workoutHistory";
+
+const SBD_NAMES = ["squat", "bench", "deadlift", "bench press", "squat", "dead lift"];
+function isSBD(exerciseName: string): boolean {
+  const n = exerciseName.trim().toLowerCase();
+  return SBD_NAMES.some((s) => n.includes(s)) || n.includes("bench") || n.includes("squat") || n.includes("deadlift");
+}
 
 export type StoredWorkout = {
   completedAt: string;
@@ -94,6 +103,155 @@ function getBestSet(sets: { weight: string; reps: string }[]): { weight: number;
   return best.weight > 0 || best.reps > 0 ? best : null;
 }
 
+// --- Exercise trend analysis (deterministic, no AI) ---
+
+export type ExerciseTrend = "progressing" | "stable" | "plateau" | "declining";
+
+export type RecentPerformance = {
+  completedAt: string;
+  weight: number;
+  reps: number;
+};
+
+export type ExerciseTrendResult = {
+  exercise: string;
+  trend: ExerciseTrend;
+  recentPerformances: RecentPerformance[];
+};
+
+const DEFAULT_MAX_SESSIONS = 5;
+const MIN_SESSIONS_FOR_PLATEAU = 3;
+
+function performanceBetter(
+  a: { weight: number; reps: number },
+  b: { weight: number; reps: number }
+): boolean {
+  return a.weight > b.weight || (a.weight === b.weight && a.reps > b.reps);
+}
+
+function performanceWorse(
+  a: { weight: number; reps: number },
+  b: { weight: number; reps: number }
+): boolean {
+  return a.weight < b.weight || (a.weight === b.weight && a.reps < b.reps);
+}
+
+/** Normalize for matching: trim, lowercase, collapse whitespace. */
+function exerciseKey(name: string | undefined): string {
+  return (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Get unique exercise names from workouts, using first occurrence as display name.
+ */
+function getUniqueExerciseNames(workouts: StoredWorkout[]): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const w of workouts) {
+    for (const ex of w.exercises ?? []) {
+      const name = ex.name?.trim();
+      if (!name) continue;
+      const key = exerciseKey(name);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      names.push(name);
+    }
+  }
+  return names.sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Deterministic trend analysis per exercise using last 3–5 sessions.
+ * Compares best set per session (highest weight, then reps) to classify:
+ * progressing, stable, plateau, or declining.
+ */
+export function getExerciseTrends(
+  workouts: StoredWorkout[],
+  options?: { maxSessions?: number }
+): ExerciseTrendResult[] {
+  const maxSessions = Math.min(
+    Math.max(options?.maxSessions ?? DEFAULT_MAX_SESSIONS, 3),
+    5
+  );
+  const sorted = [...workouts].sort(
+    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+  );
+  const exerciseNames = getUniqueExerciseNames(sorted);
+  const results: ExerciseTrendResult[] = [];
+
+  for (const exerciseName of exerciseNames) {
+    const key = exerciseKey(exerciseName);
+    const performances: RecentPerformance[] = [];
+    for (const w of sorted) {
+      const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
+      if (!ex?.sets?.length) continue;
+      const best = getBestSet(ex.sets);
+      if (!best) continue;
+      performances.push({
+        completedAt: w.completedAt,
+        weight: best.weight,
+        reps: best.reps,
+      });
+      if (performances.length >= maxSessions) break;
+    }
+
+    let trend: ExerciseTrend = "stable";
+    if (performances.length >= 2) {
+      const ordered = [...performances].reverse();
+      const first = ordered[0];
+      const last = ordered[ordered.length - 1];
+      if (performanceBetter(last, first)) {
+        trend = "progressing";
+      } else if (performanceWorse(last, first)) {
+        trend = "declining";
+      } else {
+        let noImprovementCount = 0;
+        for (let i = ordered.length - 1; i > 0; i--) {
+          if (!performanceBetter(ordered[i], ordered[i - 1])) noImprovementCount += 1;
+          else break;
+        }
+        trend = noImprovementCount >= MIN_SESSIONS_FOR_PLATEAU - 1 ? "plateau" : "stable";
+      }
+    }
+
+    results.push({
+      exercise: exerciseName,
+      trend,
+      recentPerformances: performances.reverse(),
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Format exercise trend results as human-readable progression lines for Coach.
+ */
+export function formatExerciseTrendsForDisplay(
+  trends: ExerciseTrendResult[],
+  unit: "kg" | "lb" = "kg"
+): string[] {
+  const lines: string[] = [];
+  for (const { exercise, trend, recentPerformances } of trends) {
+    if (recentPerformances.length < 2) continue;
+    const n = recentPerformances.length;
+    const first = recentPerformances[0];
+    const last = recentPerformances[recentPerformances.length - 1];
+    const firstStr = `${first.weight} ${unit} × ${first.reps}`;
+    const lastStr = `${last.weight} ${unit} × ${last.reps}`;
+    if (trend === "progressing") {
+      lines.push(`${exercise}: progressing over last ${n} sessions — best set improved from ${firstStr} to ${lastStr}.`);
+    } else if (trend === "declining") {
+      lines.push(`${exercise}: declining over last ${n} sessions — best set went from ${firstStr} to ${lastStr}. Consider recovery or deload.`);
+    } else if (trend === "plateau") {
+      lines.push(`${exercise}: plateau over last ${n} sessions (best set ${lastStr}). No improvement recently — try small load or rep progression.`);
+    } else {
+      lines.push(`${exercise}: stable over last ${n} sessions (best set ${lastStr}).`);
+    }
+  }
+  return lines;
+}
+
 function getProgressionFeedback(workouts: StoredWorkout[], unit: "kg" | "lb" = "kg"): string[] {
   const lines: string[] = [];
   const sorted = [...workouts].sort(
@@ -144,20 +302,32 @@ export function generateFeedback(
   allWorkouts: StoredWorkout[],
   recentWorkouts: StoredWorkout[],
   weeklyVolume: Record<string, number>,
-  unit: "kg" | "lb" = "kg"
+  unit: "kg" | "lb" = "kg",
+  focus: TrainingFocus = "General Fitness",
+  experienceLevel: ExperienceLevel = "Intermediate"
 ): CoachFeedbackSections {
   const volume: string[] = [];
   const progression: string[] = [];
   const recommendations: string[] = [];
 
   if (allWorkouts.length === 0) {
-    recommendations.push("There isn't enough data yet. Log some workouts to get feedback.");
+    recommendations.push(
+      experienceLevel === "Beginner"
+        ? "Log a few workouts to get started — we’ll give you tailored feedback as you go."
+        : "There isn't enough data yet. Log some workouts to get feedback."
+    );
     return { volume, progression, recommendations };
   }
 
   const workoutsLast7Days = recentWorkouts.length;
   if (workoutsLast7Days <= 1) {
-    recommendations.push("Training frequency may be low. Aim for at least 2–3 sessions per week if you can.");
+    if (focus === "General Fitness") {
+      recommendations.push("Staying consistent helps. Aim for 2–3 sessions per week when you can.");
+    } else if (experienceLevel === "Beginner") {
+      recommendations.push("Building a habit is key. Try to get in 2–3 sessions per week when you can.");
+    } else {
+      recommendations.push("Training frequency may be low. Aim for at least 2–3 sessions per week if you can.");
+    }
   }
 
   const groupLabels: Record<string, string> = {
@@ -168,47 +338,118 @@ export function generateFeedback(
     arms: "Arms",
   };
   const volumeOrder = ["chest", "back", "legs", "shoulders", "arms"] as const;
-  for (const group of volumeOrder) {
-    const sets = weeklyVolume[group] ?? 0;
-    const label = groupLabels[group];
-    if (sets < 8) {
-      volume.push(`${label}: ${sets} sets → low, consider increasing volume`);
-    } else if (sets <= 20) {
-      volume.push(`${label}: ${sets} sets → good range`);
-    } else {
-      volume.push(`${label}: ${sets} sets → slightly high, monitor recovery`);
-    }
-  }
-
   const chest = weeklyVolume.chest ?? 0;
   const back = weeklyVolume.back ?? 0;
   const legs = weeklyVolume.legs ?? 0;
   const upperTotal = chest + back;
 
-  if (upperTotal > 0 && legs < upperTotal * 0.5) {
-    volume.push("Leg volume is low compared to upper body. Consider adding more squat, hinge, or leg work.");
+  if (focus === "Hypertrophy") {
+    for (const group of volumeOrder) {
+      const sets = weeklyVolume[group] ?? 0;
+      const label = groupLabels[group];
+      if (sets < 8) {
+        volume.push(`${label}: ${sets} sets → low for muscle growth, consider increasing volume`);
+      } else if (sets <= 20) {
+        volume.push(`${label}: ${sets} sets → good range for hypertrophy`);
+      } else {
+        volume.push(`${label}: ${sets} sets → on the higher side; ensure recovery`);
+      }
+    }
+    if (upperTotal > 0 && legs < upperTotal * 0.5) {
+      volume.push("Leg volume is low vs upper body. For balance and growth, add more squat, hinge, or leg work.");
+    }
+    if (back > 0 && chest > 0 && back > chest * 1.5) {
+      volume.push("Back volume is high relative to chest. Balancing push and pull supports hypertrophy.");
+    }
+  } else if (focus === "Powerlifting") {
+    for (const group of volumeOrder) {
+      const sets = weeklyVolume[group] ?? 0;
+      const label = groupLabels[group];
+      volume.push(`${label}: ${sets} sets this week`);
+    }
+    if (upperTotal > 0 && legs < upperTotal * 0.5) {
+      volume.push("Leg volume is low vs upper body. Squat and deadlift frequency matters for powerlifting.");
+    }
+  } else if (focus === "General Fitness") {
+    for (const group of volumeOrder) {
+      const sets = weeklyVolume[group] ?? 0;
+      const label = groupLabels[group];
+      volume.push(`${label}: ${sets} sets this week`);
+    }
+    if (upperTotal > 0 && legs < upperTotal * 0.5) {
+      volume.push("Leg work is a bit low vs upper body. Adding some squat or hinge work can help balance.");
+    }
+  } else {
+    // General Strength
+    for (const group of volumeOrder) {
+      const sets = weeklyVolume[group] ?? 0;
+      const label = groupLabels[group];
+      if (sets < 8) {
+        volume.push(`${label}: ${sets} sets → low, consider increasing volume`);
+      } else if (sets <= 20) {
+        volume.push(`${label}: ${sets} sets → good range`);
+      } else {
+        volume.push(`${label}: ${sets} sets → slightly high, monitor recovery`);
+      }
+    }
+    if (upperTotal > 0 && legs < upperTotal * 0.5) {
+      volume.push("Leg volume is low compared to upper body. Consider adding more squat, hinge, or leg work.");
+    }
+    if (chest >= 10 && chest <= 20) {
+      volume.push("Chest volume looks reasonable for the week.");
+    } else if (chest > 20) {
+      volume.push("Chest volume is on the higher side. Ensure you're recovering well.");
+    }
+    if (back > 0 && chest > 0 && back > chest * 1.5) {
+      volume.push("Back volume is high relative to chest. Consider balancing push and pull for upper body.");
+    }
   }
 
-  if (chest >= 10 && chest <= 20) {
-    volume.push("Chest volume looks reasonable for the week.");
-  } else if (chest > 20) {
-    volume.push("Chest volume is on the higher side. Ensure you're recovering well.");
-  }
-
-  if (back > 0 && chest > 0 && back > chest * 1.5) {
-    volume.push("Back volume is high relative to chest. Consider balancing push and pull for upper body.");
-  }
-
-  const progressionLines = getProgressionFeedback(allWorkouts, unit);
+  const exerciseTrends = getExerciseTrends(allWorkouts, { maxSessions: 5 });
+  const progressionLines = formatExerciseTrendsForDisplay(exerciseTrends, unit);
   if (progressionLines.length > 0) {
-    progression.push(...progressionLines);
+    if (focus === "Powerlifting") {
+      const sbd: string[] = [];
+      const other: string[] = [];
+      for (const line of progressionLines) {
+        const name = line.split(":")[0]?.trim() ?? "";
+        if (isSBD(name)) sbd.push(line);
+        else other.push(line);
+      }
+      if (sbd.length > 0) {
+        progression.push("Squat, bench, deadlift: progression is key for powerlifting.");
+        progression.push(...sbd);
+      }
+      progression.push(...other);
+    } else if (focus === "Hypertrophy") {
+      progression.push(...progressionLines);
+      progression.push("For hypertrophy, both volume and progression matter.");
+    } else if (focus === "General Fitness") {
+      progression.push(...progressionLines);
+      progression.push("Any progression is a win; consistency matters most.");
+    } else {
+      progression.push(...progressionLines);
+    }
   }
 
   if (allWorkouts.length > 0 && recommendations.length === 0) {
-    if (chest >= 10 && back >= 10 && legs >= 8 && workoutsLast7Days >= 2) {
-      recommendations.push("Your recent training looks consistent. Keep progressing your main lifts.");
+    const beginnerTail = experienceLevel === "Beginner" ? " Take it at your own pace." : "";
+    if (focus === "Hypertrophy") {
+      recommendations.push("For hypertrophy, aim for balanced volume across muscle groups and progressive overload." + beginnerTail);
+    } else if (focus === "Powerlifting") {
+      recommendations.push("For powerlifting, prioritize squat, bench, and deadlift performance; support with accessory volume." + beginnerTail);
+    } else if (focus === "General Strength") {
+      if (chest >= 10 && back >= 10 && legs >= 8 && workoutsLast7Days >= 2) {
+        recommendations.push("Your recent training looks consistent. Keep progressing on compound lifts and volume." + beginnerTail);
+      } else {
+        recommendations.push("Keep logging workouts. Compound lifts and reasonable volume support general strength." + beginnerTail);
+      }
     } else {
-      recommendations.push("Keep logging workouts. More data will allow better feedback.");
+      if (chest >= 10 && back >= 10 && legs >= 8 && workoutsLast7Days >= 2) {
+        recommendations.push("Your routine looks consistent and balanced. Keep it up." + beginnerTail);
+      } else {
+        recommendations.push("Staying consistent and keeping a balanced routine is what matters most." + beginnerTail);
+      }
     }
   }
 

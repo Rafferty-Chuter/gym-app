@@ -3,10 +3,17 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { getTrainingSummary } from "@/utils/trainingSummary";
+import { getWorkoutHistory, getExerciseTrends } from "@/lib/trainingAnalysis";
+import { useUnit } from "@/lib/unit-preference";
+import { useTrainingFocus } from "@/lib/training-focus";
+import { useExperienceLevel } from "@/lib/experience-level";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export default function AssistantPage() {
+  const { unit } = useUnit();
+  const { focus } = useTrainingFocus();
+  const { experienceLevel } = useExperienceLevel();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +45,8 @@ export default function AssistantPage() {
           if (ex.name?.trim()) recentExercises.add(ex.name.trim());
         }
       }
+      const allWorkouts = getWorkoutHistory();
+      const exerciseTrends = getExerciseTrends(allWorkouts, { maxSessions: 5 });
 
       const res = await fetch("/api/assistant", {
         method: "POST",
@@ -51,6 +60,10 @@ export default function AssistantPage() {
             weeklyVolume: summary.weeklyVolume,
             recentExercises: Array.from(recentExercises),
           },
+          trainingFocus: focus,
+          experienceLevel,
+          unit,
+          exerciseTrends,
         }),
       });
 
@@ -81,18 +94,18 @@ if (res.ok && typeof data.reply === "string") {
       <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0">
         <Link
           href="/"
-          className="text-zinc-400 hover:text-white transition text-sm mb-4 inline-block"
+          className="text-app-secondary hover:text-white transition-colors text-sm mb-4 inline-block font-medium"
         >
           ← Home
         </Link>
-        <h1 className="text-3xl font-bold mb-4">Assistant</h1>
-        <p className="text-zinc-400 text-sm mb-4">
+        <h1 className="text-3xl font-bold text-white mb-2">Assistant</h1>
+        <p className="text-app-secondary text-sm mb-4">
           Ask about your training. I’ll use your workout history to help.
         </p>
 
-        <div className="flex-1 overflow-y-auto rounded-xl bg-zinc-900 border border-zinc-800 p-4 mb-4 min-h-[200px]">
+        <div className="flex-1 overflow-y-auto rounded-2xl border border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/25 p-4 mb-4 min-h-[200px]">
           {messages.length === 0 ? (
-            <p className="text-zinc-500 text-sm">Send a message to start.</p>
+            <p className="text-app-meta text-sm">Send a message to start.</p>
           ) : (
             <ul className="space-y-3">
               {messages.map((m, i) => (
@@ -101,10 +114,10 @@ if (res.ok && typeof data.reply === "string") {
                   className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <span
-                    className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                    className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                       m.role === "user"
-                        ? "bg-zinc-700 text-white"
-                        : "bg-zinc-800 text-zinc-200 border border-zinc-700"
+                        ? "bg-teal-500/25 text-teal-50 border border-teal-500/30"
+                        : "border border-teal-900/40 bg-zinc-900/80 text-app-secondary"
                     }`}
                   >
                     {m.content}
@@ -114,21 +127,21 @@ if (res.ok && typeof data.reply === "string") {
             </ul>
           )}
           {isLoading && (
-            <p className="text-zinc-500 text-sm mt-2">Thinking…</p>
+            <p className="text-app-meta text-sm mt-2">Thinking…</p>
           )}
           <div ref={listEndRef} />
         </div>
 
         {messages.length === 0 && !isLoading && (
           <div className="mb-3">
-            <p className="text-xs text-zinc-500 mb-2">Try one of these:</p>
+            <p className="label-section mb-2">Try one of these</p>
             <div className="flex flex-wrap gap-2">
               {starterPrompts.map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => handleSend(p)}
-                  className="text-left text-sm px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-200 hover:bg-zinc-800/60 transition"
+                  className="text-left text-sm px-3 py-2 rounded-xl border border-teal-950/40 bg-zinc-900/80 text-app-secondary hover:border-teal-500/25 hover:text-white transition-colors"
                 >
                   {p}
                 </button>
@@ -145,7 +158,7 @@ if (res.ok && typeof data.reply === "string") {
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
             placeholder="Ask about your training..."
             disabled={isLoading}
-            className="flex-1 min-w-0 p-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 focus-accent disabled:opacity-50"
+            className="input-app flex-1 min-w-0 p-3 disabled:opacity-50"
           />
           <button
             onClick={() => handleSend()}
