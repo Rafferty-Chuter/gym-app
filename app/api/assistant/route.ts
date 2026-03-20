@@ -18,6 +18,19 @@ export type AssistantBody = {
     trend: string;
     recentPerformances: Array<{ completedAt: string; weight: number; reps: number }>;
   }>;
+  trainingInsights?: {
+    weeklyVolume: Record<string, number>;
+    frequency: number;
+    exerciseInsights: Array<{
+      exercise: string;
+      sessionsTracked: number;
+      trend: string;
+      changeSummary: string;
+      consistency: string;
+      recommendation: string;
+    }>;
+    findings: string[];
+  };
 };
 
 export type AssistantResponse = {
@@ -28,7 +41,8 @@ async function getAssistantReply(
   message: string,
   trainingSummary: AssistantBody["trainingSummary"],
   profile: { trainingFocus?: string; experienceLevel?: string; unit?: string },
-  exerciseTrends: NonNullable<AssistantBody["exerciseTrends"]>
+  exerciseTrends: NonNullable<AssistantBody["exerciseTrends"]>,
+  trainingInsights: AssistantBody["trainingInsights"] | undefined
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -44,6 +58,22 @@ async function getAssistantReply(
       .join("; ") || "none logged";
 
   const context = `Training data: ${trainingSummary.totalWorkouts} total workouts, ${trainingSummary.totalSets} total sets, ${trainingSummary.totalExercises} exercise types. Weekly volume (last 7 days): ${weeklyVolumeStr}. Recent exercises: ${(trainingSummary.recentExercises ?? []).join(", ") || "none"}.`;
+
+  const insightsFrequency = trainingInsights?.frequency ?? 0;
+  const insightsWeeklyVolume = trainingInsights?.weeklyVolume ?? trainingSummary.weeklyVolume;
+  const insightsWeeklyVolumeStr =
+    Object.entries(insightsWeeklyVolume ?? {})
+      .filter(([, n]) => n > 0)
+      .map(([g, n]) => `${g}: ${n} sets`)
+      .join("; ") || "none";
+  const findingsStr = (trainingInsights?.findings ?? []).slice(0, 5).join(" ");
+  const keyExerciseSignalsStr = (trainingInsights?.exerciseInsights ?? [])
+    .slice(0, 4)
+    .map(
+      (e) =>
+        `${e.exercise}: ${e.trend} (${e.changeSummary})`
+    )
+    .join("; ");
   const trendsStr =
     exerciseTrends.length > 0
       ? exerciseTrends
@@ -66,6 +96,11 @@ async function getAssistantReply(
   You are a friendly strength training assistant.
   
   Use the user's training data to answer their question clearly and practically.
+  ${
+    trainingInsights
+      ? `Structured workout intelligence:\n- Training frequency (last 7 days): ${insightsFrequency} session${insightsFrequency === 1 ? "" : "s"}\n- Weekly volume: ${insightsWeeklyVolumeStr}\n- Key exercise signals: ${keyExerciseSignalsStr || "none"}\n- Notable findings: ${findingsStr || "none"}\n`
+      : ""
+  }
   ${profileStr ? `User profile (tailor advice to these): ${profileStr}.` : ""}
   ${trendsStr ? `Exercise progression trends (use to reference improvement or plateaus): ${trendsStr}.` : ""}
   
@@ -87,7 +122,7 @@ async function getAssistantReply(
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as AssistantBody;
-    const { message, trainingSummary, trainingFocus, experienceLevel, unit, exerciseTrends } = body;
+    const { message, trainingSummary, trainingFocus, experienceLevel, unit, exerciseTrends, trainingInsights } = body;
 
     if (typeof message !== "string" || !message.trim()) {
       return NextResponse.json(
@@ -114,7 +149,8 @@ export async function POST(request: NextRequest) {
           : [],
       },
       { trainingFocus, experienceLevel, unit },
-      exerciseTrends ?? []
+      exerciseTrends ?? [],
+      trainingInsights
     );
 
     return NextResponse.json({ reply } satisfies AssistantResponse);

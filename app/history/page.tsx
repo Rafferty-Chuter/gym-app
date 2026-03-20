@@ -87,24 +87,20 @@ export default function HistoryPage() {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Link
-            href="/"
-            className="text-zinc-400 hover:text-white transition text-sm"
-          >
+          <Link href="/" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
             ← Home
           </Link>
-          <h1 className="text-3xl font-bold">Workout History</h1>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-zinc-500">Units:</span>
+          <h1 className="text-3xl font-bold text-white">Workout History</h1>
+          <div className="ml-auto inline-flex items-center rounded-full border border-teal-900/40 bg-zinc-900/70 p-0.5">
             {(["kg", "lb"] as const).map((u) => (
               <button
                 key={u}
                 type="button"
                 onClick={() => setUnit(u)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                className={`min-w-[2.25rem] rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
                   unit === u
-                    ? "bg-zinc-700 text-white"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60"
+                    ? "bg-teal-500/25 text-teal-100 shadow-sm shadow-teal-950/30"
+                    : "text-app-tertiary hover:text-app-secondary"
                 }`}
               >
                 {u}
@@ -114,39 +110,30 @@ export default function HistoryPage() {
         </div>
 
         {workouts.length === 0 ? (
-          <p className="text-zinc-400">
-            No completed workouts yet. Finish a workout on the Start Workout
-            page to see it here.
+          <p className="text-app-secondary">
+            No completed workouts yet. Finish a workout on the Start Workout page to see it here.
           </p>
         ) : (
-          <ul className="space-y-4">
+          <ul className="space-y-3">
             {workouts.map((workout, i) => {
               const key = `${workout.completedAt}-${i}`;
               const isOpen = expandedKey === key;
               const displayName = workoutDisplayName(workout);
               return (
-                <li
-                  key={key}
-                  className="p-4 rounded-xl bg-zinc-900 border border-zinc-800"
-                >
+                <li key={workout.completedAt} className="card-app">
                   <div className="flex items-start gap-3">
                     <button
                       type="button"
                       onClick={() => setExpandedKey((prev) => (prev === key ? null : key))}
                       className="flex-1 min-w-0 text-left"
                     >
-                      <p className="text-zinc-200 font-medium mb-1">{displayName}</p>
-                      <p className="text-zinc-400 text-sm mb-2">
-                        {formatDateTime(workout.completedAt)}
+                      <p className="text-white font-semibold mb-1">{displayName}</p>
+                      <p className="text-app-secondary text-sm mb-2">{formatDateTime(workout.completedAt)}</p>
+                      <p className="text-app-meta text-sm mb-2">
+                        {workout.totalExercises} exercise{workout.totalExercises !== 1 ? "s" : ""} · {workout.totalSets} total sets
                       </p>
-                      <p className="text-zinc-300 mb-2">
-                        {workout.totalExercises} exercise
-                        {workout.totalExercises !== 1 ? "s" : ""} · {workout.totalSets}{" "}
-                        total sets
-                      </p>
-
                       {!isOpen ? (
-                        <ul className="text-sm text-zinc-200 space-y-1">
+                        <ul className="text-sm text-app-secondary space-y-1">
                           {workout.exercises.map((ex, j) => (
                             <li key={j}>{ex.name}</li>
                           ))}
@@ -159,45 +146,39 @@ export default function HistoryPage() {
                         e.stopPropagation();
                         setPendingDeleteIndex(i);
                       }}
-                      className="shrink-0 text-xs text-zinc-500 hover:text-red-400 px-2 py-1.5 rounded-lg border border-transparent hover:border-red-900/40 hover:bg-red-950/20 transition-colors"
+                      className="shrink-0 text-xs text-app-tertiary hover:text-red-300 px-2 py-1.5 rounded-lg border border-transparent hover:border-red-900/40 hover:bg-red-950/25 transition-colors"
                     >
                       Delete
                     </button>
                   </div>
 
                   {isOpen ? (
-                    <div className="mt-3 pt-3 border-t border-zinc-800">
-                      <p className="text-zinc-100 font-medium mb-2">{displayName}</p>
-                      <p className="text-zinc-400 text-sm mb-3">
+                    <div className="mt-3 pt-3 border-t border-teal-900/30">
+                      <p className="text-white font-semibold mb-2">{displayName}</p>
+                      <p className="text-app-secondary text-sm mb-3">
                         {formatDateTime(workout.completedAt)}
-                        {typeof workout.durationSec === "number"
-                          ? ` · ${formatDuration(workout.durationSec)}`
-                          : ""}
+                        {typeof workout.durationSec === "number" ? ` · ${formatDuration(workout.durationSec)}` : ""}
                         {" · "}
-                        {workout.totalExercises} exercise{workout.totalExercises !== 1 ? "s" : ""}{" "}
-                        · {workout.totalSets} total sets
+                        {workout.totalExercises} exercise{workout.totalExercises !== 1 ? "s" : ""} · {workout.totalSets} total sets
                       </p>
-
                       <div className="space-y-4">
                         {workout.exercises.map((ex, exIdx) => (
                           <div key={exIdx}>
                             <div className="flex items-center justify-between gap-3 mb-2">
-                              <p className="text-zinc-200 font-medium">{ex.name}</p>
+                              <p className="text-white font-medium">{ex.name}</p>
                               {typeof ex.restSec === "number" && (
-                                <span className="text-xs text-zinc-500 tabular-nums">
-                                  Rest {ex.restSec}s
-                                </span>
+                                <span className="text-xs text-app-meta tabular-nums">Rest {ex.restSec}s</span>
                               )}
                             </div>
                             {ex.sets.length === 0 ? (
-                              <p className="text-zinc-500 text-sm">No sets logged.</p>
+                              <p className="text-app-secondary text-sm">No sets logged.</p>
                             ) : (
-                              <ul className="space-y-1 text-sm text-zinc-300">
+                              <ul className="space-y-1 text-sm text-app-secondary">
                                 {ex.sets.map((s, setIdx) => (
                                   <li key={setIdx} className="tabular-nums">
                                     Set {setIdx + 1} — {s.weight}{unit} × {s.reps}
                                     {s.notes?.trim() && (
-                                      <p className="text-xs text-zinc-500 mt-0.5 pl-0">{s.notes.trim()}</p>
+                                      <p className="text-app-meta text-xs mt-0.5 pl-0">{s.notes.trim()}</p>
                                     )}
                                   </li>
                                 ))}
@@ -217,36 +198,32 @@ export default function HistoryPage() {
 
       {pendingDeleteIndex !== null && pendingWorkout && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-workout-title"
           onClick={() => setPendingDeleteIndex(null)}
         >
           <div
-            className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 max-w-sm w-full shadow-xl"
+            className="rounded-2xl border border-teal-950/50 bg-gradient-to-b from-zinc-900 to-teal-950/30 p-6 max-w-sm w-full shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="delete-workout-title" className="text-zinc-100 font-semibold">
-              Delete workout?
-            </h2>
-            <p className="text-sm text-zinc-500 mt-2 leading-relaxed">
-              Remove{" "}
-              <span className="text-zinc-300">{workoutDisplayName(pendingWorkout)}</span>{" "}
-              from your history. This cannot be undone.
+            <h2 id="delete-workout-title" className="text-white font-bold">Delete workout?</h2>
+            <p className="text-sm text-app-secondary mt-2 leading-relaxed">
+              Remove <span className="text-white font-medium">{workoutDisplayName(pendingWorkout)}</span> from your history. This cannot be undone.
             </p>
             <div className="flex gap-2 mt-6 justify-end">
               <button
                 type="button"
                 onClick={() => setPendingDeleteIndex(null)}
-                className="px-3 py-2 rounded-lg text-sm text-zinc-300 border border-zinc-700 hover:bg-zinc-800 transition-colors"
+                className="btn-secondary"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmDelete}
-                className="px-3 py-2 rounded-lg text-sm font-medium bg-red-950/80 text-red-300 border border-red-900/60 hover:bg-red-900/50 transition-colors"
+                className="px-3 py-2 rounded-xl text-sm font-semibold bg-red-950/80 text-red-200 border border-red-900/50 hover:bg-red-900/50 transition-colors"
               >
                 Delete
               </button>

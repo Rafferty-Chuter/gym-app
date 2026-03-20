@@ -281,24 +281,18 @@ export default function TemplatesPage() {
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Link
-            href="/"
-            className="text-zinc-400 hover:text-white transition text-sm"
-          >
+          <Link href="/" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
             ← Home
           </Link>
-          <h1 className="text-3xl font-bold">Templates</h1>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-zinc-500">Units:</span>
+          <h1 className="text-3xl font-bold text-white">Templates</h1>
+          <div className="ml-auto inline-flex items-center rounded-full border border-teal-900/40 bg-zinc-900/70 p-0.5">
             {(["kg", "lb"] as const).map((u) => (
               <button
                 key={u}
                 type="button"
                 onClick={() => setUnit(u)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
-                  unit === u
-                    ? "bg-zinc-700 text-white"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60"
+                className={`min-w-[2.25rem] rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                  unit === u ? "bg-teal-500/25 text-teal-100 shadow-sm shadow-teal-950/30" : "text-app-tertiary hover:text-app-secondary"
                 }`}
               >
                 {u}
@@ -309,22 +303,18 @@ export default function TemplatesPage() {
 
         <section className="mb-8 space-y-4">
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">
-              Template name
-            </label>
+            <label className="label-section block mb-1.5">Template name</label>
             <input
               type="text"
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
               placeholder="e.g. Push Day"
-              className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-700 focus-accent"
+              className="input-app w-full p-3"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">
-              Add exercise
-            </label>
+            <label className="label-section block mb-1.5">Add exercise</label>
             <div className="flex gap-2 flex-wrap">
               <input
                 type="text"
@@ -332,21 +322,21 @@ export default function TemplatesPage() {
                 onChange={(e) => setExerciseInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addExercise()}
                 placeholder="Exercise name"
-                className="flex-1 min-w-[140px] p-3 rounded-xl bg-zinc-900 border border-zinc-700 focus-accent"
+                className="input-app flex-1 min-w-[140px] p-3"
               />
               <div className="flex items-center gap-2">
-                <label className="text-sm text-zinc-500">Sets</label>
+                <label className="text-sm text-app-tertiary">Sets</label>
                 <input
                   type="number"
                   min={1}
                   max={20}
                   value={exerciseSetsInput}
                   onChange={(e) => setExerciseSetsInput(Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 3)))}
-                  className="w-14 p-3 rounded-xl bg-zinc-900 border border-zinc-700 focus-accent"
+                  className="input-app w-14 p-3"
                 />
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-sm text-zinc-500">Rest</label>
+                <label className="text-sm text-app-tertiary">Rest</label>
                 <input
                   type="number"
                   min={0}
@@ -359,13 +349,13 @@ export default function TemplatesPage() {
                     if (!Number.isNaN(n) && n >= 0 && n <= 600) setRestSecInput(String(n));
                     else if (restSecInput.trim() === "") setRestSecInput("");
                   }}
-                  className="w-16 p-3 rounded-xl bg-zinc-900 border border-zinc-700 focus-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="input-app w-16 p-3 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-                <span className="text-sm text-zinc-500">s (0 = no rest)</span>
+                <span className="text-sm text-app-meta">s (0 = no rest)</span>
               </div>
               <button
                 onClick={addExercise}
-                className="px-4 py-3 rounded-xl bg-zinc-700 text-white font-medium hover:bg-zinc-600 transition"
+                className="px-4 py-3 rounded-xl btn-primary"
               >
                 Add
               </button>
@@ -374,14 +364,12 @@ export default function TemplatesPage() {
 
           {exercises.length > 0 && (
             <div>
-              <p className="text-sm text-zinc-400 mb-2">Exercises in this template</p>
-              <ul className="space-y-1 p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+              <p className="label-section mb-2">Exercises in this template</p>
+              <ul className="space-y-1 p-4 rounded-2xl border border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/25">
                 {exercises.map((ex, i) => (
-                  <li key={i} className="text-zinc-200">
-                    {i + 1}. {ex.name} — {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""}{" "}
-                    <span className="text-zinc-500">
-                      • {ex.restSec != null && ex.restSec > 0 ? `${ex.restSec}s rest` : "no rest"}
-                    </span>
+                  <li key={i} className="text-app-secondary text-sm">
+                    {i + 1}. <span className="text-white font-medium">{ex.name}</span> — {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""}{" "}
+                    <span className="text-app-meta">• {ex.restSec != null && ex.restSec > 0 ? `${ex.restSec}s rest` : "no rest"}</span>
                   </li>
                 ))}
               </ul>
@@ -399,16 +387,13 @@ export default function TemplatesPage() {
 
         {savedTemplates.length > 0 && (
           <section>
-            <h2 className="text-xl font-semibold mb-4">Saved templates</h2>
-            <ul className="space-y-4">
+            <h2 className="text-xl font-bold text-white mb-4">Saved templates</h2>
+            <ul className="space-y-3">
               {savedTemplates.map((template, index) => {
                 const isEditMode = editingTemplateIndex === index && editingTemplateDraft;
                 const data = isEditMode ? editingTemplateDraft! : template;
                 return (
-                <li
-                  key={index}
-                  className="p-4 rounded-xl bg-zinc-900 border border-zinc-800"
-                >
+                <li key={index} className="card-app">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     {isEditMode ? (
                       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -419,17 +404,14 @@ export default function TemplatesPage() {
                             setEditingTemplateDraft((p) => (p ? { ...p, name: e.target.value } : null))
                           }
                           placeholder="Template name"
-                          className="flex-1 min-w-0 p-2 rounded-lg bg-zinc-800 border border-zinc-600 text-white text-sm focus-accent"
+                          className="input-app flex-1 min-w-0 p-2 text-sm"
                         />
-                        <button
-                          onClick={saveEditTemplate}
-                          className="text-xs px-2 py-1.5 rounded-lg bg-[color:var(--color-accent)] text-[color:var(--color-accent-foreground)] font-medium hover:opacity-90"
-                        >
+                        <button onClick={saveEditTemplate} className="text-xs px-2 py-1.5 rounded-lg btn-primary">
                           Save
                         </button>
                         <button
                           onClick={cancelEditTemplate}
-                          className="text-xs px-2 py-1.5 rounded-lg border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                          className="text-xs px-2 py-1.5 rounded-lg btn-secondary !py-1.5 !px-2"
                         >
                           Cancel
                         </button>
@@ -441,29 +423,23 @@ export default function TemplatesPage() {
                           value={renameValue}
                           onChange={(e) => setRenameValue(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                          className="flex-1 min-w-0 p-2 rounded-lg bg-zinc-800 border border-zinc-600 text-white text-sm focus-accent"
+                          className="input-app flex-1 min-w-0 p-2 text-sm"
                           autoFocus
                         />
-                        <button
-                          onClick={saveRename}
-                          className="text-xs px-2 py-1.5 rounded-lg bg-zinc-600 text-white hover:bg-zinc-500"
-                        >
+                        <button onClick={saveRename} className="text-xs px-2 py-1.5 rounded-lg btn-primary">
                           Save
                         </button>
                         <button
-                          onClick={() => {
-                            setEditingTemplateIndex(null);
-                            setRenameValue("");
-                          }}
-                          className="text-xs px-2 py-1.5 rounded-lg border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                          onClick={() => { setEditingTemplateIndex(null); setRenameValue(""); }}
+                          className="text-xs px-2 py-1.5 rounded-lg btn-secondary !py-1.5 !px-2"
                         >
                           Cancel
                         </button>
                       </div>
                     ) : (
                       <div className="min-w-0">
-                        <h3 className="font-semibold text-white truncate">{template.name}</h3>
-                        <p className="text-xs text-zinc-500 mt-0.5">
+                        <h3 className="font-bold text-white truncate">{template.name}</h3>
+                        <p className="text-xs text-app-meta mt-0.5">
                           {template.exercises.length} exercise{template.exercises.length !== 1 ? "s" : ""}
                         </p>
                       </div>
@@ -478,21 +454,21 @@ export default function TemplatesPage() {
                         </button>
                         {editingTemplateIndex !== index && (
                           <details className="relative">
-                            <summary className="list-none cursor-pointer select-none text-sm px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 transition">
+                            <summary className="list-none cursor-pointer select-none text-sm px-3 py-1.5 rounded-lg border border-teal-800/40 text-app-secondary hover:bg-teal-950/30 transition">
                               Options
                             </summary>
-                            <div className="absolute right-0 mt-2 w-48 rounded-xl bg-zinc-950 border border-zinc-800 shadow-xl p-2 z-10">
+                            <div className="absolute right-0 mt-2 w-48 rounded-xl bg-zinc-950 border border-teal-900/50 shadow-xl p-2 z-10">
                               <button
                                 type="button"
                                 onClick={() => startEditTemplate(index)}
-                                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-zinc-900 transition text-zinc-200"
+                                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-teal-950/30 transition text-app-secondary"
                               >
                                 Edit
                               </button>
                               <button
                                 type="button"
                                 onClick={() => startRename(index)}
-                                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-zinc-900 transition text-zinc-200"
+                                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-teal-950/30 transition text-app-secondary"
                               >
                                 Rename
                               </button>
@@ -510,7 +486,7 @@ export default function TemplatesPage() {
                     )}
                   </div>
 
-                  <ul className="text-sm text-zinc-300 space-y-1.5 mb-4">
+                  <ul className="text-sm text-app-secondary space-y-1.5 mb-4">
                     {data.exercises.map((ex, i) => {
                       const isEditing =
                         editingExercise?.templateIndex === index &&
@@ -525,7 +501,7 @@ export default function TemplatesPage() {
                                 onChange={(e) =>
                                   setEditingExercise((p) => p && { ...p, name: e.target.value })
                                 }
-                                className="flex-1 min-w-[100px] p-2 rounded bg-zinc-800 border border-zinc-600 text-sm"
+                                className="input-app flex-1 min-w-[100px] p-2 text-sm"
                               />
                               <input
                                 type="number"
@@ -537,10 +513,10 @@ export default function TemplatesPage() {
                                     p && { ...p, targetSets: Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 3)) }
                                   )
                                 }
-                                className="w-12 p-2 rounded bg-zinc-800 border border-zinc-600 text-sm"
+                                className="input-app w-12 p-2 text-sm"
                               />
-                              <span className="text-zinc-500 text-xs">sets</span>
-                              <label className="text-zinc-500 text-xs">Rest</label>
+                              <span className="text-app-meta text-xs">sets</span>
+                              <label className="text-app-meta text-xs">Rest</label>
                               <input
                                 type="number"
                                 min={0}
@@ -558,18 +534,18 @@ export default function TemplatesPage() {
                                     return normalized !== p.restSecInput ? { ...p, restSecInput: normalized } : p;
                                   })
                                 }
-                                className="w-14 p-2 rounded bg-zinc-800 border border-zinc-600 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="input-app w-14 p-2 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
-                              <span className="text-zinc-500 text-xs">s</span>
+                              <span className="text-app-meta text-xs">s</span>
                               <button
                                 onClick={saveEditExercise}
-                                className="text-xs px-2 py-1 rounded border border-zinc-500 bg-zinc-600 hover:bg-zinc-500"
+                                className="text-xs px-2 py-1 rounded-lg btn-primary"
                               >
                                 Save
                               </button>
                               <button
                                 onClick={() => setEditingExercise(null)}
-                                className="text-xs px-2 py-1 rounded border border-zinc-600 text-zinc-400 hover:bg-zinc-800"
+                                className="text-xs px-2 py-1 rounded-lg btn-secondary !py-1 !px-2"
                               >
                                 Cancel
                               </button>
@@ -578,19 +554,19 @@ export default function TemplatesPage() {
                             <>
                               <span className="min-w-0 truncate">
                                 {i + 1}. {ex.name}{" "}
-                                <span className="text-zinc-500">
+                                <span className="text-app-meta">
                                   — {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""} • {ex.restSec != null && ex.restSec > 0 ? `${ex.restSec}s rest` : "no rest"}
                                 </span>
                               </span>
                               <details className="relative">
-                                <summary className="list-none cursor-pointer select-none text-xs px-2 py-1 rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition">
+                                <summary className="list-none cursor-pointer select-none text-xs px-2 py-1 rounded-lg border border-teal-800/40 text-app-tertiary hover:bg-teal-950/30 transition">
                                   ⋯
                                 </summary>
-                                <div className="absolute right-0 mt-2 w-40 rounded-xl bg-zinc-950 border border-zinc-800 shadow-xl p-2 z-10">
+                                <div className="absolute right-0 mt-2 w-40 rounded-xl bg-zinc-950 border border-teal-900/50 shadow-xl p-2 z-10">
                                   <button
                                     type="button"
                                     onClick={() => startEditExercise(index, i)}
-                                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-zinc-900 transition text-zinc-200"
+                                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-teal-950/30 transition text-app-secondary"
                                   >
                                     Edit
                                   </button>
@@ -624,10 +600,10 @@ export default function TemplatesPage() {
                         e.key === "Enter" && addExerciseToTemplate(index)
                       }
                       placeholder="Add exercise"
-                      className="flex-1 min-w-[120px] p-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white placeholder-zinc-500 focus-accent"
+                      className="input-app flex-1 min-w-[120px] p-2 text-sm"
                     />
                     <div className="flex items-center gap-1">
-                      <label className="text-xs text-zinc-500">Sets</label>
+                      <label className="text-xs text-app-meta">Sets</label>
                       <input
                         type="number"
                         min={1}
@@ -639,11 +615,11 @@ export default function TemplatesPage() {
                             [index]: Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 3)),
                           }))
                         }
-                        className="w-12 p-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white focus-accent"
+                        className="input-app w-12 p-2 text-sm"
                       />
                     </div>
                     <div className="flex items-center gap-1">
-                      <label className="text-xs text-zinc-500">Rest</label>
+                      <label className="text-xs text-app-meta">Rest</label>
                       <input
                         type="number"
                         min={0}
@@ -659,13 +635,13 @@ export default function TemplatesPage() {
                           if (!Number.isNaN(n) && n >= 0 && n <= 600) setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [index]: String(n) }));
                           else if (String(v).trim() === "") setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [index]: "" }));
                         }}
-                        className="w-14 p-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white focus-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="input-app w-14 p-2 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
-                      <span className="text-xs text-zinc-500">s</span>
+                      <span className="text-xs text-app-meta">s</span>
                     </div>
                     <button
                       onClick={() => addExerciseToTemplate(index)}
-                      className="text-sm px-3 py-2 rounded-lg bg-zinc-700 text-white hover:bg-zinc-600 transition"
+                      className="text-sm px-3 py-2 rounded-lg btn-primary"
                     >
                       Add
                     </button>

@@ -119,6 +119,16 @@ export type ExerciseTrendResult = {
   recentPerformances: RecentPerformance[];
 };
 
+export type ExerciseInsights = {
+  exercise: string;
+  sessionsTracked: number;
+  trend: ExerciseTrend;
+  changeSummary: string;
+  consistency: "consistent" | "inconsistent";
+  recommendation: string;
+  recentPerformances: RecentPerformance[];
+};
+
 const DEFAULT_MAX_SESSIONS = 5;
 const MIN_SESSIONS_FOR_PLATEAU = 3;
 
@@ -222,6 +232,270 @@ export function getExerciseTrends(
   }
 
   return results;
+}
+
+/**
+ * Deterministic workout intelligence for a single exercise.
+ * Uses the last 3–5 sessions, extracts the best set per session,
+ * and classifies the trend as: progressing, stable, plateau, or declining.
+ */
+export function getExerciseInsights(
+  workouts: StoredWorkout[],
+  exerciseName: string,
+  options?: { maxSessions?: number }
+): ExerciseInsights {
+  const maxSessions = Math.min(
+    Math.max(options?.maxSessions ?? DEFAULT_MAX_SESSIONS, 3),
+    5
+  );
+
+  const exerciseLabel = exerciseName.trim() || "Exercise";
+  const key = exerciseKey(exerciseName);
+
+  const sorted = [...workouts].sort(
+    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+  );
+
+  // Build newest -> oldest first, then reverse to oldest -> newest for summaries.
+  const newestPerformances: RecentPerformance[] = [];
+  for (const w of sorted) {
+    const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
+    if (!ex?.sets?.length) continue;
+    const best = getBestSet(ex.sets ?? []);
+    if (!best) continue;
+    newestPerformances.push({
+      completedAt: w.completedAt,
+      weight: best.weight,
+      reps: best.reps,
+    });
+    if (newestPerformances.length >= maxSessions) break;
+  }
+
+  const recentPerformances = newestPerformances.reverse(); // oldest -> newest
+  const sessionsTracked = recentPerformances.length;
+
+  if (sessionsTracked < 2) {
+    const last = recentPerformances[recentPerformances.length - 1];
+    const lastStr = last ? `${last.weight} × ${last.reps}` : "no logged best set";
+    return {
+      exercise: exerciseLabel,
+      sessionsTracked,
+      trend: "stable",
+      changeSummary: `Not enough sessions to detect a trend yet. Best set: ${lastStr}.`,
+      consistency: "inconsistent",
+      recommendation:
+        "Log at least 3 sessions for this exercise so we can detect progression, plateaus, and regression more reliably.",
+      recentPerformances,
+    };
+  }
+
+  const first = recentPerformances[0];
+  const last = recentPerformances[recentPerformances.length - 1];
+
+  let improvementsCount = 0;
+  let worseningCount = 0;
+  for (let i = 1; i < recentPerformances.length; i++) {
+    const prev = recentPerformances[i - 1];
+    const curr = recentPerformances[i];
+    if (performanceBetter(curr, prev)) improvementsCount += 1;
+    else if (performanceWorse(curr, prev)) worseningCount += 1;
+  }
+
+  let trend: ExerciseTrend = "stable";
+  if (performanceBetter(last, first) && improvementsCount >= 1) {
+    // conservative progressing: net improvement with at least one upward step.
+    trend = "progressing";
+  } else if (performanceWorse(last, first) && worseningCount >= 1) {
+    trend = "declining";
+  } else if (sessionsTracked >= MIN_SESSIONS_FOR_PLATEAU && improvementsCount === 0) {
+    trend = "plateau";
+  } else {
+    trend = "stable";
+  }
+
+  const firstStr = `${first.weight} × ${first.reps}`;
+  const lastStr = `${last.weight} × ${last.reps}`;
+
+  const changeSummary =
+    trend === "progressing"
+      ? `Your best set improved from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
+      : trend === "declining"
+        ? `Your best set declined from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
+        : trend === "plateau"
+          ? `No meaningful improvement over ${sessionsTracked} sessions (best set stayed around ${lastStr}).`
+          : `Performance stayed mostly unchanged across ${sessionsTracked} sessions (best set ${lastStr}).`;
+
+  // Conservative consistency: if there are any worsening steps, mark inconsistent.
+  const consistency: "consistent" | "inconsistent" =
+    worseningCount === 0 ? "consistent" : "inconsistent";
+
+  const recommendation =
+    trend === "progressing"
+      ? "Keep the momentum with a small next-step (either +1 rep at the same load, or a tiny load increase) while keeping reps controlled."
+      : trend === "stable"
+        ? "If the goal is progress, try a small change next session (add 1 rep at the same weight or a minimal load increase) and keep technique consistent."
+        : trend === "plateau"
+          ? "When progress stalls, consider a reset: reduce load or volume slightly for one session, then come back and attempt a small increment."
+          : "With a decline, prioritize recovery and form. Reduce load slightly for the next session, then rebuild progress gradually.";
+
+  return {
+    exercise: exerciseLabel,
+    sessionsTracked,
+    trend,
+    changeSummary,
+    consistency,
+    recommendation,
+    recentPerformances,
+  };
+}
+
+export type TrainingInsights = {
+  weeklyVolume: Record<string, number>;
+  frequency: number;
+  exerciseInsights: ExerciseInsights[];
+  findings: string[];
+};
+
+/**
+ * Deterministic global training insights.
+ * - Uses weekly volume by muscle group
+ * - Uses recent training frequency (last 7 days)
+ * - Uses 2–5 key exercise insights derived from getExerciseInsights()
+ * - Adds notable findings (progressing/plateau/declining/low-volume)
+ */
+export function getTrainingInsights(
+  allWorkouts: StoredWorkout[]
+): TrainingInsights {
+  const weeklyVolumeEmpty: Record<string, number> = {
+    chest: 0,
+    back: 0,
+    legs: 0,
+    shoulders: 0,
+    arms: 0,
+  };
+
+  if (!allWorkouts?.length) {
+    return {
+      weeklyVolume: weeklyVolumeEmpty,
+      frequency: 0,
+      exerciseInsights: [],
+      findings: ["No workout history found yet."],
+    };
+  }
+
+  const recentWorkouts = getWorkoutsFromLast7Days(allWorkouts);
+  const weeklyVolume = getVolumeByMuscleGroup(recentWorkouts);
+  const frequency = recentWorkouts.length;
+
+  const labels: Record<string, string> = {
+    chest: "Chest",
+    back: "Back",
+    legs: "Legs",
+    shoulders: "Shoulders",
+    arms: "Arms",
+  };
+  const muscleGroups = ["chest", "back", "legs", "shoulders", "arms"] as const;
+
+  const exerciseNames = getUniqueExerciseNames(allWorkouts);
+  const allExerciseInsights = exerciseNames.map((name) =>
+    getExerciseInsights(allWorkouts, name, { maxSessions: 5 })
+  );
+
+  const priority: Record<ExerciseTrend, number> = {
+    progressing: 3,
+    plateau: 2,
+    declining: 1,
+    stable: 0,
+  };
+
+  const candidates = allExerciseInsights.filter((i) => i.sessionsTracked >= 2);
+
+  // Deterministic ordering:
+  // priority (trend) -> sessionsTracked -> exercise name
+  const sortedCandidates = [...(candidates.length ? candidates : allExerciseInsights)].sort(
+    (a, b) =>
+      (priority[b.trend] - priority[a.trend]) ||
+      (b.sessionsTracked - a.sessionsTracked) ||
+      a.exercise.localeCompare(b.exercise)
+  );
+
+  const exerciseInsights = sortedCandidates.slice(0, 5);
+  const minRequested = 2;
+  const finalExerciseInsights =
+    exerciseInsights.length >= minRequested
+      ? exerciseInsights
+      : sortedCandidates.slice(0, minRequested);
+
+  const findings: string[] = [];
+  findings.push(
+    `Training frequency: ${frequency} session${frequency === 1 ? "" : "s"} in the last 7 days.`
+  );
+
+  const lowVolumeGroups = muscleGroups
+    .map((g) => ({ group: g, sets: weeklyVolume[g] ?? 0 }))
+    .filter((x) => x.sets > 0 && x.sets < 8);
+
+  if (lowVolumeGroups.length > 0) {
+    findings.push(
+      `Lower-volume muscle groups: ${lowVolumeGroups
+        .slice(0, 3)
+        .map((x) => `${labels[x.group]} (${x.sets} sets)`)
+        .join(", ")}.`
+    );
+  }
+
+  const progressing = allExerciseInsights
+    .filter((i) => i.trend === "progressing")
+    .sort((a, b) => b.sessionsTracked - a.sessionsTracked || a.exercise.localeCompare(b.exercise));
+  if (progressing.length > 0) {
+    findings.push(
+      `Progressing lifts: ${progressing
+        .slice(0, 3)
+        .map((i) => i.exercise)
+        .join(", ")}.`
+    );
+  }
+
+  const plateauing = allExerciseInsights
+    .filter((i) => i.trend === "plateau")
+    .sort((a, b) => b.sessionsTracked - a.sessionsTracked || a.exercise.localeCompare(b.exercise));
+  if (plateauing.length > 0) {
+    findings.push(
+      `Plateauing lifts: ${plateauing
+        .slice(0, 3)
+        .map((i) => i.exercise)
+        .join(", ")}.`
+    );
+  }
+
+  const declining = allExerciseInsights
+    .filter((i) => i.trend === "declining")
+    .sort((a, b) => b.sessionsTracked - a.sessionsTracked || a.exercise.localeCompare(b.exercise));
+  if (declining.length > 0) {
+    findings.push(
+      `Declining lifts: ${declining
+        .slice(0, 3)
+        .map((i) => i.exercise)
+        .join(", ")}.`
+    );
+  }
+
+  // If nothing notable found besides frequency/low volume, add a neutral note.
+  if (
+    progressing.length === 0 &&
+    plateauing.length === 0 &&
+    declining.length === 0 &&
+    findings.length <= 2
+  ) {
+    findings.push("No clear multi-session progression signals detected recently.");
+  }
+
+  return {
+    weeklyVolume,
+    frequency,
+    exerciseInsights: finalExerciseInsights,
+    findings,
+  };
 }
 
 /**

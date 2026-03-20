@@ -808,7 +808,7 @@ export default function WorkoutPage() {
           <div className="flex items-center gap-3 mb-3">
             <Link
               href="/"
-              className="shrink-0 flex items-center justify-center h-10 w-10 rounded-xl border border-zinc-800 text-zinc-300 hover:bg-zinc-800/60 hover:text-white transition"
+              className="shrink-0 flex items-center justify-center h-10 w-10 rounded-xl border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 hover:text-white transition"
               aria-label="Back to Home"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -820,14 +820,14 @@ export default function WorkoutPage() {
               placeholder="Workout name"
               value={workoutName}
               onChange={(e) => setWorkoutName(e.target.value)}
-              className="flex-1 min-w-0 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 focus-accent placeholder-zinc-500 text-base font-medium truncate"
+              className="input-app flex-1 min-w-0 p-3 text-base font-medium truncate"
             />
             {exercises.length > 0 ? (
               <div className="shrink-0 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setShowDiscardConfirm(true)}
-                  className="px-3 py-2.5 rounded-xl text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:bg-zinc-800/60 transition"
+                  className="btn-secondary !py-2.5"
                 >
                   Discard
                 </button>
@@ -843,29 +843,29 @@ export default function WorkoutPage() {
               <span className="shrink-0 w-[72px]" />
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-400">
-            <span className="tabular-nums px-2 py-1 rounded-full bg-zinc-900/60 border border-zinc-800">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-app-secondary">
+            <span className="tabular-nums px-2 py-1 rounded-full bg-zinc-900/60 border border-teal-950/40">
               {formatElapsed(elapsedSec)}
             </span>
-            <span className="px-2 py-1 rounded-full bg-zinc-900/60 border border-zinc-800">
-              <span className="text-zinc-500 mr-1">Exercises</span>
-              <span className="tabular-nums text-zinc-300">{exercises.length}</span>
+            <span className="px-2 py-1 rounded-full bg-zinc-900/60 border border-teal-950/40">
+              <span className="text-app-meta mr-1">Exercises</span>
+              <span className="tabular-nums text-white">{exercises.length}</span>
             </span>
-            <span className="px-2 py-1 rounded-full bg-zinc-900/60 border border-zinc-800">
-              <span className="text-zinc-500 mr-1">Sets</span>
-              <span className="tabular-nums text-zinc-300">{totalSetsLogged}</span>
+            <span className="px-2 py-1 rounded-full bg-zinc-900/60 border border-teal-950/40">
+              <span className="text-app-meta mr-1">Sets</span>
+              <span className="tabular-nums text-white">{totalSetsLogged}</span>
             </span>
           </div>
         </header>
 
         {exercises.length === 0 ? (
           <div className="min-h-[min(62vh,460px)] flex items-center justify-center px-2 lg:items-start lg:pt-10">
-            <div className="w-full max-w-md rounded-3xl bg-zinc-900/60 border border-zinc-800 shadow-md shadow-black/35 p-6 sm:p-7">
+            <div className="w-full max-w-md rounded-3xl border border-teal-950/40 bg-gradient-to-br from-zinc-900/95 to-teal-950/25 shadow-md shadow-black/35 p-6 sm:p-7">
               <div className="mb-5">
                 <p className="text-xl font-semibold tracking-tight text-white">
                   Start your workout
                 </p>
-                <p className="text-sm text-zinc-400 mt-1">
+                <p className="text-sm text-app-secondary mt-1">
                   Add your first exercise to begin logging sets.
                 </p>
               </div>
@@ -881,7 +881,7 @@ export default function WorkoutPage() {
                     e.preventDefault();
                     addExercise((e.target as HTMLInputElement).value);
                   }}
-                  className="w-full p-3 rounded-2xl bg-zinc-950/60 border border-zinc-800 focus-accent text-base shadow-sm shadow-black/10"
+                  className="input-app w-full p-3 text-base shadow-sm shadow-black/10"
                 />
                 <button
                   type="button"
@@ -890,7 +890,7 @@ export default function WorkoutPage() {
                 >
                   + Add Exercise
                 </button>
-                <p className="text-xs text-zinc-500 text-center pt-1">
+                <p className="text-xs text-app-meta text-center pt-1">
                   Tip: press Enter to add quickly.
                 </p>
               </div>
@@ -902,7 +902,7 @@ export default function WorkoutPage() {
               {exercises.map((exercise) => (
                 <div
                   key={exercise.id}
-                  className="p-4 rounded-2xl border bg-zinc-900/60 border-zinc-800 shadow-sm shadow-black/20"
+                  className="p-4 rounded-2xl border border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/20 shadow-sm shadow-black/20"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -910,13 +910,13 @@ export default function WorkoutPage() {
                         <h3 className="font-semibold tracking-tight truncate">{exercise.name}</h3>
                       </div>
                       <div className="mt-1 flex flex-col gap-0.5">
-                        <p className="text-xs text-zinc-400">
+                        <p className="text-xs text-app-secondary">
                           {lastPerformance[exercise.name]
                             ? `Last: ${lastPerformance[exercise.name]!.weight}${unit} × ${lastPerformance[exercise.name]!.reps}`
                             : "No previous data"}
                         </p>
                         {nextTarget[exercise.name] && (
-                          <p className="text-xs text-zinc-500">
+                          <p className="text-xs text-app-meta">
                             Target: {(nextTarget[exercise.name] ?? "").replace(/\bkg\b/g, unit)}
                           </p>
                         )}
@@ -933,7 +933,7 @@ export default function WorkoutPage() {
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-zinc-800">
+                  <div className="mt-3 pt-3 border-t border-teal-900/30">
                     {(() => {
                       const lastSets = getLastSetsForExercise(exercise.name);
                       const hasTargetSets =
@@ -947,7 +947,7 @@ export default function WorkoutPage() {
                       const effectiveNextIdx = nextIdx === -1 ? exercise.sets.length : nextIdx;
                       return (
                         <div>
-                          <ul className="space-y-2 text-sm text-zinc-100">
+                          <ul className="space-y-2 text-sm text-app-secondary">
                           {slots.map((index) => {
                             const set = exercise.sets[index];
                             const lastSet = lastSets[index];
@@ -967,8 +967,8 @@ export default function WorkoutPage() {
                                   return (
                                     <>
                                       {isNext && isActive && (
-                                        <div className="mb-1 text-xs text-zinc-300">
-                                          <span className="text-zinc-500">Rest </span>
+                                        <div className="mb-1 text-xs text-app-meta">
+                                          <span>Rest </span>
                                           <span className="tabular-nums text-[color:var(--color-accent)]">
                                             {formatRest(timer.remainingSec)}
                                           </span>
@@ -1011,7 +1011,7 @@ export default function WorkoutPage() {
                                               className={`h-8 w-8 rounded-full border flex items-center justify-center transition ${
                                                 isDone
                                                   ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/15 text-[color:var(--color-accent)]"
-                                                  : "border-zinc-800 text-zinc-300 hover:bg-zinc-800/40"
+                                                  : "border-teal-900/40 text-app-secondary hover:bg-teal-950/30"
                                               }`}
                                               aria-label={`Mark set ${index + 1} complete`}
                                             >
@@ -1020,7 +1020,7 @@ export default function WorkoutPage() {
                                           ) : (
                                             <span className="h-8 w-8" />
                                           )}
-                                          <span className="text-xs text-zinc-400 tabular-nums">
+                                          <span className="text-xs text-app-secondary tabular-nums">
                                             {index + 1}
                                           </span>
                                         </div>
@@ -1054,7 +1054,7 @@ export default function WorkoutPage() {
                                     }}
                                     disabled={!isEditable}
                                     aria-label={`Set ${index + 1} weight (${unit})`}
-                                    className="w-full h-11 px-3 rounded-xl bg-zinc-950/60 border border-zinc-800 text-sm focus-accent disabled:opacity-60 disabled:cursor-not-allowed placeholder-zinc-600 tabular-nums"
+                                    className="input-app w-full h-11 px-3 text-sm disabled:opacity-60 disabled:cursor-not-allowed tabular-nums"
                                   />
                                   <input
                                     ref={(el) => {
@@ -1087,7 +1087,7 @@ export default function WorkoutPage() {
                                     }}
                                     disabled={!isEditable}
                                     aria-label={`Set ${index + 1} reps`}
-                                    className="w-full h-11 px-3 rounded-xl bg-zinc-950/60 border border-zinc-800 text-sm focus-accent disabled:opacity-60 disabled:cursor-not-allowed placeholder-zinc-600 tabular-nums"
+                                    className="input-app w-full h-11 px-3 text-sm disabled:opacity-60 disabled:cursor-not-allowed tabular-nums"
                                   />
                                   <div className="flex justify-end">
                                     {isEditable ? (
@@ -1097,12 +1097,12 @@ export default function WorkoutPage() {
                                           e.stopPropagation();
                                           deleteSet(exercise.id, index);
                                         }}
-                                        className="h-11 px-3 rounded-xl border border-zinc-800 text-xs text-zinc-300 hover:bg-zinc-800/60 transition"
+                                        className="h-11 px-3 rounded-xl border border-teal-900/40 text-xs text-app-secondary hover:bg-teal-950/30 transition"
                                       >
                                         Delete
                                       </button>
                                     ) : (
-                                      <span className="text-[11px] text-zinc-500 text-right">
+                                      <span className="text-[11px] text-app-meta text-right">
                                         {hasLast ? " " : " "}
                                       </span>
                                     )}
@@ -1112,7 +1112,7 @@ export default function WorkoutPage() {
                                   );
                                 })()}
                                 {hasLast && (
-                                  <p className="mt-1 text-[11px] text-zinc-500/90">
+                                  <p className="mt-1 text-[11px] text-app-meta">
                                     Last session set {index + 1}: {lastSet!.weight}{unit} × {lastSet!.reps}
                                   </p>
                                 )}
@@ -1143,7 +1143,7 @@ export default function WorkoutPage() {
                                               className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
                                                 hasNote
                                                   ? "border-[color:var(--color-accent)]/50 bg-[color:var(--color-accent)]/12 text-teal-200/95 hover:bg-[color:var(--color-accent)]/18"
-                                                  : "border-zinc-600 text-zinc-300 hover:bg-zinc-800/80 hover:border-zinc-500"
+                                                  : "border-teal-500/40 text-teal-100 hover:bg-teal-950/40"
                                               }`}
                                               aria-label={hasNote ? "Edit note for this set" : "Add note for this set"}
                                             >
@@ -1164,14 +1164,14 @@ export default function WorkoutPage() {
                                               {hasNote ? "Edit note" : "+ Note"}
                                             </button>
                                             {hasLastNote && (
-                                              <p className="mt-1 text-[11px] text-zinc-500/90 leading-snug">
+                                              <p className="mt-1 text-[11px] text-app-meta leading-snug">
                                                 Last session set {index + 1} note: {lastNote}
                                               </p>
                                             )}
                                           </>
                                         ) : (
                                           <div
-                                            className="rounded-lg border border-zinc-700/90 bg-zinc-900/90 p-2.5 shadow-sm"
+                                            className="rounded-lg border border-teal-900/40 bg-zinc-900/95 p-2.5 shadow-sm"
                                             onClick={(e) => e.stopPropagation()}
                                           >
                                             <input
@@ -1181,14 +1181,14 @@ export default function WorkoutPage() {
                                               onChange={(e) =>
                                                 updateSetNotes(exercise.id, index, e.target.value)
                                               }
-                                              className="w-full px-2.5 py-2 rounded-md bg-zinc-950/80 border border-zinc-700 text-sm text-zinc-100 placeholder-zinc-500 focus-accent"
+                                              className="input-app w-full px-2.5 py-2 text-sm"
                                               autoFocus
                                             />
                                             <div className="mt-2 flex justify-end gap-2">
                                               <button
                                                 type="button"
                                                 onClick={() => setExpandedNoteKey(null)}
-                                                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-600 text-zinc-300 hover:bg-zinc-800 transition"
+                                                className="btn-secondary !py-1.5 !px-3 text-xs"
                                               >
                                                 Done
                                               </button>
@@ -1212,12 +1212,12 @@ export default function WorkoutPage() {
                               <div className="mt-3 space-y-2">
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs text-zinc-500">Rest</span>
+                                    <span className="text-xs text-app-meta">Rest</span>
                                     <span
                                       className={`tabular-nums px-2 py-1 rounded-full border ${
                                         isActive
                                           ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/10 text-zinc-100"
-                                          : "border-zinc-800 bg-zinc-950/60 text-zinc-300"
+                                          : "border-teal-900/40 bg-teal-950/20 text-app-secondary"
                                       }`}
                                     >
                                       {formatRest(isActive ? timer.remainingSec : rest)}
@@ -1229,7 +1229,7 @@ export default function WorkoutPage() {
                                       <button
                                         type="button"
                                         onClick={() => resetExerciseRest(exercise.id)}
-                                        className="text-xs px-2.5 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-800/60 transition"
+                                        className="text-xs px-2.5 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 hover:text-white transition"
                                       >
                                         Reset
                                       </button>
@@ -1237,29 +1237,29 @@ export default function WorkoutPage() {
                                       <button
                                         type="button"
                                         onClick={() => startExerciseRest(exercise.id, rest)}
-                                        className="text-xs px-2.5 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-800/60 transition"
+                                        className="text-xs px-2.5 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 hover:text-white transition"
                                       >
                                         Start
                                       </button>
                                     )}
 
                                     <details className="relative">
-                                      <summary className="list-none cursor-pointer select-none text-xs px-2.5 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-800/60 transition">
+                                      <summary className="list-none cursor-pointer select-none text-xs px-2.5 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 hover:text-white transition">
                                         Rest options
                                       </summary>
-                                      <div className="absolute right-0 mt-2 w-56 rounded-xl bg-zinc-950 border border-zinc-800 shadow-xl p-2 z-10">
+                                      <div className="absolute right-0 mt-2 w-56 rounded-xl bg-zinc-950 border border-teal-900/50 shadow-xl p-2 z-10">
                                         <div className="flex flex-wrap gap-2 p-2">
                                           <button
                                             type="button"
                                             onClick={() => adjustExerciseRest(exercise.id, -15)}
-                                            className="text-xs px-2 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-900 transition"
+                                            className="text-xs px-2 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 transition"
                                           >
                                             −15s
                                           </button>
                                           <button
                                             type="button"
                                             onClick={() => adjustExerciseRest(exercise.id, 15)}
-                                            className="text-xs px-2 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-900 transition"
+                                            className="text-xs px-2 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 transition"
                                           >
                                             +15s
                                           </button>
@@ -1271,7 +1271,7 @@ export default function WorkoutPage() {
                                                 setExerciseRest(exercise.id, s);
                                                 startExerciseRest(exercise.id, s);
                                               }}
-                                              className="text-xs px-2 py-1.5 rounded-full border border-zinc-800 text-zinc-200 hover:bg-zinc-900 transition"
+                                              className="text-xs px-2 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 transition"
                                             >
                                               {s / 60}m
                                             </button>
@@ -1299,8 +1299,8 @@ export default function WorkoutPage() {
               ))}
             </section>
 
-            <section className="mt-8 mb-4 p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 shadow-sm shadow-black/20">
-              <label className="block text-xs text-zinc-500 mb-2">Add another exercise</label>
+            <section className="mt-8 mb-4 p-4 rounded-2xl border border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/20 shadow-sm shadow-black/20">
+              <label className="label-section block mb-2">Add another exercise</label>
               <div className="flex gap-2">
                 <input
                   ref={addExerciseInputRef}
@@ -1312,7 +1312,7 @@ export default function WorkoutPage() {
                     e.preventDefault();
                     addExercise((e.target as HTMLInputElement).value);
                   }}
-                  className="flex-1 min-w-0 p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 focus-accent text-base"
+                  className="input-app flex-1 min-w-0 p-3 text-base"
                 />
                 <button
                   type="button"
@@ -1336,20 +1336,20 @@ export default function WorkoutPage() {
               onClick={() => setShowDiscardConfirm(false)}
             >
               <div
-                className="w-full max-w-sm p-6 rounded-xl bg-zinc-900 border border-zinc-700 shadow-xl"
+                className="w-full max-w-sm p-6 rounded-2xl border border-teal-950/50 bg-gradient-to-b from-zinc-900 to-teal-950/30 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h2 id="discard-title" className="text-lg font-semibold text-zinc-100 mb-2">
+                <h2 id="discard-title" className="text-lg font-bold text-white mb-2">
                   Discard workout?
                 </h2>
-                <p className="text-sm text-zinc-400 mb-6">
+                <p className="text-sm text-app-secondary mb-6">
                   Progress will be lost. This cannot be undone.
                 </p>
                 <div className="flex gap-2 justify-end">
                   <button
                     type="button"
                     onClick={() => setShowDiscardConfirm(false)}
-                    className="px-4 py-2.5 rounded-xl text-sm border border-zinc-600 text-zinc-300 hover:bg-zinc-800 transition"
+                    className="btn-secondary"
                   >
                     Cancel
                   </button>
@@ -1371,16 +1371,16 @@ export default function WorkoutPage() {
               onClick={(e) => e.target === e.currentTarget && router.push("/")}
             >
               <div
-                className="w-full max-w-md p-6 rounded-xl bg-zinc-900 border border-zinc-700 shadow-xl"
+                className="w-full max-w-md p-6 rounded-2xl border border-teal-950/50 bg-gradient-to-b from-zinc-900 to-teal-950/30 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <h2 className="text-xl font-semibold mb-4">Workout Summary</h2>
-                <p className="text-zinc-200 font-medium mb-2">{getWorkoutDisplayName()}</p>
-                <p className="text-zinc-300 mb-4">
+                <p className="text-white font-bold mb-2">{getWorkoutDisplayName()}</p>
+                <p className="text-app-secondary mb-4">
                   {exercises.length} exercise{exercises.length !== 1 ? "s" : ""} ·{" "}
                   {exercises.reduce((total, ex) => total + ex.sets.length, 0)} total sets
                 </p>
-                <ul className="space-y-2 text-sm text-zinc-200 mb-6">
+                <ul className="space-y-2 text-sm text-app-secondary mb-6">
                   {exercises.map((exercise) => (
                     <li key={exercise.id}>
                       {exercise.name} — {exercise.sets.length} set
@@ -1392,7 +1392,7 @@ export default function WorkoutPage() {
                   <button
                     onClick={saveAsRoutineFromSession}
                     disabled={routineSaved || exercises.length === 0}
-                    className="w-full py-3 rounded-xl font-semibold border border-[color:var(--color-accent)] text-[color:var(--color-accent)] hover:bg-zinc-800/60 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full py-3 rounded-xl font-semibold border border-teal-500/50 text-teal-300 hover:bg-teal-950/40 transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {routineSaved ? "Routine Saved" : "Save as Routine"}
                   </button>

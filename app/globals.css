@@ -42,4 +42,63 @@ body {
   .focus-accent {
     @apply focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent)] focus:border-[color:var(--color-accent)];
   }
+
+  /* App-wide: tinted text (not flat grey) */
+  .text-app-secondary {
+    color: rgba(220, 230, 235, 0.72);
+  }
+  .text-app-tertiary {
+    color: rgba(165, 200, 210, 0.5);
+  }
+  .text-app-meta {
+    color: rgba(200, 218, 226, 0.62);
+  }
+  .link-accent {
+    @apply font-semibold text-teal-400 transition-colors duration-150 hover:text-teal-300;
+  }
+
+  /* Legacy aliases for Home */
+  .text-home-secondary { color: rgba(220, 230, 235, 0.72); }
+  .text-home-tertiary { color: rgba(165, 200, 210, 0.5); }
+  .text-home-meta { color: rgba(200, 218, 226, 0.62); }
+  .link-home-accent { @apply font-semibold text-teal-400 transition-colors duration-150 hover:text-teal-300; }
+
+  /* App-wide card: layered dark with subtle teal tint */
+  .card-app {
+    @apply rounded-2xl border border-teal-950/40 bg-gradient-to-br from-zinc-900 from-[42%] via-zinc-900 to-teal-950/35 p-5 shadow-lg shadow-black/50 transition-all duration-200 ease-out;
+  }
+  .card-app:hover {
+    @apply -translate-y-0.5 border-teal-500/22 shadow-xl shadow-black/55;
+  }
+
+  /* App-wide input: dark, subtle border, focus accent */
+  .input-app {
+    @apply rounded-xl bg-zinc-950/70 border border-zinc-700/50 text-white placeholder-zinc-500 transition-colors duration-150;
+  }
+  .input-app:focus {
+    @apply outline-none ring-2 ring-teal-500/40 border-teal-500/30;
+  }
+
+  /* Secondary button / outline */
+  .btn-secondary {
+    @apply rounded-xl border border-teal-800/40 bg-teal-950/25 px-3 py-2 text-sm font-semibold transition-all duration-150 hover:border-teal-500/30 hover:bg-teal-950/40 hover:text-teal-200 active:scale-[0.98];
+    color: rgba(220, 230, 235, 0.72);
+  }
+
+  /* Volume/status chips: red / emerald / blue */
+  .chip-low {
+    @apply bg-rose-500/16 border border-rose-400/35 text-rose-100 shadow-sm shadow-rose-950/20;
+  }
+  .chip-moderate {
+    @apply bg-emerald-500/15 border border-emerald-400/32 text-emerald-100 shadow-sm shadow-emerald-950/20;
+  }
+  .chip-high {
+    @apply bg-sky-500/16 border border-sky-400/35 text-sky-100 shadow-sm shadow-sky-950/25;
+  }
+
+  /* Section label: uppercase, tertiary */
+  .label-section {
+    @apply text-[10px] font-semibold uppercase tracking-[0.12em];
+    color: rgba(165, 200, 210, 0.5);
+  }
 }

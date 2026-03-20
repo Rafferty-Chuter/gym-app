@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useUnit } from "@/lib/unit-preference";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
@@ -84,29 +85,32 @@ export default function ProgressPage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Progress</h1>
+        <div className="mb-6 flex flex-wrap items-center gap-4">
+          <Link href="/" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
+            ← Home
+          </Link>
+          <h1 className="text-3xl font-bold text-white">Progress</h1>
+        </div>
 
         {exerciseNames.length === 0 ? (
-          <p className="text-zinc-400">
+          <p className="text-app-secondary">
             No exercises in history yet. Complete workouts to see progress here.
           </p>
         ) : (
           <div className="flex flex-col sm:flex-row gap-6">
             <section className="flex-1">
-              <h2 className="text-lg font-semibold mb-3 text-zinc-200">
-                Exercises
-              </h2>
-              <ul className="space-y-1">
+              <h2 className="label-section mb-3">Exercises</h2>
+              <ul className="space-y-1.5">
                 {exerciseNames.map((name) => (
                   <li key={name}>
                     <button
                       onClick={() =>
                         setSelectedExercise((prev) => (prev === name ? null : name))
                       }
-                      className={`w-full text-left px-4 py-2 rounded-lg transition ${
+                      className={`w-full text-left px-4 py-2.5 rounded-xl transition border ${
                         selectedExercise === name
-                          ? "bg-zinc-600 text-white"
-                          : "bg-zinc-900 text-zinc-200 hover:bg-zinc-800 border border-zinc-800"
+                          ? "bg-teal-500/25 text-teal-100 border-teal-500/40"
+                          : "border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/20 text-app-secondary hover:text-white hover:border-teal-500/25"
                       }`}
                     >
                       {name}
@@ -118,16 +122,14 @@ export default function ProgressPage() {
 
             <section className="flex-1 min-w-0">
               {selectedExercise == null ? (
-                <p className="text-zinc-500 text-sm">
+                <p className="text-app-secondary text-sm">
                   Select an exercise to view all logged sets.
                 </p>
               ) : (
-                <>
-                  <h2 className="text-lg font-semibold mb-3 text-white">
-                    {selectedExercise}
-                  </h2>
+                <div className="card-app">
+                  <h2 className="text-lg font-bold text-white mb-3">{selectedExercise}</h2>
                   {selectedSets.length === 0 ? (
-                    <p className="text-zinc-500 text-sm">
+                    <p className="text-app-secondary text-sm">
                       No sets logged for this exercise yet.
                     </p>
                   ) : (
@@ -135,17 +137,17 @@ export default function ProgressPage() {
                       {selectedSets.map((set, index) => (
                         <li
                           key={index}
-                          className="text-zinc-200 py-1 border-b border-zinc-800 last:border-0"
+                          className="text-app-secondary py-2 border-b border-teal-900/30 last:border-0 text-sm"
                         >
                           {set.weight}{unit} × {set.reps}
                           {set.notes?.trim() && (
-                            <p className="text-xs text-zinc-500 mt-0.5">{set.notes.trim()}</p>
+                            <p className="text-app-meta text-xs mt-0.5">{set.notes.trim()}</p>
                           )}
                         </li>
                       ))}
                     </ul>
                   )}
-                </>
+                </div>
               )}
             </section>
           </div>
