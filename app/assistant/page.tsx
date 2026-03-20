@@ -3,7 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { getTrainingSummary } from "@/utils/trainingSummary";
-import { getWorkoutHistory, getExerciseTrends } from "@/lib/trainingAnalysis";
+import {
+  getWorkoutHistory,
+  getExerciseTrends,
+  getTrainingInsights,
+  getExerciseInsights,
+} from "@/lib/trainingAnalysis";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
@@ -47,6 +52,16 @@ export default function AssistantPage() {
       }
       const allWorkouts = getWorkoutHistory();
       const exerciseTrends = getExerciseTrends(allWorkouts, { maxSessions: 5 });
+      const trainingInsights = getTrainingInsights(allWorkouts);
+      // Temporary debug logs: remove after verification.
+      // eslint-disable-next-line no-console
+      console.log("[DEBUG] Bench Press getExerciseInsights()", getExerciseInsights(allWorkouts, "Bench Press"));
+      // eslint-disable-next-line no-console
+      console.log("[DEBUG] Squat getExerciseInsights()", getExerciseInsights(allWorkouts, "Squat"));
+      // eslint-disable-next-line no-console
+      console.log("[DEBUG] Deadlift getExerciseInsights()", getExerciseInsights(allWorkouts, "Deadlift"));
+      // eslint-disable-next-line no-console
+      console.log("[DEBUG] getTrainingInsights()", trainingInsights);
 
       const res = await fetch("/api/assistant", {
         method: "POST",
@@ -64,6 +79,7 @@ export default function AssistantPage() {
           experienceLevel,
           unit,
           exerciseTrends,
+          trainingInsights,
         }),
       });
 
