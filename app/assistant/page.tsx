@@ -7,11 +7,16 @@ import {
   getWorkoutHistory,
   getExerciseTrends,
   getTrainingInsights,
-  getExerciseInsights,
 } from "@/lib/trainingAnalysis";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
+import { usePriorityGoal } from "@/lib/priorityGoal";
+import {
+  buildCoachStructuredAnalysis,
+  collectReferencedEvidenceCardIds,
+} from "@/lib/coachStructuredAnalysis";
+import { getEvidenceCardsForReferencedIds } from "@/lib/evidenceMapping";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -19,6 +24,7 @@ export default function AssistantPage() {
   const { unit } = useUnit();
   const { focus } = useTrainingFocus();
   const { experienceLevel } = useExperienceLevel();
+  const { goal } = usePriorityGoal();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -53,15 +59,30 @@ export default function AssistantPage() {
       const allWorkouts = getWorkoutHistory();
       const exerciseTrends = getExerciseTrends(allWorkouts, { maxSessions: 5 });
       const trainingInsights = getTrainingInsights(allWorkouts);
-      // Temporary debug logs: remove after verification.
-      // eslint-disable-next-line no-console
-      console.log("[DEBUG] Bench Press getExerciseInsights()", getExerciseInsights(allWorkouts, "Bench Press"));
-      // eslint-disable-next-line no-console
-      console.log("[DEBUG] Squat getExerciseInsights()", getExerciseInsights(allWorkouts, "Squat"));
-      // eslint-disable-next-line no-console
-      console.log("[DEBUG] Deadlift getExerciseInsights()", getExerciseInsights(allWorkouts, "Deadlift"));
-      // eslint-disable-next-line no-console
-      console.log("[DEBUG] getTrainingInsights()", trainingInsights);
+      const coachAnalysis = buildCoachStructuredAnalysis(allWorkouts, {
+        focus,
+        experienceLevel,
+        goal,
+        unit,
+      });
+      const evidenceCards = getEvidenceCardsForReferencedIds(
+        collectReferencedEvidenceCardIds(coachAnalysis)
+      );
+      const coachStructuredOutput = {
+        keyFocus: coachAnalysis.keyFocus,
+        keyFocusType: coachAnalysis.keyFocusType,
+        keyFocusExercise: coachAnalysis.keyFocusExercise,
+        keyFocusGroups: coachAnalysis.keyFocusGroups,
+        keyFocusEvidenceCardIds: coachAnalysis.keyFocusEvidenceCardIds,
+        whatsGoingWell: coachAnalysis.whatsGoingWell.map((t, i) => ({
+          text: t,
+          evidenceCardIds: coachAnalysis.whatsGoingWellEvidenceCardIds[i] ?? [],
+        })),
+        actionableSuggestions: coachAnalysis.actionableSuggestions.map((t, i) => ({
+          text: t,
+          evidenceCardIds: coachAnalysis.actionableSuggestionEvidenceCardIds[i] ?? [],
+        })),
+      };
 
       const res = await fetch("/api/assistant", {
         method: "POST",
@@ -78,23 +99,26 @@ export default function AssistantPage() {
           trainingFocus: focus,
           experienceLevel,
           unit,
+          priorityGoal: goal,
           exerciseTrends,
           trainingInsights,
+          coachStructuredOutput,
+          evidenceCards,
         }),
       });
 
       const data = await res.json();
-if (res.ok && typeof data.reply === "string") {
-  setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-} else {
-  setMessages((prev) => [
-    ...prev,
-    {
-      role: "assistant",
-      content: `Error: ${data.error ?? "Sorry, I couldn’t get a response. Please try again."}`,
-    },
-  ]);
-}
+      if (res.ok && typeof data.reply === "string") {
+        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `Error: ${data.error ?? "Sorry, I couldn’t get a response. Please try again."}`,
+          },
+        ]);
+      }
     } catch {
       setMessages((prev) => [
         ...prev,

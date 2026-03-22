@@ -5,6 +5,18 @@
 
 import type { TrainingFocus } from "@/lib/trainingFocus";
 import type { ExperienceLevel } from "@/lib/experienceLevel";
+import type { UserProfile } from "@/lib/userProfile";
+import {
+  getStats,
+  getWorkoutsFromLast7Days,
+  getVolumeByMuscleGroup,
+  getMuscleGroupForExercise,
+  getBestSet,
+  estimateE1RM,
+  getUniqueExerciseNames,
+  exerciseKey,
+  getExerciseMetrics,
+} from "@/lib/trainingMetrics";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
@@ -21,14 +33,6 @@ export type StoredWorkout = {
   exercises: { name: string; restSec?: number; sets: { weight: string; reps: string; notes?: string }[] }[];
 };
 
-const MUSCLE_GROUP_KEYWORDS: Record<string, string[]> = {
-  chest: ["bench", "incline", "chest press", "fly"],
-  back: ["row", "pulldown", "pull up", "pull-up", "lat"],
-  legs: ["squat", "leg press", "hack", "calf", "leg curl", "leg extension", "rdl"],
-  shoulders: ["shoulder press", "overhead press", "lateral raise"],
-  arms: ["curl", "hammer curl", "tricep", "pushdown", "jm press", "skullcrusher"],
-};
-
 export function getWorkoutHistory(): StoredWorkout[] {
   if (typeof window === "undefined") return [];
   try {
@@ -41,76 +45,24 @@ export function getWorkoutHistory(): StoredWorkout[] {
   }
 }
 
-export function getStats(workouts: StoredWorkout[]) {
-  let totalExercises = 0;
-  let totalSets = 0;
-  for (const workout of workouts) {
-    for (const ex of workout.exercises ?? []) {
-      totalExercises += 1;
-      totalSets += ex.sets?.length ?? 0;
-    }
-  }
-  return {
-    totalWorkouts: workouts.length,
-    totalExercises,
-    totalSets,
-  };
-}
-
-export function getWorkoutsFromLast7Days(workouts: StoredWorkout[]): StoredWorkout[] {
-  const now = Date.now();
-  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-  const cutoff = now - sevenDaysMs;
-  return workouts.filter((w) => new Date(w.completedAt).getTime() >= cutoff);
-}
-
-export function getMuscleGroupForExercise(exerciseName: string): string | null {
-  const name = exerciseName.trim().toLowerCase();
-  for (const [group, keywords] of Object.entries(MUSCLE_GROUP_KEYWORDS)) {
-    if (keywords.some((kw) => name.includes(kw))) return group;
-  }
-  return null;
-}
-
-export function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string, number> {
-  const counts: Record<string, number> = {
-    chest: 0,
-    back: 0,
-    legs: 0,
-    shoulders: 0,
-    arms: 0,
-  };
-  for (const workout of workouts) {
-    for (const ex of workout.exercises ?? []) {
-      const group = getMuscleGroupForExercise(ex.name);
-      if (group && group in counts) {
-        counts[group] += ex.sets?.length ?? 0;
-      }
-    }
-  }
-  return counts;
-}
-
-/** Best set = highest weight; if equal, highest reps. */
-function getBestSet(sets: { weight: string; reps: string }[]): { weight: number; reps: number } | null {
-  if (!sets?.length) return null;
-  let best = { weight: 0, reps: 0 };
-  for (const s of sets) {
-    const w = parseFloat(String(s?.weight ?? 0)) || 0;
-    const r = parseFloat(String(s?.reps ?? 0)) || 0;
-    if (w > best.weight || (w === best.weight && r > best.reps)) best = { weight: w, reps: r };
-  }
-  return best.weight > 0 || best.reps > 0 ? best : null;
-}
+export { getWorkoutsFromLast7Days, getVolumeByMuscleGroup, getMuscleGroupForExercise };
+export { getStats };
+export { getExerciseMetrics };
 
 // --- Exercise trend analysis (deterministic, no AI) ---
 
-export type ExerciseTrend = "progressing" | "stable" | "plateau" | "declining";
+export type ExerciseTrend =
+  | "progressing"
+  | "stable"
+  | "plateau"
+  | "declining"
+  | "insufficient_data";
 
 export type RecentPerformance = {
   completedAt: string;
   weight: number;
   reps: number;
+  e1rm: number;
 };
 
 export type ExerciseTrendResult = {
@@ -125,12 +77,25 @@ export type ExerciseInsights = {
   trend: ExerciseTrend;
   changeSummary: string;
   consistency: "consistent" | "inconsistent";
-  recommendation: string;
+  hasAdequateExposure: boolean;
+  possiblePlateau: boolean;
+  possibleFatigue: boolean;
+  possibleLowSpecificity: boolean;
+  positiveStepCount: number;
+  negativeStepCount: number;
+  exposuresLast7Days: number;
+  exposuresLast28Days: number;
+  averageExposuresPerWeekLast4Weeks: number;
+  daysSinceLastPerformed: number | null;
+  averageHardSetsPerExposure: number;
   recentPerformances: RecentPerformance[];
 };
 
 const DEFAULT_MAX_SESSIONS = 5;
 const MIN_SESSIONS_FOR_PLATEAU = 3;
+const MIN_SESSIONS_FOR_INSUFFICIENT = 3;
+const MIN_SESSIONS_FOR_PLATEAU_RULE = 4;
+const E1RM_MEANINGFUL_DELTA_PCT = 0.015; // 1.5%
 
 function performanceBetter(
   a: { weight: number; reps: number },
@@ -144,30 +109,6 @@ function performanceWorse(
   b: { weight: number; reps: number }
 ): boolean {
   return a.weight < b.weight || (a.weight === b.weight && a.reps < b.reps);
-}
-
-/** Normalize for matching: trim, lowercase, collapse whitespace. */
-function exerciseKey(name: string | undefined): string {
-  return (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-/**
- * Get unique exercise names from workouts, using first occurrence as display name.
- */
-function getUniqueExerciseNames(workouts: StoredWorkout[]): string[] {
-  const seen = new Set<string>();
-  const names: string[] = [];
-  for (const w of workouts) {
-    for (const ex of w.exercises ?? []) {
-      const name = ex.name?.trim();
-      if (!name) continue;
-      const key = exerciseKey(name);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      names.push(name);
-    }
-  }
-  return names.sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -201,6 +142,7 @@ export function getExerciseTrends(
         completedAt: w.completedAt,
         weight: best.weight,
         reps: best.reps,
+        e1rm: estimateE1RM(best.weight, best.reps),
       });
       if (performances.length >= maxSessions) break;
     }
@@ -244,107 +186,127 @@ export function getExerciseInsights(
   exerciseName: string,
   options?: { maxSessions?: number }
 ): ExerciseInsights {
-  const maxSessions = Math.min(
-    Math.max(options?.maxSessions ?? DEFAULT_MAX_SESSIONS, 3),
-    5
-  );
+  const metrics = getExerciseMetrics(workouts, exerciseName, options);
+  const {
+    exercise,
+    sessionsTracked,
+    recentPerformances,
+    frequencyLast28Days,
+    daysSinceLastPerformed,
+    exposuresLast7Days,
+    exposuresLast28Days,
+    averageExposuresPerWeekLast4Weeks,
+    averageHardSetsPerExposure,
+  } = metrics;
 
-  const exerciseLabel = exerciseName.trim() || "Exercise";
-  const key = exerciseKey(exerciseName);
+  const hasAdequateExposure =
+    sessionsTracked >= MIN_SESSIONS_FOR_INSUFFICIENT && frequencyLast28Days >= 2;
+  const possibleLowSpecificity = !hasAdequateExposure;
 
-  const sorted = [...workouts].sort(
-    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  );
-
-  // Build newest -> oldest first, then reverse to oldest -> newest for summaries.
-  const newestPerformances: RecentPerformance[] = [];
-  for (const w of sorted) {
-    const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
-    if (!ex?.sets?.length) continue;
-    const best = getBestSet(ex.sets ?? []);
-    if (!best) continue;
-    newestPerformances.push({
-      completedAt: w.completedAt,
-      weight: best.weight,
-      reps: best.reps,
-    });
-    if (newestPerformances.length >= maxSessions) break;
-  }
-
-  const recentPerformances = newestPerformances.reverse(); // oldest -> newest
-  const sessionsTracked = recentPerformances.length;
-
-  if (sessionsTracked < 2) {
+  if (sessionsTracked < MIN_SESSIONS_FOR_INSUFFICIENT) {
     const last = recentPerformances[recentPerformances.length - 1];
     const lastStr = last ? `${last.weight} × ${last.reps}` : "no logged best set";
     return {
-      exercise: exerciseLabel,
+      exercise,
       sessionsTracked,
-      trend: "stable",
-      changeSummary: `Not enough sessions to detect a trend yet. Best set: ${lastStr}.`,
+      trend: "insufficient_data",
+      changeSummary: `Not enough sessions to classify trend reliably yet. Latest best set: ${lastStr}.`,
       consistency: "inconsistent",
-      recommendation:
-        "Log at least 3 sessions for this exercise so we can detect progression, plateaus, and regression more reliably.",
+      hasAdequateExposure,
+      possiblePlateau: false,
+      possibleFatigue: false,
+      possibleLowSpecificity,
+      positiveStepCount: 0,
+      negativeStepCount: 0,
+      exposuresLast7Days,
+      exposuresLast28Days,
+      averageExposuresPerWeekLast4Weeks,
+      daysSinceLastPerformed,
+      averageHardSetsPerExposure,
       recentPerformances,
     };
   }
 
   const first = recentPerformances[0];
   const last = recentPerformances[recentPerformances.length - 1];
+  const firstE1RM = metrics.firstE1RM;
+  const lastE1RM = metrics.lastE1RM;
 
-  let improvementsCount = 0;
-  let worseningCount = 0;
+  const base = Math.max(firstE1RM, 1);
+  const deltaE1RM = lastE1RM - firstE1RM;
+  const deltaPct = deltaE1RM / base;
+  const meaningfulUp = deltaPct >= E1RM_MEANINGFUL_DELTA_PCT;
+  const meaningfulDown = deltaPct <= -E1RM_MEANINGFUL_DELTA_PCT;
+
+  let prTrendSteps = 0;
+  let worseningSteps = 0;
   for (let i = 1; i < recentPerformances.length; i++) {
     const prev = recentPerformances[i - 1];
     const curr = recentPerformances[i];
-    if (performanceBetter(curr, prev)) improvementsCount += 1;
-    else if (performanceWorse(curr, prev)) worseningCount += 1;
+    const stepBase = Math.max(prev.e1rm, 1);
+    const stepDeltaPct = (curr.e1rm - prev.e1rm) / stepBase;
+    if (stepDeltaPct >= E1RM_MEANINGFUL_DELTA_PCT) prTrendSteps += 1;
+    if (stepDeltaPct <= -E1RM_MEANINGFUL_DELTA_PCT) worseningSteps += 1;
   }
 
   let trend: ExerciseTrend = "stable";
-  if (performanceBetter(last, first) && improvementsCount >= 1) {
-    // conservative progressing: net improvement with at least one upward step.
+  if (meaningfulUp || prTrendSteps >= 1) {
     trend = "progressing";
-  } else if (performanceWorse(last, first) && worseningCount >= 1) {
+  } else if (meaningfulDown && worseningSteps >= 2) {
     trend = "declining";
-  } else if (sessionsTracked >= MIN_SESSIONS_FOR_PLATEAU && improvementsCount === 0) {
+  } else if (
+    sessionsTracked >= MIN_SESSIONS_FOR_PLATEAU_RULE &&
+    !meaningfulUp &&
+    prTrendSteps === 0 &&
+    hasAdequateExposure
+  ) {
     trend = "plateau";
   } else {
     trend = "stable";
   }
 
+  const possiblePlateau =
+    sessionsTracked >= MIN_SESSIONS_FOR_PLATEAU_RULE &&
+    !meaningfulUp &&
+    prTrendSteps === 0 &&
+    hasAdequateExposure;
+  const possibleFatigue =
+    trend === "declining" && worseningSteps >= 2 && (daysSinceLastPerformed ?? 999) <= 10;
+
   const firstStr = `${first.weight} × ${first.reps}`;
   const lastStr = `${last.weight} × ${last.reps}`;
+  const deltaPctAbs = Math.abs(deltaPct * 100).toFixed(1);
+  const deltaSign = deltaE1RM >= 0 ? "+" : "";
 
   const changeSummary =
     trend === "progressing"
-      ? `Your best set improved from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
+      ? `Estimated strength improved (${deltaSign}${deltaPctAbs}% e1RM) from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
       : trend === "declining"
-        ? `Your best set declined from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
+        ? `Estimated strength trended down (${deltaPctAbs}% e1RM) from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
         : trend === "plateau"
-          ? `No meaningful improvement over ${sessionsTracked} sessions (best set stayed around ${lastStr}).`
-          : `Performance stayed mostly unchanged across ${sessionsTracked} sessions (best set ${lastStr}).`;
+          ? `Estimated strength has been flat across ${sessionsTracked} sessions (${lastStr}, e1RM ~${lastE1RM}).`
+          : `Estimated strength is mostly stable across ${sessionsTracked} sessions (${lastStr}).`;
 
-  // Conservative consistency: if there are any worsening steps, mark inconsistent.
   const consistency: "consistent" | "inconsistent" =
-    worseningCount === 0 ? "consistent" : "inconsistent";
-
-  const recommendation =
-    trend === "progressing"
-      ? "Keep the momentum with a small next-step (either +1 rep at the same load, or a tiny load increase) while keeping reps controlled."
-      : trend === "stable"
-        ? "If the goal is progress, try a small change next session (add 1 rep at the same weight or a minimal load increase) and keep technique consistent."
-        : trend === "plateau"
-          ? "When progress stalls, consider a reset: reduce load or volume slightly for one session, then come back and attempt a small increment."
-          : "With a decline, prioritize recovery and form. Reduce load slightly for the next session, then rebuild progress gradually.";
+    worseningSteps <= 1 ? "consistent" : "inconsistent";
 
   return {
-    exercise: exerciseLabel,
+    exercise,
     sessionsTracked,
     trend,
     changeSummary,
     consistency,
-    recommendation,
+    hasAdequateExposure,
+    possiblePlateau,
+    possibleFatigue,
+    possibleLowSpecificity,
+    positiveStepCount: prTrendSteps,
+    negativeStepCount: worseningSteps,
+    exposuresLast7Days,
+    exposuresLast28Days,
+    averageExposuresPerWeekLast4Weeks,
+    daysSinceLastPerformed,
+    averageHardSetsPerExposure,
     recentPerformances,
   };
 }
@@ -355,6 +317,274 @@ export type TrainingInsights = {
   exerciseInsights: ExerciseInsights[];
   findings: string[];
 };
+
+export type TrainingSignal = {
+  id: string;
+  category: "performance" | "volume" | "frequency" | "fatigue" | "balance";
+  status: "positive" | "neutral" | "warning" | "high_priority";
+  severity: 1 | 2 | 3 | 4 | 5;
+  confidence: 1 | 2 | 3 | 4 | 5;
+  confidenceLevel: "low" | "medium" | "high";
+  goalRelevanceClass: "primary" | "supportive" | "general" | "irrelevant";
+  goalRelevance: 1 | 2 | 3 | 4 | 5;
+  priorityScore: number;
+  title: string;
+  explanation: string;
+  target?: { exercise?: string; muscleGroup?: string };
+  evidence: string[];
+  recommendationIds: string[];
+};
+
+export type TrainingInteraction = {
+  id: string;
+  signals: string[];
+  title: string;
+  implication: string;
+  confidenceLevel: "low" | "medium" | "high";
+  severity: 1 | 2 | 3 | 4 | 5;
+  goalRelevance: 1 | 2 | 3 | 4 | 5;
+  priorityScore: number;
+  recommendationIds: string[];
+};
+
+function toScale1to5(n: number): 1 | 2 | 3 | 4 | 5 {
+  if (n <= 1) return 1;
+  if (n >= 5) return 5;
+  return Math.round(n) as 1 | 2 | 3 | 4 | 5;
+}
+
+function confidenceLevelFromScore(confidence: 1 | 2 | 3 | 4 | 5): "low" | "medium" | "high" {
+  if (confidence <= 2) return "low";
+  if (confidence === 3) return "medium";
+  return "high";
+}
+
+function getRecentWeekBuckets(workouts: StoredWorkout[], weeksToCheck = 2): number {
+  const now = Date.now();
+  const windowMs = weeksToCheck * 7 * 24 * 60 * 60 * 1000;
+  const cutoff = now - windowMs;
+  const buckets = new Set<string>();
+  for (const w of workouts ?? []) {
+    const d = new Date(w.completedAt);
+    const ms = d.getTime();
+    if (!Number.isFinite(ms) || ms < cutoff) continue;
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth() + 1;
+    const day = d.getUTCDate();
+    const week = Math.ceil(day / 7);
+    buckets.add(`${year}-${month}-${week}`);
+  }
+  return buckets.size;
+}
+
+function goalRelevanceForSignal(
+  signal: TrainingSignal,
+  focus: TrainingFocus
+): 1 | 2 | 3 | 4 | 5 {
+  if (focus === "Hypertrophy") {
+    if (signal.category === "volume" || signal.category === "balance") return 5;
+    if (signal.category === "performance") return 3;
+    if (signal.category === "frequency") return 4;
+    return 3;
+  }
+  if (focus === "Powerlifting") {
+    if (signal.target?.exercise && signal.category === "performance") return 5;
+    if (signal.category === "performance" || signal.category === "fatigue") return 4;
+    if (signal.category === "frequency") return 4;
+    return 2;
+  }
+  if (focus === "General Strength") {
+    if (signal.category === "performance" || signal.category === "fatigue") return 5;
+    if (signal.category === "frequency") return 4;
+    if (signal.category === "volume") return 3;
+    return 3;
+  }
+  // General Fitness
+  if (signal.category === "frequency" || signal.category === "balance") return 5;
+  if (signal.category === "volume") return 4;
+  return 3;
+}
+
+function getLiftKeywordFromGoal(primaryGoal?: string): "bench" | "squat" | "deadlift" | null {
+  const g = (primaryGoal ?? "").toLowerCase();
+  if (g.includes("increase bench")) return "bench";
+  if (g.includes("increase squat")) return "squat";
+  if (g.includes("increase deadlift")) return "deadlift";
+  return null;
+}
+
+function isLiftSpecificGoal(primaryGoal?: string): boolean {
+  return getLiftKeywordFromGoal(primaryGoal) !== null;
+}
+
+function classifySignalGoalRelevance(
+  signal: TrainingSignal,
+  profile?: UserProfile
+): "primary" | "supportive" | "general" | "irrelevant" {
+  const lift = getLiftKeywordFromGoal(profile?.goals?.primaryGoal);
+  if (!lift) return "general";
+
+  const ex = (signal.target?.exercise ?? "").toLowerCase();
+  const mg = (signal.target?.muscleGroup ?? "").toLowerCase();
+  const isGoalLiftExercise = ex.includes(lift);
+
+  const supportiveMusclesByLift: Record<"bench" | "squat" | "deadlift", string[]> = {
+    bench: ["chest", "shoulders", "arms"],
+    squat: ["legs", "back"],
+    deadlift: ["back", "legs"],
+  };
+  const supportiveMuscles = supportiveMusclesByLift[lift];
+  const isSupportiveMuscle = mg ? supportiveMuscles.includes(mg) : false;
+
+  if (isGoalLiftExercise) return "primary";
+  if (
+    signal.id.includes("goal-lift-exposure-low") ||
+    (signal.category === "fatigue" && isGoalLiftExercise) ||
+    (signal.category === "frequency" && (isGoalLiftExercise || signal.id.includes(`-${lift}`))) ||
+    (signal.category === "volume" && isSupportiveMuscle)
+  ) {
+    return "supportive";
+  }
+
+  // Unrelated lift progression shouldn't dominate key focus for lift-specific goals.
+  if (signal.category === "performance" && signal.status === "positive" && ex && !isGoalLiftExercise) {
+    return "irrelevant";
+  }
+  return "general";
+}
+
+function goalRelevanceFromClass(
+  cls: "primary" | "supportive" | "general" | "irrelevant",
+  base: 1 | 2 | 3 | 4 | 5
+): 1 | 2 | 3 | 4 | 5 {
+  if (cls === "primary") return 5;
+  if (cls === "supportive") return toScale1to5(Math.max(4, base));
+  if (cls === "general") return toScale1to5(Math.min(3, base));
+  return 1;
+}
+
+export function scoreTrainingSignals(
+  signals: TrainingSignal[],
+  focus: TrainingFocus,
+  profile?: UserProfile
+): TrainingSignal[] {
+  return signals
+    .map((signal) => {
+      const baseGoalRelevance = goalRelevanceForSignal(signal, focus);
+      const goalRelevanceClass = classifySignalGoalRelevance(signal, profile);
+      const targetExercise = signal.target?.exercise?.toLowerCase() ?? "";
+      const targetMuscle = signal.target?.muscleGroup?.toLowerCase() ?? "";
+      const priorityExerciseBoost =
+        profile?.goals?.priorityExercises?.some((ex) =>
+          targetExercise.includes(ex.toLowerCase())
+        )
+          ? 1
+          : 0;
+      const priorityMuscleBoost =
+        profile?.goals?.priorityMuscles?.some((m) => targetMuscle === m.toLowerCase()) ? 1 : 0;
+
+      const boostedBase = toScale1to5(baseGoalRelevance + priorityExerciseBoost + priorityMuscleBoost);
+      const goalRelevance = goalRelevanceFromClass(goalRelevanceClass, boostedBase);
+
+      // Phase-aware severity interpretation: flatter progress during cut/maintain is less alarming.
+      let adjustedSeverity = signal.severity;
+      if (
+        profile?.goals?.phase === "cut" &&
+        (signal.id.includes("-plateau") || signal.id.includes("-decline"))
+      ) {
+        adjustedSeverity = toScale1to5(Math.max(1, signal.severity - 1));
+      }
+
+      const priorityScore = adjustedSeverity * signal.confidence * goalRelevance;
+      return {
+        ...signal,
+        severity: adjustedSeverity,
+        goalRelevanceClass,
+        goalRelevance,
+        priorityScore,
+      };
+    })
+    .sort((a, b) => b.priorityScore - a.priorityScore || a.id.localeCompare(b.id));
+}
+
+function interactionConfidenceFromSignals(signals: TrainingSignal[]): "low" | "medium" | "high" {
+  const minConf = Math.min(...signals.map((s) => s.confidence));
+  if (minConf <= 2) return "low";
+  if (minConf === 3) return "medium";
+  return "high";
+}
+
+export function buildSignalInteractions(
+  scoredSignals: TrainingSignal[],
+  profile?: UserProfile
+): TrainingInteraction[] {
+  const out: TrainingInteraction[] = [];
+
+  const positives = scoredSignals.filter(
+    (s) => s.status === "positive" && s.category === "performance" && Boolean(s.target?.exercise)
+  );
+  const lowVolumeBack = scoredSignals.find(
+    (s) => s.id.includes("volume-low-back") || (s.target?.muscleGroup ?? "") === "back"
+  );
+  const lowVolumeChest = scoredSignals.find(
+    (s) => s.id.includes("volume-low-chest") || (s.target?.muscleGroup ?? "") === "chest"
+  );
+  const frequencyLow = scoredSignals.find((s) => s.id.includes("frequency-low"));
+  const goalExposureLow = scoredSignals.find((s) => s.id.includes("goal-lift-exposure-low"));
+
+  for (const p of positives) {
+    const ex = p.target?.exercise ?? "Target lift";
+    const exLower = ex.toLowerCase();
+    const isBench = exLower.includes("bench");
+    const isSquat = exLower.includes("squat");
+    const isDeadlift = exLower.includes("deadlift") || exLower.includes("dead lift");
+    const supportSignal = isBench ? lowVolumeBack : isDeadlift || isSquat ? lowVolumeBack : lowVolumeChest;
+    if (!supportSignal) continue;
+    const interactionSignals = [p, supportSignal];
+    const severity = toScale1to5(Math.max(p.severity, supportSignal.severity));
+    const goalRelevance = toScale1to5(Math.max(p.goalRelevance, supportSignal.goalRelevance));
+    const priorityScore = severity * Math.max(p.confidence, supportSignal.confidence) * goalRelevance;
+    out.push({
+      id: `interaction-progress-support-gap-${exLower.replace(/\s+/g, "-")}`,
+      signals: interactionSignals.map((s) => s.id),
+      title: `${ex} is progressing but support volume is lagging`,
+      implication: `Progress may be less sustainable if supportive volume stays low; this can become a limiting factor and raise plateau risk.`,
+      confidenceLevel: interactionConfidenceFromSignals(interactionSignals),
+      severity,
+      goalRelevance,
+      priorityScore,
+      recommendationIds: [`interaction-support-${exLower.replace(/\s+/g, "-")}-volume-up`],
+    });
+  }
+
+  if (goalExposureLow && frequencyLow) {
+    const severity = toScale1to5(Math.max(goalExposureLow.severity, frequencyLow.severity));
+    const goalRelevance = toScale1to5(Math.max(goalExposureLow.goalRelevance, frequencyLow.goalRelevance));
+    const priorityScore = severity * Math.max(goalExposureLow.confidence, frequencyLow.confidence) * goalRelevance;
+    out.push({
+      id: `interaction-goal-data-insufficient`,
+      signals: [goalExposureLow.id, frequencyLow.id],
+      title: `Goal-lift data is insufficient for a confident trend read`,
+      implication: `With low goal-specific exposure and low weekly frequency, progress interpretation stays noisy and forward planning is less reliable.`,
+      confidenceLevel: interactionConfidenceFromSignals([goalExposureLow, frequencyLow]),
+      severity,
+      goalRelevance,
+      priorityScore,
+      recommendationIds: ["interaction-gather-goal-data"],
+    });
+  }
+
+  // Phase-aware softer interpretation when cutting.
+  if (profile?.goals?.phase === "cut") {
+    for (const i of out) {
+      if (i.id.includes("support-gap")) {
+        i.implication = `${i.implication} During a cut, keep expectations conservative and emphasize sustainability.`;
+      }
+    }
+  }
+
+  return out.sort((a, b) => b.priorityScore - a.priorityScore || a.id.localeCompare(b.id));
+}
 
 /**
  * Deterministic global training insights.
@@ -406,9 +636,10 @@ export function getTrainingInsights(
     plateau: 2,
     declining: 1,
     stable: 0,
+    insufficient_data: -1,
   };
 
-  const candidates = allExerciseInsights.filter((i) => i.sessionsTracked >= 2);
+  const candidates = allExerciseInsights.filter((i) => i.sessionsTracked >= 3);
 
   // Deterministic ordering:
   // priority (trend) -> sessionsTracked -> exercise name
@@ -496,6 +727,311 @@ export function getTrainingInsights(
     exerciseInsights: finalExerciseInsights,
     findings,
   };
+}
+
+export function detectExerciseSignals(
+  workouts: StoredWorkout[],
+  options?: {
+    maxSessions?: number;
+    goalExerciseName?: string;
+    minPlateauExposures?: number;
+    minDeclineExposures?: number;
+    minNegativeStepsForDecline?: number;
+  }
+): TrainingSignal[] {
+  const exerciseNames = getUniqueExerciseNames(workouts ?? []);
+  const out: TrainingSignal[] = [];
+  const goalKey = exerciseKey(options?.goalExerciseName);
+  const minPlateauExposures = Math.max(options?.minPlateauExposures ?? 4, 4);
+  const minDeclineExposures = Math.max(options?.minDeclineExposures ?? 3, 3);
+  const minNegativeStepsForDecline = Math.max(options?.minNegativeStepsForDecline ?? 2, 2);
+
+  for (const exerciseName of exerciseNames) {
+    const insight = getExerciseInsights(workouts, exerciseName, options);
+    if (insight.sessionsTracked < 1) continue;
+
+    if (insight.trend === "progressing") {
+      const conf = toScale1to5(insight.sessionsTracked >= 5 ? 5 : insight.sessionsTracked >= 4 ? 4 : 3);
+      out.push({
+        id: `performance-progressing-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}`,
+        category: "performance",
+        status: "positive",
+        severity: 2,
+        confidence: conf,
+        confidenceLevel: confidenceLevelFromScore(conf),
+        goalRelevanceClass: "general",
+        goalRelevance: 3,
+        priorityScore: 0,
+        title: `${insight.exercise} is progressing`,
+        explanation: insight.changeSummary,
+        target: { exercise: insight.exercise },
+        evidence: [
+          `trend=progressing`,
+          `sessionsTracked=${insight.sessionsTracked}`,
+          `hasAdequateExposure=${insight.hasAdequateExposure}`,
+        ],
+        recommendationIds: [
+          `continue-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}-progression`,
+        ],
+      });
+      continue;
+    }
+
+    if (goalKey && exerciseKey(insight.exercise) === goalKey && insight.exposuresLast7Days < 2) {
+      const conf: 1 | 2 | 3 | 4 | 5 = insight.exposuresLast28Days >= 2 ? 3 : 2;
+      out.push({
+        id: `goal-lift-exposure-low-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}`,
+        category: "frequency",
+        status: "warning",
+        severity: 4,
+        confidence: conf,
+        confidenceLevel: confidenceLevelFromScore(conf),
+        goalRelevanceClass: "general",
+        goalRelevance: 5,
+        priorityScore: 0,
+        title: `${insight.exercise} exposure is low for your goal`,
+        explanation:
+          insight.exposuresLast28Days >= 2
+            ? `${insight.exercise} has only ${insight.exposuresLast7Days} exposure in the last 7 days.`
+            : `${insight.exercise} shows an early low-exposure signal (limited data so far).`,
+        target: { exercise: insight.exercise },
+        evidence: [
+          `exposuresLast7Days=${insight.exposuresLast7Days}`,
+          `exposuresLast28Days=${insight.exposuresLast28Days}`,
+          `averageExposuresPerWeekLast4Weeks=${insight.averageExposuresPerWeekLast4Weeks}`,
+        ],
+        recommendationIds: [`fix-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}-goal-exposure-low`],
+      });
+    }
+
+    if (insight.averageExposuresPerWeekLast4Weeks < 1) {
+      const conf: 1 | 2 | 3 | 4 | 5 = insight.exposuresLast28Days >= 2 ? 3 : 2;
+      out.push({
+        id: `exercise-frequency-low-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}`,
+        category: "frequency",
+        status: "warning",
+        severity: 3,
+        confidence: conf,
+        confidenceLevel: confidenceLevelFromScore(conf),
+        goalRelevanceClass: "general",
+        goalRelevance: 3,
+        priorityScore: 0,
+        title: `${insight.exercise} frequency is low`,
+        explanation:
+          insight.exposuresLast28Days >= 2
+            ? `${insight.exercise} averages ${insight.averageExposuresPerWeekLast4Weeks.toFixed(2)} exposures/week over the last 4 weeks.`
+            : `${insight.exercise} has an initial low-frequency indication (limited data so far).`,
+        target: { exercise: insight.exercise },
+        evidence: [
+          `averageExposuresPerWeekLast4Weeks=${insight.averageExposuresPerWeekLast4Weeks}`,
+          `exposuresLast28Days=${insight.exposuresLast28Days}`,
+          `daysSinceLastPerformed=${insight.daysSinceLastPerformed ?? "n/a"}`,
+        ],
+        recommendationIds: [`fix-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}-frequency-low`],
+      });
+    }
+
+    if (
+      (insight.trend === "plateau" || insight.possiblePlateau) &&
+      insight.sessionsTracked >= minPlateauExposures
+    ) {
+      const conf = insight.sessionsTracked >= 5 && insight.hasAdequateExposure ? 4 : 2;
+      out.push({
+        id: `performance-plateau-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}`,
+        category: "performance",
+        status: "warning",
+        severity: 3,
+        confidence: conf,
+        confidenceLevel: confidenceLevelFromScore(conf),
+        goalRelevanceClass: "general",
+        goalRelevance: 3,
+        priorityScore: 0,
+        title: `${insight.exercise} looks plateaued`,
+        explanation: insight.changeSummary,
+        target: { exercise: insight.exercise },
+        evidence: [
+          `trend=${insight.trend}`,
+          `possiblePlateau=${insight.possiblePlateau}`,
+          `sessionsTracked=${insight.sessionsTracked}`,
+        ],
+        recommendationIds: [
+          `fix-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}-plateau`,
+        ],
+      });
+      continue;
+    }
+
+    if (
+      insight.trend === "declining" &&
+      insight.sessionsTracked >= minDeclineExposures &&
+      insight.negativeStepCount >= minNegativeStepsForDecline
+    ) {
+      const conf = insight.hasAdequateExposure ? 4 : 2;
+      out.push({
+        id: `performance-declining-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}`,
+        category: insight.possibleFatigue ? "fatigue" : "performance",
+        status: insight.possibleFatigue ? "high_priority" : "warning",
+        severity: insight.possibleFatigue ? 5 : 4,
+        confidence: conf,
+        confidenceLevel: confidenceLevelFromScore(conf),
+        goalRelevanceClass: "general",
+        goalRelevance: 3,
+        priorityScore: 0,
+        title: `${insight.exercise} is trending down`,
+        explanation: insight.changeSummary,
+        target: { exercise: insight.exercise },
+        evidence: [
+          `trend=declining`,
+          `possibleFatigue=${insight.possibleFatigue}`,
+          `sessionsTracked=${insight.sessionsTracked}`,
+        ],
+        recommendationIds: [
+          `fix-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}-decline`,
+        ],
+      });
+      continue;
+    }
+
+    if (insight.trend === "insufficient_data" || !insight.hasAdequateExposure) {
+      const conf: 1 | 2 | 3 | 4 | 5 = 1;
+      out.push({
+        id: `insufficient-exposure-for-assessment-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}`,
+        category: "performance",
+        status: "neutral",
+        severity: 1,
+        confidence: conf,
+        confidenceLevel: "low",
+        goalRelevanceClass: "general",
+        goalRelevance: 3,
+        priorityScore: 0,
+        title: `${insight.exercise}: limited data so far`,
+        explanation: "Initial indication only. More exposures are needed before stronger conclusions.",
+        target: { exercise: insight.exercise },
+        evidence: [
+          `trend=${insight.trend}`,
+          `sessionsTracked=${insight.sessionsTracked}`,
+          `hasAdequateExposure=${insight.hasAdequateExposure}`,
+        ],
+        recommendationIds: [],
+      });
+    }
+  }
+
+  return out;
+}
+
+export function detectVolumeSignals(workouts: StoredWorkout[]): TrainingSignal[] {
+  const recentWorkouts = getWorkoutsFromLast7Days(workouts ?? []);
+  const weeklyVolume = getVolumeByMuscleGroup(recentWorkouts);
+  const weeksWithData = getRecentWeekBuckets(workouts ?? [], 2);
+  const volumeConfidence: 1 | 2 | 3 | 4 | 5 = weeksWithData >= 2 ? 4 : 2;
+  const volumeConfidenceLevel = confidenceLevelFromScore(volumeConfidence);
+  const groups = ["chest", "back", "legs", "shoulders", "arms"] as const;
+  const out: TrainingSignal[] = [];
+
+  for (const group of groups) {
+    const sets = weeklyVolume[group] ?? 0;
+    if (sets <= 0) continue;
+
+    if (sets < 8) {
+      out.push({
+        id: `volume-low-${group}`,
+        category: "volume",
+        status: "warning",
+        severity: 3,
+        confidence: volumeConfidence,
+        confidenceLevel: volumeConfidenceLevel,
+        goalRelevanceClass: "general",
+        goalRelevance: 3,
+        priorityScore: 0,
+        title: `${group[0].toUpperCase()}${group.slice(1)} volume is low`,
+        explanation:
+          weeksWithData >= 2
+            ? `${group[0].toUpperCase()}${group.slice(1)} is below the target zone this week.`
+            : `${group[0].toUpperCase()}${group.slice(1)} shows an early low-volume signal (limited data so far).`,
+        target: { muscleGroup: group },
+        evidence: [`weeklySets=${sets}`, `thresholdLow<8`, `window=last7days`, `weeksWithData=${weeksWithData}`],
+        recommendationIds: [`fix-${group}-volume-low`],
+      });
+      continue;
+    }
+
+    if (sets > 20) {
+      out.push({
+        id: `volume-high-${group}`,
+        category: "volume",
+        status: "warning",
+        severity: 2,
+        confidence: weeksWithData >= 2 ? 3 : 2,
+        confidenceLevel: weeksWithData >= 2 ? "medium" : "low",
+        goalRelevanceClass: "general",
+        goalRelevance: 3,
+        priorityScore: 0,
+        title: `${group[0].toUpperCase()}${group.slice(1)} volume is high`,
+        explanation:
+          weeksWithData >= 2
+            ? `${group[0].toUpperCase()}${group.slice(1)} is above the target zone this week.`
+            : `${group[0].toUpperCase()}${group.slice(1)} shows an early high-volume signal (limited data so far).`,
+        target: { muscleGroup: group },
+        evidence: [`weeklySets=${sets}`, `thresholdHigh>20`, `window=last7days`, `weeksWithData=${weeksWithData}`],
+        recommendationIds: [`fix-${group}-volume-high`],
+      });
+    }
+  }
+
+  return out;
+}
+
+export function detectFrequencySignals(workouts: StoredWorkout[]): TrainingSignal[] {
+  const recentWorkouts = getWorkoutsFromLast7Days(workouts ?? []);
+  const frequency = recentWorkouts.length;
+  const weeksWithData = getRecentWeekBuckets(workouts ?? [], 2);
+  const frequencyConfidence: 1 | 2 | 3 | 4 | 5 = weeksWithData >= 2 ? 5 : 2;
+  const frequencyConfidenceLevel = confidenceLevelFromScore(frequencyConfidence);
+
+  if (frequency <= 1) {
+    return [
+      {
+        id: "frequency-low-last7days",
+        category: "frequency",
+        status: "warning",
+        severity: frequency === 0 ? 4 : 3,
+        confidence: frequencyConfidence,
+        confidenceLevel: frequencyConfidenceLevel,
+        goalRelevanceClass: "general",
+        goalRelevance: 3,
+        priorityScore: 0,
+        title: "Weekly training frequency is low",
+        explanation:
+          weeksWithData >= 2
+            ? "Low session count can limit progression signal quality."
+            : "Initial indication of low frequency (limited data so far).",
+        evidence: [`sessionsLast7Days=${frequency}`, `thresholdLow<=1`, `weeksWithData=${weeksWithData}`],
+        recommendationIds: ["fix-frequency-low"],
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "frequency-adequate-last7days",
+      category: "frequency",
+      status: "positive",
+      severity: 1,
+      confidence: weeksWithData >= 2 ? 4 : 2,
+      confidenceLevel: weeksWithData >= 2 ? "high" : "low",
+      goalRelevanceClass: "general",
+      goalRelevance: 3,
+      priorityScore: 0,
+      title: "Weekly training frequency is solid",
+      explanation:
+        weeksWithData >= 2
+          ? "Session frequency is high enough to maintain clear progression signals."
+          : "Early signal that training frequency is adequate, with limited data so far.",
+      evidence: [`sessionsLast7Days=${frequency}`, `thresholdAdequate>=2`, `weeksWithData=${weeksWithData}`],
+      recommendationIds: ["continue-frequency-adequate"],
+    },
+  ];
 }
 
 /**
