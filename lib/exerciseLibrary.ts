@@ -1,3 +1,5 @@
+import { getUserExercisesAsLibraryExercises } from "@/lib/userExerciseLibrary";
+
 export type Exercise = {
   id: string;
   name: string;
@@ -618,22 +620,32 @@ export function normalizeExerciseName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function getMergedExercises(): Exercise[] {
+  if (typeof window === "undefined") return EXERCISE_LIBRARY;
+  return [...EXERCISE_LIBRARY, ...getUserExercisesAsLibraryExercises()];
+}
+
 export function getExerciseById(id: string): Exercise | null {
   const key = normalizeExerciseName(id);
   if (!key) return null;
-  return EXERCISE_LIBRARY.find((ex) => normalizeExerciseName(ex.id) === key) ?? null;
+  const fromBuiltIn = EXERCISE_LIBRARY.find((ex) => normalizeExerciseName(ex.id) === key);
+  if (fromBuiltIn) return fromBuiltIn;
+  return getMergedExercises().find((ex) => normalizeExerciseName(ex.id) === key) ?? null;
 }
 
 export function getExerciseByName(name: string): Exercise | null {
   const key = normalizeExerciseName(name);
   if (!key) return null;
-  return EXERCISE_LIBRARY.find((ex) => normalizeExerciseName(ex.name) === key) ?? null;
+  const fromBuiltIn = EXERCISE_LIBRARY.find((ex) => normalizeExerciseName(ex.name) === key);
+  if (fromBuiltIn) return fromBuiltIn;
+  return getMergedExercises().find((ex) => normalizeExerciseName(ex.name) === key) ?? null;
 }
 
 export function searchExercises(query: string): Exercise[] {
+  const merged = getMergedExercises();
   const key = normalizeExerciseName(query);
-  if (!key) return EXERCISE_LIBRARY;
-  return EXERCISE_LIBRARY.filter((ex) => normalizeExerciseName(ex.name).includes(key));
+  if (!key) return merged;
+  return merged.filter((ex) => normalizeExerciseName(ex.name).includes(key));
 }
 
 const CATEGORY_ORDER: Exercise["displayCategory"][] = [
@@ -654,9 +666,10 @@ export function getExercisesGroupedByCategory(): Array<{
   category: Exercise["displayCategory"];
   exercises: Exercise[];
 }> {
+  const merged = getMergedExercises();
   return CATEGORY_ORDER.map((category) => ({
     category,
-    exercises: EXERCISE_LIBRARY.filter((ex) => ex.displayCategory === category),
+    exercises: merged.filter((ex) => ex.displayCategory === category),
   })).filter((row) => row.exercises.length > 0);
 }
 

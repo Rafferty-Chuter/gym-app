@@ -11,7 +11,7 @@ export default function Navbar() {
           Home
         </Link>
         <Link
-          href="/workout"
+          href="/workout/start"
           className="text-white font-medium hover:text-zinc-300 transition"
         >
           Start Workout

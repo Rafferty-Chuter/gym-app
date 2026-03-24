@@ -310,7 +310,7 @@ export default function Home() {
             }}
           />
           <Link
-            href="/workout"
+            href={hasMounted && hasActive ? "/workout" : "/workout/start"}
             className="relative z-10 block w-full rounded-2xl py-8 text-center text-lg font-bold tracking-tight text-white transition-all duration-150 ease-out will-change-transform overflow-hidden bg-gradient-to-br from-emerald-400 via-teal-500 to-teal-600 shadow-[0_4px_0_0_rgba(6,95,70,0.55),0_16px_44px_-8px_rgba(34,197,94,0.35),0_22px_50px_-12px_rgba(20,184,166,0.28),0_10px_32px_rgba(0,0,0,0.48)] ring-1 ring-emerald-200/20 hover:shadow-[0_4px_0_0_rgba(6,95,70,0.48),0_20px_52px_-6px_rgba(52,211,153,0.38),0_28px_60px_-14px_rgba(20,184,166,0.3),0_12px_36px_rgba(0,0,0,0.52)] hover:scale-[1.02] hover:brightness-[1.04] active:translate-y-[2px] active:scale-[0.99]"
           >
             {ctaLabel}

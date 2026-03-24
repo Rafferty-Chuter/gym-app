@@ -53,7 +53,7 @@ export default function CoachInsightCard({
             {startLabel}
           </button>
         ) : (
-          <Link href="/workout" className="btn-primary px-4 py-2 rounded-xl text-sm font-semibold">
+          <Link href="/workout/start" className="btn-primary px-4 py-2 rounded-xl text-sm font-semibold">
             {startLabel}
           </Link>
         )}

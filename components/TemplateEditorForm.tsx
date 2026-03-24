@@ -1,10 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ExercisePicker, { type ExercisePickerValue } from "@/components/ExercisePicker";
+import CreateExerciseModal from "@/components/CreateExerciseModal";
 import { getExerciseByName } from "@/lib/exerciseLibrary";
+import {
+  USER_EXERCISE_LIBRARY_EVENT,
+  userRecordToExercise,
+  type UserExerciseRecord,
+} from "@/lib/userExerciseLibrary";
 import type { TemplateExercise, WorkoutTemplate } from "@/lib/templateStorage";
 import { upsertTemplate } from "@/lib/templateStorage";
 
@@ -20,22 +26,33 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
   const [exerciseInput, setExerciseInput] = useState("");
   const [exerciseSetsInput, setExerciseSetsInput] = useState(3);
   const [restSecInput, setRestSecInput] = useState("90");
+  const [createExerciseOpen, setCreateExerciseOpen] = useState(false);
+  const [createExerciseSeedName, setCreateExerciseSeedName] = useState("");
+  const [userLibraryRevision, setUserLibraryRevision] = useState(0);
 
   const canSave = useMemo(() => templateName.trim().length > 0 && exercises.length > 0, [templateName, exercises.length]);
 
-  function addExercise(selection?: ExercisePickerValue, forceCustom = false) {
-    const value = (selection?.name ?? exerciseInput).trim();
-    if (!value) return;
-    const selectedFromPicker =
-      !forceCustom && selection?.exerciseId ? { id: selection.exerciseId, name: selection.name } : null;
-    const matched = forceCustom ? null : selectedFromPicker ?? getExerciseByName(value);
+  useEffect(() => {
+    function bump() {
+      setUserLibraryRevision((r) => r + 1);
+    }
+    window.addEventListener(USER_EXERCISE_LIBRARY_EVENT, bump);
+    return () => window.removeEventListener(USER_EXERCISE_LIBRARY_EVENT, bump);
+  }, []);
+
+  function openCreateExerciseFlow(seedName: string) {
+    setCreateExerciseSeedName(seedName.trim());
+    setCreateExerciseOpen(true);
+  }
+
+  function pushTemplateExercise(matched: { id: string; name: string }) {
     const targetSets = Math.max(1, Math.min(20, exerciseSetsInput || 3));
     const restSec = Math.max(0, Math.min(600, parseInt(restSecInput, 10) || 90));
     setExercises((prev) => [
       ...prev,
       {
-        ...(matched ? { exerciseId: matched.id } : {}),
-        name: matched?.name ?? value,
+        exerciseId: matched.id,
+        name: matched.name,
         targetSets,
         restSec,
       },
@@ -43,6 +60,26 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
     setExerciseInput("");
     setExerciseSetsInput(3);
     setRestSecInput("90");
+  }
+
+  function addExercise(selection?: ExercisePickerValue) {
+    const value = (selection?.name ?? exerciseInput).trim();
+    if (!value) return;
+    const selectedFromPicker = selection?.exerciseId
+      ? { id: selection.exerciseId, name: selection.name }
+      : null;
+    const matched = selectedFromPicker ?? getExerciseByName(value);
+    if (!matched) {
+      openCreateExerciseFlow(value);
+      return;
+    }
+    pushTemplateExercise({ id: matched.id, name: matched.name });
+  }
+
+  function handleUserExerciseCreated(record: UserExerciseRecord) {
+    const ex = userRecordToExercise(record);
+    pushTemplateExercise({ id: ex.id, name: ex.name });
+    setUserLibraryRevision((r) => r + 1);
   }
 
   function moveExercise(index: number, direction: "up" | "down") {
@@ -138,11 +175,11 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
               value={exerciseInput}
               onValueChange={setExerciseInput}
               onSelect={(exercise) => addExercise(exercise)}
-              placeholder="Exercise name"
+              onRequestCreateExercise={openCreateExerciseFlow}
+              placeholder="Search or type a movement"
               inputClassName="input-app w-full px-3 py-3 text-sm"
               dropdownClassName="rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
-              customOptionLabel="Add custom exercise"
-              noMatchText="No matches. Use custom exercise."
+              libraryRevision={userLibraryRevision}
             />
             <div className="grid grid-cols-2 gap-2">
               <input
@@ -164,18 +201,9 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
                 placeholder="Rest (sec)"
               />
             </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => addExercise()} className="flex-1 btn-primary rounded-xl py-2.5 text-sm">
-                Add Exercise
-              </button>
-              <button
-                type="button"
-                onClick={() => addExercise(undefined, true)}
-                className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2.5 text-sm font-semibold text-app-secondary hover:text-white hover:border-teal-500/30 transition"
-              >
-                Add Custom
-              </button>
-            </div>
+            <button type="button" onClick={() => addExercise()} className="w-full btn-primary rounded-xl py-2.5 text-sm">
+              Add exercise
+            </button>
           </div>
         </section>
 

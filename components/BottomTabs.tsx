@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const TABS = [
+type BottomTab = { href: string; label: string; matchPrefix?: string };
+
+const TABS: BottomTab[] = [
   { href: "/", label: "Home" },
-  { href: "/workout", label: "Templates" },
+  { href: "/workout/start", label: "Workout", matchPrefix: "/workout" },
   { href: "/coach", label: "Coach" },
   { href: "/profile", label: "Profile" },
 ];
@@ -13,17 +15,18 @@ const TABS = [
 export default function BottomTabs() {
   const pathname = usePathname();
 
-  function isActive(href: string) {
+  function isActive(href: string, matchPrefix?: string) {
     if (href === "/") return pathname === "/";
     if (href === "/coach") return pathname === "/coach" || pathname.startsWith("/coach/") || pathname === "/analysis";
-    return pathname.startsWith(href);
+    if (matchPrefix) return pathname === href || pathname.startsWith(`${matchPrefix}/`) || pathname === matchPrefix;
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-teal-500/35 bg-zinc-950/98 shadow-[0_-12px_28px_-14px_rgba(0,0,0,0.8)] backdrop-blur supports-[backdrop-filter]:bg-zinc-950/88">
       <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2 px-3 py-2.5">
         {TABS.map((tab) => {
-          const active = isActive(tab.href);
+          const active = isActive(tab.href, tab.matchPrefix);
           return (
             <Link
               key={tab.href}
