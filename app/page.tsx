@@ -26,8 +26,6 @@ import {
 const TEMPLATES_STORAGE_KEY = "workoutTemplates";
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 const WORKOUT_SUGGESTED_MUSCLE_KEY = "workoutSuggestedMuscle";
-const COACH_AUTO_ANALYZE_KEY = "coachAutoAnalyze";
-
 type QuickTemplate = {
   id?: string;
   name: string;
@@ -799,12 +797,7 @@ export default function Home() {
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Link
-                href="/coach"
-                onClick={() => {
-                  if (!hasAnalysis && typeof window !== "undefined") {
-                    sessionStorage.setItem(COACH_AUTO_ANALYZE_KEY, "1");
-                  }
-                }}
+                href={homeDataState === "no_data" ? "/coach" : "/coach/review"}
                 className="rounded-xl border border-indigo-300/35 bg-gradient-to-br from-indigo-400 via-indigo-500 to-violet-600 px-3 py-2 text-center text-sm font-bold text-white shadow-[0_6px_20px_-10px_rgba(129,140,248,0.7)] transition hover:brightness-105 active:translate-y-[1px]"
               >
                 {homeDataState === "no_data" ? "Open Coach Setup" : "Open Coach Review"}
@@ -840,19 +833,21 @@ export default function Home() {
           {dynamicFeedback && <p className="mt-2 text-xs text-home-meta">{dynamicFeedback.performanceLine}</p>}
         </section>
 
-        <section className={`${sectionCardClass} mb-6`}>
+        <Link
+          href="/history"
+          className={`${sectionCardClass} mb-6 block text-left transition hover:border-teal-600/45 hover:bg-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/45 active:scale-[0.99]`}
+          aria-label="Open workout history"
+        >
           <div className="flex items-center justify-between gap-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary">Recent Activity</p>
-            <Link href="/coach" className="text-xs link-home-accent">
-              View Full Coach Review →
-            </Link>
+            <span className="shrink-0 text-xs font-semibold text-teal-300/90">View history →</span>
           </div>
           <p className="mt-2 text-sm text-home-secondary">
             {lastWorkout
               ? `Last logged: ${workoutDisplayName(lastWorkout)} · ${lastWorkoutAgo ?? "recently"}`
               : "No sessions logged yet. Start your first workout to build coaching momentum."}
           </p>
-        </section>
+        </Link>
       </div>
     </main>
   );
