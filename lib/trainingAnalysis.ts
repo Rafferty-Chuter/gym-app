@@ -30,8 +30,63 @@ export type StoredWorkout = {
   completedAt: string;
   name?: string;
   durationSec?: number;
-  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string; notes?: string }[] }[];
+  exercises: {
+    exerciseId?: string;
+    name: string;
+    restSec?: number;
+    sets: { weight: string; reps: string; notes?: string; rir?: number }[];
+  }[];
 };
+
+/** Mean RIR over sets that logged a numeric `rir`; `undefined` if none. */
+export function getAverageRIRForExercise(sets: { rir?: number }[]): number | undefined {
+  const vals = sets
+    .map((s) => s.rir)
+    .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  if (vals.length === 0) return undefined;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function collectAllSetsFromWorkouts(workouts: StoredWorkout[]): { rir?: number }[] {
+  const out: { rir?: number }[] = [];
+  for (const w of workouts) {
+    for (const ex of w.exercises ?? []) {
+      for (const s of ex.sets ?? []) out.push(s);
+    }
+  }
+  return out;
+}
+
+function collectSetsForExerciseName(
+  workouts: StoredWorkout[],
+  exerciseName: string
+): { rir?: number }[] {
+  const key = exerciseKey(exerciseName);
+  const out: { rir?: number }[] = [];
+  for (const w of workouts) {
+    for (const ex of w.exercises ?? []) {
+      if (exerciseKey(ex.name) === key) {
+        for (const s of ex.sets ?? []) out.push(s);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Prefer average RIR on the goal lift when named; if no RIR logged there, use overall average RIR.
+ */
+export function computeAvgRIRForCoachDecisions(
+  workouts: StoredWorkout[],
+  goalExerciseName: string | undefined
+): number | undefined {
+  if (goalExerciseName) {
+    const goalSets = collectSetsForExerciseName(workouts, goalExerciseName);
+    const goalAvg = getAverageRIRForExercise(goalSets);
+    if (goalAvg !== undefined) return goalAvg;
+  }
+  return getAverageRIRForExercise(collectAllSetsFromWorkouts(workouts));
+}
 
 export function getWorkoutHistory(): StoredWorkout[] {
   if (typeof window === "undefined") return [];
@@ -89,7 +144,67 @@ export type ExerciseInsights = {
   daysSinceLastPerformed: number | null;
   averageHardSetsPerExposure: number;
   recentPerformances: RecentPerformance[];
+  /** Mean RIR over all sets with logged RIR in the recent-session window (same window as trend). */
+  avgRIR?: number;
+  /** Mean RIR in the chronologically latest session (sets with RIR only). */
+  latestSessionAvgRIR?: number;
+  /** True when every set that logs RIR in the latest session has `rir === 0`. */
+  latestSessionAllSetsToFailure?: boolean;
 };
+
+/**
+ * RIR stats for the same recent-session window as `getExerciseMetrics` (newest sessions first, capped by maxSessions).
+ */
+function computeExerciseRIRFields(
+  workouts: StoredWorkout[],
+  exerciseName: string,
+  maxSessions: number
+): Pick<
+  ExerciseInsights,
+  "avgRIR" | "latestSessionAvgRIR" | "latestSessionAllSetsToFailure"
+> {
+  const key = exerciseKey(exerciseName);
+  const cap = Math.min(Math.max(maxSessions, 1), 12);
+  const sortedDesc = [...(workouts ?? [])].sort(
+    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+  );
+
+  const sessions: { sets: { rir?: number }[] }[] = [];
+  for (const w of sortedDesc) {
+    const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
+    if (!ex?.sets?.length) continue;
+    sessions.push({ sets: ex.sets });
+    if (sessions.length >= cap) break;
+  }
+
+  if (sessions.length === 0) return {};
+
+  const latestSets = sessions[0].sets;
+  const loggedLatest = latestSets.filter(
+    (s) => typeof s.rir === "number" && Number.isFinite(s.rir)
+  );
+  let latestSessionAvgRIR: number | undefined;
+  let latestSessionAllSetsToFailure: boolean | undefined;
+  if (loggedLatest.length > 0) {
+    latestSessionAvgRIR =
+      loggedLatest.reduce((a, s) => a + (s.rir as number), 0) / loggedLatest.length;
+    latestSessionAllSetsToFailure = loggedLatest.every((s) => s.rir === 0);
+  }
+
+  const windowSets: { rir?: number }[] = [];
+  for (const sess of sessions) for (const s of sess.sets) windowSets.push(s);
+  const avgRIR = getAverageRIRForExercise(windowSets);
+
+  const out: Pick<
+    ExerciseInsights,
+    "avgRIR" | "latestSessionAvgRIR" | "latestSessionAllSetsToFailure"
+  > = {};
+  if (avgRIR !== undefined) out.avgRIR = avgRIR;
+  if (latestSessionAvgRIR !== undefined) out.latestSessionAvgRIR = latestSessionAvgRIR;
+  if (latestSessionAllSetsToFailure !== undefined)
+    out.latestSessionAllSetsToFailure = latestSessionAllSetsToFailure;
+  return out;
+}
 
 const DEFAULT_MAX_SESSIONS = 5;
 const MIN_SESSIONS_FOR_PLATEAU = 3;
@@ -186,6 +301,8 @@ export function getExerciseInsights(
   exerciseName: string,
   options?: { maxSessions?: number }
 ): ExerciseInsights {
+  const maxSessions = Math.min(Math.max(options?.maxSessions ?? DEFAULT_MAX_SESSIONS, 1), 12);
+  const rirFields = computeExerciseRIRFields(workouts, exerciseName, maxSessions);
   const metrics = getExerciseMetrics(workouts, exerciseName, options);
   const {
     exercise,
@@ -224,6 +341,7 @@ export function getExerciseInsights(
       daysSinceLastPerformed,
       averageHardSetsPerExposure,
       recentPerformances,
+      ...rirFields,
     };
   }
 
@@ -308,6 +426,7 @@ export function getExerciseInsights(
     daysSinceLastPerformed,
     averageHardSetsPerExposure,
     recentPerformances,
+    ...rirFields,
   };
 }
 
@@ -316,6 +435,10 @@ export type TrainingInsights = {
   frequency: number;
   exerciseInsights: ExerciseInsights[];
   findings: string[];
+  /** Mean RIR over all sets in history that logged RIR (session effort context). */
+  averageRIR?: number;
+  /** Exercises with high effort: avg RIR ≤ 0.5 or latest session all logged sets at 0 RIR. */
+  recentHighEffortExercises?: string[];
 };
 
 export type TrainingSignal = {
@@ -421,7 +544,7 @@ function classifySignalGoalRelevance(
   signal: TrainingSignal,
   profile?: UserProfile
 ): "primary" | "supportive" | "general" | "irrelevant" {
-  const lift = getLiftKeywordFromGoal(profile?.goals?.primaryGoal);
+  const lift = getLiftKeywordFromGoal(profile?.goal);
   if (!lift) return "general";
 
   const ex = (signal.target?.exercise ?? "").toLowerCase();
@@ -439,6 +562,7 @@ function classifySignalGoalRelevance(
   if (isGoalLiftExercise) return "primary";
   if (
     signal.id.includes("goal-lift-exposure-low") ||
+    signal.id.includes("-effort-high") ||
     (signal.category === "fatigue" && isGoalLiftExercise) ||
     (signal.category === "frequency" && (isGoalLiftExercise || signal.id.includes(`-${lift}`))) ||
     (signal.category === "volume" && isSupportiveMuscle)
@@ -472,28 +596,8 @@ export function scoreTrainingSignals(
     .map((signal) => {
       const baseGoalRelevance = goalRelevanceForSignal(signal, focus);
       const goalRelevanceClass = classifySignalGoalRelevance(signal, profile);
-      const targetExercise = signal.target?.exercise?.toLowerCase() ?? "";
-      const targetMuscle = signal.target?.muscleGroup?.toLowerCase() ?? "";
-      const priorityExerciseBoost =
-        profile?.goals?.priorityExercises?.some((ex) =>
-          targetExercise.includes(ex.toLowerCase())
-        )
-          ? 1
-          : 0;
-      const priorityMuscleBoost =
-        profile?.goals?.priorityMuscles?.some((m) => targetMuscle === m.toLowerCase()) ? 1 : 0;
-
-      const boostedBase = toScale1to5(baseGoalRelevance + priorityExerciseBoost + priorityMuscleBoost);
-      const goalRelevance = goalRelevanceFromClass(goalRelevanceClass, boostedBase);
-
-      // Phase-aware severity interpretation: flatter progress during cut/maintain is less alarming.
-      let adjustedSeverity = signal.severity;
-      if (
-        profile?.goals?.phase === "cut" &&
-        (signal.id.includes("-plateau") || signal.id.includes("-decline"))
-      ) {
-        adjustedSeverity = toScale1to5(Math.max(1, signal.severity - 1));
-      }
+      const goalRelevance = goalRelevanceFromClass(goalRelevanceClass, baseGoalRelevance);
+      const adjustedSeverity = signal.severity;
 
       const priorityScore = adjustedSeverity * signal.confidence * goalRelevance;
       return {
@@ -574,15 +678,6 @@ export function buildSignalInteractions(
     });
   }
 
-  // Phase-aware softer interpretation when cutting.
-  if (profile?.goals?.phase === "cut") {
-    for (const i of out) {
-      if (i.id.includes("support-gap")) {
-        i.implication = `${i.implication} During a cut, keep expectations conservative and emphasize sustainability.`;
-      }
-    }
-  }
-
   return out.sort((a, b) => b.priorityScore - a.priorityScore || a.id.localeCompare(b.id));
 }
 
@@ -610,6 +705,7 @@ export function getTrainingInsights(
       frequency: 0,
       exerciseInsights: [],
       findings: ["No workout history found yet."],
+      recentHighEffortExercises: [],
     };
   }
 
@@ -630,6 +726,16 @@ export function getTrainingInsights(
   const allExerciseInsights = exerciseNames.map((name) =>
     getExerciseInsights(allWorkouts, name, { maxSessions: 5 })
   );
+
+  const averageRIR = getAverageRIRForExercise(collectAllSetsFromWorkouts(allWorkouts));
+  const recentHighEffortExercises = allExerciseInsights
+    .filter(
+      (i) =>
+        (i.avgRIR !== undefined && i.avgRIR <= 0.5) ||
+        i.latestSessionAllSetsToFailure === true
+    )
+    .map((i) => i.exercise)
+    .sort((a, b) => a.localeCompare(b));
 
   const priority: Record<ExerciseTrend, number> = {
     progressing: 3,
@@ -721,11 +827,19 @@ export function getTrainingInsights(
     findings.push("No clear multi-session progression signals detected recently.");
   }
 
+  if (recentHighEffortExercises.length > 0) {
+    findings.push(
+      `High effort (avg RIR ≤ 0.5 or last session all sets @ 0 RIR): ${recentHighEffortExercises.slice(0, 5).join(", ")}.`
+    );
+  }
+
   return {
     weeklyVolume,
     frequency,
     exerciseInsights: finalExerciseInsights,
     findings,
+    ...(averageRIR !== undefined ? { averageRIR } : {}),
+    recentHighEffortExercises,
   };
 }
 
@@ -750,10 +864,44 @@ export function detectExerciseSignals(
     const insight = getExerciseInsights(workouts, exerciseName, options);
     if (insight.sessionsTracked < 1) continue;
 
+    const slug = insight.exercise.toLowerCase().replace(/\s+/g, "-");
+
+    const maybeAddHighEffortFatigueSignal = () => {
+      const avgRIR = insight.avgRIR;
+      const latestSessionAvgRIR = insight.latestSessionAvgRIR;
+      const latestSessionAllSetsToFailure = insight.latestSessionAllSetsToFailure === true;
+      const isHighEffort =
+        (avgRIR !== undefined && avgRIR <= 0.5) || latestSessionAllSetsToFailure;
+      if (!isHighEffort) return;
+      const conf = 4 as const;
+      const evidence = ["effort=very_high"];
+      if (avgRIR !== undefined) evidence.push(`avgRIR=${avgRIR.toFixed(2)}`);
+      if (latestSessionAvgRIR !== undefined)
+        evidence.push(`latestSessionAvgRIR=${latestSessionAvgRIR.toFixed(2)}`);
+      evidence.push(`latestSessionAllSetsToFailure=${latestSessionAllSetsToFailure}`);
+      out.push({
+        id: `${slug}-effort-high`,
+        category: "fatigue",
+        status: "warning",
+        severity: 3,
+        confidence: conf,
+        confidenceLevel: confidenceLevelFromScore(conf),
+        goalRelevanceClass: "supportive",
+        goalRelevance: 3,
+        priorityScore: 60,
+        title: `${insight.exercise}: training very close to failure`,
+        explanation:
+          "Most sets are being taken to failure, which can limit recoverable volume and increase fatigue.",
+        target: { exercise: insight.exercise },
+        evidence,
+        recommendationIds: [`fix-${slug}-effort-high`],
+      });
+    };
+
     if (insight.trend === "progressing") {
       const conf = toScale1to5(insight.sessionsTracked >= 5 ? 5 : insight.sessionsTracked >= 4 ? 4 : 3);
       out.push({
-        id: `performance-progressing-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}`,
+        id: `performance-progressing-${slug}`,
         category: "performance",
         status: "positive",
         severity: 2,
@@ -774,6 +922,7 @@ export function detectExerciseSignals(
           `continue-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}-progression`,
         ],
       });
+      maybeAddHighEffortFatigueSignal();
       continue;
     }
 
@@ -858,6 +1007,7 @@ export function detectExerciseSignals(
           `fix-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}-plateau`,
         ],
       });
+      maybeAddHighEffortFatigueSignal();
       continue;
     }
 
@@ -889,6 +1039,7 @@ export function detectExerciseSignals(
           `fix-${insight.exercise.toLowerCase().replace(/\s+/g, "-")}-decline`,
         ],
       });
+      maybeAddHighEffortFatigueSignal();
       continue;
     }
 
@@ -915,6 +1066,8 @@ export function detectExerciseSignals(
         recommendationIds: [],
       });
     }
+
+    maybeAddHighEffortFatigueSignal();
   }
 
   return out;

@@ -8,7 +8,11 @@ const WORKOUT_HISTORY_KEY = "workoutHistory";
 
 type StoredWorkout = {
   completedAt: string;
-  exercises: { name: string; sets: { weight: string; reps: string; notes?: string }[] }[];
+  exercises: {
+    exerciseId?: string;
+    name: string;
+    sets: { weight: string; reps: string; notes?: string }[];
+  }[];
 };
 
 function getWorkoutHistory(): StoredWorkout[] {

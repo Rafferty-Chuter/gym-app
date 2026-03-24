@@ -7,7 +7,9 @@ import {
   getWorkoutHistory,
   getExerciseTrends,
   getTrainingInsights,
+  getExerciseInsights,
 } from "@/lib/trainingAnalysis";
+import { getUniqueExerciseNames } from "@/lib/trainingMetrics";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
@@ -17,6 +19,8 @@ import {
   collectReferencedEvidenceCardIds,
 } from "@/lib/coachStructuredAnalysis";
 import { getEvidenceCardsForReferencedIds } from "@/lib/evidenceMapping";
+import { getStoredUserProfile } from "@/lib/userProfile";
+import { buildCoachingContext } from "@/lib/coachingContext";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -40,6 +44,14 @@ export default function AssistantPage() {
     listEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const quick = sessionStorage.getItem("assistantQuickPrompt");
+    if (!quick || !quick.trim()) return;
+    sessionStorage.removeItem("assistantQuickPrompt");
+    setInput(quick.trim());
+  }, []);
+
   async function handleSend(textOverride?: string) {
     const text = (textOverride ?? input).trim();
     if (!text || isLoading) return;
@@ -59,6 +71,32 @@ export default function AssistantPage() {
       const allWorkouts = getWorkoutHistory();
       const exerciseTrends = getExerciseTrends(allWorkouts, { maxSessions: 5 });
       const trainingInsights = getTrainingInsights(allWorkouts);
+      const priorityGoalExerciseInsight = goal?.trim()
+        ? getExerciseInsights(allWorkouts, goal.trim(), { maxSessions: 5 })
+        : undefined;
+
+      const benchExerciseName = getUniqueExerciseNames(allWorkouts).find((n) =>
+        /bench/i.test(n)
+      );
+      const benchRirDebug = benchExerciseName
+        ? getExerciseInsights(allWorkouts, benchExerciseName, { maxSessions: 5 })
+        : undefined;
+      console.log("[assistant-debug] latest bench RIR fields:", {
+        exercise: benchRirDebug?.exercise,
+        avgRIR: benchRirDebug?.avgRIR,
+        latestSessionAvgRIR: benchRirDebug?.latestSessionAvgRIR,
+        latestSessionAllSetsToFailure: benchRirDebug?.latestSessionAllSetsToFailure,
+      });
+      console.log("[assistant-debug] client payload RIR:", {
+        averageRIR: trainingInsights.averageRIR,
+        recentHighEffortExercises: trainingInsights.recentHighEffortExercises,
+        priorityGoalExerciseInsight: priorityGoalExerciseInsight && {
+          exercise: priorityGoalExerciseInsight.exercise,
+          avgRIR: priorityGoalExerciseInsight.avgRIR,
+          latestSessionAvgRIR: priorityGoalExerciseInsight.latestSessionAvgRIR,
+          latestSessionAllSetsToFailure: priorityGoalExerciseInsight.latestSessionAllSetsToFailure,
+        },
+      });
       const coachAnalysis = buildCoachStructuredAnalysis(allWorkouts, {
         focus,
         experienceLevel,
@@ -83,6 +121,14 @@ export default function AssistantPage() {
           evidenceCardIds: coachAnalysis.actionableSuggestionEvidenceCardIds[i] ?? [],
         })),
       };
+      const userProfile = getStoredUserProfile(focus, experienceLevel, goal);
+      const coachingContext = buildCoachingContext({
+        profile: userProfile,
+        focus,
+        experienceLevel,
+        goal,
+        unit,
+      });
 
       const res = await fetch("/api/assistant", {
         method: "POST",
@@ -102,8 +148,11 @@ export default function AssistantPage() {
           priorityGoal: goal,
           exerciseTrends,
           trainingInsights,
+          priorityGoalExerciseInsight,
           coachStructuredOutput,
           evidenceCards,
+          userProfile,
+          coachingContext,
         }),
       });
 

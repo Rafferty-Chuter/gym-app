@@ -2,6 +2,8 @@ import {
   getWorkoutHistory,
   getTrainingInsights,
   getExerciseInsights,
+  computeAvgRIRForCoachDecisions,
+  getMuscleGroupForExercise,
   detectExerciseSignals,
   detectVolumeSignals,
   detectFrequencySignals,
@@ -12,20 +14,33 @@ import {
   type TrainingInsights,
   type ExerciseInsights,
 } from "@/lib/trainingAnalysis";
+import { resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
 import {
   decideNextActions,
+  inferTrainingStyle,
   type CoachDecision,
   type DecisionContext,
 } from "@/lib/trainingDecisions";
+import {
+  buildPrescription,
+  prescriptionToText,
+  type Prescription,
+} from "@/lib/trainingPrescriptions";
+import { detectLimitingSupportMuscle } from "@/lib/goalSupportProfiles";
 import type { TrainingFocus } from "@/lib/trainingFocus";
 import type { ExperienceLevel } from "@/lib/experienceLevel";
 import type { PriorityGoal } from "@/lib/priorityGoal";
 import { getStoredUserProfile } from "@/lib/userProfile";
 import {
+  getEvidenceCardIdsForDecision,
   getEvidenceCardIdsForInteraction,
   getEvidenceCardIdsForRecommendation,
   getEvidenceCardIdsForSignal,
 } from "@/lib/evidenceMapping";
+import {
+  generateNextSessionAdjustments,
+  type NextSessionAdjustmentPlan,
+} from "@/lib/nextSessionAdjustments";
 
 export type CoachStructuredAnalysis = {
   keyFocus: string | null;
@@ -44,6 +59,8 @@ export type CoachStructuredAnalysis = {
   actionableSuggestions: string[];
   /** One entry per `actionableSuggestions` line (same order). */
   actionableSuggestionEvidenceCardIds: string[][];
+  /** Next-session adjustment plan from decisions; omitted when no workout data pipeline ran. */
+  nextSessionAdjustmentPlan?: NextSessionAdjustmentPlan | null;
 };
 
 type Recommendation = {
@@ -189,6 +206,17 @@ function recommendationFromSignal(signal: TrainingSignal): Recommendation {
   const mg = signal.target?.muscleGroup;
   const urgency: Recommendation["urgency"] =
     signal.status === "high_priority" ? "high" : signal.severity >= 4 ? "high" : signal.severity >= 3 ? "medium" : "low";
+
+  if (signal.id.includes("-effort-high") && ex) {
+    return {
+      id: `rec-${signal.id}`,
+      type: "reduce_sets",
+      target: ex,
+      reason: signal.explanation,
+      urgency: "medium",
+      confidence: signal.confidence,
+    };
+  }
 
   if ((signal.id.includes("-decline") || signal.category === "fatigue") && ex) {
     return {
@@ -394,6 +422,136 @@ function getUniqueExerciseNamesFromWorkouts(
   return out;
 }
 
+const RECENT_WORKOUTS_FOR_EXERCISE_LIST = 5;
+const SUPPORT_EXERCISE_LOOKBACK_WORKOUTS = 10;
+
+/**
+ * Exercise names from the most recent sessions (newest first), de-duplicated by normalized name.
+ * Used for next-session adjustment copy (e.g. row vs pulldown hints).
+ */
+function recentExerciseNamesFromWorkouts(
+  workouts: ReturnType<typeof getWorkoutHistory>
+): string[] {
+  const sorted = [...workouts].sort(
+    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+  );
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const w of sorted.slice(0, RECENT_WORKOUTS_FOR_EXERCISE_LIST)) {
+    for (const ex of w.exercises ?? []) {
+      const label = ex.name?.trim();
+      if (!label) continue;
+      const key = normalizeExerciseKey(label);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(label);
+    }
+  }
+  return out;
+}
+
+function getRecentExercisesByMuscleGroup(
+  workouts: ReturnType<typeof getWorkoutHistory>
+): Record<string, string[]> {
+  const sorted = [...workouts].sort(
+    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+  );
+  const out: Record<string, string[]> = {
+    chest: [],
+    back: [],
+    shoulders: [],
+    arms: [],
+    legs: [],
+  };
+  const seen: Record<string, Set<string>> = {
+    chest: new Set<string>(),
+    back: new Set<string>(),
+    shoulders: new Set<string>(),
+    arms: new Set<string>(),
+    legs: new Set<string>(),
+  };
+  const consideredWorkouts = sorted.slice(0, SUPPORT_EXERCISE_LOOKBACK_WORKOUTS);
+  console.log(
+    "[coach structured analysis] support extraction workouts considered",
+    consideredWorkouts.map((w) => ({
+      completedAt: w.completedAt,
+      exercises: (w.exercises ?? []).map((e) => e.name),
+    }))
+  );
+
+  const classifyGroup = (exerciseName: string): keyof typeof out | undefined => {
+    const name = exerciseName.trim().toLowerCase();
+    const fromMetrics = getMuscleGroupForExercise(exerciseName);
+    if (fromMetrics && fromMetrics in out) return fromMetrics as keyof typeof out;
+
+    // Broader fallback matching for common support movements.
+    if (
+      name.includes("row") ||
+      name.includes("t-bar") ||
+      name.includes("pulldown") ||
+      name.includes("pull-up") ||
+      name.includes("pull up") ||
+      name.includes("pullup") ||
+      name.includes("lat")
+    ) {
+      return "back";
+    }
+    return undefined;
+  };
+
+  for (const w of consideredWorkouts) {
+    for (const ex of w.exercises ?? []) {
+      const label = ex.name?.trim();
+      if (!label) continue;
+      const resolvedMeta = resolveLoggedExerciseMeta({
+        exerciseId: ex.exerciseId,
+        name: label,
+      });
+      console.log("[coach structured analysis] resolved metadata", {
+        exerciseName: label,
+        exerciseId: ex.exerciseId ?? null,
+        resolvedExerciseId: resolvedMeta?.id ?? null,
+      });
+      const group = classifyGroup(label);
+      console.log("[coach structured analysis] support extraction exercise group", {
+        exercise: label,
+        group: group ?? null,
+      });
+      if (!group || !(group in out)) continue;
+      const key = normalizeExerciseKey(label);
+      if (seen[group].has(key)) continue;
+      seen[group].add(key);
+      out[group].push(label);
+    }
+  }
+  console.log("[coach structured analysis] support extraction final by-group", out);
+  return out;
+}
+
+function supportGroupFromInteraction(
+  interaction: TrainingInteraction | undefined,
+  signals: TrainingSignal[]
+): string | undefined {
+  if (!interaction) return undefined;
+  for (const id of interaction.signals ?? []) {
+    const s = signals.find((sig) => sig.id === id);
+    if (s?.category === "volume" && s.target?.muscleGroup) return s.target.muscleGroup;
+  }
+  return undefined;
+}
+
+function exerciseFromSupportGapInteraction(
+  interaction: TrainingInteraction | undefined
+): string | undefined {
+  if (!interaction?.id?.includes("interaction-progress-support-gap-")) return undefined;
+  const slug = interaction.id.replace("interaction-progress-support-gap-", "");
+  if (!slug) return undefined;
+  return slug
+    .split("-")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(" ");
+}
+
 export type BuildCoachStructuredAnalysisParams = {
   focus: TrainingFocus;
   experienceLevel: ExperienceLevel;
@@ -403,12 +561,20 @@ export type BuildCoachStructuredAnalysisParams = {
 
 const MIN_WORKOUTS_FOR_NON_LIFT_DECISION_CONTEXT = 3;
 
-function mapFatigueRiskFromSignals(signals: TrainingSignal[]): DecisionContext["fatigueRisk"] {
-  const fatigue = signals.filter((s) => s.category === "fatigue");
-  if (fatigue.length === 0) return undefined;
-  const top = fatigue.reduce((a, b) => (a.severity >= b.severity ? a : b));
-  if (top.status === "high_priority" || top.severity >= 5) return "high";
-  if (top.severity >= 3) return "moderate";
+/** Mean weekly sets per muscle group (last 7d) where volume > 0; undefined if none. */
+function averageWeeklySetsPerMuscle(weekly: Record<string, number>): number | undefined {
+  const vals = Object.values(weekly).filter((n) => typeof n === "number" && n > 0);
+  if (vals.length === 0) return undefined;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function mapFatigueRiskFromSignals(
+  avgRIR: number | undefined,
+  goalLiftProgress: DecisionContext["goalLiftProgress"]
+): DecisionContext["fatigueRisk"] {
+  if (avgRIR === undefined || !Number.isFinite(avgRIR)) return undefined;
+  if (avgRIR <= 0.5 && goalLiftProgress === "declining") return "high";
+  if (avgRIR <= 0.5) return "moderate";
   return "low";
 }
 
@@ -439,6 +605,27 @@ function mapGoalLiftExposureForDecisions(
   return "adequate";
 }
 
+function estimatedWeeklySetsForExercise(
+  workouts: ReturnType<typeof getWorkoutHistory>,
+  exerciseName?: string
+): number | undefined {
+  if (!exerciseName) return undefined;
+  const nowMs = Date.now();
+  const cutoffMs = nowMs - 7 * 24 * 60 * 60 * 1000;
+  const key = exerciseName.trim().toLowerCase().replace(/\s+/g, " ");
+  let total = 0;
+  for (const w of workouts ?? []) {
+    const wMs = new Date(w.completedAt).getTime();
+    if (!Number.isFinite(wMs) || wMs < cutoffMs) continue;
+    for (const ex of w.exercises ?? []) {
+      const exKey = ex.name?.trim().toLowerCase().replace(/\s+/g, " ");
+      if (!exKey || exKey !== key) continue;
+      total += ex.sets?.length ?? 0;
+    }
+  }
+  return total > 0 ? total : undefined;
+}
+
 function decisionToText(
   decision: CoachDecision,
   context: DecisionContext,
@@ -455,7 +642,7 @@ function decisionToText(
         ? `${ex} is not getting enough specific exposure. Increase it to 1–2 sessions per week to drive further adaptation.`
         : `Your goal lift is not getting enough specific exposure. Increase it to 1–2 sessions per week to drive further adaptation.`;
     case "reduce_fatigue":
-      return `Performance is being limited by fatigue. Reduce total volume or intensity briefly, then rebuild once recovery improves.`;
+      return `You are training very close to failure, which increases fatigue and may limit recoverable volume if continued.`;
     case "maintain_current_plan":
       return ex
         ? `${ex} is progressing well. Keep the current plan and continue small progression steps.`
@@ -484,6 +671,11 @@ export function buildCoachStructuredAnalysis(
 
   const { focus, experienceLevel, goal, unit } = params;
   const insights = getTrainingInsights(allWorkouts);
+  const supportGapResult = detectLimitingSupportMuscle({
+    goal: String(goal),
+    volumeByMuscle: insights.weeklyVolume,
+  });
+  console.log("[coach structured analysis] supportGapResult", supportGapResult);
   const exerciseNames = getUniqueExerciseNamesFromWorkouts(allWorkouts);
   const allExerciseInsights = exerciseNames
     .map((name) => getExerciseInsights(allWorkouts, name, { maxSessions: 5 }))
@@ -493,9 +685,9 @@ export function buildCoachStructuredAnalysis(
     exerciseInsights: allExerciseInsights,
   };
   const userProfile = getStoredUserProfile(focus, experienceLevel, goal);
-  const minPlateauExposures = userProfile.goals.phase === "cut" ? 5 : 4;
-  const minDeclineExposures = userProfile.goals.phase === "cut" ? 4 : 3;
-  const minNegativeStepsForDecline = userProfile.goals.phase === "cut" ? 3 : 2;
+  const minPlateauExposures = 4;
+  const minDeclineExposures = 3;
+  const minNegativeStepsForDecline = 2;
 
   const rawSignals = [
     ...detectExerciseSignals(allWorkouts, {
@@ -534,21 +726,25 @@ export function buildCoachStructuredAnalysis(
     text: keyFocusSignal
       ? softenForConfidence(
           `${goalPrefix(goal)} ${keyFocusSignal.title}. ${keyFocusSignal.explanation}${
-            userProfile.goals.phase === "cut" &&
-            (keyFocusSignal.category === "performance" || keyFocusSignal.category === "fatigue")
-              ? " During a cut phase, treat flat performance as a softer signal unless it persists."
-              : ""
+            ""
           }`,
           keyFocusConfidence
         )
       : topInteraction
         ? softenForConfidence(
-            `${goalPrefix(goal)} ${topInteraction.title}. ${topInteraction.implication}`,
+            `${goalPrefix(goal)} ${topInteraction.title}. ${
+              topInteraction.id.includes("support-gap") && supportGapResult.rationale
+                ? supportGapResult.rationale
+                : topInteraction.implication
+            }`,
             keyFocusConfidence
           )
         : null,
     type: keyFocusType,
-    exercise: keyFocusSignal?.target?.exercise ?? goalPrimaryExercise(goal),
+    exercise:
+      keyFocusSignal?.target?.exercise ??
+      goalPrimaryExercise(goal) ??
+      exerciseFromSupportGapInteraction(topInteraction),
     groups: keyFocusSignal?.target?.muscleGroup
       ? [keyFocusSignal.target.muscleGroup[0].toUpperCase() + keyFocusSignal.target.muscleGroup.slice(1)]
       : undefined,
@@ -628,16 +824,13 @@ export function buildCoachStructuredAnalysis(
   const filteredStructuredRecs = orderedRecommendations
     .filter((r) => {
       const targetLower = r.target.toLowerCase();
-      const excluded = userProfile.constraints.excludedExercises.some((ex) =>
-        targetLower.includes(ex.toLowerCase())
-      );
-      const injuryConflict = userProfile.constraints.injuriesOrLimitations.some((inj) =>
+      const injuryConflict = (userProfile.injuries ?? []).some((inj) =>
         targetLower.includes(inj.toLowerCase())
       );
-      if (excluded || injuryConflict) return false;
+      if (injuryConflict) return false;
       if (
         r.type === "add_frequency" &&
-        userProfile.constraints.daysPerWeekAvailable <= insights.frequency
+        userProfile.trainingDaysAvailable <= insights.frequency
       ) {
         return false;
       }
@@ -681,24 +874,93 @@ export function buildCoachStructuredAnalysis(
       )
     : undefined;
 
+  const avgRIR = computeAvgRIRForCoachDecisions(allWorkouts, goalExercise);
+  const goalLiftProgress = mapGoalLiftProgressForDecisions(goalExerciseInsight?.trend);
+  const setsPerMuscleAvg = averageWeeklySetsPerMuscle(insights.weeklyVolume);
+  const trainingStyle = inferTrainingStyle(avgRIR, setsPerMuscleAvg);
+
   const decisionContext: DecisionContext = {
     goal,
     experienceLevel,
     hasEnoughData:
       !hasInsufficientGoalData &&
       (isLiftSpecificGoal(goal) ? true : allWorkouts.length >= MIN_WORKOUTS_FOR_NON_LIFT_DECISION_CONTEXT),
-    fatigueRisk: mapFatigueRiskFromSignals(scoredSignals),
+    fatigueRisk: mapFatigueRiskFromSignals(avgRIR, goalLiftProgress),
     frequencyStatus: mapFrequencyStatusForDecisions(insights, scoredSignals),
     supportGap: Boolean(topInteraction?.id.includes("support-gap")),
-    goalLiftProgress: mapGoalLiftProgressForDecisions(goalExerciseInsight?.trend),
+    ...(supportGapResult.limitingMuscle
+      ? { supportGroup: supportGapResult.limitingMuscle }
+      : {}),
+    goalLiftProgress,
     goalLiftExposure: mapGoalLiftExposureForDecisions(goalExerciseInsight),
+    currentWeeklySets: estimatedWeeklySetsForExercise(
+      allWorkouts,
+      keyFocus.exercise ?? goalExercise
+    ),
     ...(keyFocus.type !== "none" ? { keyFocusType: keyFocus.type } : {}),
     ...(keyFocus.exercise ? { keyFocusExercise: keyFocus.exercise } : {}),
+    ...(avgRIR !== undefined ? { avgRIR } : {}),
+    ...(trainingStyle ? { trainingStyle } : {}),
   };
+  console.log("[coach structured analysis] decisionContext", decisionContext);
 
   const coachDecisions = decideNextActions(decisionContext);
+  console.log("[coach structured analysis] coachDecisions", coachDecisions);
 
-  const decisionBasedSuggestions = coachDecisions.map((d) => decisionToText(d, decisionContext, unit));
+  if (
+    !isLiftSpecificGoal(goal) &&
+    decisionContext.supportGap === true &&
+    decisionContext.keyFocusType === "low-volume"
+  ) {
+    console.log(
+      "[coach structured analysis] coachDecisions (broad goal + support gap / low-volume)",
+      coachDecisions
+    );
+  }
+
+  const recentExercises = recentExerciseNamesFromWorkouts(allWorkouts);
+  const recentExercisesByGroup = getRecentExercisesByMuscleGroup(allWorkouts);
+  const supportGroup =
+    supportGapResult.limitingMuscle ??
+    supportGroupFromInteraction(topInteraction, scoredSignals);
+  const supportExercises = supportGroup ? recentExercisesByGroup[supportGroup] ?? [] : [];
+  const supportGroupWeeklySets =
+    supportGroup && supportGroup in insights.weeklyVolume
+      ? insights.weeklyVolume[supportGroup]
+      : undefined;
+  console.log("[coach structured analysis] keyFocusExercise", decisionContext.keyFocusExercise);
+  console.log("[coach structured analysis] supportGroup", supportGroup);
+  console.log("[coach structured analysis] supportExercises", supportExercises);
+  console.log("[coach structured analysis] supportGroupWeeklySets", supportGroupWeeklySets);
+
+  const decisionBasedSuggestions = coachDecisions.map((d) => {
+    try {
+      const prescription: Prescription = buildPrescription({
+        decision: d,
+        context: decisionContext,
+        unit,
+      });
+      console.log("[coach structured analysis] prescription", { decisionId: d.id, prescription });
+      const text = prescriptionToText(
+        d,
+        prescription,
+        decisionContext,
+        recentExercises,
+        supportExercises,
+        supportGroup,
+        supportGroupWeeklySets
+      );
+      console.log("[coach structured analysis] final prescription text", {
+        decisionId: d.id,
+        text,
+      });
+      if (typeof text === "string" && text.trim()) return text;
+      return decisionToText(d, decisionContext, unit);
+    } catch (err) {
+      console.warn("[coach structured analysis] prescription generation failed", err);
+      return decisionToText(d, decisionContext, unit);
+    }
+  });
   console.log("[coach structured analysis] decisionBasedSuggestions", decisionBasedSuggestions);
 
   const actionableSuggestions =
@@ -708,8 +970,19 @@ export function buildCoachStructuredAnalysis(
 
   const actionableSuggestionEvidenceCardIds =
     coachDecisions.length > 0
-      ? coachDecisions.map((d) => getEvidenceCardIdsForRecommendation(d.type))
+      ? coachDecisions.map((d) => getEvidenceCardIdsForDecision(d.type))
       : suggestionSlots.map((s) => s.evidenceCardIds);
+
+  const nextSessionAdjustmentPlan = generateNextSessionAdjustments({
+    decisions: coachDecisions,
+    context: decisionContext,
+    goal: String(goal),
+    recentExercises,
+    supportExercises,
+    supportGroup,
+    unit,
+  });
+  console.log("[coach structured analysis] nextSessionAdjustmentPlan", nextSessionAdjustmentPlan);
 
   return {
     keyFocus: keyFocus.text,
@@ -722,6 +995,7 @@ export function buildCoachStructuredAnalysis(
     volumeBalance,
     actionableSuggestions,
     actionableSuggestionEvidenceCardIds,
+    nextSessionAdjustmentPlan,
   };
 }
 

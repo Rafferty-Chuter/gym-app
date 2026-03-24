@@ -1,18 +1,15 @@
+import { getMuscleGroupForLoggedExercise } from "@/lib/trainingMetrics";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
 export type StoredWorkout = {
   completedAt: string;
   name?: string;
   durationSec?: number;
-  exercises: { name: string; sets: { weight: string; reps: string; notes?: string }[] }[];
-};
-
-const MUSCLE_GROUP_KEYWORDS: Record<string, string[]> = {
-  chest: ["bench", "incline", "chest press", "fly"],
-  back: ["row", "pulldown", "pull up", "pull-up", "lat"],
-  legs: ["squat", "leg press", "hack", "calf", "leg curl", "leg extension", "rdl"],
-  shoulders: ["shoulder press", "overhead press", "lateral raise"],
-  arms: ["curl", "hammer curl", "tricep", "pushdown", "jm press", "skullcrusher"],
+  exercises: {
+    exerciseId?: string;
+    name: string;
+    sets: { weight: string; reps: string; notes?: string }[];
+  }[];
 };
 
 export type WeeklyVolume = Record<string, number>;
@@ -52,19 +49,11 @@ function getWorkoutsFromLast7Days(workouts: StoredWorkout[]): StoredWorkout[] {
   return workouts.filter((w) => new Date(w.completedAt).getTime() >= cutoff);
 }
 
-function getMuscleGroupForExercise(exerciseName: string): string | null {
-  const name = exerciseName.trim().toLowerCase();
-  for (const [group, keywords] of Object.entries(MUSCLE_GROUP_KEYWORDS)) {
-    if (keywords.some((kw) => name.includes(kw))) return group;
-  }
-  return null;
-}
-
 function getVolumeByMuscleGroup(workouts: StoredWorkout[]): WeeklyVolume {
   const counts = { ...DEFAULT_WEEKLY_VOLUME };
   for (const workout of workouts) {
     for (const ex of workout.exercises ?? []) {
-      const group = getMuscleGroupForExercise(ex.name);
+      const group = getMuscleGroupForLoggedExercise(ex);
       if (group && group in counts) {
         counts[group] += ex.sets?.length ?? 0;
       }

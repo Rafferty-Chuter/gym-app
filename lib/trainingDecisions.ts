@@ -5,17 +5,42 @@ export type CoachDecisionType =
   | "reduce_fatigue"
   | "gather_more_data";
 
+export type TrainingStyle = "to_failure" | "rir_based" | "mixed";
+
+/**
+ * Infer style from mean RIR and typical weekly sets per muscle (7-day average).
+ * v1 heuristic:
+ * - <= 0.5 RIR: to_failure
+ * - <= 2 RIR: rir_based
+ * - > 2 RIR: mixed
+ */
+export function inferTrainingStyle(
+  avgRIR?: number,
+  _setsPerMuscle?: number
+): TrainingStyle | undefined {
+  if (avgRIR === undefined || !Number.isFinite(avgRIR)) return undefined;
+  if (avgRIR <= 0.5) return "to_failure";
+  if (avgRIR <= 2) return "rir_based";
+  return "mixed";
+}
+
 export type DecisionContext = {
   goal: string;
   experienceLevel: string;
   keyFocusType?: string;
   keyFocusExercise?: string;
+  supportGroup?: string;
   fatigueRisk?: "low" | "moderate" | "high";
   frequencyStatus?: "low" | "adequate" | "high";
   hasEnoughData: boolean;
   supportGap?: boolean;
   goalLiftProgress?: "progressing" | "stable" | "plateau" | "declining";
   goalLiftExposure?: "low" | "adequate" | "high";
+  /** Estimated current weekly sets for the primary target exercise/muscle when available. */
+  currentWeeklySets?: number;
+  /** Mean RIR from goal-lift sets when available, else all logged sets (undefined if no RIR data). */
+  avgRIR?: number;
+  trainingStyle?: TrainingStyle;
 };
 
 export type CoachDecision = {
@@ -43,7 +68,18 @@ export function decideNextActions(context: DecisionContext): CoachDecision[] {
     ]);
   }
 
-  if (context.fatigueRisk === "high") {
+  if (context.goalLiftProgress === "progressing" && context.supportGap === true) {
+    return sortAndCap([
+      {
+        id: "increase_support_volume",
+        type: "increase_support_volume",
+        reason: "Support volume is the current limiting factor for continued progress.",
+        priority: 80,
+      },
+    ]);
+  }
+
+  if (context.fatigueRisk === "high" && context.goalLiftProgress !== "progressing") {
     return sortAndCap([
       {
         id: "reduce_fatigue",
@@ -67,13 +103,13 @@ export function decideNextActions(context: DecisionContext): CoachDecision[] {
     ]);
   }
 
-  if (context.goalLiftProgress === "progressing" && context.supportGap === true) {
+  if (context.supportGap === true && context.keyFocusType === "low-volume") {
     return sortAndCap([
       {
         id: "increase_support_volume",
         type: "increase_support_volume",
-        reason: "Support volume is the current limiting factor for continued progress.",
-        priority: 80,
+        reason: "Support volume is currently too low relative to the main progression driver.",
+        priority: 82,
       },
     ]);
   }

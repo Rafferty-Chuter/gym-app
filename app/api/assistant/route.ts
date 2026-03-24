@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import {
+  detectAssistantModeWithReason,
+  type AssistantMode,
+} from "@/lib/assistantMode";
+import type { UserProfile } from "@/lib/userProfile";
+import { buildInferredTrainingProfile } from "@/lib/inferredTrainingProfile";
+import type { CoachingContext } from "@/lib/coachingContext";
 
 /** Mirrors client `coachStructuredOutput` — deterministic Coach tab output + evidence id hooks. */
 export type AssistantCoachStructuredOutput = {
@@ -59,17 +66,174 @@ export type AssistantBody = {
       possiblePlateau: boolean;
       possibleFatigue: boolean;
       possibleLowSpecificity: boolean;
+      avgRIR?: number;
+      latestSessionAvgRIR?: number;
+      latestSessionAllSetsToFailure?: boolean;
     }>;
     findings: string[];
+    /** Mean RIR over all logged sets in history. */
+    averageRIR?: number;
+    /** Exercises flagged as high effort from logged RIR. */
+    recentHighEffortExercises?: string[];
+  };
+  /** Per-exercise insight for the user's priority goal lift (same shape as getExerciseInsights). */
+  priorityGoalExerciseInsight?: {
+    exercise: string;
+    sessionsTracked: number;
+    trend: string;
+    changeSummary: string;
+    consistency: string;
+    hasAdequateExposure: boolean;
+    possiblePlateau: boolean;
+    possibleFatigue: boolean;
+    possibleLowSpecificity: boolean;
+    avgRIR?: number;
+    latestSessionAvgRIR?: number;
+    latestSessionAllSetsToFailure?: boolean;
   };
   coachStructuredOutput?: AssistantCoachStructuredOutput;
   /** Only cards referenced via evidenceCardIds in coachStructuredOutput. */
   evidenceCards?: AssistantEvidenceCard[];
+  /** Optional plain summary of saved templates (names, splits, exercises) for template_review intent. */
+  templatesSummary?: string;
+  /** High-confidence user constraints only. */
+  userProfile?: UserProfile;
+  coachingContext?: CoachingContext;
 };
 
 export type AssistantResponse = {
   reply: string;
 };
+
+export type AssistantIntent =
+  | "recent_training_analysis"
+  | "coach_explanation"
+  | "template_review"
+  | "exercise_question"
+  | "goal_question"
+  | "general_training_question"
+  | "unknown";
+
+type ParsedContext = {
+  goal?: string;
+  frequencyPerWeek?: number;
+  equipment?: "full_gym" | "home" | "minimal";
+  injuryStatus?: "none" | "present";
+};
+
+function parseContextFromMessage(message: string): ParsedContext {
+  const t = message.trim().toLowerCase();
+  const out: ParsedContext = {};
+
+  if (/\bstrength\b/.test(t)) out.goal = "strength";
+  else if (/\bhypertrophy\b|\bmuscle\b/.test(t)) out.goal = "hypertrophy";
+  else if (/\bboth\b|\bmix\b|\bstrength.*hypertrophy\b|\bhypertrophy.*strength\b/.test(t))
+    out.goal = "strength_hypertrophy_mix";
+
+  const freqMatch = t.match(/\b([2-7])\b/);
+  if (freqMatch) {
+    const n = Number(freqMatch[1]);
+    if (Number.isFinite(n)) out.frequencyPerWeek = n;
+  }
+
+  if (
+    t.includes("full equipment") ||
+    t.includes("full gym") ||
+    t.includes("commercial gym")
+  ) {
+    out.equipment = "full_gym";
+  } else if (t.includes("home gym")) {
+    out.equipment = "home";
+  } else if (t.includes("minimal equipment") || t.includes("bodyweight only")) {
+    out.equipment = "minimal";
+  }
+
+  if (/\bno\b/.test(t) && (t.includes("injury") || t.includes("injuries") || t.endsWith(", no"))) {
+    out.injuryStatus = "none";
+  } else if (t.includes("injury") || t.includes("pain")) {
+    out.injuryStatus = "present";
+  }
+
+  return out;
+}
+
+function withDefaultsForCoaching(parsed: ParsedContext): Required<ParsedContext> {
+  return {
+    goal: parsed.goal ?? "strength_hypertrophy_mix",
+    frequencyPerWeek: parsed.frequencyPerWeek ?? 4,
+    equipment: parsed.equipment ?? "full_gym",
+    injuryStatus: parsed.injuryStatus ?? "none",
+  };
+}
+
+function hasMinimumViableContext(parsed: ParsedContext): boolean {
+  return Boolean(
+    parsed.goal &&
+      parsed.frequencyPerWeek &&
+      parsed.equipment &&
+      parsed.injuryStatus
+  );
+}
+
+/** Deterministic intent from user message (first matching rule wins). */
+export function classifyAssistantIntent(message: string): AssistantIntent {
+  const t = message.trim().toLowerCase();
+  if (!t) return "unknown";
+
+  if (
+    t.includes("how is my training") ||
+    t.includes("how is my week") ||
+    t.includes("how's my training") ||
+    t.includes("hows my training") ||
+    t.includes("analyze my training") ||
+    t.includes("recent training") ||
+    t.includes("my training look") ||
+    t.includes("training looking") ||
+    t.includes("how is my lifting")
+  ) {
+    return "recent_training_analysis";
+  }
+
+  if (
+    t.includes("why did you say") ||
+    t.includes("what do you mean") ||
+    (t.includes("why") &&
+      (t.includes("coach") || t.includes("suggestion") || t.includes("recommendation") || t.includes("assistant")))
+  ) {
+    return "coach_explanation";
+  }
+
+  if (
+    t.includes("template") ||
+    t.includes("split") ||
+    t.includes("program") ||
+    t.includes("routine") ||
+    t.includes("workout plan")
+  ) {
+    return "template_review";
+  }
+
+  if (
+    t.includes("exercise") ||
+    t.includes("is this exercise") ||
+    t.includes("should i do") ||
+    /\b(should i|is it ok to|can i)\b.*\b(bench|squat|deadlift|row|press|curl|pull|chin|lift)\b/.test(t)
+  ) {
+    return "exercise_question";
+  }
+
+  if (
+    t.includes("goal") ||
+    t.includes("bulk") ||
+    t.includes("cut") ||
+    /\bstrength\b/.test(t) ||
+    t.includes("hypertrophy")
+  ) {
+    return "goal_question";
+  }
+
+  return "general_training_question";
+}
 
 function isStringArray(a: unknown): a is string[] {
   return Array.isArray(a) && a.every((x) => typeof x === "string");
@@ -124,12 +288,95 @@ function referencedEvidenceIds(coach: AssistantCoachStructuredOutput): Set<strin
   return ids;
 }
 
+function buildAnalysisInputs(
+  trainingSummary: AssistantBody["trainingSummary"],
+  trainingInsights: AssistantBody["trainingInsights"] | undefined,
+  exerciseTrends: NonNullable<AssistantBody["exerciseTrends"]>,
+  coachStructuredOutput: AssistantCoachStructuredOutput | undefined
+): {
+  topPositive: string | null;
+  topIssue: string | null;
+  nextStep: string | null;
+  missing: Array<"positive" | "issue" | "nextStep">;
+} {
+  const highVolumeGroup = Object.entries(trainingSummary.weeklyVolume ?? {}).sort(
+    (a, b) => b[1] - a[1]
+  )[0];
+
+  const coachPositive = coachStructuredOutput?.whatsGoingWell?.[0]?.text?.trim();
+  const coachIssue =
+    coachStructuredOutput?.keyFocus?.trim() ||
+    coachStructuredOutput?.actionableSuggestions?.[0]?.text?.trim();
+  const coachNext = coachStructuredOutput?.actionableSuggestions?.[0]?.text?.trim();
+
+  const topPositive: string | null =
+    (trainingInsights?.exerciseInsights ?? [])
+      .find((e) => e.trend === "improving")
+      ?.changeSummary ||
+    (exerciseTrends.find((t) => t.trend === "improving")?.exercise
+      ? `${exerciseTrends.find((t) => t.trend === "improving")?.exercise} is showing improving performance across recent sessions.`
+      : "") ||
+    coachPositive ||
+    (highVolumeGroup
+      ? `You are keeping consistent weekly work in ${highVolumeGroup[0]} with ${highVolumeGroup[1]} sets.`
+      : null);
+
+  const topIssue: string | null =
+    (trainingInsights?.exerciseInsights ?? [])
+      .find((e) => e.possiblePlateau || e.possibleFatigue || e.possibleLowSpecificity)
+      ?.changeSummary ||
+    (trainingInsights?.findings ?? []).find((f) => typeof f === "string" && f.trim().length > 0) ||
+    coachIssue ||
+    ((trainingInsights?.frequency ?? 0) < 2
+      ? "Session frequency looks a little low for faster progress this week."
+      : null);
+
+  const issueExercise = (trainingInsights?.exerciseInsights ?? []).find(
+    (e) => e.possiblePlateau || e.possibleFatigue || e.possibleLowSpecificity
+  );
+  const nextStep: string | null = issueExercise
+    ? issueExercise.possibleFatigue
+      ? `For ${issueExercise.exercise}, slightly reduce effort for the next 1–2 sessions and keep quality reps in reserve.`
+      : issueExercise.possiblePlateau
+        ? `For ${issueExercise.exercise}, use a small progression change next session (rep target or load step) and track the outcome.`
+        : `For ${issueExercise.exercise}, increase exercise specificity and keep effort consistent to your goal.`
+    : coachNext ||
+      (highVolumeGroup
+        ? `A good next step is to keep ${highVolumeGroup[0]} volume steady and add one focused support movement this week.`
+        : null);
+
+  const missing: Array<"positive" | "issue" | "nextStep"> = [];
+  if (!topPositive) missing.push("positive");
+  if (!topIssue) missing.push("issue");
+  if (!nextStep) missing.push("nextStep");
+
+  return { topPositive, topIssue, nextStep, missing };
+}
+
+function buildAnalysisModeResponseFromInputs(inputs: {
+  topPositive: string | null;
+  topIssue: string | null;
+  nextStep: string | null;
+}): string {
+  const positive = inputs.topPositive ?? "You are showing useful consistency in your recent sessions.";
+  const issue = inputs.topIssue ?? "One watch item is keeping training balance aligned with your current goal.";
+  const step = inputs.nextStep ?? "A good next step is one small, trackable adjustment in your next session.";
+  return `${positive} ${issue} ${step}`;
+}
+
 async function getAssistantReply(
   message: string,
+  intent: AssistantIntent,
+  mode: AssistantMode,
+  templateDataAvailable: boolean,
+  templatesSummary: string | undefined,
   trainingSummary: AssistantBody["trainingSummary"],
   profile: { trainingFocus?: string; experienceLevel?: string; unit?: string; priorityGoal?: string },
+  userProfile: UserProfile | undefined,
+  coachingContext: CoachingContext | undefined,
   exerciseTrends: NonNullable<AssistantBody["exerciseTrends"]>,
   trainingInsights: AssistantBody["trainingInsights"] | undefined,
+  priorityGoalExerciseInsight: AssistantBody["priorityGoalExerciseInsight"],
   coachStructuredOutput: AssistantCoachStructuredOutput | undefined,
   evidenceCards: AssistantEvidenceCard[]
 ): Promise<string> {
@@ -150,19 +397,60 @@ async function getAssistantReply(
 
   const insightsFrequency = trainingInsights?.frequency ?? 0;
   const insightsWeeklyVolume = trainingInsights?.weeklyVolume ?? trainingSummary.weeklyVolume;
+  const inferredProfile = buildInferredTrainingProfile({
+    weeklyVolume: insightsWeeklyVolume ?? {},
+    frequency: insightsFrequency,
+    averageRIR: trainingInsights?.averageRIR,
+  });
+  const effectiveInferred = coachingContext?.inferred ?? {
+    split: inferredProfile.inferredSplit,
+    weakMuscles: inferredProfile.weakMuscleGroups,
+    progressingExercises: [],
+    plateauExercises: [],
+    avgRIR: inferredProfile.effortStyle.averageRIR,
+    volumeByMuscle: inferredProfile.volumeByMuscle,
+    frequency: inferredProfile.frequency,
+    coachInsight: undefined,
+  };
   const insightsWeeklyVolumeStr =
     Object.entries(insightsWeeklyVolume ?? {})
       .filter(([, n]) => n > 0)
       .map(([g, n]) => `${g}: ${n} sets`)
       .join("; ") || "none";
   const findingsStr = (trainingInsights?.findings ?? []).slice(0, 5).join(" ");
+  const rirSuffix = (e: {
+    avgRIR?: number;
+    latestSessionAvgRIR?: number;
+    latestSessionAllSetsToFailure?: boolean;
+  }) => {
+    const parts: string[] = [];
+    if (e.avgRIR !== undefined) parts.push(`avgRIR~${e.avgRIR.toFixed(2)}`);
+    if (e.latestSessionAvgRIR !== undefined)
+      parts.push(`lastSessionAvgRIR~${e.latestSessionAvgRIR.toFixed(2)}`);
+    if (e.latestSessionAllSetsToFailure === true) parts.push("lastSessionAllSetsToFailure");
+    return parts.length ? ` [RIR: ${parts.join(", ")}]` : "";
+  };
+
   const keyExerciseSignalsStr = (trainingInsights?.exerciseInsights ?? [])
     .slice(0, 4)
     .map(
       (e) =>
-        `${e.exercise}: ${e.trend} (${e.changeSummary})`
+        `${e.exercise}: ${e.trend} (${e.changeSummary})${rirSuffix(e)}`
     )
     .join("; ");
+
+  const globalRirStr = [
+    trainingInsights?.averageRIR !== undefined &&
+      `logged average RIR (all sets): ${trainingInsights.averageRIR.toFixed(2)}`,
+    (trainingInsights?.recentHighEffortExercises?.length ?? 0) > 0 &&
+      `high-effort exercises (by RIR): ${(trainingInsights?.recentHighEffortExercises ?? []).join(", ")}`,
+  ]
+    .filter(Boolean)
+    .join("; ");
+
+  const goalRirStr = priorityGoalExerciseInsight
+    ? `Priority goal lift "${priorityGoalExerciseInsight.exercise}": trend ${priorityGoalExerciseInsight.trend}; ${priorityGoalExerciseInsight.changeSummary}${rirSuffix(priorityGoalExerciseInsight)}`
+    : "";
   const trendsStr =
     exerciseTrends.length > 0
       ? exerciseTrends
@@ -181,6 +469,54 @@ async function getAssistantReply(
     ]
       .filter(Boolean)
       .join(". ") || "";
+  const constraintsStr = userProfile
+    ? [
+        `Goal: ${userProfile.goal}`,
+        `Training days available: ${userProfile.trainingDaysAvailable}`,
+        `Equipment: ${(userProfile.equipment ?? []).join(", ") || "full gym"}`,
+        userProfile.injuries?.length
+          ? `Injuries/limitations: ${userProfile.injuries.join(", ")}`
+          : "Injuries/limitations: none reported",
+        userProfile.availableSessionTime
+          ? `Available session time: ${userProfile.availableSessionTime} min`
+          : "Available session time: not specified",
+      ].join("; ")
+    : "";
+  const inferredStr = `Inferred from workout behavior (higher priority than profile unless a safety/constraint conflict exists):
+- Weekly frequency: ${effectiveInferred.frequency}
+- Inferred split: ${effectiveInferred.split ?? inferredProfile.inferredSplit}
+- Effort style: ${inferredProfile.effortStyle.label}${
+    effectiveInferred.avgRIR !== undefined
+      ? ` (avg RIR ${effectiveInferred.avgRIR.toFixed(2)})`
+      : ""
+  }
+- Weak muscle groups: ${effectiveInferred.weakMuscles.join(", ") || "none detected"}
+- Progressing exercises: ${effectiveInferred.progressingExercises.join(", ") || "none"}
+- Plateau exercises: ${effectiveInferred.plateauExercises.join(", ") || "none"}
+- Coach key insight: ${effectiveInferred.coachInsight ?? "none"}
+- Volume by muscle: ${
+    Object.entries(effectiveInferred.volumeByMuscle ?? {})
+      .map(([g, s]) => `${g}:${s}`)
+      .join(", ") || "none"
+  }`;
+  const coachingMemoryStr = coachingContext
+    ? `Product memory (persistent app context):
+- profile present: ${coachingContext.profile ? "yes" : "no"}
+- recent workouts loaded: ${coachingContext.recentWorkouts.length}
+- templates loaded: ${coachingContext.templates.length}
+Use this memory to avoid asking repeated questions when answers already exist in context.`
+    : "Product memory unavailable for this request.";
+  const parsedContext = parseContextFromMessage(message);
+  const resolvedContext = withDefaultsForCoaching(parsedContext);
+  const mvcPresent = hasMinimumViableContext(parsedContext);
+  const contextDefaultsNote = [
+    !parsedContext.goal && `goal: ${resolvedContext.goal}`,
+    !parsedContext.frequencyPerWeek && `frequency: ${resolvedContext.frequencyPerWeek} sessions/week`,
+    !parsedContext.equipment && `equipment: ${resolvedContext.equipment}`,
+    !parsedContext.injuryStatus && `injury status: ${resolvedContext.injuryStatus}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   const coachJson = coachStructuredOutput
     ? JSON.stringify(coachStructuredOutput)
@@ -208,7 +544,7 @@ Strict rules when coach output is present:
 EVIDENCE CARDS (when non-empty — required):
 One pass per card: principle + nuance; tie once to their log — same rules as above (short sentences, no stacked outcomes).
 
-Consequences: outcomes, not risks — "will stall", "will stall progress", "is the limiting factor" — not "risking a stall", "plateau risk", or "can limit."
+Tone guard: avoid alarmist claims. Prefer "this may help" and "a good starting point would be".
 `
     : "";
 
@@ -227,25 +563,19 @@ LENGTH & MERGE:
 - Target 3–4 sentences total. Combine two short beats into one sentence only when it stays under ~18 words and stays one clear claim.
 - More detail only if the user explicitly asks.
 
-STRUCTURE (default arc — diagnose a system constraint, not fitness 101):
+STRUCTURE (default arc — practical coach guidance):
 (1) What’s happening — progress or position (from their data).
-(2) What’s limiting it — name the bottleneck / limiting factor / constraint.
-(3) What happens if unchanged — decisive consequence.
+(2) What to adjust first — clear practical priority.
+(3) Why that matters — short cause/effect.
 (4) Exact fix — one concise, direct action.
 
 GENERIC PHRASES (ban):
-- "maintain progress", "keep progress moving", "balance volume", "find balance", "stay consistent" as empty advice — replace with mechanism: limiting factor, bottleneck, constraint, dose, frequency, recovery.
+- "maintain progress", "keep progress moving", "balance volume", "find balance", "stay consistent" as empty advice — replace with concrete actions (dose, frequency, effort, recovery).
 
-MECHANISTIC LANGUAGE (prefer):
-- Use: limiting factor, bottleneck, constraint, caps, stalls — tied to their log. Sound like a high-level coach fixing a system, not explaining basics.
-
-DECISIVE COACHING (not possibilities):
-- Every line sounds like a coaching call — what happens, what to do — not a maybe.
-- Prefer certainty over probability; cautious wording only when uncertainty is real and in the data.
-- Replace soft / probabilistic phrasing, e.g.: "risking a stall" → "will stall"; "will raise plateau risk" / "may stall" → "will stall progress"; "can limit" → "is the limiting factor."
-- Ban hedged outcome talk: risking, could lead to, might mean, at risk of — unless the log truly leaves room for doubt (say that once, plainly).
-- Avoid softeners: sustainable, potential, risk, likelihood — except when necessary (e.g. injury risk).
-- Keep: "will stall", "is the limiting factor", "caps progression." Ban: "will likely stall", "could become a limiting factor."
+COACHING LANGUAGE:
+- Keep language calm and practical.
+- Avoid alarmist phrases like "will stall indefinitely", "will cause injury", "limiting factor is".
+- Prefer: "a good starting point would be", "this may help", "you can adjust based on how you feel."
 
 OPENINGS:
 - Lead with the point. No: however, since, if you keep, but, generally, it's worth noting.
@@ -259,36 +589,300 @@ HOW TO REASON:
 PLAIN LANGUAGE:
 - Support muscles; sets, frequency, effort — not lab jargon unless the card uses it. Prefer "system constraint" framing over vague wellness talk.
 
+RIR / EFFORT (when trainingInsights or priorityGoalExerciseInsight include RIR fields):
+- When actual RIR data is available, use it directly in your answer.
+- Do not answer with generic RIR guidance if session-specific RIR data exists in the payload.
+- If a recent session was performed at or near failure (e.g. low avg RIR, or last session all sets @ 0 RIR), mention the tradeoff between stimulus and recoverable volume.
+- Do not tell them to reduce to ~1-2 RIR unless the data shows effort is limiting progress or recoverable volume (e.g. plateau/decline or recovery strain with added volume).
+- If progress is still positive, prefer: keep current effort for now, monitor recoverability, and use ~1-2 RIR only as the next step if progress stalls.
+
 TONE:
-- Certain, direct, minimal — senior coach diagnosing and removing a constraint, not listing possibilities.
+- Clear, concise, actionable, and human.
 `;
+
+  const effectiveIntent: AssistantIntent =
+    intent === "unknown" ? "general_training_question" : intent;
+
+  const routingPreamble = `
+INTENT (classified): ${effectiveIntent}
+
+GLOBAL RULES (always):
+- Only use detailed recent-training / coach-log analysis when the user's question is actually about recent training, their week, or coach output—or when explaining coach output in coach_explanation using the blocks provided for that purpose.
+- Do not answer a different question just because training data is available.
+- Do not pivot unrelated questions into bench/support-volume or generic weekly analysis unless the intent is recent_training_analysis.
+`;
+
+  const insightsBlock =
+    trainingInsights
+      ? `trainingInsights (use for specifics — frequencies, volumes, per-exercise signals, findings, logged RIR):\n- Training frequency (last 7 days): ${insightsFrequency} session${insightsFrequency === 1 ? "" : "s"}\n- Weekly volume: ${insightsWeeklyVolumeStr}\n- Key exercise signals: ${keyExerciseSignalsStr || "none"}\n- Global RIR summary: ${globalRirStr || "no RIR logged or insufficient"}\n- Notable findings: ${findingsStr || "none"}\n${goalRirStr ? `- ${goalRirStr}\n` : ""}`
+      : "";
+
+  const trendsBlock = trendsStr
+    ? `exerciseTrends (use for progression / plateau language tied to actual loads and reps):\n${trendsStr}\n`
+    : "";
+
+  const analysisInputs = buildAnalysisInputs(
+    trainingSummary,
+    trainingInsights,
+    exerciseTrends,
+    coachStructuredOutput
+  );
+  const analysisInputsBlock = `Analysis anchors from workout data (must use):
+- Top positive: ${analysisInputs.topPositive ?? "MISSING"}
+- Top issue/watch item: ${analysisInputs.topIssue ?? "MISSING"}
+- Next step: ${analysisInputs.nextStep ?? "MISSING"}`;
+
+  const templateReviewBlock = templateDataAvailable
+    ? `Templates / programs (text provided by user in this request):\n${templatesSummary?.trim() ?? ""}\n`
+    : `Templates / programs: NO structured template data was sent with this request. Do not pretend you reviewed their saved templates. Ask them to describe template names, split, days per week, and main exercises—or paste details—before judging or comparing programs.\n`;
+
+  let input = "";
+  switch (mode) {
+    case "advisory":
+      input = `
+You are an experienced strength coach in advisory mode.
+
+Hard rules:
+- Do NOT run recent-training analysis.
+- Do NOT reference workout trends, weekly volume, plateaus, "no stimulus", or "no progress".
+- Do NOT describe missing logs as a problem.
+- Use calm, coach-like language. No alarmist framing.
+- Anchor recommendations to RIR targets and effort control.
+- Adapt guidance to the user's message context (e.g., fatigue, stress, sleep, pain, health conditions, training schedule).
+- If the user mentions pain, injury, or a health condition, prioritize safety and suggest professional medical input when appropriate.
+- Give practical next-step coaching, not report-style commentary.
+- Do not use the phrase "based on your data".
+- Use supportive language like: "a good starting point would be", "this may help", "you can adjust based on how you feel."
+- Do not start with clarifying questions when enough context exists.
+- If minor context is missing, use these defaults silently and coach decisively:
+  - equipment: full gym
+  - goal bias: strength + hypertrophy mix
+  - frequency baseline: 3-4 sessions per week
+- First response MUST include all of:
+  1) training structure/split
+  2) rep ranges
+  3) RIR guidance
+  4) progression guidance
+- Optional refinement question is allowed only as one short final line (e.g., "I can refine this further if needed.").
+- Behaviour > Profile: prefer inferred behavior patterns unless profile constraints (injury/equipment/time) require overrides.
+- Use coachingContext memory first; do not re-ask context already in memory.
+
+RIR guidance defaults (unless user context suggests otherwise):
+- Main compounds: usually ~1-3 RIR.
+- Isolations/accessories: usually ~0-2 RIR.
+- If fatigued or recovery-limited: bias higher RIR and reduce set volume.
+
+${profileStr ? `User profile: ${profileStr}.` : ""}
+${constraintsStr ? `User constraints: ${constraintsStr}.` : ""}
+${inferredStr}
+${coachingMemoryStr}
+Parsed user context:
+- goal: ${resolvedContext.goal}
+- frequency: ${resolvedContext.frequencyPerWeek} sessions/week
+- equipment: ${resolvedContext.equipment}
+- injury status: ${resolvedContext.injuryStatus}
+${contextDefaultsNote ? `Assumptions used for missing fields: ${contextDefaultsNote}.` : "No assumptions required; full context was provided."}
+Minimum viable context explicitly provided in this message: ${mvcPresent ? "yes" : "no"}.
+
+User question:
+${message}
+
+Reply in plain language as a coach. 4-8 concise sentences with clear section flow:
+"Split:", "Reps:", "RIR:", "Progression:".`;
+      break;
+    case "explanation":
+      input = `
+You are an elite strength coach. The user wants an explanation of existing coach output in plain English.
+
+${routingPreamble}
+
+${coachStructuredOutput ? coachAuthorityBlock : "No coach structured output is available; say so briefly and answer from profile + general principles only."}
+
+${evidenceDrivenReasoningBlock}
+
+TASK: Explain the current coach decisions and suggestions clearly. Do not invent new diagnoses.
+${profileStr ? `User profile: ${profileStr}.` : ""}
+- Keep wording simple and non-alarmist.
+- Do not use internal terms like "signal", "interaction", or "limiting factor".
+- Do not use the phrase "based on your data".
+
+User question:
+${message}
+
+Answer in plain language. 3–5 short sentences. Focus on "why" and practical meaning.`;
+      break;
+    case "clarification":
+      input = `
+You are an experienced strength coach.
+
+The user's question is missing key context for a reliable answer.
+- Prefer giving a practical baseline recommendation first.
+- Ask at most ONE clarifying question, and only if absolutely necessary for safety or hard constraints.
+- If context is partially missing, assume:
+  - full gym equipment
+  - strength + hypertrophy mix
+  - 3-4 sessions/week
+- Avoid clarification loops and do not re-ask details already present in the user message.
+- Behaviour > Profile, except when injuries/equipment/time constraints require an override.
+- If coachingContext already contains required details, do not ask for them again.
+- Keep the tone supportive and concise.
+- Do not use the phrase "based on your data".
+
+User question:
+${message}
+`;
+      break;
+    case "analysis":
+    default:
+      if (effectiveIntent === "recent_training_analysis") {
+        input = `
+You are an elite strength coach: diagnose system constraints, prescribe fixes — not generic fitness explanation.
+
+${routingPreamble}
+${reasoningBaseBlock}
+${coachAuthorityBlock}
+${evidenceDrivenReasoningBlock}
+${insightsBlock}
+${trendsBlock}
+${profileStr ? `User profile: ${profileStr}.` : ""}
+${constraintsStr ? `User constraints (use only as hard constraints): ${constraintsStr}` : ""}
+${inferredStr}
+${coachingMemoryStr}
+
+Training context (totals and recent exercise names):
+${context}
+
+User question:
+${message}
+
+Answer in plain language. 3–4 sentences; ~15–18 words each; one new idea per sentence; structure: progress → limiter → if unchanged → fix.
+Answer format:
+- one thing going well
+- one limiting factor or watch item
+- one next step
+- use the three analysis anchors below explicitly; do not replace them with generic RIR advice unless the top issue is RIR/effort related.
+
+Target style example:
+"Your training is progressing well overall. Bench press is improving and frequency is consistent. Back volume is slightly low relative to your goal, so increasing it gradually would help keep progress balanced."
+
+${analysisInputsBlock}
+`;
+      } else if (effectiveIntent === "coach_explanation") {
+        input = `
+You are an elite strength coach. The user wants an explanation of what the coach output means—not a fresh week-wide diagnosis.
+
+${routingPreamble}
+
+${coachStructuredOutput ? coachAuthorityBlock : "No coach structured output is available; say so briefly and answer from profile + general principles only."}
+
+${evidenceDrivenReasoningBlock}
+
+TASK: Explain the existing coach decisions and suggestions using the evidence cards when present. Tie mechanisms to evidence. Do not invent new diagnoses beyond coachStructuredOutput + evidence.
+${profileStr ? `User profile: ${profileStr}.` : ""}
+${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
+${inferredStr}
+${coachingMemoryStr}
+${context}
+
+User question:
+${message}
+
+Answer in plain language. 3–5 short sentences. Focus on "why" the coach said what it said.
+`;
+      } else if (effectiveIntent === "template_review") {
+        input = `
+You are an elite strength coach. The user is asking about workout templates, programs, splits, or routines.
+
+${routingPreamble}
+
+${templateReviewBlock}
+${profileStr ? `User profile (may inform recommendations): ${profileStr}.` : ""}
+${constraintsStr ? `User constraints (hard overrides): ${constraintsStr}` : ""}
+${inferredStr}
+${coachingMemoryStr}
+
+Optional context — only reference if it helps compare template ideas to their setup (do not replace answering their template question):
+${context}
+
+User question:
+${message}
+
+Answer directly about templates/programs. If template data was missing above, ask clearly for the missing details before reviewing. Do not default to recent-session training analysis.
+`;
+      } else if (effectiveIntent === "exercise_question") {
+        input = `
+You are an elite strength coach.
+
+${routingPreamble}
+
+Answer the exercise question directly. Use profile and training log only when clearly relevant; do not force unrelated weekly-volume commentary.
+${profileStr ? `User profile: ${profileStr}.` : ""}
+${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
+${inferredStr}
+${coachingMemoryStr}
+
+Training context (use only if relevant):
+${context}
+${insightsBlock ? `${insightsBlock}` : ""}
+${trendsStr ? trendsBlock : ""}
+
+User question:
+${message}
+
+Reply in plain language, concise (3–5 sentences unless they asked for detail).
+`;
+      } else if (effectiveIntent === "goal_question") {
+        input = `
+You are an elite strength coach.
+
+${routingPreamble}
+
+Answer about goals, phases (bulk/cut), strength vs hypertrophy, or priorities. Use profile when helpful. Do not open with unrelated weekly log analysis unless the question ties to it.
+${profileStr ? `User profile: ${profileStr}.` : ""}
+${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
+${inferredStr}
+${coachingMemoryStr}
+
+Training context (optional, only if relevant):
+${context}
+
+User question:
+${message}
+
+Reply in plain language, concise.
+`;
+      } else {
+        /* general_training_question */
+        input = `
+You are an elite strength coach.
+
+${routingPreamble}
+
+Answer the question normally. You may use training context below only when it directly helps—do not lead with or default to "your training this week" unless the question calls for it.
+${profileStr ? `User profile: ${profileStr}.` : ""}
+${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
+${inferredStr}
+${coachingMemoryStr}
+
+Training context (optional reference):
+${context}
+${insightsBlock ? `\n${insightsBlock}` : ""}
+${trendsStr ? trendsBlock : ""}
+
+User question:
+${message}
+
+Reply in plain language. Prefer 3–5 concise sentences unless the user asks for more.
+`;
+      }
+      break;
+  }
 
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
-    input: `
-  You are an elite strength coach: diagnose system constraints, prescribe fixes — not generic fitness explanation.
-
-  ${reasoningBaseBlock}
-  ${coachAuthorityBlock}
-  ${evidenceDrivenReasoningBlock}
-  ${
-    trainingInsights
-      ? `trainingInsights (use for specifics — frequencies, volumes, per-exercise signals, findings):\n- Training frequency (last 7 days): ${insightsFrequency} session${insightsFrequency === 1 ? "" : "s"}\n- Weekly volume: ${insightsWeeklyVolumeStr}\n- Key exercise signals: ${keyExerciseSignalsStr || "none"}\n- Notable findings: ${findingsStr || "none"}\n`
-      : ""
-  }
-  ${trendsStr ? `exerciseTrends (use for progression / plateau language tied to actual loads and reps):\n${trendsStr}\n` : ""}
-  ${profileStr ? `User profile: ${profileStr}.` : ""}
-
-  Training context (totals and recent exercise names):
-  ${context}
-
-  User question:
-  ${message}
-
-  Answer in plain language. 3–4 sentences; ~15–18 words each; one new idea per sentence; structure: progress → limiter → if unchanged → fix.
-  `,
+    input,
   });
-  
+
   const reply = response.output_text?.trim();
   if (!reply) throw new Error("Empty response from model");
   return reply;
@@ -306,9 +900,17 @@ export async function POST(request: NextRequest) {
       priorityGoal,
       exerciseTrends,
       trainingInsights,
+      priorityGoalExerciseInsight: rawPriorityGoalInsight,
       coachStructuredOutput: rawCoach,
       evidenceCards: rawEvidence,
+      templatesSummary: rawTemplatesSummary,
+      userProfile,
+      coachingContext,
     } = body;
+
+    const templatesSummary =
+      typeof rawTemplatesSummary === "string" ? rawTemplatesSummary : undefined;
+    const templateDataAvailable = Boolean(templatesSummary?.trim());
 
     const coachStructuredOutput = isCoachStructuredOutput(rawCoach) ? rawCoach : undefined;
     const evidenceCards =
@@ -331,8 +933,121 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const trimmedMessage = message.trim();
+    const intent = classifyAssistantIntent(trimmedMessage);
+    const hasWorkoutData =
+      (Number(trainingSummary.totalWorkouts) || 0) > 0 ||
+      (Number(trainingSummary.totalSets) || 0) > 0;
+    const hasCoachAnalysis = coachStructuredOutput != null;
+    const hardAnalysisPhrases = [
+      "how is my training",
+      "how is my training looking",
+      "how is this week",
+      "how am i doing",
+      "how are my workouts",
+      "thoughts on my training",
+    ];
+    const hardAnalysisMatch =
+      hasWorkoutData &&
+      hardAnalysisPhrases.some((phrase) =>
+        trimmedMessage.toLowerCase().includes(phrase)
+      );
+    const modeDetection = detectAssistantModeWithReason({
+      message: trimmedMessage,
+      hasWorkoutData,
+      hasCoachAnalysis,
+    });
+    const parsedContext = parseContextFromMessage(trimmedMessage);
+    const minimumContextPresent = hasMinimumViableContext(parsedContext);
+    const seemsProgramRequest =
+      /\b(split|program|plan|routine|training plan|workout plan|how should i train|what should i do)\b/.test(
+        trimmedMessage.toLowerCase()
+      );
+    const shouldForceAdvisory =
+      !hasWorkoutData && (minimumContextPresent || seemsProgramRequest);
+    const mode: AssistantMode = hardAnalysisMatch
+      ? "analysis"
+      : shouldForceAdvisory
+        ? "advisory"
+        : modeDetection.mode;
+    console.log("[assistant] intent:", intent, "templateDataAvailable:", templateDataAvailable);
+    console.log("[assistant mode]", mode);
+    console.log("[assistant mode check]", {
+      message: trimmedMessage,
+      detectedMode: mode,
+      hasWorkoutData,
+    });
+    console.log("[assistant mode detail]", {
+      mode,
+      reason: modeDetection.reason,
+      hasWorkoutData,
+      minimumContextPresent,
+      shouldForceAdvisory,
+    });
+    if (hardAnalysisMatch) {
+      console.log("[assistant mode override]", {
+        message: trimmedMessage,
+        override: "analysis",
+        reason: "hard_analysis_phrase_match_with_workout_data",
+      });
+    }
+    if (mode === "analysis") {
+      const analysisDebug = buildAnalysisInputs(
+        {
+          totalWorkouts: Number(trainingSummary.totalWorkouts) || 0,
+          totalExercises: Number(trainingSummary.totalExercises) || 0,
+          totalSets: Number(trainingSummary.totalSets) || 0,
+          weeklyVolume: trainingSummary.weeklyVolume ?? {},
+          recentExercises: Array.isArray(trainingSummary.recentExercises)
+            ? trainingSummary.recentExercises
+            : [],
+        },
+        trainingInsights,
+        exerciseTrends ?? [],
+        coachStructuredOutput
+      );
+      console.log("[assistant analysis inputs]", analysisDebug);
+      if (analysisDebug.missing.length > 0) {
+        console.log("[assistant analysis fail-safe missing]", analysisDebug.missing);
+      }
+      const exactMsg = trimmedMessage.toLowerCase();
+      if (exactMsg === "how is my training looking this week?") {
+        console.log("[assistant core test message debug]", {
+          detectedMode: mode,
+          hasWorkoutData,
+          positiveUsed: analysisDebug.topPositive,
+          issueUsed: analysisDebug.topIssue,
+          nextStepUsed: analysisDebug.nextStep,
+        });
+      }
+      const analysisReply = buildAnalysisModeResponseFromInputs(analysisDebug);
+      return NextResponse.json({ reply: analysisReply } satisfies AssistantResponse);
+    }
+
+    const priorityGoalExerciseInsight =
+      rawPriorityGoalInsight != null &&
+      typeof rawPriorityGoalInsight === "object" &&
+      typeof (rawPriorityGoalInsight as { exercise?: unknown }).exercise === "string"
+        ? (rawPriorityGoalInsight as NonNullable<AssistantBody["priorityGoalExerciseInsight"]>)
+        : undefined;
+
+    console.log("[assistant-debug] payload RIR fields:", {
+      averageRIR: trainingInsights?.averageRIR,
+      recentHighEffortExercises: trainingInsights?.recentHighEffortExercises,
+      priorityGoalExerciseRir: priorityGoalExerciseInsight && {
+        exercise: priorityGoalExerciseInsight.exercise,
+        avgRIR: priorityGoalExerciseInsight.avgRIR,
+        latestSessionAvgRIR: priorityGoalExerciseInsight.latestSessionAvgRIR,
+        latestSessionAllSetsToFailure: priorityGoalExerciseInsight.latestSessionAllSetsToFailure,
+      },
+    });
+
     const reply = await getAssistantReply(
-      message.trim(),
+      trimmedMessage,
+      intent,
+      mode,
+      templateDataAvailable,
+      templatesSummary,
       {
         totalWorkouts: Number(trainingSummary.totalWorkouts) || 0,
         totalExercises: Number(trainingSummary.totalExercises) || 0,
@@ -343,8 +1058,11 @@ export async function POST(request: NextRequest) {
           : [],
       },
       { trainingFocus, experienceLevel, unit, priorityGoal },
+      userProfile,
+      coachingContext,
       exerciseTrends ?? [],
       trainingInsights,
+      priorityGoalExerciseInsight,
       coachStructuredOutput,
       evidenceCards
     );

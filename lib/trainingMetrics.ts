@@ -1,8 +1,21 @@
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
+import { resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
 
 const MUSCLE_GROUP_KEYWORDS: Record<string, string[]> = {
   chest: ["bench", "incline", "chest press", "fly"],
-  back: ["row", "pulldown", "pull up", "pull-up", "lat"],
+  back: [
+    "row",
+    "t-bar row",
+    "seated cable row",
+    "chest-supported row",
+    "chest supported row",
+    "pulldown",
+    "lat pulldown",
+    "pull up",
+    "pull-up",
+    "pullup",
+    "lat",
+  ],
   legs: ["squat", "leg press", "hack", "calf", "leg curl", "leg extension", "rdl"],
   shoulders: ["shoulder press", "overhead press", "lateral raise"],
   arms: ["curl", "hammer curl", "tricep", "pushdown", "jm press", "skullcrusher"],
@@ -58,11 +71,50 @@ export function getWorkoutsFromLast7Days(workouts: StoredWorkout[]): StoredWorko
 }
 
 export function getMuscleGroupForExercise(exerciseName: string): string | null {
+  const meta = resolveLoggedExerciseMeta({ name: exerciseName });
+  if (meta) {
+    const pri = meta.primaryMuscles.map((m) => m.toLowerCase());
+    const sec = meta.secondaryMuscles.map((m) => m.toLowerCase());
+    const all = [...pri, ...sec];
+    if (all.some((m) => m.includes("chest") || m.includes("pec"))) return "chest";
+    if (
+      all.some(
+        (m) =>
+          m.includes("lat") ||
+          m.includes("upper back") ||
+          m.includes("rear delt") ||
+          m === "back"
+      )
+    )
+      return "back";
+    if (
+      all.some(
+        (m) =>
+          m.includes("quad") ||
+          m.includes("glute") ||
+          m.includes("hamstring") ||
+          m.includes("calf")
+      )
+    )
+      return "legs";
+    if (all.some((m) => m.includes("shoulder") || m.includes("delt"))) return "shoulders";
+    if (all.some((m) => m.includes("tricep") || m.includes("bicep") || m.includes("forearm")))
+      return "arms";
+  }
   const name = exerciseName.trim().toLowerCase();
   for (const [group, keywords] of Object.entries(MUSCLE_GROUP_KEYWORDS)) {
     if (keywords.some((kw) => name.includes(kw))) return group;
   }
   return null;
+}
+
+export function getMuscleGroupForLoggedExercise(exercise: {
+  exerciseId?: string;
+  name: string;
+}): string | null {
+  const byMeta = resolveLoggedExerciseMeta(exercise);
+  if (byMeta) return getMuscleGroupForExercise(byMeta.name);
+  return getMuscleGroupForExercise(exercise.name);
 }
 
 export function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string, number> {
@@ -75,7 +127,7 @@ export function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string
   };
   for (const workout of workouts) {
     for (const ex of workout.exercises ?? []) {
-      const group = getMuscleGroupForExercise(ex.name);
+      const group = getMuscleGroupForLoggedExercise(ex);
       if (group && group in counts) {
         counts[group] += ex.sets?.length ?? 0;
       }

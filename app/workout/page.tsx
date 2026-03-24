@@ -16,14 +16,42 @@ import {
   type DraftWorkout,
 } from "@/lib/activeWorkout";
 import { useUnit } from "@/lib/unit-preference";
+import {
+  getExerciseByName,
+  normalizeExerciseName,
+  resolveLoggedExerciseMeta,
+} from "@/lib/exerciseLibrary";
+import ExercisePicker, { type ExercisePickerValue } from "@/components/ExercisePicker";
 
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
+const WORKOUT_SUGGESTED_MUSCLE_KEY = "workoutSuggestedMuscle";
+const KG_TO_LB = 2.2046226218;
+
+function convertWeightValue(weight: string, from: "kg" | "lb", to: "kg" | "lb"): string {
+  if (from === to) return weight;
+  const raw = String(weight ?? "");
+  const trimmed = raw.trim();
+  if (!trimmed) return raw;
+  const n = Number.parseFloat(trimmed);
+  if (!Number.isFinite(n)) return raw;
+  const converted = from === "kg" && to === "lb" ? n * KG_TO_LB : n / KG_TO_LB;
+  const rounded = Math.round(converted * 10) / 10;
+  if (!Number.isFinite(rounded)) return raw;
+  if (Math.abs(rounded - Math.round(rounded)) < 0.000001) return String(Math.round(rounded));
+  return rounded.toFixed(1).replace(/\.0$/, "");
+}
 
 type StoredWorkout = {
   completedAt: string;
-  exercises: { name: string; sets: { weight: string; reps: string; notes?: string }[] }[];
+  exercises: {
+    exerciseId?: string;
+    name: string;
+    sets: { weight: string; reps: string; notes?: string; rir?: number }[];
+  }[];
 };
+
+type ExerciseRef = { exerciseId?: string; name: string };
 
 function getBestSet(sets: { weight: string; reps: string }[]): { weight: number; reps: number } | null {
   if (!sets?.length) return null;
@@ -36,23 +64,25 @@ function getBestSet(sets: { weight: string; reps: string }[]): { weight: number;
   return best.weight > 0 || best.reps > 0 ? best : null;
 }
 
-function getLastPerformanceForExercise(exerciseName: string): { weight: string; reps: string } | null {
+function getLastPerformanceForExercise(exercise: ExerciseRef): { weight: string; reps: string } | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
     if (!raw) return null;
     const workouts: StoredWorkout[] = JSON.parse(raw);
     if (!Array.isArray(workouts)) return null;
-    const normalized = exerciseName.trim().toLowerCase();
+    const normalized = exercise.name.trim().toLowerCase();
     const sorted = [...workouts].sort(
       (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
     );
     for (const workout of sorted) {
-      const exercise = workout.exercises?.find(
-        (ex) => ex.name?.trim().toLowerCase() === normalized
+      const match = workout.exercises?.find(
+        (ex) =>
+          (exercise.exerciseId && ex.exerciseId && ex.exerciseId === exercise.exerciseId) ||
+          ex.name?.trim().toLowerCase() === normalized
       );
-      if (exercise?.sets?.length) {
-        const lastSet = exercise.sets[exercise.sets.length - 1];
+      if (match?.sets?.length) {
+        const lastSet = match.sets[match.sets.length - 1];
         if (lastSet?.weight != null && lastSet?.reps != null)
           return { weight: String(lastSet.weight), reps: String(lastSet.reps) };
       }
@@ -63,7 +93,7 @@ function getLastPerformanceForExercise(exerciseName: string): { weight: string; 
   }
 }
 
-function getLastSetsForExercise(exerciseName: string): {
+function getLastSetsForExercise(exercise: ExerciseRef): {
   weight: string;
   reps: string;
   notes?: string;
@@ -74,16 +104,18 @@ function getLastSetsForExercise(exerciseName: string): {
     if (!raw) return [];
     const workouts: StoredWorkout[] = JSON.parse(raw);
     if (!Array.isArray(workouts)) return [];
-    const normalized = exerciseName.trim().toLowerCase();
+    const normalized = exercise.name.trim().toLowerCase();
     const sorted = [...workouts].sort(
       (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
     );
     for (const workout of sorted) {
-      const exercise = workout.exercises?.find(
-        (ex) => ex.name?.trim().toLowerCase() === normalized
+      const match = workout.exercises?.find(
+        (ex) =>
+          (exercise.exerciseId && ex.exerciseId && ex.exerciseId === exercise.exerciseId) ||
+          ex.name?.trim().toLowerCase() === normalized
       );
-      if (exercise?.sets?.length) {
-        return exercise.sets.map((s) => ({
+      if (match?.sets?.length) {
+        return match.sets.map((s) => ({
           weight: String(s?.weight ?? ""),
           reps: String(s?.reps ?? ""),
           notes: typeof s?.notes === "string" ? s.notes : undefined,
@@ -143,6 +175,13 @@ const ISOLATION_KEYWORDS = [
 ];
 
 function getExerciseCategory(name: string): ExerciseCategory {
+  const meta = resolveLoggedExerciseMeta({ name });
+  if (meta) {
+    if (meta.movementPattern === "isolation") return "isolation";
+    if (meta.fatigueCost === "high") return "barbell_compound";
+    if (meta.fatigueCost === "moderate") return "machine_compound";
+    return "dumbbell_compound";
+  }
   const n = name.trim().toLowerCase();
   if (ISOLATION_KEYWORDS.some((kw) => n.includes(kw))) return "isolation";
   if (BARBELL_KEYWORDS.some((kw) => n.includes(kw))) return "barbell_compound";
@@ -326,8 +365,9 @@ export default function WorkoutPage() {
   const [exercises, setExercises] = useState<
     {
       id: number;
+      exerciseId?: string;
       name: string;
-      sets: { weight: string; reps: string; done?: boolean; notes?: string }[];
+      sets: { weight: string; reps: string; done?: boolean; notes?: string; rir?: number }[];
       targetSets?: number;
       restSec: number;
     }[]
@@ -341,6 +381,7 @@ export default function WorkoutPage() {
   const [nextTarget, setNextTarget] = useState<Record<string, string | null>>({});
   const [workoutName, setWorkoutName] = useState("");
   const [templateName, setTemplateName] = useState<string | null>(null);
+  const [templateId, setTemplateId] = useState<string | null>(null);
   const [routineSaved, setRoutineSaved] = useState(false);
   const addExerciseInputRef = useRef<HTMLInputElement | null>(null);
   const setInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -356,9 +397,10 @@ export default function WorkoutPage() {
     exercises,
     workoutName,
     templateName,
+    templateId,
     startTime,
   });
-  latestWorkoutRef.current = { exercises, workoutName, templateName, startTime };
+  latestWorkoutRef.current = { exercises, workoutName, templateName, templateId, startTime };
 
   useEffect(() => {
     if (startTime === null) return;
@@ -367,6 +409,31 @@ export default function WorkoutPage() {
     }, 1000);
     return () => window.clearInterval(id);
   }, [startTime]);
+
+  useEffect(() => {
+    function handleUnitConverted(event: Event) {
+      const custom = event as CustomEvent<{ from?: "kg" | "lb"; to?: "kg" | "lb" }>;
+      const from = custom.detail?.from;
+      const to = custom.detail?.to;
+      if (!from || !to || from === to) return;
+      setExercises((prev) =>
+        prev.map((exercise) => ({
+          ...exercise,
+          sets: exercise.sets.map((set) => ({
+            ...set,
+            weight:
+              typeof set.weight === "string"
+                ? convertWeightValue(set.weight, from, to)
+                : set.weight,
+          })),
+        }))
+      );
+    }
+    window.addEventListener("weightUnitConverted", handleUnitConverted as EventListener);
+    return () => {
+      window.removeEventListener("weightUnitConverted", handleUnitConverted as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     const anyRunning = Object.values(restByExercise).some((t) => t.running && t.remainingSec > 0);
@@ -399,6 +466,18 @@ export default function WorkoutPage() {
   }, [pendingFocus]);
 
   const totalSetsLogged = exercises.reduce((total, ex) => total + ex.sets.length, 0);
+  const workoutHistory = getWorkoutHistory();
+  const lastLoggedWorkout = [...workoutHistory].sort(
+    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+  )[0];
+
+  function workoutDisplayName(w: { name?: string; exercises?: { name: string }[] }) {
+    const n = typeof w.name === "string" ? w.name.trim() : "";
+    if (n) return n;
+    const first = w.exercises?.[0]?.name?.trim?.() ? w.exercises[0].name.trim() : "";
+    if (first) return `${first} Workout`;
+    return "Workout";
+  }
 
   function formatElapsed(sec: number) {
     const h = Math.floor(sec / 3600);
@@ -459,8 +538,10 @@ export default function WorkoutPage() {
         `Routine ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 
       const routine = {
+        id: `tpl_${Date.now()}`,
         name,
         exercises: exercises.map((ex) => ({
+          ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
           name: ex.name,
           targetSets: Math.max(
             1,
@@ -477,6 +558,34 @@ export default function WorkoutPage() {
     }
   }
 
+  function overwriteTemplateFromSession() {
+    if (typeof window === "undefined" || !templateId) return;
+    try {
+      const STORAGE_KEY = "workoutTemplates";
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const existing = raw ? JSON.parse(raw) : [];
+      const templates = Array.isArray(existing) ? existing : [];
+      const updated = templates.map((tpl) =>
+        tpl && typeof tpl === "object" && (tpl as { id?: string }).id === templateId
+          ? {
+              ...tpl,
+              name: getWorkoutDisplayName().trim() || (tpl as { name?: string }).name || "Template",
+              exercises: exercises.map((ex) => ({
+                ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
+                name: ex.name,
+                targetSets: Math.max(1, Math.min(20, ex.targetSets ?? ex.sets.length ?? 3)),
+                restSec: ex.restSec ?? 90,
+              })),
+            }
+          : tpl
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      setRoutineSaved(true);
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     if (exercises.length === 0) {
       setLastPerformance({});
@@ -486,7 +595,10 @@ export default function WorkoutPage() {
     const lastMap: Record<string, { weight: string; reps: string } | null> = {};
     const targetMap: Record<string, string | null> = {};
     for (const ex of exercises) {
-      lastMap[ex.name] = getLastPerformanceForExercise(ex.name);
+      lastMap[ex.name] = getLastPerformanceForExercise({
+        exerciseId: ex.exerciseId,
+        name: ex.name,
+      });
       targetMap[ex.name] = getNextTargetForExercise(ex.name);
     }
     setLastPerformance(lastMap);
@@ -523,23 +635,44 @@ export default function WorkoutPage() {
   useEffect(() => {
     if (typeof window === "undefined" || loadHandledRef.current) return;
     loadHandledRef.current = true;
+    const suggestedMuscle = sessionStorage.getItem(WORKOUT_SUGGESTED_MUSCLE_KEY);
+    if (suggestedMuscle) {
+      sessionStorage.removeItem(WORKOUT_SUGGESTED_MUSCLE_KEY);
+      const suggestion = suggestedMuscle.trim();
+      if (suggestion) {
+        setExerciseName(suggestion);
+        setWorkoutName((prev) => (prev.trim() ? prev : `${suggestion} Focus`));
+      }
+    }
 
     const fromTemplate = sessionStorage.getItem(TEMPLATE_FOR_WORKOUT_KEY);
     if (fromTemplate) {
       try {
-        const data = JSON.parse(fromTemplate) as { exercises: unknown[]; templateName?: string };
+        const data = JSON.parse(fromTemplate) as {
+          exercises: unknown[];
+          templateName?: string;
+          templateId?: string;
+        };
         const exercisesData = data?.exercises;
         const tName = typeof data?.templateName === "string" ? data.templateName.trim() : "";
+        const tId = typeof data?.templateId === "string" ? data.templateId.trim() : "";
         sessionStorage.removeItem(TEMPLATE_FOR_WORKOUT_KEY);
         if (Array.isArray(exercisesData) && exercisesData.length > 0) {
           if (tName) {
             setTemplateName(tName);
             setWorkoutName((prev) => (prev.trim() ? prev : tName));
           }
+          if (tId) setTemplateId(tId);
           const now = Date.now();
           setStartTime(now);
           const initial = exercisesData.map((ex, i) => {
             const name = typeof ex === "string" ? ex : (ex as { name?: string })?.name ?? "Exercise";
+            const normalized = normalizeExerciseName(name);
+            const byName = getExerciseByName(normalized);
+            const exerciseIdFromTemplate =
+              typeof ex === "object" && ex !== null && "exerciseId" in ex
+                ? (ex as { exerciseId?: string }).exerciseId
+                : undefined;
             const targetSets = typeof ex === "object" && ex !== null && "targetSets" in ex
               ? Math.max(1, Math.min(20, Number((ex as { targetSets?: number }).targetSets) || 3))
               : undefined;
@@ -551,11 +684,26 @@ export default function WorkoutPage() {
             const plannedSets = targetSets ?? 0;
             const sets = Array.from(
               { length: Math.max(0, plannedSets) },
-              () => ({ weight: "", reps: "", done: false, notes: "" } as { weight: string; reps: string; done?: boolean; notes?: string })
+              () =>
+                ({
+                  weight: "",
+                  reps: "",
+                  done: false,
+                  notes: "",
+                } as {
+                  weight: string;
+                  reps: string;
+                  done?: boolean;
+                  notes?: string;
+                  rir?: number;
+                })
             );
             return {
               id: now + i,
-              name,
+              ...(exerciseIdFromTemplate || byName?.id
+                ? { exerciseId: exerciseIdFromTemplate ?? byName?.id }
+                : {}),
+              name: byName?.name ?? name,
               sets,
               targetSets,
               restSec,
@@ -595,8 +743,15 @@ export default function WorkoutPage() {
       templateName: tn,
       exercises: exs.map((ex) => ({
         id: ex.id,
+        ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
         name: ex.name,
-        sets: ex.sets.map((s) => ({ weight: s.weight, reps: s.reps, done: s.done, notes: s.notes })),
+        sets: ex.sets.map((s) => ({
+          weight: s.weight,
+          reps: s.reps,
+          done: s.done,
+          notes: s.notes,
+          ...(typeof s.rir === "number" && Number.isFinite(s.rir) ? { rir: s.rir } : {}),
+        })),
         targetSets: ex.targetSets,
         restSec: ex.restSec ?? 90,
       })),
@@ -654,11 +809,13 @@ export default function WorkoutPage() {
       completedAt: new Date().toISOString(),
       name: finalName,
       durationSec: elapsedSec,
-      exercises: exercises.map(({ name, sets, restSec }) => ({
+      exercises: exercises.map(({ exerciseId, name, sets, restSec }) => ({
+        ...(exerciseId ? { exerciseId } : {}),
         name,
-        sets: sets.map(({ weight, reps, notes }) => {
-          const out: { weight: string; reps: string; notes?: string } = { weight, reps };
+        sets: sets.map(({ weight, reps, notes, rir }) => {
+          const out: { weight: string; reps: string; notes?: string; rir?: number } = { weight, reps };
           if (notes?.trim()) out.notes = notes.trim();
+          if (typeof rir === "number" && Number.isFinite(rir)) out.rir = rir;
           return out;
         }),
         restSec,
@@ -678,25 +835,52 @@ export default function WorkoutPage() {
     setExercises([]);
     setWorkoutName("");
     setTemplateName(null);
+    setTemplateId(null);
     setRestByExercise({});
     setShowSummary(false);
     setShowDiscardConfirm(false);
     router.push("/");
   }
 
-  function addExercise(nameOverride?: string) {
-    const trimmed = (nameOverride ?? exerciseName).trim();
+  function repeatLastWorkoutFromHistory() {
+    if (!lastLoggedWorkout || typeof window === "undefined") return;
+    const exercisesFromLast = (lastLoggedWorkout.exercises ?? []).map((ex) => ({
+      ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
+      name: ex.name,
+      targetSets: Math.max(1, ex.sets?.length ?? 3),
+      restSec: typeof ex.restSec === "number" ? ex.restSec : 90,
+    }));
+    sessionStorage.setItem(
+      TEMPLATE_FOR_WORKOUT_KEY,
+      JSON.stringify({
+        templateName: `${workoutDisplayName(lastLoggedWorkout)} (Repeat)`,
+        exercises: exercisesFromLast,
+      })
+    );
+    window.location.reload();
+  }
+
+  function addExercise(selection?: ExercisePickerValue, forceCustom = false) {
+    const trimmed = (selection?.name ?? exerciseName).trim();
     if (!trimmed) {
       addExerciseInputRef.current?.focus();
       return;
     }
 
+    const selectedFromPicker =
+      !forceCustom && selection?.exerciseId
+        ? { id: selection.exerciseId, name: selection.name }
+        : null;
+    const matched = forceCustom ? null : selectedFromPicker ?? getExerciseByName(trimmed);
+
     const newExercise = {
       id: Date.now(),
-      name: trimmed,
+      ...(matched ? { exerciseId: matched.id } : {}),
+      name: matched?.name ?? trimmed,
       sets: [],
       restSec: 90,
     };
+    console.log("[workout] selected exerciseId:", newExercise.exerciseId ?? null, "name:", newExercise.name);
 
     setExercises((prev) => [...prev, newExercise]);
     setExerciseName("");
@@ -735,6 +919,28 @@ export default function WorkoutPage() {
     );
   }
 
+  function updateSetRir(exerciseId: number, setIndex: number, raw: string) {
+    setExercises((prev) =>
+      prev.map((exercise) => {
+        if (exercise.id !== exerciseId) return exercise;
+        const sets = [...exercise.sets];
+        while (sets.length <= setIndex) sets.push({ weight: "", reps: "", done: false, notes: "" });
+        const cur = sets[setIndex];
+        const trimmed = raw.trim();
+        if (trimmed === "") {
+          const { rir: _drop, ...rest } = cur;
+          sets[setIndex] = rest;
+          return { ...exercise, sets };
+        }
+        const n = Number.parseInt(trimmed, 10);
+        if (!Number.isFinite(n)) return { ...exercise, sets };
+        const clamped = Math.max(0, Math.min(5, n));
+        sets[setIndex] = { ...cur, rir: clamped };
+        return { ...exercise, sets };
+      })
+    );
+  }
+
   function updateSetNotes(exerciseId: number, setIndex: number, value: string) {
     setExercises((prev) =>
       prev.map((exercise) => {
@@ -766,7 +972,14 @@ export default function WorkoutPage() {
       const current = ex.sets[setIndex];
       const willBeDone = !Boolean(current?.done);
       if (willBeDone) {
-        startExerciseRest(exerciseId, ex.restSec ?? 90);
+        const isFinalPlannedSet =
+          (typeof ex.targetSets === "number" && ex.targetSets > 0 && setIndex >= ex.targetSets - 1) ||
+          setIndex >= ex.sets.length - 1;
+        if (!isFinalPlannedSet) {
+          startExerciseRest(exerciseId, ex.restSec ?? 90);
+        } else {
+          resetExerciseRest(exerciseId);
+        }
         // If planned sets exist and we just completed the last logged set, auto-create the next slot.
         if (ex.targetSets && ex.sets.length < ex.targetSets && setIndex === ex.sets.length - 1) {
           setExercises((prev) =>
@@ -858,6 +1071,37 @@ export default function WorkoutPage() {
           </div>
         </header>
 
+        <section className="mb-5 rounded-2xl border border-teal-950/40 bg-zinc-900/85 p-4">
+          <p className="label-section mb-2">Workout Hub</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Link
+              href="/templates"
+              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-sm font-semibold text-app-secondary transition hover:text-white hover:border-teal-500/30"
+            >
+              Routines / Templates
+            </Link>
+            <Link
+              href="/history"
+              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-sm font-semibold text-app-secondary transition hover:text-white hover:border-teal-500/30"
+            >
+              Workout History
+            </Link>
+            <button
+              type="button"
+              onClick={repeatLastWorkoutFromHistory}
+              disabled={!lastLoggedWorkout}
+              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-sm font-semibold text-app-secondary transition hover:text-white hover:border-teal-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Repeat Last Workout
+            </button>
+          </div>
+          {lastLoggedWorkout && (
+            <p className="mt-2 text-xs text-app-meta">
+              Last session: {workoutDisplayName(lastLoggedWorkout)}
+            </p>
+          )}
+        </section>
+
         {exercises.length === 0 ? (
           <div className="min-h-[min(62vh,460px)] flex items-center justify-center px-2 lg:items-start lg:pt-10">
             <div className="w-full max-w-md rounded-3xl border border-teal-950/40 bg-gradient-to-br from-zinc-900/95 to-teal-950/25 shadow-md shadow-black/35 p-6 sm:p-7">
@@ -871,17 +1115,16 @@ export default function WorkoutPage() {
               </div>
 
               <div className="space-y-3">
-                <input
-                  ref={addExerciseInputRef}
-                  placeholder="Exercise name"
+                <ExercisePicker
                   value={exerciseName}
-                  onChange={(e) => setExerciseName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
-                    addExercise((e.target as HTMLInputElement).value);
-                  }}
-                  className="input-app w-full p-3 text-base shadow-sm shadow-black/10"
+                  onValueChange={setExerciseName}
+                  onSelect={(exercise) => addExercise(exercise)}
+                  inputRef={addExerciseInputRef}
+                  placeholder="Exercise name"
+                  inputClassName="input-app w-full p-3 text-base shadow-sm shadow-black/10"
+                  dropdownClassName="rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
+                  customOptionLabel="Add custom exercise"
+                  noMatchText="No matches. Use custom exercise."
                 />
                 <button
                   type="button"
@@ -889,6 +1132,13 @@ export default function WorkoutPage() {
                   className="w-full py-4 rounded-2xl btn-primary text-base"
                 >
                   + Add Exercise
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addExercise(undefined, true)}
+                  className="w-full py-3 rounded-2xl border border-teal-900/40 bg-zinc-900/70 text-sm text-app-secondary hover:text-white hover:border-teal-500/30 transition"
+                >
+                  + Add custom exercise
                 </button>
                 <p className="text-xs text-app-meta text-center pt-1">
                   Tip: press Enter to add quickly.
@@ -935,7 +1185,10 @@ export default function WorkoutPage() {
 
                   <div className="mt-3 pt-3 border-t border-teal-900/30">
                     {(() => {
-                      const lastSets = getLastSetsForExercise(exercise.name);
+                      const lastSets = getLastSetsForExercise({
+                        exerciseId: exercise.exerciseId,
+                        name: exercise.name,
+                      });
                       const hasTargetSets =
                         exercise.targetSets != null && exercise.targetSets > 0;
                       const planned = hasTargetSets ? exercise.targetSets! : 0;
@@ -975,7 +1228,7 @@ export default function WorkoutPage() {
                                         </div>
                                       )}
                                       <div
-                                        className={`grid grid-cols-[58px_1fr_1fr_66px] sm:grid-cols-[64px_1fr_1fr_72px] gap-2 items-center rounded-xl ${
+                                        className={`grid grid-cols-[58px_minmax(0,1fr)_minmax(0,1fr)_3.25rem_66px] sm:grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)_3.5rem_72px] gap-2 items-center rounded-xl ${
                                           isNext ? "ring-1 ring-[color:var(--color-accent)]/40 bg-zinc-950/20" : ""
                                         } ${isDone ? "opacity-60" : ""} ${isEditable ? "cursor-text" : ""}`}
                                         role={isEditable ? "button" : undefined}
@@ -1048,9 +1301,9 @@ export default function WorkoutPage() {
                                     onKeyDown={(e) => {
                                       if (e.key !== "Enter") return;
                                       e.preventDefault();
-                                      const repsKey = `${exercise.id}-${index}-reps`;
-                                      setInputRefs.current[repsKey]?.focus();
-                                      setInputRefs.current[repsKey]?.select?.();
+                                      const rirKey = `${exercise.id}-${index}-rir`;
+                                      setInputRefs.current[rirKey]?.focus();
+                                      setInputRefs.current[rirKey]?.select?.();
                                     }}
                                     disabled={!isEditable}
                                     aria-label={`Set ${index + 1} weight (${unit})`}
@@ -1060,7 +1313,7 @@ export default function WorkoutPage() {
                                     ref={(el) => {
                                       setInputRefs.current[`${exercise.id}-${index}-reps`] = el;
                                     }}
-                                    type="text"
+                                    type="number"
                                     inputMode="numeric"
                                     enterKeyHint={index === exercise.sets.length - 1 ? "done" : "next"}
                                     autoComplete="off"
@@ -1076,7 +1329,30 @@ export default function WorkoutPage() {
                                     onKeyDown={(e) => {
                                       if (e.key !== "Enter") return;
                                       e.preventDefault();
-                                      // If this is the last editable row, add another set for fast logging.
+                                      const rirKey = `${exercise.id}-${index}-rir`;
+                                      setInputRefs.current[rirKey]?.focus();
+                                      setInputRefs.current[rirKey]?.select?.();
+                                    }}
+                                    disabled={!isEditable}
+                                    aria-label={`Set ${index + 1} reps`}
+                                    className="input-app w-full h-11 px-3 text-sm disabled:opacity-60 disabled:cursor-not-allowed tabular-nums"
+                                  />
+                                  <input
+                                    ref={(el) => {
+                                      setInputRefs.current[`${exercise.id}-${index}-rir`] = el;
+                                    }}
+                                    type="number"
+                                    min={0}
+                                    max={5}
+                                    step={1}
+                                    enterKeyHint={index === exercise.sets.length - 1 ? "done" : "next"}
+                                    autoComplete="off"
+                                    placeholder="RIR"
+                                    value={set?.rir === undefined ? "" : set.rir}
+                                    onChange={(e) => updateSetRir(exercise.id, index, e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key !== "Enter") return;
+                                      e.preventDefault();
                                       if (index === exercise.sets.length - 1) {
                                         addSetRow(exercise.id);
                                         return;
@@ -1086,8 +1362,8 @@ export default function WorkoutPage() {
                                       setInputRefs.current[nextWeightKey]?.select?.();
                                     }}
                                     disabled={!isEditable}
-                                    aria-label={`Set ${index + 1} reps`}
-                                    className="input-app w-full h-11 px-3 text-sm disabled:opacity-60 disabled:cursor-not-allowed tabular-nums"
+                                    aria-label={`Set ${index + 1} RIR (reps in reserve)`}
+                                    className="input-app w-full h-11 px-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed tabular-nums"
                                   />
                                   <div className="flex justify-end">
                                     {isEditable ? (
@@ -1097,7 +1373,7 @@ export default function WorkoutPage() {
                                           e.stopPropagation();
                                           deleteSet(exercise.id, index);
                                         }}
-                                        className="h-11 px-3 rounded-xl border border-teal-900/40 text-xs text-app-secondary hover:bg-teal-950/30 transition"
+                                        className="h-11 px-2 rounded-xl border border-teal-900/20 text-[11px] text-app-meta hover:bg-teal-950/20 transition"
                                       >
                                         Delete
                                       </button>
@@ -1140,7 +1416,7 @@ export default function WorkoutPage() {
                                                 e.stopPropagation();
                                                 setExpandedNoteKey(noteKey);
                                               }}
-                                              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                                              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition ${
                                                 hasNote
                                                   ? "border-[color:var(--color-accent)]/50 bg-[color:var(--color-accent)]/12 text-teal-200/95 hover:bg-[color:var(--color-accent)]/18"
                                                   : "border-teal-500/40 text-teal-100 hover:bg-teal-950/40"
@@ -1242,44 +1518,29 @@ export default function WorkoutPage() {
                                         Start
                                       </button>
                                     )}
-
-                                    <details className="relative">
-                                      <summary className="list-none cursor-pointer select-none text-xs px-2.5 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 hover:text-white transition">
-                                        Rest options
-                                      </summary>
-                                      <div className="absolute right-0 mt-2 w-56 rounded-xl bg-zinc-950 border border-teal-900/50 shadow-xl p-2 z-10">
-                                        <div className="flex flex-wrap gap-2 p-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => adjustExerciseRest(exercise.id, -15)}
-                                            className="text-xs px-2 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 transition"
-                                          >
-                                            −15s
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => adjustExerciseRest(exercise.id, 15)}
-                                            className="text-xs px-2 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 transition"
-                                          >
-                                            +15s
-                                          </button>
-                                          {[60, 90, 120, 180].map((s) => (
-                                            <button
-                                              key={s}
-                                              type="button"
-                                              onClick={() => {
-                                                setExerciseRest(exercise.id, s);
-                                                startExerciseRest(exercise.id, s);
-                                              }}
-                                              className="text-xs px-2 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 transition"
-                                            >
-                                              {s / 60}m
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </details>
                                   </div>
+                                </div>
+
+                                <div className="rounded-xl border border-teal-900/30 bg-zinc-900/60 px-3 py-2">
+                                  <div className="flex items-center justify-between text-[11px] text-app-meta mb-1">
+                                    <span>Rest duration</span>
+                                    <span className="tabular-nums">{rest}s</span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={300}
+                                    step={15}
+                                    value={rest}
+                                    onChange={(e) =>
+                                      setExerciseRest(
+                                        exercise.id,
+                                        Math.max(0, Math.min(300, Number(e.target.value) || 0))
+                                      )
+                                    }
+                                    className="w-full accent-teal-400"
+                                    aria-label={`Rest duration for ${exercise.name}`}
+                                  />
                                 </div>
 
                                 <button
@@ -1302,24 +1563,32 @@ export default function WorkoutPage() {
             <section className="mt-8 mb-4 p-4 rounded-2xl border border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/20 shadow-sm shadow-black/20">
               <label className="label-section block mb-2">Add another exercise</label>
               <div className="flex gap-2">
-                <input
-                  ref={addExerciseInputRef}
-                  placeholder="Exercise name"
-                  value={exerciseName}
-                  onChange={(e) => setExerciseName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
-                    addExercise((e.target as HTMLInputElement).value);
-                  }}
-                  className="input-app flex-1 min-w-0 p-3 text-base"
-                />
+                <div className="flex-1 min-w-0">
+                  <ExercisePicker
+                    value={exerciseName}
+                    onValueChange={setExerciseName}
+                    onSelect={(exercise) => addExercise(exercise)}
+                    inputRef={addExerciseInputRef}
+                    placeholder="Exercise name"
+                    inputClassName="input-app flex-1 min-w-0 p-3 text-base"
+                    dropdownClassName="mt-2 rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
+                    customOptionLabel="Add custom exercise"
+                    noMatchText="No matches. Use custom exercise."
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => addExercise()}
                   className="shrink-0 px-4 py-3 rounded-xl btn-primary"
                 >
                   Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addExercise(undefined, true)}
+                  className="shrink-0 px-4 py-3 rounded-xl border border-teal-900/40 bg-zinc-900/70 text-sm text-app-secondary hover:text-white hover:border-teal-500/30 transition"
+                >
+                  Custom
                 </button>
               </div>
             </section>
@@ -1396,6 +1665,15 @@ export default function WorkoutPage() {
                   >
                     {routineSaved ? "Routine Saved" : "Save as Routine"}
                   </button>
+                  {templateId && (
+                    <button
+                      onClick={overwriteTemplateFromSession}
+                      disabled={exercises.length === 0}
+                      className="w-full py-3 rounded-xl font-semibold border border-teal-900/50 text-app-secondary hover:bg-teal-950/40 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Update Existing Template
+                    </button>
+                  )}
                   <button
                     onClick={() => router.push("/")}
                     className="w-full py-3 rounded-xl btn-primary"

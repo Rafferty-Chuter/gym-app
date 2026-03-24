@@ -4,38 +4,61 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUnit } from "@/lib/unit-preference";
+import { getExerciseByName } from "@/lib/exerciseLibrary";
+import ExercisePicker, { type ExercisePickerValue } from "@/components/ExercisePicker";
 
 const STORAGE_KEY = "workoutTemplates";
 
 export type TemplateExercise = {
+  exerciseId?: string;
   name: string;
   targetSets: number;
   restSec?: number;
 };
 
 type WorkoutTemplate = {
+  id: string;
   name: string;
   exercises: TemplateExercise[];
 };
 
-function normalizeTemplate(t: { name: string; exercises: unknown[] }): WorkoutTemplate {
+function normalizeTemplate(t: { id?: string; name: string; exercises: unknown[] }, index: number): WorkoutTemplate {
+  const fallbackId = `tpl_${index}_${String(t.name ?? "template")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")}`;
   return {
+    id: typeof t.id === "string" && t.id.trim() ? t.id.trim() : fallbackId,
     name: t.name,
-    exercises: t.exercises.map((ex) =>
-      typeof ex === "string"
-        ? { name: ex, targetSets: 3 }
-        : typeof ex === "object" && ex !== null && "name" in ex
-          ? {
-              name: String((ex as { name: unknown }).name),
-              targetSets: Math.max(1, Number((ex as { targetSets?: unknown }).targetSets) || 3),
-              restSec:
-                (ex as { restSec?: unknown }).restSec != null &&
-                Number.isFinite(Number((ex as { restSec?: unknown }).restSec))
-                  ? Math.max(0, Math.min(600, Number((ex as { restSec?: unknown }).restSec)))
-                  : undefined,
-            }
-          : { name: "Exercise", targetSets: 3 }
-    ),
+    exercises: t.exercises.map((ex) => {
+      if (typeof ex === "string") {
+        const byName = getExerciseByName(ex);
+        return {
+          ...(byName ? { exerciseId: byName.id } : {}),
+          name: byName?.name ?? ex,
+          targetSets: 3,
+        };
+      }
+      if (typeof ex === "object" && ex !== null && "name" in ex) {
+        const rawName = String((ex as { name: unknown }).name);
+        const rawId =
+          "exerciseId" in ex && typeof (ex as { exerciseId?: unknown }).exerciseId === "string"
+            ? ((ex as { exerciseId?: string }).exerciseId ?? "").trim()
+            : "";
+        const byName = getExerciseByName(rawName);
+        return {
+          ...(rawId || byName?.id ? { exerciseId: rawId || byName?.id } : {}),
+          name: byName?.name ?? rawName,
+          targetSets: Math.max(1, Number((ex as { targetSets?: unknown }).targetSets) || 3),
+          restSec:
+            (ex as { restSec?: unknown }).restSec != null &&
+            Number.isFinite(Number((ex as { restSec?: unknown }).restSec))
+              ? Math.max(0, Math.min(600, Number((ex as { restSec?: unknown }).restSec)))
+              : undefined,
+        };
+      }
+      return { name: "Exercise", targetSets: 3 };
+    }),
   };
 }
 
@@ -46,7 +69,7 @@ function getStoredTemplates(): WorkoutTemplate[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeTemplate);
+    return parsed.map((template, index) => normalizeTemplate(template, index));
   } catch {
     return [];
   }
@@ -60,6 +83,7 @@ function saveTemplatesToStorage(templates: WorkoutTemplate[]) {
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 
 export default function TemplatesPage() {
+  const [showCreateSection, setShowCreateSection] = useState(false);
   const router = useRouter();
   const { unit, setUnit } = useUnit();
   const [templateName, setTemplateName] = useState("");
@@ -78,6 +102,7 @@ export default function TemplatesPage() {
     templateIndex: number;
     exerciseIndex: number;
     name: string;
+    exerciseId?: string;
     targetSets: number;
     restSecInput: string;
   } | null>(null);
@@ -86,7 +111,7 @@ export default function TemplatesPage() {
     if (typeof window === "undefined") return;
     sessionStorage.setItem(
       TEMPLATE_FOR_WORKOUT_KEY,
-      JSON.stringify({ templateName: template.name, exercises: template.exercises })
+      JSON.stringify({ templateId: template.id, templateName: template.name, exercises: template.exercises })
     );
     router.push("/workout");
   }
@@ -100,15 +125,44 @@ export default function TemplatesPage() {
     setSavedTemplates(getStoredTemplates());
   }, []);
 
-  function addExercise() {
-    const trimmed = exerciseInput.trim();
+  function addExercise(selection?: ExercisePickerValue, forceCustom = false) {
+    const trimmed = (selection?.name ?? exerciseInput).trim();
     if (!trimmed) return;
+    const selectedFromPicker =
+      !forceCustom && selection?.exerciseId
+        ? { id: selection.exerciseId, name: selection.name }
+        : null;
+    const matched = forceCustom ? null : selectedFromPicker ?? getExerciseByName(trimmed);
     const sets = Math.max(1, Math.min(20, exerciseSetsInput));
     const restSec = Math.max(0, Math.min(600, parseInt(restSecInput, 10) || 0));
-    setExercises((prev) => [...prev, { name: trimmed, targetSets: sets, ...(restSec > 0 ? { restSec } : {}) }]);
+    setExercises((prev) => [
+      ...prev,
+      {
+        ...(matched ? { exerciseId: matched.id } : {}),
+        name: matched?.name ?? trimmed,
+        targetSets: sets,
+        ...(restSec > 0 ? { restSec } : {}),
+      },
+    ]);
     setExerciseInput("");
     setExerciseSetsInput(3);
     setRestSecInput("90");
+  }
+
+  function addExerciseFromPicker(selection: ExercisePickerValue) {
+    addExercise(selection, !selection.exerciseId);
+  }
+
+  function moveCreateExercise(index: number, direction: "up" | "down") {
+    setExercises((prev) => {
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[target];
+      next[target] = temp;
+      return next;
+    });
   }
 
   function saveTemplate() {
@@ -116,6 +170,7 @@ export default function TemplatesPage() {
     if (!name) return;
 
     const newTemplate: WorkoutTemplate = {
+      id: `tpl_${Date.now()}`,
       name,
       exercises: [...exercises],
     };
@@ -202,12 +257,38 @@ export default function TemplatesPage() {
     applyTemplates(updated);
   }
 
-  function addExerciseToTemplate(templateIndex: number) {
+  function moveExerciseInTemplate(templateIndex: number, exerciseIndex: number, direction: "up" | "down") {
+    const move = (list: TemplateExercise[]) => {
+      const next = [...list];
+      const target = direction === "up" ? exerciseIndex - 1 : exerciseIndex + 1;
+      if (target < 0 || target >= next.length) return next;
+      const temp = next[exerciseIndex];
+      next[exerciseIndex] = next[target];
+      next[target] = temp;
+      return next;
+    };
+    if (editingTemplateDraft && editingTemplateIndex === templateIndex) {
+      setEditingTemplateDraft((prev) => (prev ? { ...prev, exercises: move(prev.exercises) } : null));
+      return;
+    }
+    const updated = savedTemplates.map((t, i) =>
+      i === templateIndex ? { ...t, exercises: move(t.exercises) } : t
+    );
+    applyTemplates(updated);
+  }
+
+  function addExerciseToTemplate(templateIndex: number, forceCustom = false) {
     const value = (addExercisePerTemplate[templateIndex] ?? "").trim();
     if (!value) return;
     const sets = Math.max(1, Math.min(20, addExerciseSetsPerTemplate[templateIndex] ?? 3));
     const restSecVal = Math.max(0, Math.min(600, parseInt(addExerciseRestSecPerTemplate[templateIndex] ?? "90", 10) || 0));
-    const newEx: TemplateExercise = { name: value, targetSets: sets, ...(restSecVal > 0 ? { restSec: restSecVal } : {}) };
+    const matched = forceCustom ? null : getExerciseByName(value);
+    const newEx: TemplateExercise = {
+      ...(matched ? { exerciseId: matched.id } : {}),
+      name: matched?.name ?? value,
+      targetSets: sets,
+      ...(restSecVal > 0 ? { restSec: restSecVal } : {}),
+    };
     if (editingTemplateDraft && editingTemplateIndex === templateIndex) {
       setEditingTemplateDraft((prev) => (prev ? { ...prev, exercises: [...prev.exercises, newEx] } : null));
       setAddExercisePerTemplate((prev) => ({ ...prev, [templateIndex]: "" }));
@@ -237,6 +318,7 @@ export default function TemplatesPage() {
       templateIndex,
       exerciseIndex,
       name: ex.name,
+      exerciseId: ex.exerciseId,
       targetSets: ex.targetSets,
       restSecInput: ex.restSec != null ? String(ex.restSec) : "",
     });
@@ -244,15 +326,21 @@ export default function TemplatesPage() {
 
   function saveEditExercise() {
     if (!editingExercise) return;
-    const { templateIndex, exerciseIndex, name, targetSets, restSecInput } = editingExercise;
+    const { templateIndex, exerciseIndex, name, exerciseId, targetSets, restSecInput } = editingExercise;
     const trimmed = name.trim();
     if (!trimmed) {
       setEditingExercise(null);
       return;
     }
+    const matched = exerciseId ? null : getExerciseByName(trimmed);
     const sets = Math.max(1, Math.min(20, targetSets));
     const restSec = Math.max(0, Math.min(600, parseInt(restSecInput, 10) || 0));
-    const updatedEx: TemplateExercise = { name: trimmed, targetSets: sets, ...(restSec > 0 ? { restSec } : {}) };
+    const updatedEx: TemplateExercise = {
+      ...(exerciseId || matched?.id ? { exerciseId: exerciseId ?? matched?.id } : {}),
+      name: matched?.name ?? trimmed,
+      targetSets: sets,
+      ...(restSec > 0 ? { restSec } : {}),
+    };
     if (editingTemplateDraft && editingTemplateIndex === templateIndex) {
       setEditingTemplateDraft((prev) => {
         if (!prev) return null;
@@ -275,6 +363,18 @@ export default function TemplatesPage() {
     );
     applyTemplates(updated);
     setEditingExercise(null);
+  }
+
+  function setEditingExerciseFromPicker(selection: ExercisePickerValue) {
+    setEditingExercise((p) =>
+      p
+        ? {
+            ...p,
+            name: selection.name,
+            exerciseId: selection.exerciseId,
+          }
+        : p
+    );
   }
 
   return (
@@ -301,6 +401,23 @@ export default function TemplatesPage() {
           </div>
         </div>
 
+        <section className="mb-6 p-4 rounded-2xl border border-teal-950/40 bg-zinc-900/70">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-white font-semibold">Template blueprints</p>
+              <p className="text-xs text-app-meta">Create or manage reusable workout blueprints.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCreateSection((prev) => !prev)}
+              className="px-4 py-2 rounded-xl btn-primary text-sm"
+            >
+              {showCreateSection ? "Hide Create" : "Create New Template"}
+            </button>
+          </div>
+        </section>
+
+        {showCreateSection && (
         <section className="mb-8 space-y-4">
           <div>
             <label className="label-section block mb-1.5">Template name</label>
@@ -316,48 +433,61 @@ export default function TemplatesPage() {
           <div>
             <label className="label-section block mb-1.5">Add exercise</label>
             <div className="flex gap-2 flex-wrap">
-              <input
-                type="text"
-                value={exerciseInput}
-                onChange={(e) => setExerciseInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addExercise()}
-                placeholder="Exercise name"
-                className="input-app flex-1 min-w-[140px] p-3"
-              />
+              <div className="flex-1 min-w-[140px]">
+                <ExercisePicker
+                  value={exerciseInput}
+                  onValueChange={setExerciseInput}
+                  onSelect={addExerciseFromPicker}
+                  placeholder="Exercise name"
+                  inputClassName="input-app flex-1 min-w-[140px] p-3"
+                  dropdownClassName="mt-2 rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
+                  customOptionLabel="Add custom exercise"
+                  noMatchText="No matches. Use custom exercise."
+                />
+              </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm text-app-tertiary">Sets</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={exerciseSetsInput}
-                  onChange={(e) => setExerciseSetsInput(Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 3)))}
-                  className="input-app w-14 p-3"
-                />
+                <div className="w-28">
+                  <input
+                    type="range"
+                    min={1}
+                    max={20}
+                    step={1}
+                    value={exerciseSetsInput}
+                    onChange={(e) => setExerciseSetsInput(Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 3)))}
+                    className="w-full accent-teal-400"
+                    aria-label="Template sets slider"
+                  />
+                  <p className="text-[11px] text-app-meta text-center">{exerciseSetsInput}</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm text-app-tertiary">Rest</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={600}
-                  placeholder="0"
-                  value={restSecInput}
-                  onChange={(e) => setRestSecInput(e.target.value)}
-                  onBlur={() => {
-                    const n = parseInt(restSecInput, 10);
-                    if (!Number.isNaN(n) && n >= 0 && n <= 600) setRestSecInput(String(n));
-                    else if (restSecInput.trim() === "") setRestSecInput("");
-                  }}
-                  className="input-app w-16 p-3 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <span className="text-sm text-app-meta">s (0 = no rest)</span>
+                <div className="w-32">
+                  <input
+                    type="range"
+                    min={0}
+                    max={300}
+                    step={15}
+                    value={Math.max(0, Math.min(300, parseInt(restSecInput, 10) || 0))}
+                    onChange={(e) => setRestSecInput(String(parseInt(e.target.value, 10) || 0))}
+                    className="w-full accent-teal-400"
+                    aria-label="Template rest slider"
+                  />
+                  <p className="text-[11px] text-app-meta text-center">{Math.max(0, Math.min(300, parseInt(restSecInput, 10) || 0))}s</p>
+                </div>
               </div>
               <button
-                onClick={addExercise}
+                onClick={() => addExercise()}
                 className="px-4 py-3 rounded-xl btn-primary"
               >
                 Add
+              </button>
+              <button
+                onClick={() => addExercise(undefined, true)}
+                className="px-4 py-3 rounded-xl border border-teal-900/40 bg-zinc-900/70 text-sm text-app-secondary hover:text-white hover:border-teal-500/30 transition"
+              >
+                Custom
               </button>
             </div>
           </div>
@@ -367,9 +497,29 @@ export default function TemplatesPage() {
               <p className="label-section mb-2">Exercises in this template</p>
               <ul className="space-y-1 p-4 rounded-2xl border border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/25">
                 {exercises.map((ex, i) => (
-                  <li key={i} className="text-app-secondary text-sm">
-                    {i + 1}. <span className="text-white font-medium">{ex.name}</span> — {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""}{" "}
-                    <span className="text-app-meta">• {ex.restSec != null && ex.restSec > 0 ? `${ex.restSec}s rest` : "no rest"}</span>
+                  <li key={i} className="text-app-secondary text-sm flex items-center justify-between gap-2">
+                    <span>
+                      {i + 1}. <span className="text-white font-medium">{ex.name}</span> — {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""}{" "}
+                      <span className="text-app-meta">• {ex.restSec != null && ex.restSec > 0 ? `${ex.restSec}s rest` : "no rest"}</span>
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => moveCreateExercise(i, "up")}
+                        className="text-[11px] px-2 py-1 rounded-lg border border-teal-900/40 text-app-meta hover:text-white hover:bg-teal-950/30 transition"
+                        aria-label="Move up"
+                      >
+                        Up
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveCreateExercise(i, "down")}
+                        className="text-[11px] px-2 py-1 rounded-lg border border-teal-900/40 text-app-meta hover:text-white hover:bg-teal-950/30 transition"
+                        aria-label="Move down"
+                      >
+                        Down
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -384,6 +534,7 @@ export default function TemplatesPage() {
             Save Template
           </button>
         </section>
+        )}
 
         {savedTemplates.length > 0 && (
           <section>
@@ -393,7 +544,7 @@ export default function TemplatesPage() {
                 const isEditMode = editingTemplateIndex === index && editingTemplateDraft;
                 const data = isEditMode ? editingTemplateDraft! : template;
                 return (
-                <li key={index} className="card-app">
+                <li key={data.id} className="card-app">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     {isEditMode ? (
                       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -440,7 +591,7 @@ export default function TemplatesPage() {
                       <div className="min-w-0">
                         <h3 className="font-bold text-white truncate">{template.name}</h3>
                         <p className="text-xs text-app-meta mt-0.5">
-                          {template.exercises.length} exercise{template.exercises.length !== 1 ? "s" : ""}
+                          {template.exercises.length} exercise{template.exercises.length !== 1 ? "s" : ""} · ordered blueprint
                         </p>
                       </div>
                     )}
@@ -494,49 +645,56 @@ export default function TemplatesPage() {
                       return (
                         <li key={i} className="flex items-center justify-between gap-2 flex-wrap">
                           {isEditing ? (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <input
-                                type="text"
-                                value={editingExercise.name}
-                                onChange={(e) =>
-                                  setEditingExercise((p) => p && { ...p, name: e.target.value })
-                                }
-                                className="input-app flex-1 min-w-[100px] p-2 text-sm"
-                              />
-                              <input
-                                type="number"
-                                min={1}
-                                max={20}
-                                value={editingExercise.targetSets}
-                                onChange={(e) =>
-                                  setEditingExercise((p) =>
-                                    p && { ...p, targetSets: Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 3)) }
-                                  )
-                                }
-                                className="input-app w-12 p-2 text-sm"
-                              />
-                              <span className="text-app-meta text-xs">sets</span>
+                            <div className="flex items-center gap-2 flex-wrap w-full">
+                              <div className="flex-1 min-w-[100px]">
+                                <ExercisePicker
+                                  value={editingExercise.name}
+                                  onValueChange={(name) =>
+                                    setEditingExercise((p) =>
+                                      p ? { ...p, name, exerciseId: undefined } : p
+                                    )
+                                  }
+                                  onSelect={setEditingExerciseFromPicker}
+                                  placeholder="Exercise name"
+                                  inputClassName="input-app flex-1 min-w-[100px] p-2 text-sm"
+                                  dropdownClassName="mt-2 rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
+                                  customOptionLabel="Use custom exercise"
+                                  noMatchText="No matches. Use custom exercise."
+                                />
+                              </div>
+                              <div className="w-24">
+                                <input
+                                  type="range"
+                                  min={1}
+                                  max={20}
+                                  step={1}
+                                  value={editingExercise.targetSets}
+                                  onChange={(e) =>
+                                    setEditingExercise((p) =>
+                                      p && { ...p, targetSets: Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 3)) }
+                                    )
+                                  }
+                                  className="w-full accent-teal-400"
+                                />
+                                <p className="text-[11px] text-app-meta text-center">{editingExercise.targetSets} sets</p>
+                              </div>
                               <label className="text-app-meta text-xs">Rest</label>
-                              <input
-                                type="number"
-                                min={0}
-                                max={600}
-                                placeholder="0"
-                                value={editingExercise.restSecInput}
-                                onChange={(e) =>
-                                  setEditingExercise((p) => p ? { ...p, restSecInput: e.target.value } : null)
-                                }
-                                onBlur={() =>
-                                  setEditingExercise((p) => {
-                                    if (!p) return p;
-                                    const n = parseInt(p.restSecInput, 10);
-                                    const normalized = !Number.isNaN(n) && n >= 0 && n <= 600 ? String(n) : p.restSecInput.trim() === "" ? "" : p.restSecInput;
-                                    return normalized !== p.restSecInput ? { ...p, restSecInput: normalized } : p;
-                                  })
-                                }
-                                className="input-app w-14 p-2 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              />
-                              <span className="text-app-meta text-xs">s</span>
+                              <div className="w-24">
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={300}
+                                  step={15}
+                                  value={Math.max(0, Math.min(300, parseInt(editingExercise.restSecInput, 10) || 0))}
+                                  onChange={(e) =>
+                                    setEditingExercise((p) => p ? { ...p, restSecInput: String(parseInt(e.target.value, 10) || 0) } : null)
+                                  }
+                                  className="w-full accent-teal-400"
+                                />
+                                <p className="text-[11px] text-app-meta text-center">
+                                  {Math.max(0, Math.min(300, parseInt(editingExercise.restSecInput, 10) || 0))}s
+                                </p>
+                              </div>
                               <button
                                 onClick={saveEditExercise}
                                 className="text-xs px-2 py-1 rounded-lg btn-primary"
@@ -572,6 +730,20 @@ export default function TemplatesPage() {
                                   </button>
                                   <button
                                     type="button"
+                                    onClick={() => moveExerciseInTemplate(index, i, "up")}
+                                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-teal-950/30 transition text-app-secondary"
+                                  >
+                                    Move Up
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveExerciseInTemplate(index, i, "down")}
+                                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-teal-950/30 transition text-app-secondary"
+                                  >
+                                    Move Down
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => removeExerciseFromTemplate(index, i)}
                                     className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-red-900/30 transition text-red-300"
                                   >
@@ -587,63 +759,81 @@ export default function TemplatesPage() {
                   </ul>
 
                   <div className="flex gap-2 flex-wrap items-center">
-                    <input
-                      type="text"
-                      value={addExercisePerTemplate[index] ?? ""}
-                      onChange={(e) =>
-                        setAddExercisePerTemplate((prev) => ({
-                          ...prev,
-                          [index]: e.target.value,
-                        }))
-                      }
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && addExerciseToTemplate(index)
-                      }
-                      placeholder="Add exercise"
-                      className="input-app flex-1 min-w-[120px] p-2 text-sm"
-                    />
-                    <div className="flex items-center gap-1">
-                      <label className="text-xs text-app-meta">Sets</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={addExerciseSetsPerTemplate[index] ?? 3}
-                        onChange={(e) =>
-                          setAddExerciseSetsPerTemplate((prev) => ({
-                            ...prev,
-                            [index]: Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 3)),
-                          }))
+                    <div className="flex-1 min-w-[120px]">
+                      <ExercisePicker
+                        value={addExercisePerTemplate[index] ?? ""}
+                        onValueChange={(name) =>
+                          setAddExercisePerTemplate((prev) => ({ ...prev, [index]: name }))
                         }
-                        className="input-app w-12 p-2 text-sm"
+                        onSelect={(selection) =>
+                          setAddExercisePerTemplate((prev) => ({ ...prev, [index]: selection.name }))
+                        }
+                        placeholder="Add exercise"
+                        inputClassName="input-app flex-1 min-w-[120px] p-2 text-sm"
+                        dropdownClassName="mt-2 rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
+                        customOptionLabel="Use custom exercise"
+                        noMatchText="No matches. Use custom exercise."
                       />
                     </div>
                     <div className="flex items-center gap-1">
+                      <label className="text-xs text-app-meta">Sets</label>
+                      <div className="w-20">
+                        <input
+                          type="range"
+                          min={1}
+                          max={20}
+                          step={1}
+                          value={addExerciseSetsPerTemplate[index] ?? 3}
+                          onChange={(e) =>
+                            setAddExerciseSetsPerTemplate((prev) => ({
+                              ...prev,
+                              [index]: Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 3)),
+                            }))
+                          }
+                          className="w-full accent-teal-400"
+                        />
+                        <p className="text-[11px] text-app-meta text-center">{addExerciseSetsPerTemplate[index] ?? 3}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
                       <label className="text-xs text-app-meta">Rest</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={600}
-                        placeholder="0"
-                        value={addExerciseRestSecPerTemplate[index] ?? "90"}
-                        onChange={(e) =>
-                          setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [index]: e.target.value }))
-                        }
-                        onBlur={() => {
-                          const v = addExerciseRestSecPerTemplate[index] ?? "90";
-                          const n = parseInt(v, 10);
-                          if (!Number.isNaN(n) && n >= 0 && n <= 600) setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [index]: String(n) }));
-                          else if (String(v).trim() === "") setAddExerciseRestSecPerTemplate((prev) => ({ ...prev, [index]: "" }));
-                        }}
-                        className="input-app w-14 p-2 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                      <span className="text-xs text-app-meta">s</span>
+                      <div className="w-20">
+                        <input
+                          type="range"
+                          min={0}
+                          max={300}
+                          step={15}
+                          value={Math.max(
+                            0,
+                            Math.min(300, parseInt(addExerciseRestSecPerTemplate[index] ?? "90", 10) || 0)
+                          )}
+                          onChange={(e) =>
+                            setAddExerciseRestSecPerTemplate((prev) => ({
+                              ...prev,
+                              [index]: String(parseInt(e.target.value, 10) || 0),
+                            }))
+                          }
+                          className="w-full accent-teal-400"
+                        />
+                        <p className="text-[11px] text-app-meta text-center">
+                          {Math.max(
+                            0,
+                            Math.min(300, parseInt(addExerciseRestSecPerTemplate[index] ?? "90", 10) || 0)
+                          )}s
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={() => addExerciseToTemplate(index)}
                       className="text-sm px-3 py-2 rounded-lg btn-primary"
                     >
                       Add
+                    </button>
+                    <button
+                      onClick={() => addExerciseToTemplate(index, true)}
+                      className="text-sm px-3 py-2 rounded-lg border border-teal-900/40 bg-zinc-900/70 text-app-secondary hover:text-white hover:border-teal-500/30 transition"
+                    >
+                      Custom
                     </button>
                   </div>
                 </li>

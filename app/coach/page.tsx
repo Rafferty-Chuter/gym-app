@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getWorkoutHistory, getStats } from "@/lib/trainingAnalysis";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus } from "@/lib/trainingFocus";
@@ -15,8 +16,10 @@ import {
 import { getEvidenceCardsForReferencedIds } from "@/lib/evidenceMapping";
 
 const EMPTY_ANALYSIS = EMPTY_COACH_STRUCTURED_ANALYSIS;
+const COACH_AUTO_ANALYZE_KEY = "coachAutoAnalyze";
 
 export default function CoachPage() {
+  const router = useRouter();
   const { unit, setUnit } = useUnit();
   const { focus } = useTrainingFocus();
   const { experienceLevel } = useExperienceLevel();
@@ -30,6 +33,7 @@ export default function CoachPage() {
   const [isLoading, setIsLoading] = useState(false);
   /** `keyFocus` | `suggestion-${i}` — which evidence block is expanded */
   const [evidenceOpenKey, setEvidenceOpenKey] = useState<string | null>(null);
+  const [coachPrompt, setCoachPrompt] = useState("");
 
   useEffect(() => {
     function refresh() {
@@ -40,6 +44,14 @@ export default function CoachPage() {
     window.addEventListener("workoutHistoryChanged", refresh);
     return () => window.removeEventListener("workoutHistoryChanged", refresh);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const shouldAutoAnalyze = sessionStorage.getItem(COACH_AUTO_ANALYZE_KEY) === "1";
+    if (!shouldAutoAnalyze) return;
+    sessionStorage.removeItem(COACH_AUTO_ANALYZE_KEY);
+    handleAnalyze();
+  }, [focus, experienceLevel, goal, unit]);
 
   async function handleAnalyze() {
     const allWorkouts = getWorkoutHistory();
@@ -60,6 +72,31 @@ export default function CoachPage() {
       setIsLoading(false);
     }
   }
+
+  function askCoach(prompt: string) {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("assistantQuickPrompt", prompt);
+    }
+    router.push("/assistant");
+  }
+
+  const hasRichAnalysis =
+    Boolean(analysis.keyFocus) ||
+    analysis.whatsGoingWell.length > 0 ||
+    analysis.actionableSuggestions.length > 0 ||
+    analysis.volumeBalance.length > 0;
+
+  const summaryPositive =
+    analysis.whatsGoingWell[0] ??
+    `You have logged ${stats.totalWorkouts} sessions so far, which gives the coach a usable training signal.`;
+  const summaryWatch =
+    analysis.volumeBalance[0]?.summary ??
+    analysis.actionableSuggestions[0] ??
+    "Training distribution is still emerging. Keep logging sessions to unlock sharper recommendations.";
+  const summaryNext =
+    analysis.nextSessionAdjustmentPlan?.title ??
+    analysis.actionableSuggestions[0] ??
+    "Run one focused session, then re-open Coach for a clearer next-step recommendation.";
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
@@ -104,25 +141,73 @@ export default function CoachPage() {
           </div>
         </div>
 
-        <section className="card-app mb-6">
-          <h2 className="label-section mb-2">Your stats</h2>
-          <ul className="space-y-2 text-app-secondary text-sm">
-            <li>Total workouts logged: <span className="text-white font-medium">{stats.totalWorkouts}</span></li>
-            <li>Total exercises logged: <span className="text-white font-medium">{stats.totalExercises}</span></li>
-            <li>Total sets logged: <span className="text-white font-medium">{stats.totalSets}</span></li>
-          </ul>
+        <section className="card-app mb-6 border-indigo-900/35 bg-gradient-to-br from-indigo-950/30 via-zinc-900/92 to-violet-950/20">
+          <h2 className="label-section mb-3 text-indigo-200/75">Coach Summary</h2>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/15 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-emerald-200/75">Positive</p>
+              <p className="mt-1 text-sm text-app-secondary">{summaryPositive}</p>
+            </div>
+            <div className="rounded-xl border border-amber-900/35 bg-amber-950/15 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200/75">Watch Item</p>
+              <p className="mt-1 text-sm text-app-secondary">{summaryWatch}</p>
+            </div>
+            <div className="rounded-xl border border-teal-900/35 bg-zinc-900/65 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-teal-200/75">Next Step</p>
+              <p className="mt-1 text-sm text-app-secondary">{summaryNext}</p>
+            </div>
+          </div>
         </section>
 
-        <button
-          onClick={handleAnalyze}
-          disabled={isLoading}
-          className="w-full py-3 rounded-xl btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? "Analyzing…" : "Analyze Recent Training"}
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            onClick={handleAnalyze}
+            disabled={isLoading}
+            className="w-full py-3 rounded-xl btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? "Analyzing…" : "Analyze Recent Training"}
+          </button>
+          <Link
+            href="/assistant"
+            className="w-full py-3 rounded-xl border border-teal-900/35 bg-zinc-900/70 text-sm font-semibold text-app-secondary text-center transition hover:text-white hover:border-teal-500/30"
+          >
+            Ask the Coach
+          </Link>
+        </div>
+
+        {!hasRichAnalysis && !isLoading && (
+          <section className="card-app mt-6 border-teal-900/35 bg-zinc-900/80">
+            <h2 className="label-section mb-2">Coach is ready</h2>
+            <p className="text-sm text-app-secondary">
+              Keep logging workouts and run analysis to get weekly coaching direction, trend insights, and clearer next steps.
+            </p>
+            <p className="mt-2 text-xs text-app-meta">
+              Current signal: {stats.totalWorkouts} workouts · {stats.totalSets} sets logged.
+            </p>
+          </section>
+        )}
 
         <div className="card-app mt-6">
-          <h2 className="text-lg font-bold text-white mb-4">Analysis</h2>
+          <h2 className="text-lg font-bold text-white mb-4">This Week</h2>
+
+          {analysis?.nextSessionAdjustmentPlan && (
+            <div className="mb-6 rounded-2xl border border-teal-600/45 bg-gradient-to-b from-teal-900/35 to-zinc-900/65 px-4 py-4">
+              <h3 className="text-xl font-bold text-white tracking-tight mb-2.5">Next Session</h3>
+              <div className="rounded-xl border border-teal-700/35 bg-zinc-900/40 px-3.5 py-3">
+                <p className="text-white font-semibold text-base">
+                  {analysis.nextSessionAdjustmentPlan.title}
+                </p>
+                <p className="mt-2 text-sm text-app-secondary leading-relaxed">
+                  {analysis.nextSessionAdjustmentPlan.rationale}
+                </p>
+                <ul className="mt-3.5 space-y-2 text-sm text-app-secondary list-disc pl-4 marker:text-teal-500/90">
+                  {analysis.nextSessionAdjustmentPlan.adjustments.map((adj, i) => (
+                    <li key={i}>{adj.instruction}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
 
           {analysis?.keyFocus && (
             <div className="mb-4 rounded-xl border border-teal-700/40 bg-teal-950/25 px-3.5 py-3">
@@ -178,15 +263,15 @@ export default function CoachPage() {
 
           {analysis?.volumeBalance?.length > 0 && (
             <div className="mb-4">
-              <h3 className="label-section mb-2">Volume &amp; Balance</h3>
-              <ul className="space-y-2 text-app-secondary text-sm">
+              <h3 className="label-section mb-2 text-app-tertiary">Volume Balance</h3>
+              <ul className="space-y-2 text-app-tertiary text-sm">
                 {analysis?.volumeBalance?.map((item, i) => (
                   <li
                     key={i}
-                    className="rounded-lg border border-teal-900/30 bg-zinc-900/45 px-3 py-2.5"
+                    className="rounded-lg border border-zinc-800/70 bg-zinc-900/35 px-3 py-2.5"
                   >
-                    <p className="text-white font-medium">{item.label}</p>
-                    <p className="mt-1 text-app-secondary">{item.summary}</p>
+                    <p className="text-app-secondary font-medium">{item.label}</p>
+                    <p className="mt-1 text-app-tertiary">{item.summary}</p>
                   </li>
                 ))}
               </ul>
@@ -195,7 +280,7 @@ export default function CoachPage() {
 
           {analysis?.actionableSuggestions?.length > 0 && (
             <div>
-              <h3 className="label-section mb-2">Actionable Suggestions</h3>
+              <h3 className="label-section mb-2">Next Step Recommendations</h3>
               <ul className="space-y-2 text-app-secondary text-sm">
                 {analysis?.actionableSuggestions?.map((item, i) => {
                   const sugKey = `suggestion-${i}`;
@@ -242,6 +327,75 @@ export default function CoachPage() {
               </ul>
             </div>
           )}
+        </div>
+
+        <div className="card-app mt-6">
+          <h2 className="text-lg font-bold text-white mb-4">Trend</h2>
+          {analysis.volumeBalance.length > 0 ? (
+            <ul className="space-y-2 text-sm">
+              {analysis.volumeBalance.slice(0, 3).map((item, i) => (
+                <li key={`${item.label}-${i}`} className="rounded-lg border border-zinc-800/70 bg-zinc-900/35 px-3 py-2.5">
+                  <p className="text-app-secondary font-medium">{item.label}</p>
+                  <p className="mt-1 text-app-tertiary">{item.summary}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-app-secondary">
+              Trend signals will improve as you log more sessions over the next 4-8 weeks.
+            </p>
+          )}
+        </div>
+
+        <div className="card-app mt-6">
+          <h2 className="text-lg font-bold text-white mb-4">Ask the Coach</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => askCoach("What is the single highest-impact adjustment I should make this week?")}
+              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
+            >
+              Highest-impact weekly change
+            </button>
+            <button
+              type="button"
+              onClick={() => askCoach("Build my next 2 sessions from this analysis and explain progression targets.")}
+              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
+            >
+              Plan next 2 sessions
+            </button>
+            <button
+              type="button"
+              onClick={() => askCoach("Explain why this recommendation matters for my stated goal right now.")}
+              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
+            >
+              Why this matters now
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={coachPrompt}
+              onChange={(e) => setCoachPrompt(e.target.value)}
+              placeholder="Ask a specific coaching question..."
+              className="input-app flex-1 px-3 py-2.5 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => askCoach(coachPrompt.trim() || "Review my training and give me the clearest next step.")}
+              className="rounded-xl btn-primary px-4 py-2.5 text-sm font-semibold"
+            >
+              Ask
+            </button>
+          </div>
+        </div>
+
+        <div className="card-app mt-6 mb-20">
+          <h2 className="text-lg font-bold text-white mb-2">Why This Matters</h2>
+          <p className="text-sm text-app-secondary">
+            {analysis.nextSessionAdjustmentPlan?.rationale ??
+              `Your current goal is "${goal}". Consistent weekly adjustments compound faster than one-off perfect sessions.`}
+          </p>
         </div>
       </div>
     </main>

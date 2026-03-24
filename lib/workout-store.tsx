@@ -16,7 +16,12 @@ export type CompletedWorkout = {
   completedAt: string; // ISO date string
   name?: string;
   durationSec?: number;
-  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string; notes?: string }[] }[];
+  exercises: {
+    exerciseId?: string;
+    name: string;
+    restSec?: number;
+    sets: { weight: string; reps: string; notes?: string; rir?: number }[];
+  }[];
   totalExercises: number;
   totalSets: number;
 };
@@ -25,7 +30,12 @@ type StoredWorkout = {
   completedAt: string;
   name?: string;
   durationSec?: number;
-  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string; notes?: string }[] }[];
+  exercises: {
+    exerciseId?: string;
+    name: string;
+    restSec?: number;
+    sets: { weight: string; reps: string; notes?: string; rir?: number }[];
+  }[];
 };
 
 type WorkoutStore = {
@@ -77,6 +87,16 @@ export function WorkoutStoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setWorkouts(loadFromStorage());
+  }, []);
+
+  useEffect(() => {
+    function refreshFromStorage() {
+      setWorkouts(loadFromStorage());
+    }
+    window.addEventListener("weightUnitConverted", refreshFromStorage);
+    return () => {
+      window.removeEventListener("weightUnitConverted", refreshFromStorage);
+    };
   }, []);
 
   const addWorkout = useCallback((workout: Omit<CompletedWorkout, "id">) => {

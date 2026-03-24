@@ -3,25 +3,11 @@ import type { ExperienceLevel } from "@/lib/experienceLevel";
 import type { PriorityGoal } from "@/lib/priorityGoal";
 
 export type UserProfile = {
-  goals: {
-    primaryGoal: string;
-    secondaryGoals: string[];
-    priorityExercises: string[];
-    priorityMuscles: string[];
-    phase: "cut" | "maintain" | "bulk" | "strength_block" | "peaking";
-  };
-  constraints: {
-    daysPerWeekAvailable: number;
-    sessionLengthMinutes: number;
-    equipmentAvailable: string[];
-    excludedExercises: string[];
-    injuriesOrLimitations: string[];
-  };
-  training: {
-    experienceLevel: ExperienceLevel;
-    preferredSplit: "full_body" | "upper_lower" | "push_pull_legs" | "other";
-    recoveryCapacity: "low" | "medium" | "high";
-  };
+  goal: string;
+  trainingDaysAvailable: number;
+  equipment: string[];
+  injuries?: string[];
+  availableSessionTime?: number;
 };
 
 const STORAGE_KEY = "userCoachingProfile";
@@ -30,86 +16,17 @@ function uniqueLower(values: string[]): string[] {
   return Array.from(new Set(values.map((v) => v.trim()).filter(Boolean)));
 }
 
-function profileFromGoal(goal: PriorityGoal): {
-  primaryGoal: string;
-  priorityExercises: string[];
-  priorityMuscles: string[];
-} {
-  if (goal === "Increase Bench Press") {
-    return {
-      primaryGoal: goal,
-      priorityExercises: ["Bench Press", "Incline Bench Press"],
-      priorityMuscles: ["chest", "triceps", "shoulders"],
-    };
-  }
-  if (goal === "Increase Squat") {
-    return {
-      primaryGoal: goal,
-      priorityExercises: ["Squat", "Front Squat"],
-      priorityMuscles: ["legs", "glutes"],
-    };
-  }
-  if (goal === "Increase Deadlift") {
-    return {
-      primaryGoal: goal,
-      priorityExercises: ["Deadlift", "Romanian Deadlift"],
-      priorityMuscles: ["back", "legs", "glutes"],
-    };
-  }
-  if (goal === "Build Chest") {
-    return {
-      primaryGoal: goal,
-      priorityExercises: ["Bench Press", "Incline Bench Press", "Chest Press"],
-      priorityMuscles: ["chest"],
-    };
-  }
-  if (goal === "Build Back") {
-    return {
-      primaryGoal: goal,
-      priorityExercises: ["Barbell Row", "Lat Pulldown", "Pull Up"],
-      priorityMuscles: ["back"],
-    };
-  }
-  if (goal === "Build Overall Muscle") {
-    return {
-      primaryGoal: goal,
-      priorityExercises: [],
-      priorityMuscles: ["chest", "back", "legs", "shoulders", "arms"],
-    };
-  }
-  return {
-    primaryGoal: goal,
-    priorityExercises: ["Squat", "Bench Press", "Deadlift"],
-    priorityMuscles: ["chest", "back", "legs"],
-  };
-}
-
 export function createDefaultUserProfile(
-  focus: TrainingFocus,
-  experienceLevel: ExperienceLevel,
+  _focus: TrainingFocus,
+  _experienceLevel: ExperienceLevel,
   goal: PriorityGoal
 ): UserProfile {
-  const goalDefaults = profileFromGoal(goal);
   return {
-    goals: {
-      primaryGoal: goalDefaults.primaryGoal,
-      secondaryGoals: focus === "General Fitness" ? ["Consistency"] : [],
-      priorityExercises: goalDefaults.priorityExercises,
-      priorityMuscles: goalDefaults.priorityMuscles,
-      phase: "maintain",
-    },
-    constraints: {
-      daysPerWeekAvailable: 3,
-      sessionLengthMinutes: 60,
-      equipmentAvailable: ["barbell", "dumbbell", "machine"],
-      excludedExercises: [],
-      injuriesOrLimitations: [],
-    },
-    training: {
-      experienceLevel,
-      preferredSplit: "full_body",
-      recoveryCapacity: experienceLevel === "Beginner" ? "medium" : "high",
-    },
+    goal,
+    trainingDaysAvailable: 3,
+    equipment: ["barbell", "dumbbell", "machine"],
+    injuries: [],
+    availableSessionTime: 60,
   };
 }
 
@@ -123,27 +40,37 @@ export function getStoredUserProfile(
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as Partial<UserProfile>;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const legacy = parsed as {
+      goals?: { primaryGoal?: string };
+      constraints?: {
+        daysPerWeekAvailable?: number;
+        equipmentAvailable?: string[];
+        injuriesOrLimitations?: string[];
+        sessionLengthMinutes?: number;
+      };
+    };
     return {
-      goals: {
-        primaryGoal: parsed.goals?.primaryGoal ?? fallback.goals.primaryGoal,
-        secondaryGoals: uniqueLower(parsed.goals?.secondaryGoals ?? fallback.goals.secondaryGoals),
-        priorityExercises: uniqueLower(parsed.goals?.priorityExercises ?? fallback.goals.priorityExercises),
-        priorityMuscles: uniqueLower(parsed.goals?.priorityMuscles ?? fallback.goals.priorityMuscles),
-        phase: parsed.goals?.phase ?? fallback.goals.phase,
-      },
-      constraints: {
-        daysPerWeekAvailable: parsed.constraints?.daysPerWeekAvailable ?? fallback.constraints.daysPerWeekAvailable,
-        sessionLengthMinutes: parsed.constraints?.sessionLengthMinutes ?? fallback.constraints.sessionLengthMinutes,
-        equipmentAvailable: uniqueLower(parsed.constraints?.equipmentAvailable ?? fallback.constraints.equipmentAvailable),
-        excludedExercises: uniqueLower(parsed.constraints?.excludedExercises ?? fallback.constraints.excludedExercises),
-        injuriesOrLimitations: uniqueLower(parsed.constraints?.injuriesOrLimitations ?? fallback.constraints.injuriesOrLimitations),
-      },
-      training: {
-        experienceLevel: parsed.training?.experienceLevel ?? fallback.training.experienceLevel,
-        preferredSplit: parsed.training?.preferredSplit ?? fallback.training.preferredSplit,
-        recoveryCapacity: parsed.training?.recoveryCapacity ?? fallback.training.recoveryCapacity,
-      },
+      goal:
+        (typeof parsed.goal === "string" ? parsed.goal : legacy.goals?.primaryGoal) ??
+        fallback.goal,
+      trainingDaysAvailable:
+        (typeof parsed.trainingDaysAvailable === "number"
+          ? parsed.trainingDaysAvailable
+          : legacy.constraints?.daysPerWeekAvailable) ?? fallback.trainingDaysAvailable,
+      equipment: uniqueLower(
+        (Array.isArray(parsed.equipment) ? (parsed.equipment as string[]) : legacy.constraints?.equipmentAvailable) ??
+          fallback.equipment
+      ),
+      injuries: uniqueLower(
+        (Array.isArray(parsed.injuries) ? (parsed.injuries as string[]) : legacy.constraints?.injuriesOrLimitations) ??
+          fallback.injuries ??
+          []
+      ),
+      availableSessionTime:
+        (typeof parsed.availableSessionTime === "number"
+          ? parsed.availableSessionTime
+          : legacy.constraints?.sessionLengthMinutes) ?? fallback.availableSessionTime,
     };
   } catch {
     return fallback;

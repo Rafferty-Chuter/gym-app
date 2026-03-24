@@ -6,8 +6,9 @@ export const ACTIVE_WORKOUT_KEY = "activeWorkout";
 
 export type DraftExercise = {
   id: number;
+  exerciseId?: string;
   name: string;
-  sets: { weight: string; reps: string; done?: boolean; notes?: string }[];
+  sets: { weight: string; reps: string; done?: boolean; notes?: string; rir?: number }[];
   targetSets?: number;
   restSec: number;
 };

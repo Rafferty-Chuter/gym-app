@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  /* Single accent (teal-blue) */
+  --background: #050607;
+  --foreground: #f3f7f7;
+  /* Primary accent: teal */
   --accent: 20 184 166; /* rgb */
-  --accent-foreground: 6 24 24; /* rgb */
+  --accent-foreground: 4 20 20; /* rgb */
 }
 
 @theme inline {
@@ -19,10 +19,10 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --accent: 45 212 191; /* slightly brighter in dark */
-    --accent-foreground: 6 24 24;
+    --background: #050607;
+    --foreground: #f3f7f7;
+    --accent: 20 184 166;
+    --accent-foreground: 4 20 20;
   }
 }
 
@@ -32,9 +32,25 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+@layer utilities {
+  /* Keep the app on simple dark surfaces. */
+  [class*="bg-zinc-950"] {
+    background-color: #050607 !important;
+  }
+  [class*="bg-zinc-900"] {
+    background-color: #0b0f10 !important;
+  }
+  [class*="bg-zinc-800"] {
+    background-color: #12181a !important;
+  }
+  [class*="border-zinc-"] {
+    border-color: rgba(45, 212, 191, 0.18) !important;
+  }
+}
+
 @layer components {
   .btn-primary {
-    @apply bg-[color:var(--color-accent)] text-[color:var(--color-accent-foreground)] font-semibold transition shadow-sm shadow-black/30 active:translate-y-[1px];
+    @apply bg-[color:var(--color-accent)] text-[color:var(--color-accent-foreground)] font-semibold transition shadow-sm shadow-black/35 active:translate-y-[1px];
   }
   .btn-primary:hover {
     filter: brightness(1.06);
@@ -45,35 +61,35 @@ body {
 
   /* App-wide: tinted text (not flat grey) */
   .text-app-secondary {
-    color: rgba(220, 230, 235, 0.72);
+    color: rgba(214, 227, 227, 0.78);
   }
   .text-app-tertiary {
-    color: rgba(165, 200, 210, 0.5);
+    color: rgba(148, 180, 185, 0.62);
   }
   .text-app-meta {
-    color: rgba(200, 218, 226, 0.62);
+    color: rgba(172, 203, 208, 0.68);
   }
   .link-accent {
-    @apply font-semibold text-teal-400 transition-colors duration-150 hover:text-teal-300;
+    @apply font-semibold text-teal-300 transition-colors duration-150 hover:text-teal-200;
   }
 
   /* Legacy aliases for Home */
-  .text-home-secondary { color: rgba(220, 230, 235, 0.72); }
-  .text-home-tertiary { color: rgba(165, 200, 210, 0.5); }
-  .text-home-meta { color: rgba(200, 218, 226, 0.62); }
-  .link-home-accent { @apply font-semibold text-teal-400 transition-colors duration-150 hover:text-teal-300; }
+  .text-home-secondary { color: rgba(214, 227, 227, 0.78); }
+  .text-home-tertiary { color: rgba(148, 180, 185, 0.62); }
+  .text-home-meta { color: rgba(172, 203, 208, 0.68); }
+  .link-home-accent { @apply font-semibold text-teal-300 transition-colors duration-150 hover:text-teal-200; }
 
   /* App-wide card: layered dark with subtle teal tint */
   .card-app {
-    @apply rounded-2xl border border-teal-950/40 bg-gradient-to-br from-zinc-900 from-[42%] via-zinc-900 to-teal-950/35 p-5 shadow-lg shadow-black/50 transition-all duration-200 ease-out;
+    @apply rounded-2xl border border-teal-900/35 bg-zinc-900 p-5 shadow-md shadow-black/45 transition-all duration-200 ease-out;
   }
   .card-app:hover {
-    @apply -translate-y-0.5 border-teal-500/22 shadow-xl shadow-black/55;
+    @apply -translate-y-0.5 border-teal-500/28 shadow-lg shadow-black/55;
   }
 
   /* App-wide input: dark, subtle border, focus accent */
   .input-app {
-    @apply rounded-xl bg-zinc-950/70 border border-zinc-700/50 text-white placeholder-zinc-500 transition-colors duration-150;
+    @apply rounded-xl bg-zinc-950 border border-teal-900/30 text-white placeholder-zinc-500 transition-colors duration-150;
   }
   .input-app:focus {
     @apply outline-none ring-2 ring-teal-500/40 border-teal-500/30;
@@ -81,8 +97,8 @@ body {
 
   /* Secondary button / outline */
   .btn-secondary {
-    @apply rounded-xl border border-teal-800/40 bg-teal-950/25 px-3 py-2 text-sm font-semibold transition-all duration-150 hover:border-teal-500/30 hover:bg-teal-950/40 hover:text-teal-200 active:scale-[0.98];
-    color: rgba(220, 230, 235, 0.72);
+    @apply rounded-xl border border-teal-900/35 bg-zinc-900 px-3 py-2 text-sm font-semibold transition-all duration-150 hover:border-teal-500/30 hover:bg-teal-950/25 hover:text-teal-200 active:scale-[0.98];
+    color: rgba(214, 227, 227, 0.78);
   }
 
   /* Volume/status chips: red / emerald / blue */
@@ -99,6 +115,6 @@ body {
   /* Section label: uppercase, tertiary */
   .label-section {
     @apply text-[10px] font-semibold uppercase tracking-[0.12em];
-    color: rgba(165, 200, 210, 0.5);
+    color: rgba(148, 180, 185, 0.62);
   }
 }

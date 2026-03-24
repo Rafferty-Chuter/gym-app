@@ -11,7 +11,12 @@ type WorkoutRow = {
   durationSec?: number;
   totalExercises: number;
   totalSets: number;
-  exercises: { name: string; restSec?: number; sets: { weight: string; reps: string; notes?: string }[] }[];
+  exercises: {
+    exerciseId?: string;
+    name: string;
+    restSec?: number;
+    sets: { weight: string; reps: string; notes?: string }[];
+  }[];
 };
 
 function mapStoredToRows(stored: ReturnType<typeof getWorkoutHistory>): WorkoutRow[] {

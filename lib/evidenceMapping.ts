@@ -2,6 +2,7 @@ import {
   type EvidenceCard,
   EVIDENCE_CARDS,
 } from "./evidenceCards";
+import type { CoachDecisionType } from "./trainingDecisions";
 
 export const SIGNAL_TO_EVIDENCE: Record<string, readonly string[]> = {
   goal_lift_exposure_low: ["strength_specificity", "insufficient_exposure"],
@@ -22,12 +23,14 @@ export const RECOMMENDATION_TO_EVIDENCE: Record<string, readonly string[]> = {
   /** Coach `Recommendation.type` fallbacks when id-based lookup does not apply */
   progress_exercise: ["plateau_diagnosis", "insufficient_exposure"],
   swap_exercise: ["failure_fatigue_tradeoff", "stimulus_fatigue_ratio"],
-  /** CoachDecision.type from `decideNextActions` */
+};
+
+const DECISION_TO_EVIDENCE: Record<CoachDecisionType, readonly string[]> = {
   increase_support_volume: ["hypertrophy_volume"],
   increase_goal_lift_exposure: ["strength_specificity", "insufficient_exposure"],
-  reduce_fatigue: ["volume_recovery_limit", "stimulus_fatigue_ratio"],
+  reduce_fatigue: ["fatigue_masks_performance", "stimulus_fatigue_ratio", "volume_recovery_limit"],
   maintain_current_plan: ["stimulus_fatigue_ratio"],
-  gather_more_data: ["frequency_distribution", "insufficient_exposure"],
+  gather_more_data: ["insufficient_exposure"],
 };
 
 const evidenceById = new Map<string, EvidenceCard>(
@@ -55,6 +58,7 @@ function canonicalSignalKeyForEvidence(signalId: string): string | undefined {
   if (signalId === "frequency-low-last7days") return "frequency_low";
   if (signalId.startsWith("exercise-frequency-low-")) return "frequency_low";
   if (signalId.includes("excessive-variation")) return "excessive_variation";
+  if (signalId.includes("-effort-high")) return "fatigue_risk_high";
   return undefined;
 }
 
@@ -90,6 +94,11 @@ export function getEvidenceCardIdsForInteraction(interactionId: string): string[
 
 export function getEvidenceCardsForInteraction(interactionId: string): EvidenceCard[] {
   return resolveCards(getEvidenceCardIdsForInteraction(interactionId));
+}
+
+/** Evidence card ids for coach decisions from `decideNextActions`. */
+export function getEvidenceCardIdsForDecision(decisionType: CoachDecisionType): string[] {
+  return [...DECISION_TO_EVIDENCE[decisionType]];
 }
 
 export function getEvidenceCardIdsForRecommendation(
