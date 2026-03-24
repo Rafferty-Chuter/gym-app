@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getWorkoutHistory, getStats } from "@/lib/trainingAnalysis";
@@ -31,6 +31,7 @@ export default function CoachPage() {
   });
   const [analysis, setAnalysis] = useState<CoachStructuredAnalysis>(EMPTY_ANALYSIS);
   const [isLoading, setIsLoading] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
   /** `keyFocus` | `suggestion-${i}` — which evidence block is expanded */
   const [evidenceOpenKey, setEvidenceOpenKey] = useState<string | null>(null);
   const [coachPrompt, setCoachPrompt] = useState("");
@@ -54,9 +55,14 @@ export default function CoachPage() {
   }, [focus, experienceLevel, goal, unit]);
 
   async function handleAnalyze() {
+    if (isReviewOpen && !isLoading) {
+      setIsReviewOpen(false);
+      return;
+    }
     const allWorkouts = getWorkoutHistory();
     setIsLoading(true);
     try {
+      setIsReviewOpen(true);
       setEvidenceOpenKey(null);
       const result = buildCoachStructuredAnalysis(allWorkouts, {
         focus,
@@ -74,8 +80,10 @@ export default function CoachPage() {
   }
 
   function askCoach(prompt: string) {
+    const cleaned = prompt.trim() || "Review my training and give me the clearest next step.";
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("assistantQuickPrompt", prompt);
+      sessionStorage.setItem("assistantQuickPrompt", cleaned);
+      sessionStorage.setItem("assistantAutoSend", "1");
     }
     router.push("/assistant");
   }
@@ -88,15 +96,31 @@ export default function CoachPage() {
 
   const summaryPositive =
     analysis.whatsGoingWell[0] ??
-    `You have logged ${stats.totalWorkouts} sessions so far, which gives the coach a usable training signal.`;
+    (stats.totalWorkouts >= 3
+      ? `You have ${stats.totalWorkouts} logged sessions, which is enough to start seeing repeatable patterns.`
+      : "No clear positive signal yet - data is still limited.");
   const summaryWatch =
     analysis.volumeBalance[0]?.summary ??
     analysis.actionableSuggestions[0] ??
-    "Training distribution is still emerging. Keep logging sessions to unlock sharper recommendations.";
+    (stats.totalWorkouts === 0
+      ? "No training history yet. The first recommendation appears after your first logged session."
+      : "Training distribution is still emerging. Keep logging sessions to improve recommendation confidence.");
   const summaryNext =
     analysis.nextSessionAdjustmentPlan?.title ??
     analysis.actionableSuggestions[0] ??
-    "Run one focused session, then re-open Coach for a clearer next-step recommendation.";
+    (stats.totalWorkouts < 3
+      ? "Log 1-2 more sessions, then rerun Coach Review for a higher-confidence next step."
+      : "Run one focused session, then re-open Coach Review for a clearer next-step recommendation.");
+
+  const coachState = useMemo<
+    "no_data" | "low_data" | "enough_data" | "strong_progress" | "imbalance_or_plateau"
+  >(() => {
+    if (stats.totalWorkouts === 0) return "no_data";
+    if (stats.totalWorkouts < 3) return "low_data";
+    if (analysis.whatsGoingWell.length > 0 && analysis.actionableSuggestions.length === 0) return "strong_progress";
+    if (analysis.actionableSuggestions.length > 0) return "imbalance_or_plateau";
+    return "enough_data";
+  }, [analysis.actionableSuggestions.length, analysis.whatsGoingWell.length, stats.totalWorkouts]);
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6">
@@ -142,10 +166,24 @@ export default function CoachPage() {
         </div>
 
         <section className="card-app mb-6 border-indigo-900/35 bg-gradient-to-br from-indigo-950/30 via-zinc-900/92 to-violet-950/20">
-          <h2 className="label-section mb-3 text-indigo-200/75">Coach Summary</h2>
+          <h2 className="label-section mb-3 text-indigo-200/75">Recent Training Review</h2>
           <div className="space-y-3">
-            <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/15 px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-emerald-200/75">Positive</p>
+            <div
+              className={`rounded-xl px-3 py-2.5 ${
+                summaryPositive.startsWith("No clear positive signal")
+                  ? "border border-zinc-700/60 bg-zinc-900/45"
+                  : "border border-emerald-900/30 bg-emerald-950/15"
+              }`}
+            >
+              <p
+                className={`text-[11px] font-semibold uppercase tracking-[0.1em] ${
+                  summaryPositive.startsWith("No clear positive signal")
+                    ? "text-zinc-300/75"
+                    : "text-emerald-200/75"
+                }`}
+              >
+                {summaryPositive.startsWith("No clear positive signal") ? "Current signal" : "Positive signal"}
+              </p>
               <p className="mt-1 text-sm text-app-secondary">{summaryPositive}</p>
             </div>
             <div className="rounded-xl border border-amber-900/35 bg-amber-950/15 px-3 py-2.5">
@@ -159,27 +197,76 @@ export default function CoachPage() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <section className="mt-2 rounded-2xl border border-teal-300/35 bg-gradient-to-br from-teal-500/18 via-zinc-900/94 to-cyan-500/12 p-6 shadow-[0_18px_44px_-14px_rgba(20,184,166,0.35)]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-teal-200/75">Assistant</p>
+          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-white">Ask the Coach</h2>
+          <p className="mt-1 text-sm text-app-secondary">
+            Get direct, tailored coaching from your current training data and goals.
+          </p>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => askCoach("What is the single highest-impact adjustment I should make this week, given my current data confidence?")}
+              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
+            >
+              Highest-impact weekly change
+            </button>
+            <button
+              type="button"
+              onClick={() => askCoach("Build my next 2 sessions from this coach review and explain progression targets.")}
+              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
+            >
+              Plan next 2 sessions
+            </button>
+            <button
+              type="button"
+              onClick={() => askCoach("Explain why this recommendation matters for my stated goal and current training state.")}
+              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
+            >
+              Why this matters now
+            </button>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              type="text"
+              value={coachPrompt}
+              onChange={(e) => setCoachPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  askCoach(coachPrompt);
+                }
+              }}
+              placeholder="Ask a specific coaching question..."
+              className="input-app flex-1 px-3 py-3 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => askCoach(coachPrompt)}
+              className="rounded-xl bg-gradient-to-br from-teal-400 via-teal-500 to-cyan-500 px-5 py-3 text-sm font-bold text-zinc-950 shadow-[0_8px_24px_-12px_rgba(20,184,166,0.6)] transition hover:brightness-105 active:translate-y-[1px]"
+            >
+              Ask Coach
+            </button>
+          </div>
+        </section>
+
+        <div className="mt-5 flex justify-center">
           <button
             onClick={handleAnalyze}
             disabled={isLoading}
-            className="w-full py-3 rounded-xl btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full max-w-md py-3.5 rounded-xl border border-violet-300/35 bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 text-white font-bold tracking-tight shadow-[0_10px_28px_-12px_rgba(139,92,246,0.6)] transition hover:brightness-105 active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? "Analyzing…" : "Analyze Recent Training"}
+            {isLoading ? "Running Coach Review…" : isReviewOpen ? "Hide Coach Review" : "Run Coach Review"}
           </button>
-          <Link
-            href="/assistant"
-            className="w-full py-3 rounded-xl border border-teal-900/35 bg-zinc-900/70 text-sm font-semibold text-app-secondary text-center transition hover:text-white hover:border-teal-500/30"
-          >
-            Ask the Coach
-          </Link>
         </div>
 
-        {!hasRichAnalysis && !isLoading && (
+        {isReviewOpen && !hasRichAnalysis && !isLoading && (
           <section className="card-app mt-6 border-teal-900/35 bg-zinc-900/80">
             <h2 className="label-section mb-2">Coach is ready</h2>
             <p className="text-sm text-app-secondary">
-              Keep logging workouts and run analysis to get weekly coaching direction, trend insights, and clearer next steps.
+              {coachState === "no_data"
+                ? "Log your first workout to unlock a personalized Coach Review."
+                : "Log another 1-2 sessions and rerun Coach Review to increase recommendation confidence."}
             </p>
             <p className="mt-2 text-xs text-app-meta">
               Current signal: {stats.totalWorkouts} workouts · {stats.totalSets} sets logged.
@@ -187,6 +274,7 @@ export default function CoachPage() {
           </section>
         )}
 
+        {isReviewOpen && (
         <div className="card-app mt-6">
           <h2 className="text-lg font-bold text-white mb-4">This Week</h2>
 
@@ -328,9 +416,11 @@ export default function CoachPage() {
             </div>
           )}
         </div>
+        )}
 
+        {isReviewOpen && (
         <div className="card-app mt-6">
-          <h2 className="text-lg font-bold text-white mb-4">Trend</h2>
+          <h2 className="text-lg font-bold text-white mb-4">Trend (4-8 weeks)</h2>
           {analysis.volumeBalance.length > 0 ? (
             <ul className="space-y-2 text-sm">
               {analysis.volumeBalance.slice(0, 3).map((item, i) => (
@@ -342,54 +432,13 @@ export default function CoachPage() {
             </ul>
           ) : (
             <p className="text-sm text-app-secondary">
-              Trend signals will improve as you log more sessions over the next 4-8 weeks.
+              Trend signals are limited right now. Keep logging for the next few weeks to detect progress or plateaus reliably.
             </p>
           )}
         </div>
+        )}
 
-        <div className="card-app mt-6">
-          <h2 className="text-lg font-bold text-white mb-4">Ask the Coach</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-            <button
-              type="button"
-              onClick={() => askCoach("What is the single highest-impact adjustment I should make this week?")}
-              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
-            >
-              Highest-impact weekly change
-            </button>
-            <button
-              type="button"
-              onClick={() => askCoach("Build my next 2 sessions from this analysis and explain progression targets.")}
-              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
-            >
-              Plan next 2 sessions
-            </button>
-            <button
-              type="button"
-              onClick={() => askCoach("Explain why this recommendation matters for my stated goal right now.")}
-              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
-            >
-              Why this matters now
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={coachPrompt}
-              onChange={(e) => setCoachPrompt(e.target.value)}
-              placeholder="Ask a specific coaching question..."
-              className="input-app flex-1 px-3 py-2.5 text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => askCoach(coachPrompt.trim() || "Review my training and give me the clearest next step.")}
-              className="rounded-xl btn-primary px-4 py-2.5 text-sm font-semibold"
-            >
-              Ask
-            </button>
-          </div>
-        </div>
-
+        {isReviewOpen && (
         <div className="card-app mt-6 mb-20">
           <h2 className="text-lg font-bold text-white mb-2">Why This Matters</h2>
           <p className="text-sm text-app-secondary">
@@ -397,6 +446,7 @@ export default function CoachPage() {
               `Your current goal is "${goal}". Consistent weekly adjustments compound faster than one-off perfect sessions.`}
           </p>
         </div>
+        )}
       </div>
     </main>
   );

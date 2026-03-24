@@ -441,7 +441,7 @@ export default function Home() {
   }
 
   const coachCardClass =
-    "rounded-2xl border border-indigo-900/35 bg-gradient-to-br from-indigo-950/30 via-zinc-900/94 to-violet-950/20 p-6 shadow-lg shadow-black/45";
+    "rounded-2xl border border-indigo-700/40 bg-gradient-to-br from-indigo-900/38 via-zinc-900/95 to-violet-900/28 p-6 shadow-[0_18px_42px_-16px_rgba(17,24,39,0.8),0_0_0_1px_rgba(99,102,241,0.14)]";
 
   const sectionCardClass = "rounded-2xl border border-zinc-800/80 bg-zinc-900/92 p-5";
 
@@ -457,8 +457,8 @@ export default function Home() {
     }
     if (lowEntry && lowEntry[1] < 8) {
       return {
-        title: `Today: ${labelGroup(lowEntry[0])}. You’re under target this week.`,
-        subtitle: `Adding quality work here supports your ${goal.toLowerCase()} goal.`,
+        title: `${labelGroup(lowEntry[0])} volume is currently below target this week.`,
+        subtitle: `Bringing volume balance back on track supports your ${goal.toLowerCase()} goal.`,
       };
     }
     if (lastWorkout) {
@@ -540,6 +540,16 @@ export default function Home() {
     };
   }, [focus, thisWeek.weeklyVolume]);
 
+  const homeDataState = useMemo<
+    "no_data" | "low_data" | "enough_data" | "strong_progress" | "imbalance"
+  >(() => {
+    if (workouts.length === 0) return "no_data";
+    if (workouts.length < 3) return "low_data";
+    if (/below target/i.test(weeklyNeed.headline)) return "imbalance";
+    if (workouts.length >= 4) return "strong_progress";
+    return "enough_data";
+  }, [weeklyNeed.headline, workouts.length]);
+
   const analysisPreview = useMemo(() => {
     if (hasAnalysis) {
       const positive =
@@ -551,11 +561,24 @@ export default function Home() {
         weeklyNeed.headline + ". " + weeklyNeed.detail;
       return { positive, watch };
     }
+    if (homeDataState === "no_data") {
+      return {
+        positive: "No completed sessions yet - once you log one workout, Coach can start personalizing recommendations.",
+        watch: "Current recommendation confidence is low until at least 2-3 sessions are logged.",
+      };
+    }
+    if (homeDataState === "low_data") {
+      return {
+        positive: `You have ${thisWeek.workoutsCount} recent session${thisWeek.workoutsCount === 1 ? "" : "s"} logged - enough to start directional coaching.`,
+        watch: "Recommendations are still provisional; confidence improves with a few more sessions.",
+      };
+    }
     return {
       positive: `You logged ${thisWeek.workoutsCount} workouts and ${thisWeek.totalSets} sets this week.`,
       watch: `${weeklyNeed.headline}. ${weeklyNeed.detail}`,
     };
   }, [
+    homeDataState,
     analysis.actionableSuggestions,
     analysis.keyFocus,
     analysis.nextSessionAdjustmentPlan?.title,
@@ -643,6 +666,14 @@ export default function Home() {
     };
   }, [workouts]);
 
+  const momentumCue = useMemo(() => {
+    if (homeDataState === "no_data") return "Log your first session to start building coaching momentum.";
+    if (homeDataState === "low_data") return "Momentum is forming; one more session improves coaching confidence.";
+    if (homeDataState === "strong_progress") return "Momentum has started this week.";
+    if (homeDataState === "imbalance") return "Momentum is good - distribution is the next unlock.";
+    return "Consistency is building this week.";
+  }, [homeDataState]);
+
   function estimateTemplateMinutes(template: QuickTemplate) {
     const defaultRest = 90;
     const defaultSets = 3;
@@ -667,6 +698,7 @@ export default function Home() {
           <p className="text-sm text-home-tertiary">{greeting()}</p>
           <h1 className="text-4xl font-bold tracking-tight mt-1.5 leading-tight text-white">{heroMessage.title}</h1>
           <p className="text-home-secondary mt-2 text-sm">{heroMessage.subtitle}</p>
+          <p className="text-xs text-home-meta mt-1.5">{momentumCue}</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <div
               className="inline-flex items-center rounded-full border border-teal-900/40 bg-zinc-900/70 p-0.5"
@@ -747,13 +779,23 @@ export default function Home() {
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-indigo-200/70">Coach Insight</p>
             <span className="text-[11px] text-home-meta">{analysisStatusText}</span>
           </div>
-          <div className="mt-3 rounded-xl border border-indigo-900/35 bg-indigo-950/20 p-5">
-            <p className="text-xl font-bold text-white">{weeklyNeed.headline}</p>
-            <p className="mt-1 text-sm text-home-secondary">{weeklyNeed.detail}</p>
-            <p className="mt-2 text-xs text-indigo-200/70">
-              {hasAnalysis
+          <div className="mt-3 rounded-xl border border-indigo-600/30 bg-indigo-950/24 p-5">
+            <p className="text-xl font-extrabold tracking-tight text-indigo-50">
+              {homeDataState === "low_data"
+                ? "Coach recommendation is early but directional"
+                : weeklyNeed.headline}
+            </p>
+            <p className="mt-1.5 text-sm text-indigo-100/90">
+              {homeDataState === "low_data"
+                ? "Keep logging this week so recommendations can move from directional to precise."
+                : weeklyNeed.detail}
+            </p>
+            <p className="mt-2 text-xs text-indigo-200/80">
+              {homeDataState === "no_data"
+                ? "No completed training data yet - the coach will become specific after your first logged workout."
+                : hasAnalysis
                 ? coachReasoningEvidence
-                : "Your training log already has enough signal for a weekly coach-level recommendation."}
+                : "This recommendation is based on current weekly volume and recent session patterns."}
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Link
@@ -763,13 +805,13 @@ export default function Home() {
                     sessionStorage.setItem(COACH_AUTO_ANALYZE_KEY, "1");
                   }
                 }}
-                className="rounded-xl border border-indigo-700/40 bg-indigo-900/25 px-3 py-2 text-center text-sm font-semibold text-indigo-100 transition hover:bg-indigo-900/35 hover:border-indigo-500/40"
+                className="rounded-xl border border-indigo-300/35 bg-gradient-to-br from-indigo-400 via-indigo-500 to-violet-600 px-3 py-2 text-center text-sm font-bold text-white shadow-[0_6px_20px_-10px_rgba(129,140,248,0.7)] transition hover:brightness-105 active:translate-y-[1px]"
               >
-                Open Coach
+                {homeDataState === "no_data" ? "Open Coach Setup" : "Open Coach Review"}
               </Link>
               <Link
                 href="/assistant"
-                className="rounded-xl border border-indigo-700/40 bg-zinc-900/70 px-3 py-2 text-center text-sm font-semibold text-indigo-100 transition hover:bg-indigo-900/25 hover:border-indigo-500/40"
+                className="rounded-xl border border-indigo-700/35 bg-zinc-900/72 px-3 py-2 text-center text-sm font-semibold text-indigo-100/90 transition hover:bg-indigo-900/22 hover:border-indigo-500/35"
               >
                 Ask the Coach
               </Link>
@@ -779,14 +821,28 @@ export default function Home() {
 
         <section className={`${sectionCardClass} mb-6`}>
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary">Analysis Preview</p>
-          <p className="mt-2 text-sm text-home-secondary">{analysisPreview.positive}</p>
-          <p className="mt-1 text-sm text-home-meta">{analysisPreview.watch}</p>
+          <ul className="mt-3 space-y-2 text-sm">
+            <li className="rounded-lg border border-emerald-900/25 bg-emerald-950/10 px-3 py-2">
+              <span className="text-emerald-200/85 font-semibold mr-2">
+                {homeDataState === "no_data" || homeDataState === "low_data" ? "Current signal:" : "Going well:"}
+              </span>
+              <span className="text-home-secondary">{analysisPreview.positive}</span>
+            </li>
+            <li className="rounded-lg border border-amber-900/30 bg-amber-950/10 px-3 py-2">
+              <span className="text-amber-200/85 font-semibold mr-2">
+                {homeDataState === "no_data" || homeDataState === "low_data"
+                  ? "Confidence note:"
+                  : "Needs attention:"}
+              </span>
+              <span className="text-home-secondary">{analysisPreview.watch}</span>
+            </li>
+          </ul>
           {dynamicFeedback && <p className="mt-2 text-xs text-home-meta">{dynamicFeedback.performanceLine}</p>}
         </section>
 
         <section className={`${sectionCardClass} mb-6`}>
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary">Workout & Log</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary">Recent Activity</p>
             <Link href="/coach" className="text-xs link-home-accent">
               View Full Coach Review →
             </Link>

@@ -26,7 +26,64 @@ import ExercisePicker, { type ExercisePickerValue } from "@/components/ExerciseP
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 const WORKOUT_SUGGESTED_MUSCLE_KEY = "workoutSuggestedMuscle";
+const TEMPLATES_STORAGE_KEY = "workoutTemplates";
 const KG_TO_LB = 2.2046226218;
+
+type QuickTemplate = {
+  id?: string;
+  name: string;
+  exercises: Array<{
+    exerciseId?: string;
+    name: string;
+    targetSets?: number;
+    restSec?: number;
+  }>;
+};
+
+function readTemplates(): QuickTemplate[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(TEMPLATES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((t, i) => {
+        if (!t || typeof t !== "object") return null;
+        const obj = t as Record<string, unknown>;
+        const name = typeof obj.name === "string" ? obj.name.trim() : `Template ${i + 1}`;
+        const exercisesRaw = Array.isArray(obj.exercises) ? obj.exercises : [];
+        const exercises = exercisesRaw
+          .map((ex) => {
+            if (!ex || typeof ex !== "object") return null;
+            const e = ex as Record<string, unknown>;
+            const exName = typeof e.name === "string" ? e.name.trim() : "";
+            if (!exName) return null;
+            return {
+              ...(typeof e.exerciseId === "string" && e.exerciseId.trim()
+                ? { exerciseId: e.exerciseId.trim() }
+                : {}),
+              name: exName,
+              ...(Number.isFinite(Number(e.targetSets)) ? { targetSets: Number(e.targetSets) } : {}),
+              ...(Number.isFinite(Number(e.restSec)) ? { restSec: Number(e.restSec) } : {}),
+            };
+          })
+          .filter(Boolean) as QuickTemplate["exercises"];
+        const fallbackId = `tpl_${i}_${name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "")}`;
+        return {
+          id: typeof obj.id === "string" && obj.id.trim() ? obj.id.trim() : fallbackId,
+          name,
+          exercises,
+        };
+      })
+      .filter(Boolean) as QuickTemplate[];
+  } catch {
+    return [];
+  }
+}
 
 function convertWeightValue(weight: string, from: "kg" | "lb", to: "kg" | "lb"): string {
   if (from === to) return weight;
@@ -382,6 +439,8 @@ export default function WorkoutPage() {
   const [workoutName, setWorkoutName] = useState("");
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
+  const [templateLibrary, setTemplateLibrary] = useState<QuickTemplate[]>([]);
+  const [showBuilder, setShowBuilder] = useState(false);
   const [routineSaved, setRoutineSaved] = useState(false);
   const addExerciseInputRef = useRef<HTMLInputElement | null>(null);
   const setInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -478,6 +537,24 @@ export default function WorkoutPage() {
     if (first) return `${first} Workout`;
     return "Workout";
   }
+
+  function estimateTemplateMinutes(template: QuickTemplate) {
+    const seconds = template.exercises.reduce((sum, ex) => {
+      const sets = Number.isFinite(ex.targetSets) ? Math.max(1, Number(ex.targetSets)) : 3;
+      const rest = Number.isFinite(ex.restSec) ? Math.max(30, Number(ex.restSec)) : 90;
+      return sum + sets * (45 + rest);
+    }, 0);
+    return `${Math.max(20, Math.round(seconds / 60))} min`;
+  }
+
+  useEffect(() => {
+    function loadTemplates() {
+      setTemplateLibrary(readTemplates());
+    }
+    loadTemplates();
+    window.addEventListener("workoutHistoryChanged", loadTemplates);
+    return () => window.removeEventListener("workoutHistoryChanged", loadTemplates);
+  }, []);
 
   function formatElapsed(sec: number) {
     const h = Math.floor(sec / 3600);
@@ -640,6 +717,7 @@ export default function WorkoutPage() {
       sessionStorage.removeItem(WORKOUT_SUGGESTED_MUSCLE_KEY);
       const suggestion = suggestedMuscle.trim();
       if (suggestion) {
+        setShowBuilder(true);
         setExerciseName(suggestion);
         setWorkoutName((prev) => (prev.trim() ? prev : `${suggestion} Focus`));
       }
@@ -658,6 +736,7 @@ export default function WorkoutPage() {
         const tId = typeof data?.templateId === "string" ? data.templateId.trim() : "";
         sessionStorage.removeItem(TEMPLATE_FOR_WORKOUT_KEY);
         if (Array.isArray(exercisesData) && exercisesData.length > 0) {
+          setShowBuilder(true);
           if (tName) {
             setTemplateName(tName);
             setWorkoutName((prev) => (prev.trim() ? prev : tName));
@@ -720,6 +799,7 @@ export default function WorkoutPage() {
 
     const draft = getActiveWorkout();
     if (draft && draftHasMeaningfulContent(draft)) {
+      setShowBuilder(true);
       setWorkoutName(draft.workoutName);
       setTemplateName(draft.templateName);
       setExercises(draft.exercises);
@@ -842,22 +922,25 @@ export default function WorkoutPage() {
     router.push("/");
   }
 
-  function repeatLastWorkoutFromHistory() {
-    if (!lastLoggedWorkout || typeof window === "undefined") return;
-    const exercisesFromLast = (lastLoggedWorkout.exercises ?? []).map((ex) => ({
-      ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
-      name: ex.name,
-      targetSets: Math.max(1, ex.sets?.length ?? 3),
-      restSec: typeof ex.restSec === "number" ? ex.restSec : 90,
-    }));
+  function startFromTemplateHub(template: QuickTemplate) {
+    if (typeof window === "undefined") return;
     sessionStorage.setItem(
       TEMPLATE_FOR_WORKOUT_KEY,
       JSON.stringify({
-        templateName: `${workoutDisplayName(lastLoggedWorkout)} (Repeat)`,
-        exercises: exercisesFromLast,
+        ...(template.id ? { templateId: template.id } : {}),
+        templateName: template.name,
+        exercises: template.exercises,
       })
     );
     window.location.reload();
+  }
+
+  function openTemplateForEditing(template: QuickTemplate) {
+    if (!template.id) {
+      router.push("/templates");
+      return;
+    }
+    router.push(`/templates/${encodeURIComponent(template.id)}`);
   }
 
   function addExercise(selection?: ExercisePickerValue, forceCustom = false) {
@@ -1017,6 +1100,80 @@ export default function WorkoutPage() {
       <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-zinc-900/10 via-transparent to-transparent" />
 
       <div className="relative max-w-[560px] mx-auto px-4 pt-4 sm:px-6 sm:pt-6">
+        {!showBuilder && exercises.length === 0 ? (
+          <div className="space-y-5 pb-24">
+            <header className="mb-1">
+              <h1 className="text-3xl font-bold tracking-tight text-white">Templates</h1>
+              <p className="mt-1 text-sm text-app-secondary">Create templates and start workouts directly from your saved templates.</p>
+            </header>
+
+            <section className="rounded-2xl border border-teal-900/35 bg-zinc-900/90 p-4">
+              <p className="label-section mb-2">Create New Template</p>
+              <p className="text-sm text-app-secondary">
+                Build a new template with your preferred exercises, sets, and rest times.
+              </p>
+              <Link
+                href="/templates/new"
+                className="mt-3 inline-flex rounded-xl border border-teal-300/35 bg-gradient-to-br from-teal-500 to-emerald-500 px-3 py-2 text-sm font-bold text-zinc-950 shadow-[0_6px_18px_-10px_rgba(20,184,166,0.7)] transition hover:brightness-105"
+              >
+                Create New Template
+              </Link>
+            </section>
+
+            <section className="rounded-2xl border border-teal-900/35 bg-zinc-900/90 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="label-section">Saved Templates</p>
+                <Link href="/templates" className="text-xs link-home-accent">
+                  Manage →
+                </Link>
+              </div>
+              {templateLibrary.length === 0 ? (
+                <div className="rounded-xl border border-teal-900/35 bg-zinc-900/70 p-3">
+                  <p className="text-sm text-app-secondary">No saved templates yet. Create one to speed up your sessions.</p>
+                  <Link href="/templates" className="mt-2 inline-flex text-xs font-semibold text-teal-300 hover:text-teal-200 transition">
+                    Create template →
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {templateLibrary.slice(0, 4).map((template) => (
+                    <div
+                      key={template.id ?? template.name}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openTemplateForEditing(template)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openTemplateForEditing(template);
+                        }
+                      }}
+                      className="w-full rounded-xl border border-teal-900/30 bg-zinc-900/70 px-3 py-2.5 transition hover:border-teal-500/30 cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="min-w-0 text-sm font-semibold text-white truncate">{template.name}</p>
+                      </div>
+                      <p className="mt-1 text-[11px] text-app-meta">
+                        {template.exercises.length} exercise{template.exercises.length !== 1 ? "s" : ""} · {estimateTemplateMinutes(template)}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startFromTemplateHub(template);
+                        }}
+                        className="mt-2 rounded-lg border border-teal-800/35 bg-teal-950/25 px-2.5 py-1 text-[11px] font-semibold text-app-secondary transition hover:text-white hover:border-teal-500/30"
+                      >
+                        Start Workout
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : (
+          <>
         <header className="mb-5">
           <div className="flex items-center gap-3 mb-3">
             <Link
@@ -1070,37 +1227,6 @@ export default function WorkoutPage() {
             </span>
           </div>
         </header>
-
-        <section className="mb-5 rounded-2xl border border-teal-950/40 bg-zinc-900/85 p-4">
-          <p className="label-section mb-2">Workout Hub</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Link
-              href="/templates"
-              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-sm font-semibold text-app-secondary transition hover:text-white hover:border-teal-500/30"
-            >
-              Routines / Templates
-            </Link>
-            <Link
-              href="/history"
-              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-sm font-semibold text-app-secondary transition hover:text-white hover:border-teal-500/30"
-            >
-              Workout History
-            </Link>
-            <button
-              type="button"
-              onClick={repeatLastWorkoutFromHistory}
-              disabled={!lastLoggedWorkout}
-              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-sm font-semibold text-app-secondary transition hover:text-white hover:border-teal-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Repeat Last Workout
-            </button>
-          </div>
-          {lastLoggedWorkout && (
-            <p className="mt-2 text-xs text-app-meta">
-              Last session: {workoutDisplayName(lastLoggedWorkout)}
-            </p>
-          )}
-        </section>
 
         {exercises.length === 0 ? (
           <div className="min-h-[min(62vh,460px)] flex items-center justify-center px-2 lg:items-start lg:pt-10">
@@ -1685,6 +1811,8 @@ export default function WorkoutPage() {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
 
     </main>
