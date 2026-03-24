@@ -61,8 +61,8 @@ export default function TemplatesPage() {
             </button>
             <button
               type="button"
-              onClick={() => setUnit("lbs")}
-              className={`px-3 py-1.5 text-xs rounded-lg transition ${unit === "lbs" ? "bg-teal-500/35 text-white border border-teal-300/35" : "text-app-secondary hover:text-white"}`}
+              onClick={() => setUnit("lb")}
+              className={`px-3 py-1.5 text-xs rounded-lg transition ${unit === "lb" ? "bg-teal-500/35 text-white border border-teal-300/35" : "text-app-secondary hover:text-white"}`}
             >
               LBS
             </button>
