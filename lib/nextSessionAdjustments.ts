@@ -141,8 +141,8 @@ export function generateNextSessionAdjustments(params: {
 
     case "increase_goal_lift_exposure":
       return {
-        title: "Increase goal-lift exposure",
-        rationale: "The target lift is not getting enough specific practice.",
+        title: "Practice your goal lift more often",
+        rationale: "It’s not showing up often enough in your log to drive steady progress.",
         adjustments: [
           {
             type: "add_goal_lift_exposure",
@@ -163,9 +163,9 @@ export function generateNextSessionAdjustments(params: {
             ).toLowerCase()} sets around ~1-2 RIR and avoid grinding reps.`
           : "Run the next session lighter and avoid grinding reps.";
       return {
-        title: "Reduce fatigue and restore performance",
+        title: "Ease effort to recover",
         rationale:
-          "You are training very close to failure, which increases fatigue and may limit recoverable volume if continued.",
+          "Recent sets are very close to failure — pulling back slightly usually helps performance rebound.",
         adjustments: [
           {
             type: "run_lighter_session",
@@ -205,13 +205,13 @@ export function generateNextSessionAdjustments(params: {
 
     case "gather_more_data":
       return {
-        title: "Build clearer data",
-        rationale: "There is not enough consistent exposure yet.",
+        title: "Log a few more sessions first",
+        rationale: "We need one or two more workouts before a bigger change makes sense.",
         adjustments: [
           {
             type: "keep_session_same",
             target: context.keyFocusExercise ?? "goal lift",
-            instruction: "Keep the session stable for 1–2 more exposures so trend confidence improves.",
+            instruction: "Log 1–2 more sessions before making a bigger adjustment.",
             duration: "next_2_sessions",
           },
         ],

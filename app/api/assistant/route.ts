@@ -197,7 +197,11 @@ export function classifyAssistantIntent(message: string): AssistantIntent {
     t.includes("feedback on my training") ||
     t.includes("clearest next step") ||
     t.includes("look at my training") ||
-    t.includes("what do you think of my training")
+    t.includes("what do you think of my training") ||
+    (t.includes("volume") &&
+      (t.includes("thoughts") ||
+        t.includes("overall") ||
+        (t.includes("how") && (t.includes("week") || t.includes("looking") || t.includes("doing")))))
   ) {
     return "recent_training_analysis";
   }
@@ -421,7 +425,7 @@ function buildAnalysisInputs(
       : "") ||
     coachPositive ||
     (highVolumeGroup
-      ? `You are keeping consistent weekly work in ${highVolumeGroup[0]} with ${highVolumeGroup[1]} sets.`
+      ? `Your logs show ${highVolumeGroup[1]} sets for ${highVolumeGroup[0]} in the last 7 days (app-counted from completed sets).`
       : null);
 
   const topIssue: string | null =
@@ -431,7 +435,7 @@ function buildAnalysisInputs(
     (trainingInsights?.findings ?? []).find((f) => typeof f === "string" && f.trim().length > 0) ||
     coachIssue ||
     ((trainingInsights?.frequency ?? 0) < 2
-      ? "Session frequency looks a little low for faster progress this week."
+      ? "Based on your recent logged sessions, weekly frequency looks on the low side — an early signal, not a verdict."
       : null);
 
   const issueExercise = (trainingInsights?.exerciseInsights ?? []).find(
@@ -439,13 +443,13 @@ function buildAnalysisInputs(
   );
   const nextStep: string | null = issueExercise
     ? issueExercise.possibleFatigue
-      ? `For ${issueExercise.exercise}, slightly reduce effort for the next 1–2 sessions and keep quality reps in reserve.`
+      ? `If recovery seems tight (early signal from logs), a useful rule of thumb is easing effort slightly on ${issueExercise.exercise} for a session or two.`
       : issueExercise.possiblePlateau
-        ? `For ${issueExercise.exercise}, use a small progression change next session (rep target or load step) and track the outcome.`
-        : `For ${issueExercise.exercise}, increase exercise specificity and keep effort consistent to your goal.`
+        ? `For ${issueExercise.exercise}, a small progression tweak next session is often worth trying; treat “no progress for a few sessions” as a heuristic, not a hard rule.`
+        : `For ${issueExercise.exercise}, consider raising specificity gradually while keeping effort aligned with your goal.`
     : coachNext ||
       (highVolumeGroup
-        ? `A good next step is to keep ${highVolumeGroup[0]} volume steady and add one focused support movement this week.`
+        ? `Keeping ${highVolumeGroup[0]} volume roughly steady while adding one focused support lift this week is often a solid next move.`
         : null);
 
   const missing: Array<"positive" | "issue" | "nextStep"> = [];
@@ -455,6 +459,32 @@ function buildAnalysisInputs(
 
   return { topPositive, topIssue, nextStep, missing };
 }
+
+/**
+ * Appended to every assistant turn so replies stay data-grounded without fake precision.
+ */
+const TRUST_AND_CALIBRATION_BLOCK = `
+PRECISION & STRENGTH CLAIMS:
+- Never state exact strength gains as a percentage (e.g. "~12% stronger") unless the payload explicitly includes that computed figure and how it was derived. The app usually does not — so do not invent percentages or fake precision.
+- Prefer qualitative progression language tied to logged reps/load: e.g. "small but real improvement", "modest progression", "clear rep improvement at the same load", "load moved up slightly with similar reps".
+
+CLEAR SIGNAL VS INFERENCE:
+- Distinguish direct log facts (sets, reps, weight, session dates, trends from exerciseTrends / exerciseInsights) from interpretations (recovery, fatigue, frequency "quality", plateau risk).
+- When you infer recovery, fatigue, or how "good" frequency is, label it: e.g. "based on your recent logged sessions", "this suggests", "this may indicate", "early signal", "still noisy with this much history".
+- Do not present heuristics as physical laws.
+
+WEEKLY VOLUME & SET TOTALS:
+- Weekly muscle-group set counts and total sets in the payload are app-calculated from completed sets in logged workouts (last 7 days for weekly breakdown). Quote those numbers exactly; do not round into misleading precision.
+- If the last-7-days session count is low, or logs may omit outside-gym work, say the volume picture may be incomplete. Avoid sweeping claims about "your training as a whole" unless the logs reasonably support them.
+
+PLATEAUS, FATIGUE, RULES OF THUMB:
+- Phrases like "three sessions with no progress" are heuristics, not guarantees. Use wording such as "a useful rule of thumb", "often", "worth considering", "one thing to watch".
+- Keep actionable guidance; soften certainty, not usefulness.
+
+STYLE (keep):
+- Direct answers, no unnecessary clarifying loops, continuity with prior context, calm practical tone.
+- Prefer specific log references over vague "your data" — e.g. "based on your recent logged sessions" when citing the digest or structured fields.
+`.trim();
 
 async function getAssistantReply(
   loggedDataPreamble: string,
@@ -486,8 +516,6 @@ async function getAssistantReply(
       .map(([g, n]) => `${g}: ${n} sets`)
       .join("; ") || "none logged";
 
-  const context = `Training data: ${trainingSummary.totalWorkouts} total workouts, ${trainingSummary.totalSets} total sets, ${trainingSummary.totalExercises} exercise types. Weekly volume (last 7 days): ${weeklyVolumeStr}. Recent exercises: ${(trainingSummary.recentExercises ?? []).join(", ") || "none"}.`;
-
   const insightsFrequency = trainingInsights?.frequency ?? 0;
   const insightsWeeklyVolume = trainingInsights?.weeklyVolume ?? trainingSummary.weeklyVolume;
   const inferredProfile = buildInferredTrainingProfile({
@@ -510,6 +538,15 @@ async function getAssistantReply(
       .filter(([, n]) => n > 0)
       .map(([g, n]) => `${g}: ${n} sets`)
       .join("; ") || "none";
+
+  const volumeCompletenessNote =
+    insightsFrequency <= 1
+      ? "Volume below reflects only what is logged; with few sessions in the last 7 days, treat weekly totals as a partial snapshot."
+      : insightsFrequency <= 2
+        ? "Interpret weekly totals cautiously if some training happens outside the app."
+        : "";
+
+  const context = `Training data (logged in app): ${trainingSummary.totalWorkouts} total workouts, ${trainingSummary.totalSets} total sets (all-time, counted from completed sets), ${trainingSummary.totalExercises} exercise entries. Last 7 days: ${insightsFrequency} logged session(s). Weekly volume = set counts by muscle group in that window (same calculation as the Coach tab); use these figures verbatim: ${weeklyVolumeStr}. ${volumeCompletenessNote ? `${volumeCompletenessNote} ` : ""}Recent exercise names: ${(trainingSummary.recentExercises ?? []).join(", ") || "none"}.`;
   const findingsStr = (trainingInsights?.findings ?? []).slice(0, 5).join(" ");
   const rirSuffix = (e: {
     avgRIR?: number;
@@ -575,7 +612,7 @@ async function getAssistantReply(
           : "Available session time: not specified",
       ].join("; ")
     : "";
-  const inferredStr = `Inferred from workout behavior (higher priority than profile unless a safety/constraint conflict exists):
+  const inferredStr = `Heuristic inference from logged workout patterns (not direct measurement — say so when you use it; higher priority than profile unless a safety/constraint conflict exists):
 - Weekly frequency: ${effectiveInferred.frequency}
 - Inferred split: ${effectiveInferred.split ?? inferredProfile.inferredSplit}
 - Effort style: ${inferredProfile.effortStyle.label}${
@@ -637,7 +674,7 @@ Strict rules when coach output is present:
 EVIDENCE CARDS (when non-empty — required):
 One pass per card: principle + nuance; tie once to their log — same rules as above (short sentences, no stacked outcomes).
 
-Tone guard: avoid alarmist claims. Prefer "this may help" and "a good starting point would be".
+Tone guard: avoid alarmist claims. Prefer "this may help", "this may indicate", "a useful rule of thumb", and "a good starting point would be".
 `
     : "";
 
@@ -668,7 +705,8 @@ GENERIC PHRASES (ban):
 COACHING LANGUAGE:
 - Keep language calm and practical.
 - Avoid alarmist phrases like "will stall indefinitely", "will cause injury", "limiting factor is".
-- Prefer: "a good starting point would be", "this may help", "you can adjust based on how you feel."
+- Prefer: "a good starting point would be", "this may help", "this suggests", "early signal", "you can adjust based on how you feel."
+- Frame plateau/fatigue/frequency judgments as inference from logs when not a raw number from the payload.
 
 OPENINGS:
 - Lead with the point. No: however, since, if you keep, but, generally, it's worth noting.
@@ -708,7 +746,7 @@ GLOBAL RULES (always):
 
   const insightsBlock =
     trainingInsights
-      ? `trainingInsights (use for specifics — frequencies, volumes, per-exercise signals, findings, logged RIR):\n- Training frequency (last 7 days): ${insightsFrequency} session${insightsFrequency === 1 ? "" : "s"}\n- Weekly volume: ${insightsWeeklyVolumeStr}\n- Key exercise signals: ${keyExerciseSignalsStr || "none"}\n- Global RIR summary: ${globalRirStr || "no RIR logged or insufficient"}\n- Notable findings: ${findingsStr || "none"}\n${goalRirStr ? `- ${goalRirStr}\n` : ""}`
+      ? `trainingInsights (use for specifics — frequencies, volumes, per-exercise signals, findings, logged RIR). Weekly set totals here match app-aggregated logs for the last 7 days:\n- Training frequency (last 7 days): ${insightsFrequency} session${insightsFrequency === 1 ? "" : "s"}\n- Weekly volume (sets per muscle group): ${insightsWeeklyVolumeStr}\n- Key exercise signals: ${keyExerciseSignalsStr || "none"}\n- Global RIR summary: ${globalRirStr || "no RIR logged or insufficient"}\n- Notable findings: ${findingsStr || "none"}\n${goalRirStr ? `- ${goalRirStr}\n` : ""}${volumeCompletenessNote ? `- Completeness: ${volumeCompletenessNote}\n` : ""}`
       : "";
 
   const trendsBlock = trendsStr
@@ -745,7 +783,7 @@ Hard rules:
 - Adapt guidance to the user's message context (e.g., fatigue, stress, sleep, pain, health conditions, training schedule).
 - If the user mentions pain, injury, or a health condition, prioritize safety and suggest professional medical input when appropriate.
 - Give practical next-step coaching, not report-style commentary.
-- Do not use the phrase "based on your data".
+- Avoid vague "based on your data"; when citing logs, prefer "based on your recent logged sessions" or a concrete fact from the digest.
 - Use supportive language like: "a good starting point would be", "this may help", "you can adjust based on how you feel."
 - Do not start with clarifying questions when enough context exists.
 - If minor context is missing, use these defaults silently and coach decisively:
@@ -798,7 +836,7 @@ TASK: Explain the current coach decisions and suggestions clearly. Do not invent
 ${profileStr ? `User profile: ${profileStr}.` : ""}
 - Keep wording simple and non-alarmist.
 - Do not use internal terms like "signal", "interaction", or "limiting factor".
-- Do not use the phrase "based on your data".
+- Avoid vague "based on your data"; when citing logs, prefer "based on your recent logged sessions".
 
 User question:
 ${message}
@@ -816,7 +854,7 @@ The user's question may be broad or underspecified.
 - If context is partially missing, assume: full gym equipment; strength + hypertrophy mix; 3-4 sessions/week.
 - Avoid clarification loops; do not re-ask what is already in LOGGED TRAINING or structured blocks.
 - Keep the tone supportive and concise.
-- Do not use the phrase "based on your data".
+- Avoid vague "based on your data"; when citing logs, prefer "based on your recent logged sessions".
 
 ${trainingSummary.totalWorkouts > 0 ? `${context}\n${insightsBlock ? insightsBlock : ""}\n` : ""}
 User question:
@@ -969,7 +1007,7 @@ Reply in plain language. Prefer 3–5 concise sentences unless the user asks for
       break;
   }
 
-  const finalInput = `${loggedDataPreamble.trim()}\n\n${input.trim()}`;
+  const finalInput = `${loggedDataPreamble.trim()}\n\n${input.trim()}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}`;
 
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -1039,6 +1077,8 @@ export async function POST(request: NextRequest) {
       "how am i doing",
       "how are my workouts",
       "thoughts on my training",
+      "thoughts on my volume",
+      "overall volume",
     ];
     const hardAnalysisMatch =
       hasWorkoutData &&

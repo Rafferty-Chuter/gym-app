@@ -86,9 +86,9 @@ function confidenceLevel(confidence: 1 | 2 | 3 | 4 | 5): "low" | "medium" | "hig
 }
 
 function softenForConfidence(text: string, level: "low" | "medium" | "high"): string {
-  if (level === "high") return text;
-  if (level === "medium") return `Early trend: ${text}`;
-  return `${text} (limited data so far — this will firm up as you log more sessions).`;
+  const t = text.trim();
+  if (level === "high") return t;
+  return `Early signal: ${t}`;
 }
 
 export const EMPTY_COACH_STRUCTURED_ANALYSIS: CoachStructuredAnalysis = {
@@ -101,26 +101,6 @@ export const EMPTY_COACH_STRUCTURED_ANALYSIS: CoachStructuredAnalysis = {
   actionableSuggestions: [],
   actionableSuggestionEvidenceCardIds: [],
 };
-
-function goalPrefix(goal: PriorityGoal) {
-  switch (goal) {
-    case "Increase Bench Press":
-      return "For your bench press goal,";
-    case "Increase Squat":
-      return "For your squat goal,";
-    case "Increase Deadlift":
-      return "For your deadlift goal,";
-    case "Build Chest":
-      return "For your chest growth goal,";
-    case "Build Back":
-      return "For your back growth goal,";
-    case "Build Overall Muscle":
-      return "For your overall muscle growth goal,";
-    case "Improve Overall Strength":
-    default:
-      return "For your overall strength goal,";
-  }
-}
 
 function matchesGoalExercise(exerciseNameLower: string, goal: PriorityGoal): boolean {
   const hasAny = (keywords: string[]) => keywords.some((k) => exerciseNameLower.includes(k));
@@ -187,9 +167,8 @@ function selectKeyFocusSignal(
       goalRelevanceClass: "primary",
       goalRelevance: 5,
       priorityScore: 20,
-      title: `${targetExercise}: insufficient goal data`,
-      explanation:
-        `There isn't enough recent ${targetExercise.toLowerCase()} exposure to assess progress yet.`,
+      title: `${targetExercise}: need a bit more logged work`,
+      explanation: `Log ${targetExercise.toLowerCase()} 1–2 more times before we read the trend with confidence.`,
       target: { exercise: targetExercise },
       evidence: ["goal_specific_data=insufficient", "recent_exposure=low"],
       recommendationIds: [`fix-${targetExercise.toLowerCase().replace(/\s+/g, "-")}-goal-exposure-low`],
@@ -666,15 +645,17 @@ function decisionToText(
         ? `${ex} is not getting enough specific exposure. Increase it to 1–2 sessions per week to drive further adaptation.`
         : `Your goal lift is not getting enough specific exposure. Increase it to 1–2 sessions per week to drive further adaptation.`;
     case "reduce_fatigue":
-      return `You are training very close to failure, which increases fatigue and may limit recoverable volume if continued.`;
+      return ex
+        ? `${ex} is being pushed very hard right now — most recent sets are very close to failure. Ease off one notch so recovery can keep up.`
+        : `Effort is very high across recent sets. Leave a rep or two in reserve on some work so fatigue doesn’t stack.`;
     case "maintain_current_plan":
       return ex
         ? `${ex} is progressing well. Keep the current plan and continue small progression steps.`
         : `Current training is working well. Keep the plan and continue small progression steps.`;
     case "gather_more_data":
       return ex
-        ? `More ${ex} exposure is needed before making a reliable adjustment. Keep training consistently for a few more sessions.`
-        : `More training data is needed before making a reliable adjustment. Keep training consistently for a few more sessions.`;
+        ? `Log 1–2 more ${ex} sessions before making a bigger adjustment — we need a clearer read first.`
+        : `Log 1–2 more sessions before making a bigger adjustment — the trend needs another data point or two.`;
     default: {
       const _exhaustive: never = decision.type;
       return _exhaustive;
@@ -749,18 +730,25 @@ export function buildCoachStructuredAnalysis(
   const keyFocus = {
     text: keyFocusSignal
       ? softenForConfidence(
-          `${goalPrefix(goal)} ${keyFocusSignal.title}. ${keyFocusSignal.explanation}${
-            ""
-          }`,
+          [`${keyFocusSignal.title}.`, keyFocusSignal.explanation]
+            .filter((s) => s && String(s).trim())
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim(),
           keyFocusConfidence
         )
       : topInteraction
         ? softenForConfidence(
-            `${goalPrefix(goal)} ${topInteraction.title}. ${
+            [
+              `${topInteraction.title}.`,
               topInteraction.id.includes("support-gap") && supportGapResult.rationale
                 ? supportGapResult.rationale
-                : topInteraction.implication
-            }`,
+                : topInteraction.implication,
+            ]
+              .filter((s) => s && String(s).trim())
+              .join(" ")
+              .replace(/\s+/g, " ")
+              .trim(),
             keyFocusConfidence
           )
         : null,

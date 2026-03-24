@@ -950,9 +950,9 @@ export function detectExerciseSignals(
         goalRelevanceClass: "supportive",
         goalRelevance: 3,
         priorityScore: 60,
-        title: `${insight.exercise}: training very close to failure`,
+        title: `${insight.exercise} work is being pushed very hard`,
         explanation:
-          "Most sets are being taken to failure, which can limit recoverable volume and increase fatigue.",
+          "Most recent sets are very close to failure — that can stack fatigue. Worth leaving a rep or two in reserve on some sets.",
         target: { exercise: insight.exercise },
         evidence,
         recommendationIds: [`fix-${slug}-effort-high`],
