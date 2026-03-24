@@ -49,10 +49,15 @@ export default function CoachPage() {
   }, [focus, experienceLevel, goal, unit]);
 
   function askCoach(prompt: string) {
-    const cleaned = prompt.trim() || "Review my training and give me the clearest next step.";
+    const cleaned = prompt.trim();
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("assistantQuickPrompt", cleaned);
-      sessionStorage.setItem("assistantAutoSend", "1");
+      if (cleaned) {
+        sessionStorage.setItem("assistantQuickPrompt", cleaned);
+        sessionStorage.setItem("assistantAutoSend", "1");
+      } else {
+        sessionStorage.removeItem("assistantQuickPrompt");
+        sessionStorage.removeItem("assistantAutoSend");
+      }
     }
     router.push("/assistant");
   }

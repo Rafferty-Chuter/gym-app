@@ -25,6 +25,13 @@ export type CoachingContext = {
   profile: UserProfile | null;
   recentWorkouts: StoredWorkout[];
   templates: WorkoutTemplate[];
+  /** Compact coach review lines for assistant prompt (mirrors Coach tab, avoids re-deriving on server). */
+  coachReviewBrief?: {
+    keyFocus: string | null;
+    nextSessionTitle: string | null;
+    topSuggestions: string[];
+    whatsGoingWell: string[];
+  };
   inferred: {
     split?: string;
     weakMuscles: string[];
@@ -123,6 +130,12 @@ export function buildCoachingContext(params: {
     profile: params.profile,
     recentWorkouts,
     templates,
+    coachReviewBrief: {
+      keyFocus: coach.keyFocus,
+      nextSessionTitle: coach.nextSessionAdjustmentPlan?.title ?? null,
+      topSuggestions: coach.actionableSuggestions.slice(0, 4),
+      whatsGoingWell: coach.whatsGoingWell.slice(0, 3),
+    },
     inferred: {
       split: inferSplitFromFrequency(insights.frequency),
       weakMuscles,

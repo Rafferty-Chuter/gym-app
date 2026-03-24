@@ -45,6 +45,15 @@ export function detectAssistantModeWithReason(
     "how is this week",
     "thoughts on my workout",
     "thoughts on my session",
+    "review my training",
+    "review my workouts",
+    "review training",
+    "assess my training",
+    "feedback on my training",
+    "clearest next step",
+    "analyze my training",
+    "look at my training",
+    "what do you think of my training",
   ];
   const advisoryPhrases = [
     "how hard should i train",
@@ -73,8 +82,12 @@ export function detectAssistantModeWithReason(
     return { mode: "advisory", reason: "matched_general_guidance_phrase" };
   }
 
-  // D) Clarification mode last when vague / unmatched
-  return { mode: "clarification", reason: "no_mode_rule_matched" };
+  // D) With logged workouts, default to analysis so the model receives training payload (not clarification without context).
+  if (params.hasWorkoutData) {
+    return { mode: "analysis", reason: "default_with_logged_workouts" };
+  }
+
+  return { mode: "clarification", reason: "no_workout_data_unmatched_intent" };
 }
 
 export function detectAssistantMode(params: DetectAssistantModeParams): AssistantMode {

@@ -189,7 +189,15 @@ export function classifyAssistantIntent(message: string): AssistantIntent {
     t.includes("recent training") ||
     t.includes("my training look") ||
     t.includes("training looking") ||
-    t.includes("how is my lifting")
+    t.includes("how is my lifting") ||
+    t.includes("review my training") ||
+    t.includes("review my workouts") ||
+    (t.includes("review") && t.includes("training")) ||
+    t.includes("assess my training") ||
+    t.includes("feedback on my training") ||
+    t.includes("clearest next step") ||
+    t.includes("look at my training") ||
+    t.includes("what do you think of my training")
   ) {
     return "recent_training_analysis";
   }
@@ -259,6 +267,97 @@ function isCoachStructuredOutput(v: unknown): v is AssistantCoachStructuredOutpu
   return true;
 }
 
+type JsonWorkoutExercise = { name?: string; sets?: unknown[] };
+type JsonWorkout = {
+  completedAt?: string;
+  name?: string;
+  exercises?: JsonWorkoutExercise[];
+};
+
+function formatRecentWorkoutsDigest(
+  workouts: unknown,
+  max = 8
+): { text: string; count: number } {
+  if (!Array.isArray(workouts)) return { text: "(no recent session list in payload)", count: 0 };
+  const slice = (workouts as JsonWorkout[]).slice(0, max);
+  const lines = slice.map((w, i) => {
+    const date =
+      typeof w.completedAt === "string" && w.completedAt.length >= 10
+        ? w.completedAt.slice(0, 10)
+        : "unknown date";
+    const title = typeof w.name === "string" && w.name.trim() ? w.name.trim() : "Session";
+    const exParts = (w.exercises ?? []).map((e) => {
+      const nm = typeof e.name === "string" && e.name.trim() ? e.name.trim() : "Exercise";
+      const n = Array.isArray(e.sets) ? e.sets.length : 0;
+      return `${nm} (${n} sets)`;
+    });
+    return `${i + 1}. ${date} — ${title}: ${exParts.length ? exParts.join("; ") : "no exercises listed"}`;
+  });
+  return { text: lines.join("\n"), count: slice.length };
+}
+
+function formatTemplatesDigest(templates: unknown, max = 8): string {
+  if (!Array.isArray(templates)) return "none in payload";
+  const slice = templates.slice(0, max) as Array<{ name?: string; exercises?: unknown[] }>;
+  if (slice.length === 0) return "none in payload";
+  return slice
+    .map((t) => {
+      const n = Array.isArray(t.exercises) ? t.exercises.length : 0;
+      const name = typeof t.name === "string" && t.name.trim() ? t.name.trim() : "Unnamed template";
+      return `${name} (${n} exercises)`;
+    })
+    .join("; ");
+}
+
+function formatCoachReviewBriefFromContext(ctx: unknown): string {
+  if (ctx == null || typeof ctx !== "object") return "not included";
+  const c = ctx as { coachReviewBrief?: CoachingContext["coachReviewBrief"] };
+  const b = c.coachReviewBrief;
+  if (!b) return "not included";
+  const lines: string[] = [];
+  if (b.keyFocus) lines.push(`Key focus: ${b.keyFocus}`);
+  if (b.nextSessionTitle) lines.push(`Next session (coach plan): ${b.nextSessionTitle}`);
+  if (b.whatsGoingWell?.length)
+    lines.push(`Going well: ${b.whatsGoingWell.filter(Boolean).join(" | ")}`);
+  if (b.topSuggestions?.length)
+    lines.push(`Top suggestions: ${b.topSuggestions.filter(Boolean).join(" | ")}`);
+  return lines.length ? lines.join("\n") : "(empty brief)";
+}
+
+function buildLoggedTrainingPreamble(params: {
+  hasWorkoutData: boolean;
+  totalWorkouts: number;
+  recentDigest: string;
+  recentCount: number;
+  coachingContext: unknown;
+}): string {
+  if (!params.hasWorkoutData) {
+    return `=== LOGGED TRAINING STATUS ===
+No completed workouts were included in the summary (0 sessions / 0 sets). It is appropriate to ask what their training looks like or encourage them to log sessions in the app.`;
+  }
+
+  const ctx = params.coachingContext as Partial<CoachingContext> | null | undefined;
+  const tpl = formatTemplatesDigest(ctx?.templates);
+  const brief = formatCoachReviewBriefFromContext(params.coachingContext);
+
+  return `=== LOGGED TRAINING (AUTHORITATIVE — USER LOGS IN THIS APP) ===
+The user has already logged workouts. The digest below is their real history; treat it as ground truth.
+
+Totals (all time, from summary): ${params.totalWorkouts} workout(s).
+Recent sessions (${params.recentCount} newest in payload):
+${params.recentDigest}
+
+Saved templates (names): ${tpl}
+
+Coach review brief (deterministic tab output):
+${brief}
+
+STRICT RULES:
+- Start from this logged data and the structured trainingSummary / trainingInsights / coach blocks below. Do NOT ask them to paste or restate their full routine.
+- Only ask a follow-up if something critical for safety or their exact question is missing from the payload.
+- If the log is thin, say so in one short phrase (e.g. "From your few logged sessions…") and still give the clearest next step from what you have.`;
+}
+
 function sanitizeEvidenceCards(v: unknown): AssistantEvidenceCard[] {
   if (!Array.isArray(v)) return [];
   const out: AssistantEvidenceCard[] = [];
@@ -309,12 +408,16 @@ function buildAnalysisInputs(
     coachStructuredOutput?.actionableSuggestions?.[0]?.text?.trim();
   const coachNext = coachStructuredOutput?.actionableSuggestions?.[0]?.text?.trim();
 
+  const positiveInsight = (trainingInsights?.exerciseInsights ?? []).find(
+    (e) => e.trend === "improving" || e.trend === "progressing"
+  );
+  const positiveTrend = exerciseTrends.find(
+    (t) => t.trend === "improving" || t.trend === "progressing"
+  );
   const topPositive: string | null =
-    (trainingInsights?.exerciseInsights ?? [])
-      .find((e) => e.trend === "improving")
-      ?.changeSummary ||
-    (exerciseTrends.find((t) => t.trend === "improving")?.exercise
-      ? `${exerciseTrends.find((t) => t.trend === "improving")?.exercise} is showing improving performance across recent sessions.`
+    positiveInsight?.changeSummary ||
+    (positiveTrend?.exercise
+      ? `${positiveTrend.exercise} is trending up across recent logged sessions.`
       : "") ||
     coachPositive ||
     (highVolumeGroup
@@ -353,18 +456,8 @@ function buildAnalysisInputs(
   return { topPositive, topIssue, nextStep, missing };
 }
 
-function buildAnalysisModeResponseFromInputs(inputs: {
-  topPositive: string | null;
-  topIssue: string | null;
-  nextStep: string | null;
-}): string {
-  const positive = inputs.topPositive ?? "You are showing useful consistency in your recent sessions.";
-  const issue = inputs.topIssue ?? "One watch item is keeping training balance aligned with your current goal.";
-  const step = inputs.nextStep ?? "A good next step is one small, trackable adjustment in your next session.";
-  return `${positive} ${issue} ${step}`;
-}
-
 async function getAssistantReply(
+  loggedDataPreamble: string,
   message: string,
   intent: AssistantIntent,
   mode: AssistantMode,
@@ -610,6 +703,7 @@ GLOBAL RULES (always):
 - Only use detailed recent-training / coach-log analysis when the user's question is actually about recent training, their week, or coach output—or when explaining coach output in coach_explanation using the blocks provided for that purpose.
 - Do not answer a different question just because training data is available.
 - Do not pivot unrelated questions into bench/support-volume or generic weekly analysis unless the intent is recent_training_analysis.
+- If LOGGED TRAINING above shows workouts exist, never ask the user to describe their whole program from scratch; use the digest and structured fields.
 `;
 
   const insightsBlock =
@@ -643,9 +737,9 @@ GLOBAL RULES (always):
 You are an experienced strength coach in advisory mode.
 
 Hard rules:
-- Do NOT run recent-training analysis.
-- Do NOT reference workout trends, weekly volume, plateaus, "no stimulus", or "no progress".
-- Do NOT describe missing logs as a problem.
+- Do NOT run a full week-wide diagnosis unless the user asked for it.
+- If LOGGED TRAINING above shows workouts, do NOT ask them to paste or restate their routine; you may mention one concrete detail from the digest when it sharpens your answer.
+- If LOGGED TRAINING shows no sessions, do not treat that as failure—answer from principles or encourage logging.
 - Use calm, coach-like language. No alarmist framing.
 - Anchor recommendations to RIR targets and effort control.
 - Adapt guidance to the user's message context (e.g., fatigue, stress, sleep, pain, health conditions, training schedule).
@@ -715,19 +809,16 @@ Answer in plain language. 3–5 short sentences. Focus on "why" and practical me
       input = `
 You are an experienced strength coach.
 
-The user's question is missing key context for a reliable answer.
-- Prefer giving a practical baseline recommendation first.
-- Ask at most ONE clarifying question, and only if absolutely necessary for safety or hard constraints.
-- If context is partially missing, assume:
-  - full gym equipment
-  - strength + hypertrophy mix
-  - 3-4 sessions/week
-- Avoid clarification loops and do not re-ask details already present in the user message.
-- Behaviour > Profile, except when injuries/equipment/time constraints require an override.
-- If coachingContext already contains required details, do not ask for them again.
+The user's question may be broad or underspecified.
+- If LOGGED TRAINING above shows sessions, answer from that data first; do NOT ask them to restate their routine.
+- Prefer a practical recommendation grounded in the payload before asking anything.
+- Ask at most ONE clarifying question, and only if something critical is missing for safety or their exact question.
+- If context is partially missing, assume: full gym equipment; strength + hypertrophy mix; 3-4 sessions/week.
+- Avoid clarification loops; do not re-ask what is already in LOGGED TRAINING or structured blocks.
 - Keep the tone supportive and concise.
 - Do not use the phrase "based on your data".
 
+${trainingSummary.totalWorkouts > 0 ? `${context}\n${insightsBlock ? insightsBlock : ""}\n` : ""}
 User question:
 ${message}
 `;
@@ -878,9 +969,11 @@ Reply in plain language. Prefer 3–5 concise sentences unless the user asks for
       break;
   }
 
+  const finalInput = `${loggedDataPreamble.trim()}\n\n${input.trim()}`;
+
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
-    input,
+    input: finalInput,
   });
 
   const reply = response.output_text?.trim();
@@ -991,38 +1084,45 @@ export async function POST(request: NextRequest) {
         reason: "hard_analysis_phrase_match_with_workout_data",
       });
     }
-    if (mode === "analysis") {
-      const analysisDebug = buildAnalysisInputs(
-        {
-          totalWorkouts: Number(trainingSummary.totalWorkouts) || 0,
-          totalExercises: Number(trainingSummary.totalExercises) || 0,
-          totalSets: Number(trainingSummary.totalSets) || 0,
-          weeklyVolume: trainingSummary.weeklyVolume ?? {},
-          recentExercises: Array.isArray(trainingSummary.recentExercises)
-            ? trainingSummary.recentExercises
-            : [],
-        },
-        trainingInsights,
-        exerciseTrends ?? [],
-        coachStructuredOutput
-      );
-      console.log("[assistant analysis inputs]", analysisDebug);
-      if (analysisDebug.missing.length > 0) {
-        console.log("[assistant analysis fail-safe missing]", analysisDebug.missing);
-      }
-      const exactMsg = trimmedMessage.toLowerCase();
-      if (exactMsg === "how is my training looking this week?") {
-        console.log("[assistant core test message debug]", {
-          detectedMode: mode,
-          hasWorkoutData,
-          positiveUsed: analysisDebug.topPositive,
-          issueUsed: analysisDebug.topIssue,
-          nextStepUsed: analysisDebug.nextStep,
-        });
-      }
-      const analysisReply = buildAnalysisModeResponseFromInputs(analysisDebug);
-      return NextResponse.json({ reply: analysisReply } satisfies AssistantResponse);
-    }
+
+    const recentDigest = formatRecentWorkoutsDigest(
+      coachingContext && typeof coachingContext === "object" && "recentWorkouts" in coachingContext
+        ? (coachingContext as { recentWorkouts?: unknown }).recentWorkouts
+        : undefined
+    );
+    const loggedDataPreamble = buildLoggedTrainingPreamble({
+      hasWorkoutData,
+      totalWorkouts: Number(trainingSummary.totalWorkouts) || 0,
+      recentDigest: recentDigest.text,
+      recentCount: recentDigest.count,
+      coachingContext,
+    });
+
+    console.log("[assistant-context-debug]", {
+      hasWorkoutData,
+      totalWorkouts: Number(trainingSummary.totalWorkouts) || 0,
+      recentWorkoutsDigestCount: recentDigest.count,
+      priorityGoalIncluded: Boolean(priorityGoal),
+      userProfileIncluded: Boolean(userProfile),
+      coachingContextIncluded: Boolean(coachingContext),
+      inferredIncluded: Boolean(
+        coachingContext &&
+          typeof coachingContext === "object" &&
+          "inferred" in coachingContext &&
+          (coachingContext as { inferred?: unknown }).inferred
+      ),
+      coachReviewBriefIncluded: Boolean(
+        coachingContext &&
+          typeof coachingContext === "object" &&
+          "coachReviewBrief" in coachingContext &&
+          (coachingContext as { coachReviewBrief?: unknown }).coachReviewBrief
+      ),
+      trainingInsightsIncluded: Boolean(trainingInsights),
+      exerciseTrendsCount: Array.isArray(exerciseTrends) ? exerciseTrends.length : 0,
+      coachStructuredIncluded: Boolean(coachStructuredOutput),
+      intent,
+      mode,
+    });
 
     const priorityGoalExerciseInsight =
       rawPriorityGoalInsight != null &&
@@ -1043,6 +1143,7 @@ export async function POST(request: NextRequest) {
     });
 
     const reply = await getAssistantReply(
+      loggedDataPreamble,
       trimmedMessage,
       intent,
       mode,
