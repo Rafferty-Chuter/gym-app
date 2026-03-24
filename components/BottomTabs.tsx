@@ -15,7 +15,7 @@ export default function BottomTabs() {
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
-    if (href === "/coach") return pathname === "/coach" || pathname === "/analysis";
+    if (href === "/coach") return pathname === "/coach" || pathname.startsWith("/coach/") || pathname === "/analysis";
     return pathname.startsWith(href);
   }
 
