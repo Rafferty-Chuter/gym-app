@@ -41,6 +41,7 @@ import {
   generateNextSessionAdjustments,
   type NextSessionAdjustmentPlan,
 } from "@/lib/nextSessionAdjustments";
+import { getSuggestedExercisesForCoarseGroup, plainCoachNameForCoarseGroup } from "@/lib/coachMusclePools";
 
 export type CoachStructuredAnalysis = {
   keyFocus: string | null;
@@ -86,8 +87,8 @@ function confidenceLevel(confidence: 1 | 2 | 3 | 4 | 5): "low" | "medium" | "hig
 
 function softenForConfidence(text: string, level: "low" | "medium" | "high"): string {
   if (level === "high") return text;
-  if (level === "medium") return `Initial indication: ${text}`;
-  return `Early signal: ${text} (limited data so far).`;
+  if (level === "medium") return `Early trend: ${text}`;
+  return `${text} (limited data so far — this will firm up as you log more sessions).`;
 }
 
 export const EMPTY_COACH_STRUCTURED_ANALYSIS: CoachStructuredAnalysis = {
@@ -325,15 +326,27 @@ function interactionRecommendationToText(
   if (interaction.id.includes("goal-data-insufficient")) {
     const target = goalExercise ?? "goal lift";
     return [
-      `Prioritize ${target} exposure: schedule it 1-2x per week for the next 2 weeks.`,
-      `Keep one top set and one back-off set logged each session so trend confidence improves quickly.`,
+      `What to do next: schedule ${target} 1–2× per week for the next two weeks.`,
+      `Why it matters: steady exposure makes progression and adjustments much easier to read.`,
     ];
   }
   if (interaction.id.includes("support-gap")) {
-    const exFromId = interaction.id.replace("interaction-progress-support-gap-", "").replace(/-/g, " ");
+    const slug = interaction.id.replace("interaction-progress-support-gap-", "");
+    const progressingEx = slug
+      .split("-")
+      .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+      .join(" ");
+    const weak = interaction.weakMuscleGroup ?? "back";
+    const area = plainCoachNameForCoarseGroup(weak);
+    const examples = getSuggestedExercisesForCoarseGroup(weak).slice(0, 3);
+    const examplePhrase =
+      examples.length >= 2
+        ? `${examples[0]}, ${examples[1]}, or similar`
+        : examples.length === 1
+          ? examples[0]
+          : `${area} exercises you tolerate well`;
     return [
-      `${exFromId[0]?.toUpperCase() ?? ""}${exFromId.slice(1)} is moving up; add 3-4 supportive back sets next session.`,
-      `Maintain current progression, but raise support volume to reduce near-term plateau risk.`,
+      `Main issue: ${area} weekly work is behind while ${progressingEx} is improving. Why it matters: that imbalance often shows up as slower progress or a stall on ${progressingEx}. What to do next: add 3–4 quality ${area} sets next session (${examplePhrase}). How hard: leave 1–2 reps in reserve on most of the new sets unless you already know you recover fast.`,
     ];
   }
   return [];
@@ -345,7 +358,13 @@ function recommendationToText(rec: Recommendation, unit: "kg" | "lb"): string {
     rec.target.length > 1 ? rec.target[0].toUpperCase() + rec.target.slice(1) : rec.target;
 
   if (rec.type === "increase_sets") {
-    return softenForConfidence(`Next session, add 3–4 ${rec.target} sets.`, confidenceLevel(rec.confidence));
+    const area = plainCoachNameForCoarseGroup(rec.target);
+    const hints = getSuggestedExercisesForCoarseGroup(rec.target).slice(0, 2);
+    const hintText = hints.length >= 2 ? ` (e.g. ${hints[0]}, ${hints[1]})` : hints.length === 1 ? ` (e.g. ${hints[0]})` : "";
+    return softenForConfidence(
+      `This area needs more weekly sets. Next session, add 3–4 focused sets for ${area}${hintText}.`,
+      confidenceLevel(rec.confidence)
+    );
   }
   if (rec.type === "reduce_sets") {
     return softenForConfidence(
@@ -632,11 +651,16 @@ function decisionToText(
   _unit: "kg" | "lb"
 ): string {
   const ex = context.keyFocusExercise;
+  const sg = context.supportGroup;
+  const area = plainCoachNameForCoarseGroup(sg ?? "back");
+  const hints = getSuggestedExercisesForCoarseGroup(sg).slice(0, 2);
+  const hintPhrase =
+    hints.length >= 2 ? `${hints[0]} or ${hints[1]}` : hints.length === 1 ? hints[0] : `${area} work`;
   switch (decision.type) {
     case "increase_support_volume":
       return ex
-        ? `Progress is strong on ${ex}, but support volume is the limiting factor. Add 3–4 back sets next session to keep progress moving.`
-        : `Support volume is the limiting factor. Add 3–4 back sets next session to keep progress moving.`;
+        ? `Main issue: ${area} weekly volume is still low while ${ex} is moving. Why it matters: without enough ${area} work, ${ex} often slows down. What to do next: add 3–4 ${area} sets next session (${hintPhrase}). How hard: keep most added sets around 1–2 reps shy of failure.`
+        : `Main issue: ${area} weekly volume looks low relative to your goal. What to do next: add 3–4 ${area} sets this week (${hintPhrase}).`;
     case "increase_goal_lift_exposure":
       return ex
         ? `${ex} is not getting enough specific exposure. Increase it to 1–2 sessions per week to drive further adaptation.`
@@ -701,7 +725,7 @@ export function buildCoachStructuredAnalysis(
     ...detectFrequencySignals(allWorkouts),
   ];
   const scoredSignals = scoreTrainingSignals(rawSignals, focus, userProfile);
-  const interactions = buildSignalInteractions(scoredSignals, userProfile);
+  const interactions = buildSignalInteractions(scoredSignals, userProfile, insights.weeklyVolume);
 
   const topInteraction = interactions[0];
   const keyFocusSignal = topInteraction ? null : selectKeyFocusSignal(scoredSignals, goal);
@@ -879,6 +903,13 @@ export function buildCoachStructuredAnalysis(
   const setsPerMuscleAvg = averageWeeklySetsPerMuscle(insights.weeklyVolume);
   const trainingStyle = inferTrainingStyle(avgRIR, setsPerMuscleAvg);
 
+  /** Prefer the weak area from the active support-gap interaction so copy + exercise picks match. */
+  const resolvedSupportGroupForCoach =
+    topInteraction?.id.includes("support-gap") && topInteraction.weakMuscleGroup
+      ? topInteraction.weakMuscleGroup
+      : supportGapResult.limitingMuscle ??
+        supportGroupFromInteraction(topInteraction, scoredSignals);
+
   const decisionContext: DecisionContext = {
     goal,
     experienceLevel,
@@ -888,9 +919,7 @@ export function buildCoachStructuredAnalysis(
     fatigueRisk: mapFatigueRiskFromSignals(avgRIR, goalLiftProgress),
     frequencyStatus: mapFrequencyStatusForDecisions(insights, scoredSignals),
     supportGap: Boolean(topInteraction?.id.includes("support-gap")),
-    ...(supportGapResult.limitingMuscle
-      ? { supportGroup: supportGapResult.limitingMuscle }
-      : {}),
+    ...(resolvedSupportGroupForCoach ? { supportGroup: resolvedSupportGroupForCoach } : {}),
     goalLiftProgress,
     goalLiftExposure: mapGoalLiftExposureForDecisions(goalExerciseInsight),
     currentWeeklySets: estimatedWeeklySetsForExercise(
@@ -920,9 +949,7 @@ export function buildCoachStructuredAnalysis(
 
   const recentExercises = recentExerciseNamesFromWorkouts(allWorkouts);
   const recentExercisesByGroup = getRecentExercisesByMuscleGroup(allWorkouts);
-  const supportGroup =
-    supportGapResult.limitingMuscle ??
-    supportGroupFromInteraction(topInteraction, scoredSignals);
+  const supportGroup = resolvedSupportGroupForCoach;
   const supportExercises = supportGroup ? recentExercisesByGroup[supportGroup] ?? [] : [];
   const supportGroupWeeklySets =
     supportGroup && supportGroup in insights.weeklyVolume

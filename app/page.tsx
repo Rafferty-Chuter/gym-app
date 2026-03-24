@@ -567,7 +567,7 @@ export default function Home() {
     }
     if (homeDataState === "low_data") {
       return {
-        positive: `You have ${thisWeek.workoutsCount} recent session${thisWeek.workoutsCount === 1 ? "" : "s"} logged - enough to start directional coaching.`,
+        positive: `You have ${thisWeek.workoutsCount} recent session${thisWeek.workoutsCount === 1 ? "" : "s"} logged — enough for useful coaching reads that will sharpen as you add more weeks.`,
         watch: "Recommendations are still provisional; confidence improves with a few more sessions.",
       };
     }
@@ -780,12 +780,12 @@ export default function Home() {
           <div className="mt-3 rounded-xl border border-indigo-600/30 bg-indigo-950/24 p-5">
             <p className="text-xl font-extrabold tracking-tight text-indigo-50">
               {homeDataState === "low_data"
-                ? "Coach recommendation is early but directional"
+                ? "Coach read is early — useful, but still firming up"
                 : weeklyNeed.headline}
             </p>
             <p className="mt-1.5 text-sm text-indigo-100/90">
               {homeDataState === "low_data"
-                ? "Keep logging this week so recommendations can move from directional to precise."
+                ? "Keep logging this week so next steps can get more specific."
                 : weeklyNeed.detail}
             </p>
             <p className="mt-2 text-xs text-indigo-200/80">

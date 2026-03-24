@@ -140,7 +140,7 @@ export default function CoachPage() {
               <p className="mt-1 text-sm text-app-secondary">{summaryPositive}</p>
             </div>
             <div className="rounded-xl border border-amber-900/35 bg-amber-950/15 px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200/75">Watch Item</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200/75">Main issue</p>
               <p className="mt-1 text-sm text-app-secondary">{summaryWatch}</p>
             </div>
             <div className="rounded-xl border border-teal-900/35 bg-zinc-900/65 px-3 py-2.5">

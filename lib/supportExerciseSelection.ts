@@ -1,3 +1,4 @@
+import { getSuggestedExercisesForCoarseGroup } from "@/lib/coachMusclePools";
 import { getExerciseProfile } from "@/lib/exerciseProfiles";
 import { resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
 
@@ -39,6 +40,13 @@ export function matchesSupportGroup(exerciseName: string, supportGroup?: string)
   const group = normalizeGroup(supportGroup);
   if (!group) return false;
   const n = exerciseName.toLowerCase();
+  // Avoid classifying leg curls / hamstring work as "arms" via bare "curl"
+  if (group === "arms" && (n.includes("leg curl") || n.includes("hamstring curl") || n.includes("ham curl"))) {
+    return false;
+  }
+  if (group === "legs" && (n.includes("leg curl") || n.includes("hamstring curl") || n.includes("ham curl"))) {
+    return true;
+  }
   const meta = resolveLoggedExerciseMeta({ name: exerciseName });
   console.log("[support selection] resolved metadata", {
     exerciseName,
@@ -69,18 +77,29 @@ export function selectSupportExercises(
   supportExercises: string[] | undefined,
   supportGroup?: string
 ): string[] {
-  const source =
-    supportExercises && supportExercises.length > 0 ? supportExercises : recentExercises;
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const ex of source) {
-    const label = ex.trim();
-    if (!label) continue;
-    const key = label.toLowerCase().replace(/\s+/g, " ");
-    if (seen.has(key)) continue;
-    if (supportGroup && !matchesSupportGroup(label, supportGroup)) continue;
-    seen.add(key);
-    out.push(label);
+
+  const pushFrom = (candidates: string[]) => {
+    for (const ex of candidates) {
+      const label = ex.trim();
+      if (!label) continue;
+      const key = label.toLowerCase().replace(/\s+/g, " ");
+      if (seen.has(key)) continue;
+      if (supportGroup && !matchesSupportGroup(label, supportGroup)) continue;
+      seen.add(key);
+      out.push(label);
+    }
+  };
+
+  if (supportExercises && supportExercises.length > 0) {
+    pushFrom(supportExercises);
+  }
+  if (out.length === 0) {
+    pushFrom(recentExercises);
+  }
+  if (out.length === 0 && supportGroup) {
+    pushFrom(getSuggestedExercisesForCoarseGroup(supportGroup));
   }
   return out;
 }

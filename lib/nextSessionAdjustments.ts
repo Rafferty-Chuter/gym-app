@@ -1,4 +1,5 @@
 import type { CoachDecision, DecisionContext } from "@/lib/trainingDecisions";
+import { plainCoachNameForCoarseGroup } from "@/lib/coachMusclePools";
 import { getExerciseProfile } from "@/lib/exerciseProfiles";
 import { supportPhraseForExercise } from "@/lib/supportMapping";
 import { selectSupportExercises } from "@/lib/supportExerciseSelection";
@@ -56,43 +57,8 @@ function findRelevantBackExerciseProfile(names: string[]) {
   return null;
 }
 
-function supportVolumeInstructionForContext(
-  context: DecisionContext,
-  recentExercises: string[]
-): string {
-  const { trainingStyle, avgRIR } = context;
-
-  if (trainingStyle === "to_failure") {
-    return "You are training very close to failure. Instead of adding many more hard sets, add 1–2 additional sets or take some sets 1–2 reps from failure to allow more total volume.";
-  }
-  if (trainingStyle === "mixed") {
-    return "Your weekly volume is already substantial. Avoid pushing set count much higher; refine execution quality, exercise selection, or progression before adding more back work.";
-  }
-  if (avgRIR !== undefined && avgRIR <= 0.5) {
-    return "Rather than adding many more hard sets, keep sets similar and take some sets 1–2 reps from failure to allow more total volume.";
-  }
-  return addSupportSetsInstruction(recentExercises);
-}
-
-function addSupportSetsInstruction(recentExercises: string[]): string {
-  const profile = findRelevantBackExerciseProfile(recentExercises);
-  if (profile) {
-    if (profile.fatigueCost === "high") {
-      return "Add 1–2 back sets next session or keep sets the same and reduce effort slightly to allow more total volume.";
-    }
-    if (profile.fatigueCost === "moderate") {
-      return "Add 2–3 back sets next session using your current variation.";
-    }
-    return "Add 3–4 back sets next session using a stable row or pulldown variation.";
-  }
-
-  if (recentExercisesSuggestRowVariation(recentExercises)) {
-    return "Add 3–4 back sets to your next session using your current row variation.";
-  }
-  if (recentExercisesSuggestPulldownVariation(recentExercises)) {
-    return "Add 3–4 back sets to your next session using your current pulldown variation.";
-  }
-  return "Add 3–4 back sets to your next session using your current row or pulldown variation.";
+function areaLabelForGroup(group: string | undefined): string {
+  return plainCoachNameForCoarseGroup(group ?? "back");
 }
 
 export function generateNextSessionAdjustments(params: {
@@ -124,25 +90,37 @@ export function generateNextSessionAdjustments(params: {
       console.log("[next session] keyFocusExercise:", context.keyFocusExercise);
       console.log("[next session] supportGroup:", resolvedSupportGroup);
       console.log("[next session] supportExercises:", selectedSupportExercises);
+      const areaLabel = areaLabelForGroup(resolvedSupportGroup);
       const setInstructionBase =
         selectedSupportExercises.length >= 2
-          ? `Add 1 extra set to your ${selectedSupportExercises[0]} and ${selectedSupportExercises[1]} next session.`
+          ? `Add 1 extra set to ${selectedSupportExercises[0]} and ${selectedSupportExercises[1]} next session.`
           : selectedSupportExercises.length === 1
-            ? `Add 2 extra sets to your ${selectedSupportExercises[0]} next session.`
-            : `Add 2–4 sets of ${resolvedSupportGroup ?? "supporting muscle"} work next session.`;
+            ? `Add 2 extra sets to ${selectedSupportExercises[0]} next session.`
+            : `Add 2–4 weekly sets for ${areaLabel} next session.`;
       const addSupportInstruction =
         context.avgRIR !== undefined && context.avgRIR <= 0.5
-          ? `${setInstructionBase} If recovery starts to drop, avoid taking every set to failure and keep some sets around ~1-2 RIR.`
-          : `${setInstructionBase} Keep set quality high and reps controlled.`;
+          ? `${setInstructionBase} If recovery dips, leave 1–2 reps in reserve on some sets instead of grinding every set to failure.`
+          : `${setInstructionBase} Keep reps controlled and form consistent.`;
       const supportPhrase = supportPhraseForExercise(context.keyFocusExercise);
       const rationale =
         targetExercise.toLowerCase().includes("bench") && resolvedSupportGroup === "back"
-          ? "Bench press is progressing, but your back work is low. Your back helps stabilise the press and supports long-term pressing strength."
-          : supportPhrase.hasMapping
-            ? `Your ${supportPhrase.primaryMuscle} is currently undertrained. ${supportPhrase.explanation}`
-            : `${resolvedSupportGroup ?? "Supporting muscles"} need a bit more work to keep progress moving.`;
+          ? `${targetExercise} is moving well, but your back weekly volume is still low. A stronger upper back usually makes pressing more stable and easier to progress.`
+          : supportPhrase.hasMapping && resolvedSupportGroup === "arms"
+            ? `${targetExercise} is trending up, but ${areaLabel} weekly work looks light. ${supportPhrase.explanation ?? "Extra arm work often helps lockout and elbow health on pressing."}`
+            : `Main issue: ${areaLabel} is undertrained relative to ${targetExercise}. Why it matters: that gap can cap how long ${targetExercise} keeps improving. Next step: add a small amount of focused ${areaLabel} work this week.`;
       return {
-        title: "Support current progress",
+        title:
+          resolvedSupportGroup === "legs"
+            ? "Bring lower body up"
+            : resolvedSupportGroup === "back"
+              ? "Bring back work up"
+              : resolvedSupportGroup === "chest"
+                ? "Bring chest work up"
+                : resolvedSupportGroup === "shoulders"
+                  ? "Bring shoulder work up"
+                  : resolvedSupportGroup === "arms"
+                    ? "Bring arm work up"
+                    : "Balance weak areas",
         rationale,
         adjustments: [
           {
@@ -154,7 +132,7 @@ export function generateNextSessionAdjustments(params: {
           {
             type: "hold_load_steady",
             target: targetExercise,
-            instruction: `Keep ${targetExercise} progression steady while this support volume increase settles in.`,
+            instruction: `Keep ${targetExercise} loads moving in small steps while the extra ${areaLabel} work settles in.`,
             duration: "next_2_sessions",
           },
         ],

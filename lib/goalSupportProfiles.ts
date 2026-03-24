@@ -1,3 +1,5 @@
+import { mapFineSupportMuscleToCoarseGroup, plainCoachNameForCoarseGroup } from "@/lib/coachMusclePools";
+
 export type GoalSupportProfile = {
   goal: string;
   driverExercise?: string;
@@ -74,12 +76,17 @@ export function getGoalSupportProfile(goal: string): GoalSupportProfile | null {
 }
 
 export type SupportGapResult = {
+  /** Coarse weekly-volume bucket: chest | back | legs | shoulders | arms */
   limitingMuscle: string | null;
   rationale: string | null;
 };
 
 function toPositiveNumberOrZero(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+function humanVolumeBucketLabel(coarse: string): string {
+  return plainCoachNameForCoarseGroup(coarse);
 }
 
 export function detectLimitingSupportMuscle(params: {
@@ -94,23 +101,30 @@ export function detectLimitingSupportMuscle(params: {
     };
   }
 
-  const candidates = profile.supportMuscles
-    .map((muscle) => ({
-      muscle,
-      volume: toPositiveNumberOrZero(params.volumeByMuscle[muscle]),
-    }))
-    .sort((a, b) => a.volume - b.volume || a.muscle.localeCompare(b.muscle));
+  const uniqueCoarse = new Set<string>();
+  for (const muscle of profile.supportMuscles) {
+    const coarse = mapFineSupportMuscleToCoarseGroup(muscle);
+    if (coarse) uniqueCoarse.add(coarse);
+  }
 
-  const lowest = candidates[0];
-  if (!lowest) {
+  const ranked = [...uniqueCoarse]
+    .map((coarse) => ({
+      coarse,
+      volume: toPositiveNumberOrZero(params.volumeByMuscle[coarse]),
+    }))
+    .sort((a, b) => a.volume - b.volume || a.coarse.localeCompare(b.coarse));
+  const lowest = ranked[0];
+  if (!lowest || uniqueCoarse.size === 0) {
     return {
       limitingMuscle: null,
       rationale: null,
     };
   }
 
+  const { coarse, volume: sets } = lowest;
+  const label = humanVolumeBucketLabel(coarse);
   return {
-    limitingMuscle: lowest.muscle,
-    rationale: `${lowest.muscle[0].toUpperCase()}${lowest.muscle.slice(1)} appears to be the lowest-volume support muscle for ${profile.goal}. ${profile.explanation}`,
+    limitingMuscle: coarse,
+    rationale: `Your ${label} weekly volume is on the low side for ${profile.goal} (~${Math.round(sets)} sets this week). Adding a few quality sets there usually makes progress easier to sustain.`,
   };
 }

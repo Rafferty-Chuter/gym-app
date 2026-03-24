@@ -73,7 +73,8 @@ export function decideNextActions(context: DecisionContext): CoachDecision[] {
       {
         id: "increase_support_volume",
         type: "increase_support_volume",
-        reason: "Support volume is the current limiting factor for continued progress.",
+        reason:
+          "Weekly volume for a key muscle group is low compared with your main lift progress — bringing it up usually extends the progression runway.",
         priority: 80,
       },
     ]);
@@ -108,7 +109,8 @@ export function decideNextActions(context: DecisionContext): CoachDecision[] {
       {
         id: "increase_support_volume",
         type: "increase_support_volume",
-        reason: "Support volume is currently too low relative to the main progression driver.",
+        reason:
+          "A muscle group you rely on is undertrained on a weekly basis compared with the lift that is progressing.",
         priority: 82,
       },
     ]);

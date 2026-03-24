@@ -6,6 +6,7 @@
 import type { TrainingFocus } from "@/lib/trainingFocus";
 import type { ExperienceLevel } from "@/lib/experienceLevel";
 import type { UserProfile } from "@/lib/userProfile";
+import { detectLimitingSupportMuscle } from "@/lib/goalSupportProfiles";
 import {
   getStats,
   getWorkoutsFromLast7Days,
@@ -468,6 +469,8 @@ export type TrainingInteraction = {
   goalRelevance: 1 | 2 | 3 | 4 | 5;
   priorityScore: number;
   recommendationIds: string[];
+  /** Coarse weekly bucket (back, legs, …) driving the support-gap pairing — used for coach copy. */
+  weakMuscleGroup?: string;
 };
 
 function toScale1to5(n: number): 1 | 2 | 3 | 4 | 5 {
@@ -618,20 +621,73 @@ function interactionConfidenceFromSignals(signals: TrainingSignal[]): "low" | "m
   return "high";
 }
 
+function volumeLowSignal(signals: TrainingSignal[], group: string): TrainingSignal | undefined {
+  return signals.find((s) => s.id === `volume-low-${group}`);
+}
+
+function pickSupportVolumeSignal(
+  scoredSignals: TrainingSignal[],
+  exerciseName: string,
+  weeklyVolume: Record<string, number> | undefined,
+  userGoal: string | undefined
+): TrainingSignal | undefined {
+  const ex = exerciseName.trim().toLowerCase();
+  const vol = (g: string) => volumeLowSignal(scoredSignals, g);
+
+  const isBench =
+    /\bbench\b/.test(ex) || ex.includes("chest press") || ex.includes("incline press") || /\bfly\b/.test(ex);
+  const isSquat =
+    /\bsquat\b/.test(ex) || ex.includes("leg press") || ex.includes("hack squat") || /\blunge\b/.test(ex);
+  const isDeadlift =
+    ex.includes("deadlift") || ex.includes("dead lift") || ex.includes("rdl") || ex.includes("romanian dead");
+  const isRowOrPull =
+    /\brow\b/.test(ex) || ex.includes("pulldown") || ex.includes("pull-up") || ex.includes("pull up") || ex.includes("pullup") || /\blat\b/.test(ex);
+
+  if (isBench) {
+    return vol("back") ?? vol("shoulders") ?? vol("arms");
+  }
+  if (isSquat) {
+    return vol("legs") ?? vol("back");
+  }
+  if (isDeadlift) {
+    return vol("legs") ?? vol("back");
+  }
+  if (isRowOrPull) {
+    return vol("chest") ?? vol("shoulders") ?? vol("arms");
+  }
+
+  const gap =
+    weeklyVolume && userGoal
+      ? detectLimitingSupportMuscle({ goal: userGoal, volumeByMuscle: weeklyVolume })
+      : null;
+  if (gap?.limitingMuscle) {
+    const s = vol(gap.limitingMuscle);
+    if (s) return s;
+  }
+
+  for (const g of ["legs", "back", "chest", "shoulders", "arms"] as const) {
+    const s = vol(g);
+    if (s) return s;
+  }
+  return undefined;
+}
+
+function weakGroupLabel(group: string): string {
+  const g = group.toLowerCase();
+  if (g === "legs") return "lower body";
+  if (g === "arms") return "arms";
+  return `${group[0].toUpperCase()}${group.slice(1)}`;
+}
+
 export function buildSignalInteractions(
   scoredSignals: TrainingSignal[],
-  profile?: UserProfile
+  profile?: UserProfile,
+  weeklyVolume?: Record<string, number>
 ): TrainingInteraction[] {
   const out: TrainingInteraction[] = [];
 
   const positives = scoredSignals.filter(
     (s) => s.status === "positive" && s.category === "performance" && Boolean(s.target?.exercise)
-  );
-  const lowVolumeBack = scoredSignals.find(
-    (s) => s.id.includes("volume-low-back") || (s.target?.muscleGroup ?? "") === "back"
-  );
-  const lowVolumeChest = scoredSignals.find(
-    (s) => s.id.includes("volume-low-chest") || (s.target?.muscleGroup ?? "") === "chest"
   );
   const frequencyLow = scoredSignals.find((s) => s.id.includes("frequency-low"));
   const goalExposureLow = scoredSignals.find((s) => s.id.includes("goal-lift-exposure-low"));
@@ -639,11 +695,15 @@ export function buildSignalInteractions(
   for (const p of positives) {
     const ex = p.target?.exercise ?? "Target lift";
     const exLower = ex.toLowerCase();
-    const isBench = exLower.includes("bench");
-    const isSquat = exLower.includes("squat");
-    const isDeadlift = exLower.includes("deadlift") || exLower.includes("dead lift");
-    const supportSignal = isBench ? lowVolumeBack : isDeadlift || isSquat ? lowVolumeBack : lowVolumeChest;
+    const supportSignal = pickSupportVolumeSignal(
+      scoredSignals,
+      ex,
+      weeklyVolume,
+      profile?.goal
+    );
     if (!supportSignal) continue;
+    const weakGroup = supportSignal.target?.muscleGroup ?? "back";
+    const weakLabel = weakGroupLabel(weakGroup);
     const interactionSignals = [p, supportSignal];
     const severity = toScale1to5(Math.max(p.severity, supportSignal.severity));
     const goalRelevance = toScale1to5(Math.max(p.goalRelevance, supportSignal.goalRelevance));
@@ -651,13 +711,14 @@ export function buildSignalInteractions(
     out.push({
       id: `interaction-progress-support-gap-${exLower.replace(/\s+/g, "-")}`,
       signals: interactionSignals.map((s) => s.id),
-      title: `${ex} is progressing but support volume is lagging`,
-      implication: `Progress may be less sustainable if supportive volume stays low; this can become a limiting factor and raise plateau risk.`,
+      title: `${ex} is progressing, but ${weakLabel} work is behind`,
+      implication: `If weekly ${weakLabel} volume stays low, ${ex} progress can slow down or stall. Bringing ${weakLabel} up usually makes gains easier to hold.`,
       confidenceLevel: interactionConfidenceFromSignals(interactionSignals),
       severity,
       goalRelevance,
       priorityScore,
       recommendationIds: [`interaction-support-${exLower.replace(/\s+/g, "-")}-volume-up`],
+      weakMuscleGroup: weakGroup,
     });
   }
 
@@ -1056,7 +1117,8 @@ export function detectExerciseSignals(
         goalRelevance: 3,
         priorityScore: 0,
         title: `${insight.exercise}: limited data so far`,
-        explanation: "Initial indication only. More exposures are needed before stronger conclusions.",
+        explanation:
+          "Not enough recent sessions to read a clear trend yet. A few more logged workouts will make this more reliable.",
         target: { exercise: insight.exercise },
         evidence: [
           `trend=${insight.trend}`,
@@ -1100,8 +1162,8 @@ export function detectVolumeSignals(workouts: StoredWorkout[]): TrainingSignal[]
         title: `${group[0].toUpperCase()}${group.slice(1)} volume is low`,
         explanation:
           weeksWithData >= 2
-            ? `${group[0].toUpperCase()}${group.slice(1)} is below the target zone this week.`
-            : `${group[0].toUpperCase()}${group.slice(1)} shows an early low-volume signal (limited data so far).`,
+            ? `${group[0].toUpperCase()}${group.slice(1)} weekly volume is lower than we’d want for balanced training.`
+            : `${group[0].toUpperCase()}${group.slice(1)} looks light this week (early read — more data will sharpen this).`,
         target: { muscleGroup: group },
         evidence: [`weeklySets=${sets}`, `thresholdLow<8`, `window=last7days`, `weeksWithData=${weeksWithData}`],
         recommendationIds: [`fix-${group}-volume-low`],
@@ -1123,8 +1185,8 @@ export function detectVolumeSignals(workouts: StoredWorkout[]): TrainingSignal[]
         title: `${group[0].toUpperCase()}${group.slice(1)} volume is high`,
         explanation:
           weeksWithData >= 2
-            ? `${group[0].toUpperCase()}${group.slice(1)} is above the target zone this week.`
-            : `${group[0].toUpperCase()}${group.slice(1)} shows an early high-volume signal (limited data so far).`,
+            ? `${group[0].toUpperCase()}${group.slice(1)} weekly volume is quite high — watch recovery and joint comfort.`
+            : `${group[0].toUpperCase()}${group.slice(1)} looks heavy this week (early read — more data will sharpen this).`,
         target: { muscleGroup: group },
         evidence: [`weeklySets=${sets}`, `thresholdHigh>20`, `window=last7days`, `weeksWithData=${weeksWithData}`],
         recommendationIds: [`fix-${group}-volume-high`],
@@ -1157,8 +1219,8 @@ export function detectFrequencySignals(workouts: StoredWorkout[]): TrainingSigna
         title: "Weekly training frequency is low",
         explanation:
           weeksWithData >= 2
-            ? "Low session count can limit progression signal quality."
-            : "Initial indication of low frequency (limited data so far).",
+            ? "Only one session in the last week — that makes it harder to see a clear progression pattern."
+            : "Training frequency looks low in the window we can see so far; log a few more weeks for a steadier read.",
         evidence: [`sessionsLast7Days=${frequency}`, `thresholdLow<=1`, `weeksWithData=${weeksWithData}`],
         recommendationIds: ["fix-frequency-low"],
       },

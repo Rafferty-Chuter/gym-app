@@ -1,4 +1,5 @@
 import type { CoachDecision, DecisionContext } from "@/lib/trainingDecisions";
+import { plainCoachNameForCoarseGroup } from "@/lib/coachMusclePools";
 import { selectSupportExercises } from "@/lib/supportExerciseSelection";
 
 export type Prescription = {
@@ -164,23 +165,23 @@ export function prescriptionToText(
       supportExercises,
       supportGroup
     );
-    const groupLabel = supportGroup ?? "support";
+    const groupLabel = plainCoachNameForCoarseGroup(supportGroup ?? "back");
     const mappedBase =
       selectedSupportExercises.length >= 2
-        ? `Add 1 extra set to your ${selectedSupportExercises[0]} and ${selectedSupportExercises[1]} next session.`
+        ? `Add 1 extra set to ${selectedSupportExercises[0]} and ${selectedSupportExercises[1]} next session.`
         : selectedSupportExercises.length === 1
-          ? `Add 2 extra sets to your ${selectedSupportExercises[0]} next session.`
-          : `Add 2–4 sets of ${groupLabel} work next session.`;
+          ? `Add 2 extra sets to ${selectedSupportExercises[0]} next session.`
+          : `Add 2–4 weekly sets for ${groupLabel} next session.`;
     if (supportGroupWeeklySets !== undefined && Number.isFinite(supportGroupWeeklySets)) {
       const low = rounded(supportGroupWeeklySets + 2);
       const high = rounded(supportGroupWeeklySets + 4);
       parts.push(
-        `${mappedBase} Your ${groupLabel} volume is currently ~${rounded(supportGroupWeeklySets)} sets/week. This change brings it to ~${low}-${high} sets/week.`
+        `${mappedBase} You are at about ${rounded(supportGroupWeeklySets)} ${groupLabel} sets this week; this nudge targets roughly ${low}–${high}.`
       );
     } else {
       parts.push(mappedBase);
       parts.push(
-        `Your ${groupLabel} volume appears low. This adjustment increases it slightly, which should improve support without hurting recovery.`
+        `${groupLabel} weekly volume looks light — a small bump here usually helps without wrecking recovery.`
       );
     }
     if (
