@@ -1,5 +1,12 @@
 "use client";
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useMemo,
+  type KeyboardEvent,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWorkoutStore } from "@/lib/workout-store";
@@ -22,68 +29,17 @@ import {
   resolveLoggedExerciseMeta,
 } from "@/lib/exerciseLibrary";
 import ExercisePicker, { type ExercisePickerValue } from "@/components/ExercisePicker";
+import CreateExerciseModal from "@/components/CreateExerciseModal";
+import {
+  USER_EXERCISE_LIBRARY_EVENT,
+  userRecordToExercise,
+  type UserExerciseRecord,
+} from "@/lib/userExerciseLibrary";
 
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 const WORKOUT_SUGGESTED_MUSCLE_KEY = "workoutSuggestedMuscle";
-const TEMPLATES_STORAGE_KEY = "workoutTemplates";
 const KG_TO_LB = 2.2046226218;
-
-type QuickTemplate = {
-  id?: string;
-  name: string;
-  exercises: Array<{
-    exerciseId?: string;
-    name: string;
-    targetSets?: number;
-    restSec?: number;
-  }>;
-};
-
-function readTemplates(): QuickTemplate[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(TEMPLATES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((t, i) => {
-        if (!t || typeof t !== "object") return null;
-        const obj = t as Record<string, unknown>;
-        const name = typeof obj.name === "string" ? obj.name.trim() : `Template ${i + 1}`;
-        const exercisesRaw = Array.isArray(obj.exercises) ? obj.exercises : [];
-        const exercises = exercisesRaw
-          .map((ex) => {
-            if (!ex || typeof ex !== "object") return null;
-            const e = ex as Record<string, unknown>;
-            const exName = typeof e.name === "string" ? e.name.trim() : "";
-            if (!exName) return null;
-            return {
-              ...(typeof e.exerciseId === "string" && e.exerciseId.trim()
-                ? { exerciseId: e.exerciseId.trim() }
-                : {}),
-              name: exName,
-              ...(Number.isFinite(Number(e.targetSets)) ? { targetSets: Number(e.targetSets) } : {}),
-              ...(Number.isFinite(Number(e.restSec)) ? { restSec: Number(e.restSec) } : {}),
-            };
-          })
-          .filter(Boolean) as QuickTemplate["exercises"];
-        const fallbackId = `tpl_${i}_${name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "_")
-          .replace(/^_+|_+$/g, "")}`;
-        return {
-          id: typeof obj.id === "string" && obj.id.trim() ? obj.id.trim() : fallbackId,
-          name,
-          exercises,
-        };
-      })
-      .filter(Boolean) as QuickTemplate[];
-  } catch {
-    return [];
-  }
-}
 
 function convertWeightValue(weight: string, from: "kg" | "lb", to: "kg" | "lb"): string {
   if (from === to) return weight;
@@ -414,6 +370,63 @@ function getNextTargetForExercise(exerciseName: string): string | null {
   return getTargetDataForExercise(exerciseName)?.baseTarget ?? null;
 }
 
+/** Digits and at most one decimal (. or , normalized to .). */
+function sanitizeWeightInput(raw: string): string {
+  let out = "";
+  let seenDot = false;
+  for (const ch of raw) {
+    if (ch >= "0" && ch <= "9") {
+      out += ch;
+      continue;
+    }
+    if ((ch === "." || ch === ",") && !seenDot) {
+      seenDot = true;
+      out += ".";
+    }
+  }
+  return out;
+}
+
+function sanitizeRepsInput(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
+
+/** Single digit 0–5; paste takes first digit, >5 clamps to 5. */
+function sanitizeRirInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits === "") return "";
+  const d = digits[0]!;
+  const n = Number.parseInt(d, 10);
+  if (n > 5) return "5";
+  return d;
+}
+
+function isWeightDecimalKey(key: string, currentHasDot: boolean): boolean {
+  if (key.length !== 1) return false;
+  if (key >= "0" && key <= "9") return true;
+  if ((key === "." || key === ",") && !currentHasDot) return true;
+  return false;
+}
+
+function isNavigationOrShortcutKey(e: KeyboardEvent<HTMLElement>): boolean {
+  return (
+    e.key === "Backspace" ||
+    e.key === "Delete" ||
+    e.key === "Tab" ||
+    e.key === "Enter" ||
+    e.key === "Escape" ||
+    e.key === "ArrowLeft" ||
+    e.key === "ArrowRight" ||
+    e.key === "ArrowUp" ||
+    e.key === "ArrowDown" ||
+    e.key === "Home" ||
+    e.key === "End" ||
+    e.metaKey ||
+    e.ctrlKey ||
+    e.altKey
+  );
+}
+
 export default function WorkoutPage() {
   const router = useRouter();
   const { addWorkout } = useWorkoutStore();
@@ -430,6 +443,8 @@ export default function WorkoutPage() {
     }[]
   >([]);
   const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
+  const [restControlsExerciseId, setRestControlsExerciseId] = useState<number | null>(null);
+  const [exerciseMenuOpenId, setExerciseMenuOpenId] = useState<number | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [lastPerformance, setLastPerformance] = useState<
@@ -439,15 +454,17 @@ export default function WorkoutPage() {
   const [workoutName, setWorkoutName] = useState("");
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
-  const [templateLibrary, setTemplateLibrary] = useState<QuickTemplate[]>([]);
-  const [showBuilder, setShowBuilder] = useState(false);
   const [routineSaved, setRoutineSaved] = useState(false);
   const addExerciseInputRef = useRef<HTMLInputElement | null>(null);
   const setInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const setDoneButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [pendingFocus, setPendingFocus] = useState<{ exerciseId: number; setIndex: number } | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [restByExercise, setRestByExercise] = useState<Record<number, { remainingSec: number; running: boolean }>>({});
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [createExerciseOpen, setCreateExerciseOpen] = useState(false);
+  const [createExerciseSeedName, setCreateExerciseSeedName] = useState("");
+  const [userLibraryRevision, setUserLibraryRevision] = useState(0);
   const loadHandledRef = useRef(false);
   const persistReadyRef = useRef(false);
   /** After Finish or Discard, do not write activeWorkout again (state may still hold old exercises). */
@@ -530,6 +547,32 @@ export default function WorkoutPage() {
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
   )[0];
 
+  const recentExerciseHint = useMemo(() => {
+    const exs = lastLoggedWorkout?.exercises ?? [];
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const ex of exs) {
+      const n = ex.name?.trim();
+      if (!n) continue;
+      const key = n.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      names.push(n);
+      if (names.length >= 5) break;
+    }
+    return names;
+  }, [lastLoggedWorkout]);
+
+  useEffect(() => {
+    function bump() {
+      setUserLibraryRevision((r) => r + 1);
+    }
+    window.addEventListener(USER_EXERCISE_LIBRARY_EVENT, bump);
+    return () => window.removeEventListener(USER_EXERCISE_LIBRARY_EVENT, bump);
+  }, []);
+
+  const showWorkoutStats = exercises.length > 0;
+
   function workoutDisplayName(w: { name?: string; exercises?: { name: string }[] }) {
     const n = typeof w.name === "string" ? w.name.trim() : "";
     if (n) return n;
@@ -537,24 +580,6 @@ export default function WorkoutPage() {
     if (first) return `${first} Workout`;
     return "Workout";
   }
-
-  function estimateTemplateMinutes(template: QuickTemplate) {
-    const seconds = template.exercises.reduce((sum, ex) => {
-      const sets = Number.isFinite(ex.targetSets) ? Math.max(1, Number(ex.targetSets)) : 3;
-      const rest = Number.isFinite(ex.restSec) ? Math.max(30, Number(ex.restSec)) : 90;
-      return sum + sets * (45 + rest);
-    }, 0);
-    return `${Math.max(20, Math.round(seconds / 60))} min`;
-  }
-
-  useEffect(() => {
-    function loadTemplates() {
-      setTemplateLibrary(readTemplates());
-    }
-    loadTemplates();
-    window.addEventListener("workoutHistoryChanged", loadTemplates);
-    return () => window.removeEventListener("workoutHistoryChanged", loadTemplates);
-  }, []);
 
   function formatElapsed(sec: number) {
     const h = Math.floor(sec / 3600);
@@ -717,9 +742,7 @@ export default function WorkoutPage() {
       sessionStorage.removeItem(WORKOUT_SUGGESTED_MUSCLE_KEY);
       const suggestion = suggestedMuscle.trim();
       if (suggestion) {
-        setShowBuilder(true);
         setExerciseName(suggestion);
-        setWorkoutName((prev) => (prev.trim() ? prev : `${suggestion} Focus`));
       }
     }
 
@@ -727,16 +750,31 @@ export default function WorkoutPage() {
     if (fromTemplate) {
       try {
         const data = JSON.parse(fromTemplate) as {
-          exercises: unknown[];
+          exercises?: unknown[];
           templateName?: string;
           templateId?: string;
+          emptyWorkout?: boolean;
+          workoutName?: string;
         };
         const exercisesData = data?.exercises;
         const tName = typeof data?.templateName === "string" ? data.templateName.trim() : "";
         const tId = typeof data?.templateId === "string" ? data.templateId.trim() : "";
         sessionStorage.removeItem(TEMPLATE_FOR_WORKOUT_KEY);
+
+        if (data.emptyWorkout === true) {
+          clearActiveWorkout();
+          setTemplateName(null);
+          setTemplateId(null);
+          const wn = typeof data.workoutName === "string" ? data.workoutName.trim() : "";
+          setWorkoutName(wn);
+          setStartTime(null);
+          setElapsedSec(0);
+          setExercises([]);
+          persistReadyRef.current = true;
+          return;
+        }
+
         if (Array.isArray(exercisesData) && exercisesData.length > 0) {
-          setShowBuilder(true);
           if (tName) {
             setTemplateName(tName);
             setWorkoutName((prev) => (prev.trim() ? prev : tName));
@@ -799,7 +837,6 @@ export default function WorkoutPage() {
 
     const draft = getActiveWorkout();
     if (draft && draftHasMeaningfulContent(draft)) {
-      setShowBuilder(true);
       setWorkoutName(draft.workoutName);
       setTemplateName(draft.templateName);
       setExercises(draft.exercises);
@@ -876,7 +913,9 @@ export default function WorkoutPage() {
     if (t) return t;
     const first = exercises[0]?.name?.trim();
     if (first) return `${first} Workout`;
-    return "Workout";
+    const d = new Date();
+    const short = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return `Workout · ${short}`;
   }
 
   function finishWorkout() {
@@ -922,51 +961,47 @@ export default function WorkoutPage() {
     router.push("/");
   }
 
-  function startFromTemplateHub(template: QuickTemplate) {
-    if (typeof window === "undefined") return;
-    sessionStorage.setItem(
-      TEMPLATE_FOR_WORKOUT_KEY,
-      JSON.stringify({
-        ...(template.id ? { templateId: template.id } : {}),
-        templateName: template.name,
-        exercises: template.exercises,
-      })
-    );
-    window.location.reload();
+  function openCreateExerciseFlow(seedName: string) {
+    setCreateExerciseSeedName(seedName.trim());
+    setCreateExerciseOpen(true);
   }
 
-  function openTemplateForEditing(template: QuickTemplate) {
-    if (!template.id) {
-      router.push("/templates");
-      return;
-    }
-    router.push(`/templates/${encodeURIComponent(template.id)}`);
+  function appendExerciseFromLibrary(matched: { id: string; name: string }) {
+    const newExercise = {
+      id: Date.now(),
+      exerciseId: matched.id,
+      name: matched.name,
+      sets: [],
+      restSec: 90,
+    };
+    setExercises((prev) => [...prev, newExercise]);
+    setExerciseName("");
   }
 
-  function addExercise(selection?: ExercisePickerValue, forceCustom = false) {
+  function handleUserExerciseCreated(record: UserExerciseRecord) {
+    const ex = userRecordToExercise(record);
+    appendExerciseFromLibrary({ id: ex.id, name: ex.name });
+    setUserLibraryRevision((r) => r + 1);
+  }
+
+  function addExercise(selection?: ExercisePickerValue) {
     const trimmed = (selection?.name ?? exerciseName).trim();
     if (!trimmed) {
       addExerciseInputRef.current?.focus();
       return;
     }
 
-    const selectedFromPicker =
-      !forceCustom && selection?.exerciseId
-        ? { id: selection.exerciseId, name: selection.name }
-        : null;
-    const matched = forceCustom ? null : selectedFromPicker ?? getExerciseByName(trimmed);
+    const selectedFromPicker = selection?.exerciseId
+      ? { id: selection.exerciseId, name: selection.name }
+      : null;
+    const matched = selectedFromPicker ?? getExerciseByName(trimmed);
 
-    const newExercise = {
-      id: Date.now(),
-      ...(matched ? { exerciseId: matched.id } : {}),
-      name: matched?.name ?? trimmed,
-      sets: [],
-      restSec: 90,
-    };
-    console.log("[workout] selected exerciseId:", newExercise.exerciseId ?? null, "name:", newExercise.name);
+    if (!matched) {
+      openCreateExerciseFlow(trimmed);
+      return;
+    }
 
-    setExercises((prev) => [...prev, newExercise]);
-    setExerciseName("");
+    appendExerciseFromLibrary({ id: matched.id, name: matched.name });
   }
 
   function addSetRow(exerciseId: number) {
@@ -1100,86 +1135,12 @@ export default function WorkoutPage() {
       <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-zinc-900/10 via-transparent to-transparent" />
 
       <div className="relative max-w-[560px] mx-auto px-4 pt-4 sm:px-6 sm:pt-6">
-        {!showBuilder && exercises.length === 0 ? (
-          <div className="space-y-5 pb-24">
-            <header className="mb-1">
-              <h1 className="text-3xl font-bold tracking-tight text-white">Templates</h1>
-              <p className="mt-1 text-sm text-app-secondary">Create templates and start workouts directly from your saved templates.</p>
-            </header>
-
-            <section className="rounded-2xl border border-teal-900/35 bg-zinc-900/90 p-4">
-              <p className="label-section mb-2">Create New Template</p>
-              <p className="text-sm text-app-secondary">
-                Build a new template with your preferred exercises, sets, and rest times.
-              </p>
-              <Link
-                href="/templates/new"
-                className="mt-3 inline-flex rounded-xl border border-teal-300/35 bg-gradient-to-br from-teal-500 to-emerald-500 px-3 py-2 text-sm font-bold text-zinc-950 shadow-[0_6px_18px_-10px_rgba(20,184,166,0.7)] transition hover:brightness-105"
-              >
-                Create New Template
-              </Link>
-            </section>
-
-            <section className="rounded-2xl border border-teal-900/35 bg-zinc-900/90 p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="label-section">Saved Templates</p>
-                <Link href="/templates" className="text-xs link-home-accent">
-                  Manage →
-                </Link>
-              </div>
-              {templateLibrary.length === 0 ? (
-                <div className="rounded-xl border border-teal-900/35 bg-zinc-900/70 p-3">
-                  <p className="text-sm text-app-secondary">No saved templates yet. Create one to speed up your sessions.</p>
-                  <Link href="/templates" className="mt-2 inline-flex text-xs font-semibold text-teal-300 hover:text-teal-200 transition">
-                    Create template →
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {templateLibrary.slice(0, 4).map((template) => (
-                    <div
-                      key={template.id ?? template.name}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openTemplateForEditing(template)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          openTemplateForEditing(template);
-                        }
-                      }}
-                      className="w-full rounded-xl border border-teal-900/30 bg-zinc-900/70 px-3 py-2.5 transition hover:border-teal-500/30 cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="min-w-0 text-sm font-semibold text-white truncate">{template.name}</p>
-                      </div>
-                      <p className="mt-1 text-[11px] text-app-meta">
-                        {template.exercises.length} exercise{template.exercises.length !== 1 ? "s" : ""} · {estimateTemplateMinutes(template)}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startFromTemplateHub(template);
-                        }}
-                        className="mt-2 rounded-lg border border-teal-800/35 bg-teal-950/25 px-2.5 py-1 text-[11px] font-semibold text-app-secondary transition hover:text-white hover:border-teal-500/30"
-                      >
-                        Start Workout
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-        ) : (
-          <>
         <header className="mb-5">
           <div className="flex items-center gap-3 mb-3">
             <Link
-              href="/"
-              className="shrink-0 flex items-center justify-center h-10 w-10 rounded-xl border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 hover:text-white transition"
-              aria-label="Back to Home"
+              href="/workout/start"
+              className="shrink-0 flex touch-manipulation items-center justify-center h-10 w-10 rounded-xl border border-teal-800/40 bg-zinc-800/30 text-teal-200/80 hover:bg-zinc-800/50 hover:text-white transition active:opacity-90"
+              aria-label="Back to workout start"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -1187,24 +1148,27 @@ export default function WorkoutPage() {
             </Link>
             <input
               type="text"
-              placeholder="Workout name"
+              placeholder={exercises.length === 0 ? "Optional workout name" : "Workout name"}
+              aria-label="Workout name"
               value={workoutName}
               onChange={(e) => setWorkoutName(e.target.value)}
-              className="input-app flex-1 min-w-0 p-3 text-base font-medium truncate"
+              className={`input-app flex-1 min-w-0 p-3 text-base truncate touch-manipulation border-teal-700/45 bg-zinc-800/40 shadow-sm shadow-black/20 placeholder:text-zinc-500 ${
+                workoutName.trim() ? "font-medium text-zinc-50" : "font-normal text-zinc-400"
+              }`}
             />
             {exercises.length > 0 ? (
-              <div className="shrink-0 flex items-center gap-2">
+              <div className="shrink-0 flex items-center gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={() => setShowDiscardConfirm(true)}
-                  className="btn-secondary !py-2.5"
+                  className="touch-manipulation px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl text-xs font-medium text-zinc-500 border border-transparent hover:text-zinc-300 hover:border-teal-800/30 hover:bg-zinc-800/40 active:opacity-80 transition"
                 >
                   Discard
                 </button>
                 <button
                   type="button"
                   onClick={finishWorkout}
-                  className="px-4 py-3 rounded-xl btn-primary text-sm font-semibold"
+                  className="touch-manipulation px-4 py-2.5 sm:py-3 rounded-xl btn-primary text-sm font-semibold shadow-md shadow-black/25 active:scale-[0.98]"
                 >
                   Finish
                 </button>
@@ -1213,30 +1177,30 @@ export default function WorkoutPage() {
               <span className="shrink-0 w-[72px]" />
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-app-secondary">
-            <span className="tabular-nums px-2 py-1 rounded-full bg-zinc-900/60 border border-teal-950/40">
-              {formatElapsed(elapsedSec)}
-            </span>
-            <span className="px-2 py-1 rounded-full bg-zinc-900/60 border border-teal-950/40">
-              <span className="text-app-meta mr-1">Exercises</span>
-              <span className="tabular-nums text-white">{exercises.length}</span>
-            </span>
-            <span className="px-2 py-1 rounded-full bg-zinc-900/60 border border-teal-950/40">
-              <span className="text-app-meta mr-1">Sets</span>
-              <span className="tabular-nums text-white">{totalSetsLogged}</span>
-            </span>
-          </div>
+          {showWorkoutStats && (
+            <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-300/90">
+              <span className="tabular-nums px-2 py-1 rounded-full bg-zinc-800/55 border border-teal-700/40 shadow-sm shadow-black/20">
+                {formatElapsed(elapsedSec)}
+              </span>
+              <span className="px-2 py-1 rounded-full bg-zinc-800/55 border border-teal-700/40 shadow-sm shadow-black/20">
+                <span className="text-teal-200/65 mr-1">Exercises</span>
+                <span className="tabular-nums text-white">{exercises.length}</span>
+              </span>
+              <span className="px-2 py-1 rounded-full bg-zinc-800/55 border border-teal-700/40 shadow-sm shadow-black/20">
+                <span className="text-teal-200/65 mr-1">Sets</span>
+                <span className="tabular-nums text-white">{totalSetsLogged}</span>
+              </span>
+            </div>
+          )}
         </header>
 
         {exercises.length === 0 ? (
-          <div className="min-h-[min(62vh,460px)] flex items-center justify-center px-2 lg:items-start lg:pt-10">
-            <div className="w-full max-w-md rounded-3xl border border-teal-950/40 bg-gradient-to-br from-zinc-900/95 to-teal-950/25 shadow-md shadow-black/35 p-6 sm:p-7">
-              <div className="mb-5">
-                <p className="text-xl font-semibold tracking-tight text-white">
-                  Start your workout
-                </p>
-                <p className="text-sm text-app-secondary mt-1">
-                  Add your first exercise to begin logging sets.
+          <div className="min-h-[min(52vh,400px)] flex items-start justify-center px-1 pt-2 sm:pt-6 lg:pt-10">
+            <div className="w-full max-w-lg rounded-3xl border border-teal-950/40 bg-gradient-to-br from-zinc-900/95 to-teal-950/25 shadow-md shadow-black/35 p-5 sm:p-7">
+              <div className="mb-4">
+                <p className="text-xl font-semibold tracking-tight text-white">Add your first exercise</p>
+                <p className="text-sm text-app-secondary mt-1.5 leading-relaxed">
+                  Your workout starts once you add the first movement.
                 </p>
               </div>
 
@@ -1245,481 +1209,632 @@ export default function WorkoutPage() {
                   value={exerciseName}
                   onValueChange={setExerciseName}
                   onSelect={(exercise) => addExercise(exercise)}
+                  onRequestCreateExercise={openCreateExerciseFlow}
                   inputRef={addExerciseInputRef}
-                  placeholder="Exercise name"
+                  placeholder="Search or type a movement"
                   inputClassName="input-app w-full p-3 text-base shadow-sm shadow-black/10"
                   dropdownClassName="rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
-                  customOptionLabel="Add custom exercise"
-                  noMatchText="No matches. Use custom exercise."
+                  libraryRevision={userLibraryRevision}
                 />
+                {recentExerciseHint.length > 0 && (
+                  <p className="text-[11px] text-app-meta/90 leading-snug px-0.5">
+                    Recent: {recentExerciseHint.join(", ")}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => addExercise()}
-                  className="w-full py-4 rounded-2xl btn-primary text-base"
+                  className="w-full py-3.5 rounded-2xl btn-primary text-base font-semibold"
                 >
-                  + Add Exercise
+                  Add exercise
                 </button>
-                <button
-                  type="button"
-                  onClick={() => addExercise(undefined, true)}
-                  className="w-full py-3 rounded-2xl border border-teal-900/40 bg-zinc-900/70 text-sm text-app-secondary hover:text-white hover:border-teal-500/30 transition"
-                >
-                  + Add custom exercise
-                </button>
-                <p className="text-xs text-app-meta text-center pt-1">
-                  Tip: press Enter to add quickly.
-                </p>
+                <p className="text-[11px] text-app-meta text-center">Tip: Enter selects a match or opens create when there’s no result.</p>
               </div>
             </div>
           </div>
         ) : (
           <>
-            <section className="space-y-3 sm:space-y-4">
-              {exercises.map((exercise) => (
-                <div
-                  key={exercise.id}
-                  className="p-4 rounded-2xl border border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/20 shadow-sm shadow-black/20"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold tracking-tight truncate">{exercise.name}</h3>
-                      </div>
-                      <div className="mt-1 flex flex-col gap-0.5">
-                        <p className="text-xs text-app-secondary">
-                          {lastPerformance[exercise.name]
-                            ? `Last: ${lastPerformance[exercise.name]!.weight}${unit} × ${lastPerformance[exercise.name]!.reps}`
-                            : "No previous data"}
+            <section className="space-y-2 sm:space-y-2.5">
+              {exercises.map((exercise) => {
+                const lastP = lastPerformance[exercise.name];
+                const lastStr = lastP
+                  ? `Last: ${lastP.weight} ${unit} × ${lastP.reps}`
+                  : "Last: —";
+                const targetRaw = nextTarget[exercise.name];
+                const targetStr = targetRaw
+                  ? (targetRaw ?? "").replace(/\bkg\b/g, unit).replace(/\s*×\s*/g, "×").trim()
+                  : null;
+                const contextLine =
+                  targetStr != null && targetStr.length > 0
+                    ? `${lastStr} · Target: ${targetStr}`
+                    : lastStr;
+
+                return (
+                  <div
+                    key={exercise.id}
+                    className="rounded-xl border border-teal-700/45 bg-gradient-to-b from-zinc-800/40 via-zinc-900/90 to-zinc-950/85 shadow-md shadow-black/35 ring-1 ring-teal-400/[0.07] px-3 py-2.5 sm:px-3.5 sm:py-3"
+                  >
+                    <div className="flex items-start gap-2 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-[15px] font-semibold tracking-tight text-white truncate leading-snug">
+                          {exercise.name}
+                        </h3>
+                        <p className="text-[11px] text-zinc-300/90 mt-0.5 leading-snug line-clamp-2">
+                          {contextLine}
                         </p>
-                        {nextTarget[exercise.name] && (
-                          <p className="text-xs text-app-meta">
-                            Target: {(nextTarget[exercise.name] ?? "").replace(/\bkg\b/g, unit)}
-                          </p>
+                      </div>
+                      <div className="relative shrink-0" data-exercise-menu-root>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExerciseMenuOpenId((id) => (id === exercise.id ? null : exercise.id))
+                          }
+                          className="h-8 w-8 rounded-lg border border-teal-700/40 bg-zinc-800/40 text-teal-200/80 hover:text-white hover:bg-zinc-700/45 transition flex items-center justify-center"
+                          aria-label="Exercise options"
+                          aria-expanded={exerciseMenuOpenId === exercise.id}
+                        >
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                          </svg>
+                        </button>
+                        {exerciseMenuOpenId === exercise.id && (
+                          <div
+                            className="absolute right-0 top-full z-20 mt-1 min-w-[9.5rem] rounded-lg border border-teal-700/45 bg-zinc-800/95 py-0.5 shadow-lg shadow-black/50"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-[11px] text-red-300/85 hover:bg-red-950/35 transition"
+                              onClick={() => {
+                                deleteExercise(exercise.id);
+                                setExerciseMenuOpenId(null);
+                              }}
+                            >
+                              Remove exercise
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => deleteExercise(exercise.id)}
-                        className="text-xs px-3 py-1.5 rounded-full border border-red-500/70 text-red-300 hover:bg-red-900/30 transition"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+                    <div className="mt-2 pt-2 border-t border-teal-800/35">
+                      {(() => {
+                        const lastSets = getLastSetsForExercise({
+                          exerciseId: exercise.exerciseId,
+                          name: exercise.name,
+                        });
+                        const hasTargetSets =
+                          exercise.targetSets != null && exercise.targetSets > 0;
+                        const planned = hasTargetSets ? exercise.targetSets! : 0;
+                        const slots = Array.from(
+                          { length: Math.max(planned, exercise.sets.length, 0) },
+                          (_, i) => i
+                        );
+                        const nextIdx = exercise.sets.findIndex((s) => !s?.done);
+                        const effectiveNextIdx = nextIdx === -1 ? exercise.sets.length : nextIdx;
+                        const logInputShell =
+                          "relative min-w-0 h-9 rounded-xl bg-zinc-800/35 border border-teal-700/40 flex items-center transition-colors duration-150 focus-within:ring-2 focus-within:ring-teal-400/45 focus-within:border-teal-500/50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]";
+                        const rowIconBtn =
+                          "min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9 shrink-0 rounded-xl border flex items-center justify-center touch-manipulation select-none transition active:scale-[0.96] active:opacity-90";
+                        const logInputInner =
+                          "min-w-0 flex-1 h-full bg-transparent border-0 rounded-xl px-2 text-xs tabular-nums text-zinc-50 focus:outline-none focus:ring-0 disabled:opacity-55 disabled:cursor-not-allowed placeholder:text-teal-200/40";
 
-                  <div className="mt-3 pt-3 border-t border-teal-900/30">
-                    {(() => {
-                      const lastSets = getLastSetsForExercise({
-                        exerciseId: exercise.exerciseId,
-                        name: exercise.name,
-                      });
-                      const hasTargetSets =
-                        exercise.targetSets != null && exercise.targetSets > 0;
-                      const planned = hasTargetSets ? exercise.targetSets! : 0;
-                      const slots = Array.from(
-                        { length: Math.max(planned, exercise.sets.length, 0) },
-                        (_, i) => i
-                      );
-                      const nextIdx = exercise.sets.findIndex((s) => !s?.done);
-                      const effectiveNextIdx = nextIdx === -1 ? exercise.sets.length : nextIdx;
-                      return (
-                        <div>
-                          <ul className="space-y-2 text-sm text-app-secondary">
-                          {slots.map((index) => {
-                            const set = exercise.sets[index];
-                            const lastSet = lastSets[index];
-                            const hasLast = lastSet && (lastSet.weight || lastSet.reps);
-                            const isEditable =
-                              index < exercise.sets.length || (set != null && (planned > 0 || exercise.sets.length > 0));
-                            const isDone = Boolean(set?.done);
-                            const isNext = isEditable && !isDone && index === effectiveNextIdx;
-                            const placeholder = hasLast
-                              ? `${lastSet!.weight}${unit} × ${lastSet!.reps}`
-                              : "";
-                            return (
-                              <li key={index}>
-                                {(() => {
-                                  const timer = restByExercise[exercise.id] ?? { remainingSec: 0, running: false };
-                                  const isActive = timer.running && timer.remainingSec > 0;
-                                  return (
-                                    <>
-                                      {isNext && isActive && (
-                                        <div className="mb-1 text-xs text-app-meta">
-                                          <span>Rest </span>
-                                          <span className="tabular-nums text-[color:var(--color-accent)]">
-                                            {formatRest(timer.remainingSec)}
-                                          </span>
-                                        </div>
-                                      )}
-                                      <div
-                                        className={`grid grid-cols-[58px_minmax(0,1fr)_minmax(0,1fr)_3.25rem_66px] sm:grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)_3.5rem_72px] gap-2 items-center rounded-xl ${
-                                          isNext ? "ring-1 ring-[color:var(--color-accent)]/40 bg-zinc-950/20" : ""
-                                        } ${isDone ? "opacity-60" : ""} ${isEditable ? "cursor-text" : ""}`}
-                                        role={isEditable ? "button" : undefined}
-                                        tabIndex={isEditable ? 0 : undefined}
-                                        onClick={
-                                          isEditable
-                                            ? (e) => {
-                                                if (e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement) return;
-                                                setInputRefs.current[`${exercise.id}-${index}-weight`]?.focus();
-                                              }
-                                            : undefined
-                                        }
-                                        onKeyDown={
-                                          isEditable
-                                            ? (e) => {
-                                                if (e.target instanceof HTMLInputElement) return;
-                                                if (e.key === "Enter" || e.key === " ") {
-                                                  e.preventDefault();
-                                                  setInputRefs.current[`${exercise.id}-${index}-weight`]?.focus();
-                                                }
-                                              }
-                                            : undefined
-                                        }
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          {isEditable ? (
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleSetDone(exercise.id, index);
-                                              }}
-                                              className={`h-8 w-8 rounded-full border flex items-center justify-center transition ${
-                                                isDone
-                                                  ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/15 text-[color:var(--color-accent)]"
-                                                  : "border-teal-900/40 text-app-secondary hover:bg-teal-950/30"
-                                              }`}
-                                              aria-label={`Mark set ${index + 1} complete`}
-                                            >
-                                              ✓
-                                            </button>
-                                          ) : (
-                                            <span className="h-8 w-8" />
+                        return (
+                          <div className="overflow-x-auto -mx-0.5 px-0.5">
+                            <div className="min-w-[min(100%,20rem)]">
+                            <div className="mb-1 grid grid-cols-[1.125rem_1fr_1fr_2rem_2.75rem_2.75rem_2.75rem] gap-x-2 items-center px-0.5">
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 text-center">
+                                #
+                              </span>
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 pl-0.5">
+                                {unit}
+                              </span>
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 pl-0.5">
+                                Reps
+                              </span>
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 text-center">
+                                RIR
+                              </span>
+                              <span className="sr-only">Done</span>
+                              <span className="sr-only">Note</span>
+                              <span className="sr-only">Remove</span>
+                            </div>
+
+                            <ul className="space-y-1 text-zinc-200/95">
+                              {slots.map((index) => {
+                                const set = exercise.sets[index];
+                                const lastSet = lastSets[index];
+                                const prevWeightStr =
+                                  lastSet &&
+                                  lastSet.weight !== undefined &&
+                                  String(lastSet.weight).trim() !== ""
+                                    ? String(lastSet.weight).trim()
+                                    : null;
+                                const prevRepsStr =
+                                  lastSet &&
+                                  lastSet.reps !== undefined &&
+                                  String(lastSet.reps).trim() !== ""
+                                    ? String(lastSet.reps).trim()
+                                    : null;
+                                const noteKey = `${exercise.id}-${index}`;
+                                const isNoteExpanded = expandedNoteKey === noteKey;
+                                const isEditable =
+                                  index < exercise.sets.length ||
+                                  (set != null && (planned > 0 || exercise.sets.length > 0));
+                                const isDone = Boolean(set?.done);
+                                const isNext = isEditable && !isDone && index === effectiveNextIdx;
+                                const note = (set?.notes ?? "").trim();
+                                const hasNote = note.length > 0;
+
+                                return (
+                                  <li key={index} className="rounded-lg">
+                                    {(() => {
+                                      const timer = restByExercise[exercise.id] ?? {
+                                        remainingSec: 0,
+                                        running: false,
+                                      };
+                                      const isActive = timer.running && timer.remainingSec > 0;
+                                      return (
+                                        <>
+                                          {isNext && isActive && (
+                                            <div className="mb-0.5 text-[10px] text-teal-200/70 tabular-nums">
+                                              Rest{" "}
+                                              <span className="text-[color:var(--color-accent)] font-medium">
+                                                {formatRest(timer.remainingSec)}
+                                              </span>
+                                            </div>
                                           )}
-                                          <span className="text-xs text-app-secondary tabular-nums">
-                                            {index + 1}
-                                          </span>
-                                        </div>
-                                  <input
-                                    ref={(el) => {
-                                      setInputRefs.current[`${exercise.id}-${index}-weight`] = el;
-                                    }}
-                                    type="text"
-                                    inputMode="decimal"
-                                    enterKeyHint="next"
-                                    autoComplete="off"
-                                    placeholder={
-                                      hasLast && lastSet!.weight !== undefined && String(lastSet!.weight).trim() !== ""
-                                        ? String(lastSet!.weight)
-                                        : isEditable
-                                          ? unit
-                                          : placeholder
-                                            ? `last: ${placeholder}`
-                                            : unit
-                                    }
-                                    value={set?.weight ?? ""}
-                                    onChange={(e) =>
-                                      updateSetValue(exercise.id, index, "weight", e.target.value)
-                                    }
-                                    onKeyDown={(e) => {
-                                      if (e.key !== "Enter") return;
-                                      e.preventDefault();
-                                      const rirKey = `${exercise.id}-${index}-rir`;
-                                      setInputRefs.current[rirKey]?.focus();
-                                      setInputRefs.current[rirKey]?.select?.();
-                                    }}
-                                    disabled={!isEditable}
-                                    aria-label={`Set ${index + 1} weight (${unit})`}
-                                    className="input-app w-full h-11 px-3 text-sm disabled:opacity-60 disabled:cursor-not-allowed tabular-nums"
-                                  />
-                                  <input
-                                    ref={(el) => {
-                                      setInputRefs.current[`${exercise.id}-${index}-reps`] = el;
-                                    }}
-                                    type="number"
-                                    inputMode="numeric"
-                                    enterKeyHint={index === exercise.sets.length - 1 ? "done" : "next"}
-                                    autoComplete="off"
-                                    placeholder={
-                                      hasLast && lastSet!.reps !== undefined && String(lastSet!.reps).trim() !== ""
-                                        ? String(lastSet!.reps)
-                                        : "reps"
-                                    }
-                                    value={set?.reps ?? ""}
-                                    onChange={(e) =>
-                                      updateSetValue(exercise.id, index, "reps", e.target.value)
-                                    }
-                                    onKeyDown={(e) => {
-                                      if (e.key !== "Enter") return;
-                                      e.preventDefault();
-                                      const rirKey = `${exercise.id}-${index}-rir`;
-                                      setInputRefs.current[rirKey]?.focus();
-                                      setInputRefs.current[rirKey]?.select?.();
-                                    }}
-                                    disabled={!isEditable}
-                                    aria-label={`Set ${index + 1} reps`}
-                                    className="input-app w-full h-11 px-3 text-sm disabled:opacity-60 disabled:cursor-not-allowed tabular-nums"
-                                  />
-                                  <input
-                                    ref={(el) => {
-                                      setInputRefs.current[`${exercise.id}-${index}-rir`] = el;
-                                    }}
-                                    type="number"
-                                    min={0}
-                                    max={5}
-                                    step={1}
-                                    enterKeyHint={index === exercise.sets.length - 1 ? "done" : "next"}
-                                    autoComplete="off"
-                                    placeholder="RIR"
-                                    value={set?.rir === undefined ? "" : set.rir}
-                                    onChange={(e) => updateSetRir(exercise.id, index, e.target.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key !== "Enter") return;
-                                      e.preventDefault();
-                                      if (index === exercise.sets.length - 1) {
-                                        addSetRow(exercise.id);
-                                        return;
-                                      }
-                                      const nextWeightKey = `${exercise.id}-${index + 1}-weight`;
-                                      setInputRefs.current[nextWeightKey]?.focus();
-                                      setInputRefs.current[nextWeightKey]?.select?.();
-                                    }}
-                                    disabled={!isEditable}
-                                    aria-label={`Set ${index + 1} RIR (reps in reserve)`}
-                                    className="input-app w-full h-11 px-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed tabular-nums"
-                                  />
-                                  <div className="flex justify-end">
-                                    {isEditable ? (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          deleteSet(exercise.id, index);
-                                        }}
-                                        className="h-11 px-2 rounded-xl border border-teal-900/20 text-[11px] text-app-meta hover:bg-teal-950/20 transition"
-                                      >
-                                        Delete
-                                      </button>
-                                    ) : (
-                                      <span className="text-[11px] text-app-meta text-right">
-                                        {hasLast ? " " : " "}
-                                      </span>
-                                    )}
-                                  </div>
-                                      </div>
-                                    </>
-                                  );
-                                })()}
-                                {hasLast && (
-                                  <p className="mt-1 text-[11px] text-app-meta">
-                                    Last session set {index + 1}: {lastSet!.weight}{unit} × {lastSet!.reps}
-                                  </p>
-                                )}
-                                {index < exercise.sets.length && (
-                                  (() => {
-                                    const noteKey = `${exercise.id}-${index}`;
-                                    const isExpanded = expandedNoteKey === noteKey;
-                                    const note = (set?.notes ?? "").trim();
-                                    const hasNote = note.length > 0;
-                                    const lastNote = (lastSet?.notes ?? "").trim();
-                                    const hasLastNote = lastNote.length > 0;
-                                    const notePlaceholder =
-                                      !hasNote && hasLastNote
-                                        ? lastNote.length > 80
-                                          ? `${lastNote.slice(0, 80)}…`
-                                          : lastNote
-                                        : "Add a note for this set…";
-                                    return (
-                                      <div className="mt-2">
-                                        {!isExpanded ? (
-                                          <>
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setExpandedNoteKey(noteKey);
-                                              }}
-                                              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition ${
-                                                hasNote
-                                                  ? "border-[color:var(--color-accent)]/50 bg-[color:var(--color-accent)]/12 text-teal-200/95 hover:bg-[color:var(--color-accent)]/18"
-                                                  : "border-teal-500/40 text-teal-100 hover:bg-teal-950/40"
-                                              }`}
-                                              aria-label={hasNote ? "Edit note for this set" : "Add note for this set"}
-                                            >
-                                              <svg
-                                                className="h-3.5 w-3.5 shrink-0 opacity-90"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                                aria-hidden
-                                              >
-                                                <path
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                  strokeWidth={2}
-                                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                                />
-                                              </svg>
-                                              {hasNote ? "Edit note" : "+ Note"}
-                                            </button>
-                                            {hasLastNote && (
-                                              <p className="mt-1 text-[11px] text-app-meta leading-snug">
-                                                Last session set {index + 1} note: {lastNote}
-                                              </p>
-                                            )}
-                                          </>
-                                        ) : (
                                           <div
-                                            className="rounded-lg border border-teal-900/40 bg-zinc-900/95 p-2.5 shadow-sm"
-                                            onClick={(e) => e.stopPropagation()}
+                                            className={`grid grid-cols-[1.125rem_1fr_1fr_2rem_2.75rem_2.75rem_2.75rem] gap-x-2 items-center rounded-lg py-0.5 ${
+                                              isNext
+                                                ? "ring-1 ring-[color:var(--color-accent)]/45 bg-zinc-800/30 shadow-[inset_0_0_0_1px_rgba(45,212,191,0.12)]"
+                                                : ""
+                                            } ${isDone ? "opacity-[0.78]" : ""}`}
+                                            role={isEditable ? "button" : undefined}
+                                            tabIndex={isEditable ? 0 : undefined}
+                                            onClick={
+                                              isEditable
+                                                ? (e) => {
+                                                    if (
+                                                      e.target instanceof HTMLInputElement ||
+                                                      e.target instanceof HTMLButtonElement
+                                                    )
+                                                      return;
+                                                    setInputRefs.current[
+                                                      `${exercise.id}-${index}-weight`
+                                                    ]?.focus();
+                                                  }
+                                                : undefined
+                                            }
+                                            onKeyDown={
+                                              isEditable
+                                                ? (e) => {
+                                                    if (e.target instanceof HTMLInputElement) return;
+                                                    if (e.key === "Enter" || e.key === " ") {
+                                                      e.preventDefault();
+                                                      setInputRefs.current[
+                                                        `${exercise.id}-${index}-weight`
+                                                      ]?.focus();
+                                                    }
+                                                  }
+                                                : undefined
+                                            }
                                           >
+                                            <span className="text-center text-[11px] text-teal-200/75 tabular-nums font-semibold">
+                                              {index + 1}
+                                            </span>
+                                            <div className={logInputShell}>
+                                              <input
+                                                ref={(el) => {
+                                                  setInputRefs.current[`${exercise.id}-${index}-weight`] =
+                                                    el;
+                                                }}
+                                                type="text"
+                                                inputMode="decimal"
+                                                enterKeyHint="next"
+                                                autoComplete="off"
+                                                autoCorrect="off"
+                                                autoCapitalize="off"
+                                                spellCheck={false}
+                                                placeholder={prevWeightStr ?? "—"}
+                                                value={set?.weight ?? ""}
+                                                onChange={(e) =>
+                                                  updateSetValue(
+                                                    exercise.id,
+                                                    index,
+                                                    "weight",
+                                                    sanitizeWeightInput(e.target.value)
+                                                  )
+                                                }
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter") {
+                                                    e.preventDefault();
+                                                    const repsKey = `${exercise.id}-${index}-reps`;
+                                                    const next = setInputRefs.current[repsKey];
+                                                    next?.focus();
+                                                    next?.select?.();
+                                                    return;
+                                                  }
+                                                  if (isNavigationOrShortcutKey(e)) return;
+                                                  const cur = (e.target as HTMLInputElement).value;
+                                                  if (isWeightDecimalKey(e.key, cur.includes("."))) return;
+                                                  e.preventDefault();
+                                                }}
+                                                disabled={!isEditable}
+                                                aria-label={`Set ${index + 1} weight in ${unit}, numbers and decimal only`}
+                                                className={logInputInner}
+                                              />
+                                            </div>
+                                            <div className={logInputShell}>
+                                              <input
+                                                ref={(el) => {
+                                                  setInputRefs.current[`${exercise.id}-${index}-reps`] = el;
+                                                }}
+                                                type="text"
+                                                inputMode="numeric"
+                                                enterKeyHint="next"
+                                                autoComplete="off"
+                                                autoCorrect="off"
+                                                autoCapitalize="off"
+                                                spellCheck={false}
+                                                pattern="[0-9]*"
+                                                placeholder={prevRepsStr ?? "—"}
+                                                value={set?.reps ?? ""}
+                                                onChange={(e) =>
+                                                  updateSetValue(
+                                                    exercise.id,
+                                                    index,
+                                                    "reps",
+                                                    sanitizeRepsInput(e.target.value)
+                                                  )
+                                                }
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter") {
+                                                    e.preventDefault();
+                                                    const rirKey = `${exercise.id}-${index}-rir`;
+                                                    const next = setInputRefs.current[rirKey];
+                                                    next?.focus();
+                                                    next?.select?.();
+                                                    return;
+                                                  }
+                                                  if (isNavigationOrShortcutKey(e)) return;
+                                                  if (e.key >= "0" && e.key <= "9") return;
+                                                  e.preventDefault();
+                                                }}
+                                                disabled={!isEditable}
+                                                aria-label={`Set ${index + 1} reps, whole numbers only`}
+                                                className={`${logInputInner} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                                              />
+                                            </div>
                                             <input
+                                              ref={(el) => {
+                                                setInputRefs.current[`${exercise.id}-${index}-rir`] = el;
+                                              }}
                                               type="text"
-                                              placeholder={notePlaceholder}
-                                              value={set?.notes ?? ""}
-                                              onChange={(e) =>
-                                                updateSetNotes(exercise.id, index, e.target.value)
+                                              inputMode="numeric"
+                                              enterKeyHint={
+                                                set?.rir === undefined ? "done" : index === exercise.sets.length - 1 ? "done" : "next"
                                               }
-                                              className="input-app w-full px-2.5 py-2 text-sm"
-                                              autoFocus
+                                              autoComplete="off"
+                                              autoCorrect="off"
+                                              autoCapitalize="off"
+                                              spellCheck={false}
+                                              pattern="[0-5]*"
+                                              maxLength={1}
+                                              placeholder="—"
+                                              value={set?.rir === undefined ? "" : String(set.rir)}
+                                              onChange={(e) =>
+                                                updateSetRir(
+                                                  exercise.id,
+                                                  index,
+                                                  sanitizeRirInput(e.target.value)
+                                                )
+                                              }
+                                              onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                  e.preventDefault();
+                                                  const rirUnset = set?.rir === undefined;
+                                                  if (rirUnset) {
+                                                    const doneKey = `${exercise.id}-${index}`;
+                                                    setDoneButtonRefs.current[doneKey]?.focus();
+                                                    return;
+                                                  }
+                                                  if (index === exercise.sets.length - 1) {
+                                                    addSetRow(exercise.id);
+                                                    return;
+                                                  }
+                                                  const nextWeightKey = `${exercise.id}-${index + 1}-weight`;
+                                                  const nw = setInputRefs.current[nextWeightKey];
+                                                  nw?.focus();
+                                                  nw?.select?.();
+                                                  return;
+                                                }
+                                                if (isNavigationOrShortcutKey(e)) return;
+                                                if (e.key >= "0" && e.key <= "5") return;
+                                                e.preventDefault();
+                                              }}
+                                              disabled={!isEditable}
+                                              aria-label={`Set ${index + 1} RIR 0–5, optional`}
+                                              className="h-8 sm:h-9 min-h-0 w-full rounded-lg border border-teal-700/35 bg-zinc-800/40 px-1 text-center text-[11px] tabular-nums text-zinc-50 placeholder:text-teal-200/35 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] focus:outline-none focus:ring-1 focus:ring-teal-400/40 focus:border-teal-500/45 disabled:opacity-55 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             />
-                                            <div className="mt-2 flex justify-end gap-2">
-                                              <button
-                                                type="button"
-                                                onClick={() => setExpandedNoteKey(null)}
-                                                className="btn-secondary !py-1.5 !px-3 text-xs"
-                                              >
-                                                Done
-                                              </button>
+                                            <div className="flex justify-center">
+                                              {isEditable ? (
+                                                <button
+                                                  type="button"
+                                                  ref={(el) => {
+                                                    setDoneButtonRefs.current[`${exercise.id}-${index}`] = el;
+                                                  }}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSetDone(exercise.id, index);
+                                                  }}
+                                                  className={`${rowIconBtn} rounded-full border-2 ${
+                                                    isDone
+                                                      ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/18 text-[color:var(--color-accent)] shadow-md shadow-[color:var(--color-accent)]/15"
+                                                      : "border-teal-600/50 bg-zinc-800/50 text-teal-100 hover:bg-zinc-700/50 hover:border-teal-500/45 shadow-sm shadow-black/20"
+                                                  }`}
+                                                  aria-label={`Mark set ${index + 1} complete`}
+                                                >
+                                                  <span className="text-base sm:text-sm font-semibold leading-none">
+                                                    ✓
+                                                  </span>
+                                                </button>
+                                              ) : (
+                                                <span className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9" />
+                                              )}
+                                            </div>
+                                            {index < exercise.sets.length ? (
+                                              <div className="flex justify-center">
+                                                {!isNoteExpanded ? (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setExpandedNoteKey(noteKey);
+                                                    }}
+                                                    className={`${rowIconBtn} relative border-teal-700/40 bg-zinc-800/45 text-teal-200/85 hover:border-teal-500/40 hover:bg-zinc-700/50 hover:text-zinc-50 shadow-sm shadow-black/15`}
+                                                    aria-label={hasNote ? "Edit set note" : "Add set note"}
+                                                  >
+                                                    <svg
+                                                      className="h-[18px] w-[18px] sm:h-4 sm:w-4"
+                                                      fill="none"
+                                                      stroke="currentColor"
+                                                      strokeWidth={2}
+                                                      viewBox="0 0 24 24"
+                                                      aria-hidden
+                                                    >
+                                                      <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                                      />
+                                                    </svg>
+                                                    {hasNote && (
+                                                      <span className="absolute top-2 right-2 sm:top-1.5 sm:right-1.5 h-1.5 w-1.5 rounded-full bg-[color:var(--color-accent)] ring-2 ring-zinc-800" />
+                                                    )}
+                                                  </button>
+                                                ) : (
+                                                  <span className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9" />
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <div className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9" />
+                                            )}
+                                            <div className="flex justify-center">
+                                              {isEditable ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    deleteSet(exercise.id, index);
+                                                  }}
+                                                  className={`${rowIconBtn} border-teal-700/35 bg-zinc-800/40 text-zinc-400 hover:border-red-500/35 hover:bg-red-950/30 hover:text-red-200 shadow-sm shadow-black/15`}
+                                                  aria-label={`Remove set ${index + 1}`}
+                                                >
+                                                  <svg
+                                                    className="h-[18px] w-[18px] sm:h-4 sm:w-4"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth={2}
+                                                    viewBox="0 0 24 24"
+                                                    aria-hidden
+                                                  >
+                                                    <path
+                                                      strokeLinecap="round"
+                                                      strokeLinejoin="round"
+                                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                    />
+                                                  </svg>
+                                                </button>
+                                              ) : (
+                                                <span className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9" />
+                                              )}
                                             </div>
                                           </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })()
-                                )}
-                              </li>
-                            );
-                          })}
-                          </ul>
 
-                          {(() => {
-                            const rest = exercise.restSec ?? 90;
-                            const timer = restByExercise[exercise.id] ?? { remainingSec: 0, running: false };
-                            const isActive = timer.running && timer.remainingSec > 0;
-                            return (
-                              <div className="mt-3 space-y-2">
-                                <div className="flex items-center justify-between gap-2 flex-wrap">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-app-meta">Rest</span>
-                                    <span
-                                      className={`tabular-nums px-2 py-1 rounded-full border ${
-                                        isActive
-                                          ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/10 text-zinc-100"
-                                          : "border-teal-900/40 bg-teal-950/20 text-app-secondary"
-                                      }`}
-                                    >
-                                      {formatRest(isActive ? timer.remainingSec : rest)}
-                                    </span>
-                                  </div>
+                                          {index < exercise.sets.length &&
+                                            isNoteExpanded &&
+                                            (() => {
+                                              const lastSetInner = lastSets[index];
+                                              const lastNoteInner = (lastSetInner?.notes ?? "").trim();
+                                              const notePlaceholderInner =
+                                                !(set?.notes ?? "").trim() && lastNoteInner
+                                                  ? lastNoteInner.length > 96
+                                                    ? `${lastNoteInner.slice(0, 96)}…`
+                                                    : lastNoteInner
+                                                  : "Note…";
+                                              return (
+                                                <div
+                                                  className="mt-1 rounded-md border border-teal-700/40 bg-zinc-800/45 px-2 py-1.5 shadow-sm shadow-black/20"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  <input
+                                                    type="text"
+                                                    placeholder={notePlaceholderInner}
+                                                    value={set?.notes ?? ""}
+                                                    onChange={(e) =>
+                                                      updateSetNotes(exercise.id, index, e.target.value)
+                                                    }
+                                                    className="input-app w-full h-8 min-h-0 px-2 py-1 text-xs"
+                                                    autoFocus
+                                                  />
+                                                  <div className="mt-1 flex justify-end">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => setExpandedNoteKey(null)}
+                                                      className="text-[10px] px-2 py-1 rounded-md text-teal-200/70 hover:text-white hover:bg-zinc-700/70 transition"
+                                                    >
+                                                      Done
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              );
+                                            })()}
+                                        </>
+                                      );
+                                    })()}
+                                  </li>
+                                );
+                              })}
+                            </ul>
 
-                                  <div className="flex items-center gap-2">
-                                    {isActive ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => resetExerciseRest(exercise.id)}
-                                        className="text-xs px-2.5 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 hover:text-white transition"
-                                      >
-                                        Reset
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => startExerciseRest(exercise.id, rest)}
-                                        className="text-xs px-2.5 py-1.5 rounded-full border border-teal-900/40 text-app-secondary hover:bg-teal-950/30 hover:text-white transition"
-                                      >
-                                        Start
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
+                            </div>
 
-                                <div className="rounded-xl border border-teal-900/30 bg-zinc-900/60 px-3 py-2">
-                                  <div className="flex items-center justify-between text-[11px] text-app-meta mb-1">
-                                    <span>Rest duration</span>
-                                    <span className="tabular-nums">{rest}s</span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min={0}
-                                    max={300}
-                                    step={15}
-                                    value={rest}
-                                    onChange={(e) =>
-                                      setExerciseRest(
-                                        exercise.id,
-                                        Math.max(0, Math.min(300, Number(e.target.value) || 0))
+                            {(() => {
+                              const rest = exercise.restSec ?? 90;
+                              const timer = restByExercise[exercise.id] ?? {
+                                remainingSec: 0,
+                                running: false,
+                              };
+                              const isActive = timer.running && timer.remainingSec > 0;
+                              const showRestPanel = restControlsExerciseId === exercise.id;
+
+                              return (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setRestControlsExerciseId((id) =>
+                                        id === exercise.id ? null : exercise.id
                                       )
                                     }
-                                    className="w-full accent-teal-400"
-                                    aria-label={`Rest duration for ${exercise.name}`}
-                                  />
-                                </div>
+                                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                                      isActive
+                                        ? "border-[color:var(--color-accent)]/55 bg-[color:var(--color-accent)]/14 text-zinc-50 shadow-sm shadow-[color:var(--color-accent)]/10"
+                                        : "border-teal-700/45 bg-zinc-800/45 text-zinc-200 hover:border-teal-500/40 shadow-sm shadow-black/15"
+                                    }`}
+                                    aria-expanded={showRestPanel}
+                                  >
+                                    <span className="text-teal-200/75">Rest</span>
+                                    <span className="tabular-nums font-medium text-white">
+                                      {formatRest(isActive ? timer.remainingSec : rest)}
+                                    </span>
+                                  </button>
+                                  {isActive ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => resetExerciseRest(exercise.id)}
+                                      className="text-[10px] px-2 py-1 rounded-md border border-teal-700/40 bg-zinc-800/40 text-teal-200/75 hover:text-white hover:bg-zinc-700/45 transition"
+                                    >
+                                      Reset
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => startExerciseRest(exercise.id, rest)}
+                                      className="text-[10px] px-2 py-1 rounded-md border border-teal-700/40 bg-zinc-800/40 text-teal-200/75 hover:text-white hover:bg-zinc-700/45 transition"
+                                    >
+                                      Start
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => addSetRow(exercise.id)}
+                                    className="text-[10px] px-2.5 py-1.5 rounded-lg btn-primary font-semibold ml-auto sm:ml-0"
+                                  >
+                                    + Set
+                                  </button>
 
-                                <button
-                                  onClick={() => addSetRow(exercise.id)}
-                                  className="w-full py-3 rounded-xl btn-primary"
-                                >
-                                  Add Set
-                                </button>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      );
-                    })()}
+                                  {showRestPanel && (
+                                    <div className="w-full rounded-lg border border-teal-700/40 bg-zinc-800/40 px-2.5 py-2 mt-0.5 shadow-sm shadow-black/20">
+                                      <div className="flex items-center justify-between text-[10px] text-teal-200/70 mb-1.5">
+                                        <span>Rest duration</span>
+                                        <span className="tabular-nums text-zinc-200">{rest}s</span>
+                                      </div>
+                                      <input
+                                        type="range"
+                                        min={0}
+                                        max={300}
+                                        step={15}
+                                        value={rest}
+                                        onChange={(e) =>
+                                          setExerciseRest(
+                                            exercise.id,
+                                            Math.max(0, Math.min(300, Number(e.target.value) || 0))
+                                          )
+                                        }
+                                        className="w-full accent-teal-400 h-2"
+                                        aria-label={`Rest duration for ${exercise.name}`}
+                                      />
+                                      <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {[60, 90, 120, 180].map((sec) => (
+                                          <button
+                                            key={sec}
+                                            type="button"
+                                            onClick={() => setExerciseRest(exercise.id, sec)}
+                                            className="text-[10px] px-2 py-1 rounded-md border border-teal-700/40 bg-zinc-800/50 text-teal-200/80 hover:text-white hover:bg-zinc-700/45"
+                                          >
+                                            {sec}s
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </section>
 
-            <section className="mt-8 mb-4 p-4 rounded-2xl border border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/20 shadow-sm shadow-black/20">
-              <label className="label-section block mb-2">Add another exercise</label>
-              <div className="flex gap-2">
+            <section className="mt-5 mb-3 rounded-xl border border-teal-700/45 bg-zinc-800/35 p-3 shadow-md shadow-black/25 ring-1 ring-teal-400/[0.06]">
+              <div className="flex gap-2 items-stretch">
                 <div className="flex-1 min-w-0">
                   <ExercisePicker
                     value={exerciseName}
                     onValueChange={setExerciseName}
                     onSelect={(exercise) => addExercise(exercise)}
+                    onRequestCreateExercise={openCreateExerciseFlow}
                     inputRef={addExerciseInputRef}
-                    placeholder="Exercise name"
-                    inputClassName="input-app flex-1 min-w-0 p-3 text-base"
+                    placeholder="Next exercise…"
+                    inputClassName="input-app flex-1 min-w-0 py-2.5 px-3 text-sm sm:text-base"
                     dropdownClassName="mt-2 rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
-                    customOptionLabel="Add custom exercise"
-                    noMatchText="No matches. Use custom exercise."
+                    libraryRevision={userLibraryRevision}
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => addExercise()}
-                  className="shrink-0 px-4 py-3 rounded-xl btn-primary"
+                  className="shrink-0 self-center min-h-[44px] px-4 rounded-xl btn-primary text-sm font-semibold sm:min-h-0 sm:py-3"
                 >
                   Add
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addExercise(undefined, true)}
-                  className="shrink-0 px-4 py-3 rounded-xl border border-teal-900/40 bg-zinc-900/70 text-sm text-app-secondary hover:text-white hover:border-teal-500/30 transition"
-                >
-                  Custom
                 </button>
               </div>
             </section>
           </>
         )}
+
+        <CreateExerciseModal
+          open={createExerciseOpen}
+          initialName={createExerciseSeedName}
+          onClose={() => setCreateExerciseOpen(false)}
+          onCreated={handleUserExerciseCreated}
+        />
 
         <div className="mt-4">
           {showDiscardConfirm && (
@@ -1811,8 +1926,6 @@ export default function WorkoutPage() {
             </div>
           )}
         </div>
-        </>
-        )}
       </div>
 
     </main>
