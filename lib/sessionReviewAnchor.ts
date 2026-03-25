@@ -489,26 +489,17 @@ ${hint} Say what is missing in one short phrase; do not invent session details.`
     );
   }
 
-  lines.push("ANSWER STRUCTURE (required — coach-like analysis, not a recap):");
+  lines.push("HOW TO USE THIS ANCHOR (reasoning vs what the user sees):");
   lines.push(
-    "A) What this session was (e.g. upper push + pull volume) using logged session name + SESSION STRUCTURE + exercise list — one tight sentence."
+    "Use SESSION STRUCTURE, PER-EXERCISE PRIOR LOGS, SIMILAR PRIOR SESSION, and EXERCISES internally to reason — but the user-facing reply must follow the concise format in the assistant prompt (verdict + bullets + next step), not a full report."
   );
   lines.push(
-    "B) Exact performance: cite each anchored exercise with verbatim weight×reps from EXERCISES; mention set count / session totals where it sharpens the point."
+    "Default: one verdict line, 2–4 bullets (one idea each), one Next step line; ~80–160 words; do not restate every set unless the user asked for detail."
   );
   lines.push(
-    "C) Progression: use PER-EXERCISE PRIOR LOGS and/or SIMILAR PRIOR SESSION shared lines — state what moved (load, reps, sets) or that payload has no prior match. If no prior data, say so once."
+    "Optional deeper layer (after one blank line, only if useful): section titles Evidence / Compared to last time / Why this matters (plain lines), each followed by short bullets; no A), B), C) labels."
   );
-  lines.push(
-    "D) Session design: reference set/exercise counts and pressing vs pulling (from SESSION STRUCTURE) vs the similar prior session when present — balanced vs specialized only with numbers."
-  );
-  lines.push(
-    "E) Optional muscle-emphasis (≤2 short phrases): only when tied to a named exercise in EXERCISES (e.g. incline press → upper-chest angle; pull-up + row → vertical + horizontal pull). No filler anatomy."
-  );
-  lines.push(
-    "F) 1–2 implications: tie to concrete log patterns (rep fall-off, load change between sets, match or beat prior session). Label difficulty guesses as estimates if RIR is missing."
-  );
-  lines.push("G) Do not drift: never name a lift outside EXERCISES. No vague praise without a cited number.");
+  lines.push("Never name a lift outside EXERCISES. No vague praise without a concrete anchor fact.");
 
   return lines.join("\n");
 }
