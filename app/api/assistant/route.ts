@@ -38,6 +38,15 @@ export type AssistantEvidenceCard = {
  */
 export type AssistantBody = {
   message: string;
+  /** Client-owned active thread id (localStorage). */
+  thread_id?: string;
+  /** Whether the loaded thread history is exact (truthfulness gating). */
+  exactThreadLoaded?: boolean;
+  /**
+   * Client-owned, ordered thread snippet (used for deterministic "last message" queries
+   * and for conversation continuity).
+   */
+  threadMessages?: Array<{ role: "user" | "assistant"; content: string }>;
   trainingSummary: {
     totalWorkouts: number;
     totalExercises: number;
@@ -525,6 +534,7 @@ async function getAssistantReply(
   userProfile: UserProfile | undefined,
   assistantMemory: AssistantSelectiveMemoryV1 | undefined,
   recentConversationMemory: RecentConversationTurn[] | undefined,
+  exactThreadLoaded: boolean | undefined,
   activeExerciseTopic: string | undefined,
   activeExerciseLastSession: AssistantBody["activeExerciseLastSession"] | undefined,
   benchProjection: AssistantBody["benchProjection"] | undefined,
@@ -1066,12 +1076,25 @@ Reply in plain language. Prefer 3–5 concise sentences unless the user asks for
     ? recentChatLines.join("\n")
     : "- None";
 
+  const exactThreadAccessBlock = `
+EXACT THREAD ACCESS (truthfulness gating):
+- exactThreadLoaded = ${exactThreadLoaded === true ? "true" : "false"}
+
+Rules:
+- If exactThreadLoaded is false, do NOT claim you remember verbatim details from a previous thread that is not loaded.
+- For questions like "Do you remember our last chat about X?":
+  - If exactThreadLoaded is true: you may answer only if the RECENT CHAT snippet contains X (or clearly references it).
+  - If exactThreadLoaded is false: say you don't have the exact prior thread loaded right now, but you can still help using saved preferences + current training/profile context.
+`.trim();
+
   const memoryContextBlock = `
 MEMORY CONTEXT (preferences only; workout + profile override):
 ${selectiveMemoryBlock}
 
 RECENT CHAT (thread continuity; brief):
 ${recentConversationBlock}
+
+${exactThreadAccessBlock}
 `.trim();
 
   console.log("[memory-debug] retrieved for request", {
@@ -1126,6 +1149,125 @@ function formatIsoDate(iso: string | undefined): string {
   if (!iso) return "unknown date";
   if (typeof iso !== "string") return "unknown date";
   return iso.length >= 10 ? iso.slice(0, 10) : iso;
+}
+
+type ThreadMessageForDeterministic = { role: "user" | "assistant"; content: string };
+
+function normalizeForThreadMatch(s: string): string {
+  return (s ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function tryBuildDeterministicThreadReferenceReply(params: {
+  message: string;
+  threadMessages: ThreadMessageForDeterministic[] | undefined;
+  exactThreadLoaded: boolean | undefined;
+}): string | null {
+  const m = normalizeForThreadMatch(params.message);
+  const history = (params.threadMessages ?? []).filter(
+    (t): t is ThreadMessageForDeterministic => Boolean(t && t.role && typeof t.content === "string")
+  );
+  if (!history.length) return null;
+
+  const exactThreadLoaded = Boolean(params.exactThreadLoaded);
+
+  // Helper: locate where the "current question" sits in the history snippet.
+  const currentUserIdx = (() => {
+    const target = normalizeForThreadMatch(params.message);
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === "user" && normalizeForThreadMatch(history[i].content) === target) return i;
+    }
+    // Fallback: assume the last user message is the current question.
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === "user") return i;
+    }
+    return -1;
+  })();
+
+  const getLastUserBefore = (idx: number): ThreadMessageForDeterministic | undefined => {
+    for (let i = idx - 1; i >= 0; i--) if (history[i].role === "user") return history[i];
+    return undefined;
+  };
+  const getSecondLastUserBefore = (idx: number): ThreadMessageForDeterministic | undefined => {
+    let seen = 0;
+    for (let i = idx - 1; i >= 0; i--) {
+      if (history[i].role === "user") {
+        seen += 1;
+        if (seen === 2) return history[i];
+      }
+    }
+    return undefined;
+  };
+  const getLastAssistantBefore = (idx: number): ThreadMessageForDeterministic | undefined => {
+    for (let i = idx - 1; i >= 0; i--) if (history[i].role === "assistant") return history[i];
+    return undefined;
+  };
+
+  const asksLastMessage = /\bwhat\s+was\s+my\s+last\s+message\b/.test(m) || /\blast\s+message\b/.test(m);
+  const asksBeforeThat = /\bone\s+before\s+that\b|\bthe\s+one\s+before\s+that\b/.test(m);
+  const asksWhatWereWeDiscussing = /\bwhat\s+were\s+we\s+just\s+discussing\b|\bwhat\s+were\s+we\s+discussing\b/.test(m);
+
+  if (asksLastMessage || asksBeforeThat || asksWhatWereWeDiscussing) {
+    if (currentUserIdx < 0) return null;
+    if (asksBeforeThat) {
+      const second = getSecondLastUserBefore(currentUserIdx);
+      if (!second) return "I can’t see that far back in the loaded thread snippet.";
+      return `The one before that (your message): ${second.content}`;
+    }
+    if (asksWhatWereWeDiscussing) {
+      const lastAssistant = getLastAssistantBefore(currentUserIdx);
+      if (!lastAssistant) return "I don’t see an assistant reply just before that in the loaded thread snippet.";
+      return `We were just discussing (assistant’s last message): ${lastAssistant.content}`;
+    }
+    // default: last message
+    const lastUser = getLastUserBefore(currentUserIdx);
+    if (!lastUser) return "I can’t see your previous message in the loaded thread snippet.";
+    return `Your last message: ${lastUser.content}`;
+  }
+
+  // Truthful memory question: "Do you remember our last chat about RIR?"
+  const asksRememberLastChat = /\bdo\s+you\s+remember\b/.test(m) && /\b(last\s+chat|our\s+last\s+chat|previous\s+chat)\b/.test(m);
+  if (asksRememberLastChat) {
+    // Extract a coarse topic after "about ..."
+    const topicMatch = params.message.match(/about\s+([^?]+)/i);
+    const topicRaw = topicMatch?.[1]?.trim() ?? "";
+    const topicLower = normalizeForThreadMatch(topicRaw);
+
+    // Also search for a few common training-keywords if we didn't get "about X".
+    const fallbackTopics = ["rir", "rpe", "reps in reserve", "bench", "pb", "squat", "deadlift", "hammer curl"];
+    const inferredTopic =
+      topicLower ||
+      fallbackTopics.find((k) => m.includes(normalizeForThreadMatch(k))) ||
+      "";
+
+    const includesTopic = inferredTopic
+      ? history.some((t) => normalizeForThreadMatch(t.content).includes(inferredTopic))
+      : false;
+
+    if (!exactThreadLoaded) {
+      return inferredTopic
+        ? `I don’t have the exact previous thread loaded here, so I can’t confirm verbatim—but I can still help using your saved preferences and your current training data (if it relates to "${topicRaw.trim() || inferredTopic}").`
+        : `I don’t have the exact previous thread loaded here, so I can’t confirm verbatim—but I can still help using your saved preferences and your current training data.`;
+    }
+
+    if (includesTopic) {
+      const snippet = history
+        .map((t) => t.content)
+        .find((c) => (inferredTopic ? normalizeForThreadMatch(c).includes(inferredTopic) : false));
+      const trimmedSnippet = snippet ? snippet.slice(0, 160).trim() : undefined;
+      return trimmedSnippet
+        ? `Yes. In our loaded chat snippet, you mentioned something about "${topicRaw.trim() || inferredTopic}". ${trimmedSnippet}${
+            trimmedSnippet.length >= 160 ? "…" : ""
+          }`
+        : `Yes—you mentioned "${topicRaw.trim() || inferredTopic}" in the loaded thread snippet.`;
+    }
+
+    return `I can see the loaded thread snippet here, but I don’t see "${topicRaw.trim() || inferredTopic}" in the snippet I have access to right now.`;
+  }
+
+  return null;
 }
 
 function tryBuildDeterministicExerciseReply(params: {
@@ -1207,6 +1349,9 @@ export async function POST(request: NextRequest) {
       coachingContext,
       assistantMemory,
       recentConversationMemory,
+      thread_id,
+      threadMessages,
+      exactThreadLoaded,
       activeExerciseTopic,
       activeExerciseLastSession,
       benchProjection,
@@ -1238,8 +1383,19 @@ export async function POST(request: NextRequest) {
     }
 
     const trimmedMessage = message.trim();
+    console.log("[thread-debug] assistant request", {
+      threadId: thread_id,
+      exactThreadLoaded: Boolean(exactThreadLoaded),
+      threadMessagesLength: Array.isArray(threadMessages) ? threadMessages.length : 0,
+      recentConversationTurnsLength: Array.isArray(recentConversationMemory) ? recentConversationMemory.length : 0,
+    });
     // Deterministic fast-paths for exact exercise questions + bench projections.
     const deterministic =
+      tryBuildDeterministicThreadReferenceReply({
+        message: trimmedMessage,
+        threadMessages,
+        exactThreadLoaded,
+      }) ??
       tryBuildDeterministicExerciseReply({
         message: trimmedMessage,
         activeExerciseLastSession,
@@ -1388,6 +1544,7 @@ export async function POST(request: NextRequest) {
       userProfile,
       assistantMemory,
       recentConversationMemory,
+      exactThreadLoaded,
       activeExerciseTopic,
       activeExerciseLastSession,
       benchProjection,

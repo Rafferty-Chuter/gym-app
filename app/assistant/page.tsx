@@ -29,6 +29,11 @@ import {
   setSelectiveAssistantMemory,
   type RecentConversationTurn,
 } from "@/lib/assistantMemory";
+import {
+  appendToThread,
+  loadActiveThread,
+  type AssistantThread,
+} from "@/lib/assistantThreads";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -42,6 +47,9 @@ export default function AssistantPage() {
   const [isLoading, setIsLoading] = useState(false);
   const listEndRef = useRef<HTMLDivElement>(null);
   const activeExerciseTopicRef = useRef<string | null>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [exactThreadLoaded, setExactThreadLoaded] = useState(false);
+  const threadRef = useRef<AssistantThread | null>(null);
   const starterPrompts = [
     "How is my training looking this week?",
     "Am I doing enough chest volume?",
@@ -52,6 +60,24 @@ export default function AssistantPage() {
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    try {
+      const { threadId, thread, exactThreadLoaded: loaded, createdNewThread } = loadActiveThread();
+      setActiveThreadId(threadId);
+      setExactThreadLoaded(loaded);
+      threadRef.current = thread;
+      setMessages(thread.messages.map((m) => ({ role: m.role, content: m.content })));
+      console.log("[thread-debug] active thread loaded", {
+        threadId,
+        exactThreadLoaded: loaded,
+        createdNewThread,
+        messageCount: thread.messages.length,
+      });
+    } catch (e) {
+      console.log("[thread-debug] failed to load active thread", e);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -73,7 +99,43 @@ export default function AssistantPage() {
     if (!text || isLoading) return;
 
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    // Persist the thread before asking the assistant so "last message" questions work reliably.
+    let localThreadId = activeThreadId;
+    let localExactThreadLoaded = exactThreadLoaded;
+    if (!threadRef.current || !localThreadId) {
+      const loaded = loadActiveThread();
+      localThreadId = loaded.threadId;
+      localExactThreadLoaded = loaded.exactThreadLoaded;
+      setActiveThreadId(loaded.threadId);
+      setExactThreadLoaded(loaded.exactThreadLoaded);
+      threadRef.current = loaded.thread;
+      setMessages(loaded.thread.messages.map((m) => ({ role: m.role, content: m.content })));
+    }
+
+    const nextThread = appendToThread({
+      threadId: localThreadId!,
+      role: "user",
+      content: text,
+    });
+    threadRef.current = nextThread;
+    setActiveThreadId(nextThread.thread_id);
+    setMessages(nextThread.messages.map((m) => ({ role: m.role, content: m.content })));
+    console.log("[thread-debug] appended user message", {
+      threadId: nextThread.thread_id,
+      exactThreadLoaded: localExactThreadLoaded,
+      messageCount: nextThread.messages.length,
+    });
+
+    const threadMessagesForRequest = nextThread.messages
+      .slice(-30)
+      .map((m) => ({ role: m.role, content: m.content }));
+
+    // Use a short rolling window for model continuity.
+    const recentTurnsForRequest: RecentConversationTurn[] = buildRecentConversationMemory(
+      threadMessagesForRequest as RecentConversationTurn[],
+      12
+    );
+
     setIsLoading(true);
 
     try {
@@ -85,10 +147,7 @@ export default function AssistantPage() {
           Object.entries(assistantMemory.stablePreferences).map(([k, v]) => [k, v.value])
         ),
       });
-      const recentTurns: RecentConversationTurn[] = buildRecentConversationMemory(
-        [...messages, { role: "user", content: text } as const],
-        8
-      );
+      const recentTurns: RecentConversationTurn[] = recentTurnsForRequest;
 
       const summary = getTrainingSummary();
       const recentExercises = new Set<string>();
@@ -304,6 +363,9 @@ export default function AssistantPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
+          thread_id: localThreadId!,
+          exactThreadLoaded: localExactThreadLoaded,
+          threadMessages: threadMessagesForRequest,
           assistantMemory,
           recentConversationMemory: recentTurns,
           trainingSummary: {
@@ -356,21 +418,40 @@ export default function AssistantPage() {
         } catch (e) {
           console.log("[memory-debug] memory update failed", e);
         }
-        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+        const nextThreadAfterAssistant = appendToThread({
+          threadId: localThreadId!,
+          role: "assistant",
+          content: data.reply,
+        });
+        threadRef.current = nextThreadAfterAssistant;
+        setMessages(nextThreadAfterAssistant.messages.map((m) => ({ role: m.role, content: m.content })));
+        setActiveThreadId(nextThreadAfterAssistant.thread_id);
       } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `Error: ${data.error ?? "Sorry, I couldn’t get a response. Please try again."}`,
-          },
-        ]);
+        const nextThreadAfterAssistant = appendToThread({
+          threadId: localThreadId!,
+          role: "assistant",
+          content: `Error: ${data.error ?? "Sorry, I couldn’t get a response. Please try again."}`,
+        });
+        threadRef.current = nextThreadAfterAssistant;
+        setMessages(nextThreadAfterAssistant.messages.map((m) => ({ role: m.role, content: m.content })));
       }
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Something went wrong. Please try again." },
-      ]);
+      try {
+        // Best-effort: append the error to the thread for continuity.
+        const nextThreadAfterAssistant = appendToThread({
+          threadId: (activeThreadId ?? localThreadId!)!,
+          role: "assistant",
+          content: "Error: Something went wrong. Please try again.",
+        });
+        threadRef.current = nextThreadAfterAssistant;
+        setMessages(nextThreadAfterAssistant.messages.map((m) => ({ role: m.role, content: m.content })));
+        setActiveThreadId(nextThreadAfterAssistant.thread_id);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Error: Something went wrong. Please try again." },
+        ]);
+      }
     } finally {
       setIsLoading(false);
     }
