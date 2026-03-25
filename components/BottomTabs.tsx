@@ -23,7 +23,7 @@ export default function BottomTabs() {
   }
 
   return (
-    <nav className="fixed inset-x-0 bottom-[calc(4px+env(safe-area-inset-bottom,0px))] z-40 border-t-2 border-teal-500/35 bg-zinc-950/98 shadow-[0_-12px_28px_-14px_rgba(0,0,0,0.8)] backdrop-blur supports-[backdrop-filter]:bg-zinc-950/88">
+    <nav className="fixed left-[env(safe-area-inset-left,0px)] right-[env(safe-area-inset-right,0px)] bottom-[calc(4px+env(safe-area-inset-bottom,0px))] z-40 border-t-2 border-teal-500/35 bg-zinc-950/98 shadow-[0_-12px_28px_-14px_rgba(0,0,0,0.8)] backdrop-blur supports-[backdrop-filter]:bg-zinc-950/88">
       <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2 px-3 py-2.5">
         {TABS.map((tab) => {
           const active = isActive(tab.href, tab.matchPrefix);
