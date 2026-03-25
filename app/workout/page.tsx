@@ -443,7 +443,7 @@ export default function WorkoutPage() {
     }[]
   >([]);
   const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
-  const [restControlsExerciseId, setRestControlsExerciseId] = useState<number | null>(null);
+  const [restAdjustExerciseId, setRestAdjustExerciseId] = useState<number | null>(null);
   const [exerciseMenuOpenId, setExerciseMenuOpenId] = useState<number | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -528,6 +528,20 @@ export default function WorkoutPage() {
     }, 1000);
     return () => window.clearInterval(id);
   }, [restByExercise]);
+
+  useEffect(() => {
+    if (restAdjustExerciseId === null) return;
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.key === "Escape") setRestAdjustExerciseId(null);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [restAdjustExerciseId]);
+
+  useEffect(() => {
+    if (restAdjustExerciseId === null) return;
+    if (!exercises.some((e) => e.id === restAdjustExerciseId)) setRestAdjustExerciseId(null);
+  }, [exercises, restAdjustExerciseId]);
 
   useEffect(() => {
     if (!pendingFocus) return;
@@ -839,7 +853,15 @@ export default function WorkoutPage() {
     if (draft && draftHasMeaningfulContent(draft)) {
       setWorkoutName(draft.workoutName);
       setTemplateName(draft.templateName);
-      setExercises(draft.exercises);
+      setExercises(
+        draft.exercises.map((ex) => ({
+          ...ex,
+          sets:
+            ex.sets && ex.sets.length > 0
+              ? ex.sets
+              : [{ weight: "", reps: "", done: false, notes: "" }],
+        }))
+      );
       setStartTime(draft.startedAt);
       setElapsedSec(Math.max(0, Math.floor((Date.now() - draft.startedAt) / 1000)));
     }
@@ -971,7 +993,7 @@ export default function WorkoutPage() {
       id: Date.now(),
       exerciseId: matched.id,
       name: matched.name,
-      sets: [],
+      sets: [{ weight: "", reps: "", done: false, notes: "" }],
       restSec: 90,
     };
     setExercises((prev) => [...prev, newExercise]);
@@ -1075,8 +1097,9 @@ export default function WorkoutPage() {
     setExercises((prev) =>
       prev.map((exercise) => {
         if (exercise.id !== exerciseId) return exercise;
-        if (setIndex < 0 || setIndex >= exercise.sets.length) return exercise;
+        if (setIndex < 0) return exercise;
         const sets = [...exercise.sets];
+        while (sets.length <= setIndex) sets.push({ weight: "", reps: "", done: false, notes: "" });
         const current = sets[setIndex] ?? { weight: "", reps: "", done: false, notes: "" };
         const done = !Boolean(current.done);
         sets[setIndex] = { ...current, done };
@@ -1114,18 +1137,23 @@ export default function WorkoutPage() {
 
   function deleteSet(exerciseId: number, setIndex: number) {
     setExercises((prev) =>
-      prev.map((exercise) =>
-        exercise.id === exerciseId
-          ? {
-              ...exercise,
-              sets: exercise.sets.filter((_, index) => index !== setIndex),
-            }
-          : exercise
-      )
+      prev.map((exercise) => {
+        if (exercise.id !== exerciseId) return exercise;
+        const next = exercise.sets.filter((_, index) => index !== setIndex);
+        return {
+          ...exercise,
+          sets:
+            next.length === 0
+              ? [{ weight: "", reps: "", done: false, notes: "" }]
+              : next,
+        };
+      })
     );
   }
 
   function deleteExercise(exerciseId: number) {
+    setExerciseMenuOpenId(null);
+    setRestAdjustExerciseId((id) => (id === exerciseId ? null : id));
     setExercises((prev) => prev.filter((exercise) => exercise.id !== exerciseId));
   }
 
@@ -1279,18 +1307,27 @@ export default function WorkoutPage() {
                         </button>
                         {exerciseMenuOpenId === exercise.id && (
                           <div
-                            className="absolute right-0 top-full z-20 mt-1 min-w-[9.5rem] rounded-lg border border-teal-700/45 bg-zinc-800/95 py-0.5 shadow-lg shadow-black/50"
+                            className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] rounded-lg border border-teal-700/45 bg-zinc-800/95 py-0.5 shadow-lg shadow-black/50"
                             onClick={(e) => e.stopPropagation()}
                           >
+                            <button
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-[11px] text-teal-100/90 hover:bg-zinc-700/45 transition"
+                              onClick={() => {
+                                setRestAdjustExerciseId(exercise.id);
+                                setExerciseMenuOpenId(null);
+                              }}
+                            >
+                              Adjust rest
+                            </button>
                             <button
                               type="button"
                               className="w-full px-3 py-2 text-left text-[11px] text-red-300/85 hover:bg-red-950/35 transition"
                               onClick={() => {
                                 deleteExercise(exercise.id);
-                                setExerciseMenuOpenId(null);
                               }}
                             >
-                              Remove exercise
+                              Delete exercise
                             </button>
                           </div>
                         )}
@@ -1303,19 +1340,12 @@ export default function WorkoutPage() {
                           exerciseId: exercise.exerciseId,
                           name: exercise.name,
                         });
-                        const hasTargetSets =
-                          exercise.targetSets != null && exercise.targetSets > 0;
-                        const planned = hasTargetSets ? exercise.targetSets! : 0;
-                        const slots = Array.from(
-                          { length: Math.max(planned, exercise.sets.length, 0) },
-                          (_, i) => i
-                        );
                         const nextIdx = exercise.sets.findIndex((s) => !s?.done);
                         const effectiveNextIdx = nextIdx === -1 ? exercise.sets.length : nextIdx;
                         const logInputShell =
                           "relative min-w-0 h-9 rounded-xl bg-zinc-800/35 border border-teal-700/40 flex items-center transition-colors duration-150 focus-within:ring-2 focus-within:ring-teal-400/45 focus-within:border-teal-500/50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]";
                         const rowIconBtn =
-                          "min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9 shrink-0 rounded-xl border flex items-center justify-center touch-manipulation select-none transition active:scale-[0.96] active:opacity-90";
+                          "min-h-[44px] min-w-[44px] sm:min-h-8 sm:min-w-8 shrink-0 rounded-lg border border-teal-700/20 bg-zinc-800/25 flex items-center justify-center touch-manipulation select-none transition active:scale-[0.96] active:opacity-90";
                         const logInputInner =
                           "min-w-0 flex-1 h-full bg-transparent border-0 rounded-xl px-2 text-xs tabular-nums text-zinc-50 focus:outline-none focus:ring-0 disabled:opacity-55 disabled:cursor-not-allowed placeholder:text-teal-200/40";
 
@@ -1327,7 +1357,7 @@ export default function WorkoutPage() {
                                 #
                               </span>
                               <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 pl-0.5">
-                                {unit}
+                                Weight
                               </span>
                               <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 pl-0.5">
                                 Reps
@@ -1341,8 +1371,7 @@ export default function WorkoutPage() {
                             </div>
 
                             <ul className="space-y-1 text-zinc-200/95">
-                              {slots.map((index) => {
-                                const set = exercise.sets[index];
+                              {exercise.sets.map((set, index) => {
                                 const lastSet = lastSets[index];
                                 const prevWeightStr =
                                   lastSet &&
@@ -1358,16 +1387,13 @@ export default function WorkoutPage() {
                                     : null;
                                 const noteKey = `${exercise.id}-${index}`;
                                 const isNoteExpanded = expandedNoteKey === noteKey;
-                                const isEditable =
-                                  index < exercise.sets.length ||
-                                  (set != null && (planned > 0 || exercise.sets.length > 0));
-                                const isDone = Boolean(set?.done);
-                                const isNext = isEditable && !isDone && index === effectiveNextIdx;
-                                const note = (set?.notes ?? "").trim();
+                                const isDone = Boolean(set.done);
+                                const isNext = !isDone && index === effectiveNextIdx;
+                                const note = (set.notes ?? "").trim();
                                 const hasNote = note.length > 0;
 
                                 return (
-                                  <li key={index} className="rounded-lg">
+                                  <li key={`${exercise.id}-set-${index}`} className="rounded-lg">
                                     {(() => {
                                       const timer = restByExercise[exercise.id] ?? {
                                         remainingSec: 0,
@@ -1377,9 +1403,9 @@ export default function WorkoutPage() {
                                       return (
                                         <>
                                           {isNext && isActive && (
-                                            <div className="mb-0.5 text-[10px] text-teal-200/70 tabular-nums">
-                                              Rest{" "}
-                                              <span className="text-[color:var(--color-accent)] font-medium">
+                                            <div className="mb-0.5 text-[10px] tabular-nums text-teal-200/70">
+                                              <span className="text-zinc-500">Rest </span>
+                                              <span className="text-[color:var(--color-accent)] font-semibold">
                                                 {formatRest(timer.remainingSec)}
                                               </span>
                                             </div>
@@ -1390,35 +1416,27 @@ export default function WorkoutPage() {
                                                 ? "ring-1 ring-[color:var(--color-accent)]/45 bg-zinc-800/30 shadow-[inset_0_0_0_1px_rgba(45,212,191,0.12)]"
                                                 : ""
                                             } ${isDone ? "opacity-[0.78]" : ""}`}
-                                            role={isEditable ? "button" : undefined}
-                                            tabIndex={isEditable ? 0 : undefined}
-                                            onClick={
-                                              isEditable
-                                                ? (e) => {
-                                                    if (
-                                                      e.target instanceof HTMLInputElement ||
-                                                      e.target instanceof HTMLButtonElement
-                                                    )
-                                                      return;
-                                                    setInputRefs.current[
-                                                      `${exercise.id}-${index}-weight`
-                                                    ]?.focus();
-                                                  }
-                                                : undefined
-                                            }
-                                            onKeyDown={
-                                              isEditable
-                                                ? (e) => {
-                                                    if (e.target instanceof HTMLInputElement) return;
-                                                    if (e.key === "Enter" || e.key === " ") {
-                                                      e.preventDefault();
-                                                      setInputRefs.current[
-                                                        `${exercise.id}-${index}-weight`
-                                                      ]?.focus();
-                                                    }
-                                                  }
-                                                : undefined
-                                            }
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={(e) => {
+                                              if (
+                                                e.target instanceof HTMLInputElement ||
+                                                e.target instanceof HTMLButtonElement
+                                              )
+                                                return;
+                                              setInputRefs.current[
+                                                `${exercise.id}-${index}-weight`
+                                              ]?.focus();
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.target instanceof HTMLInputElement) return;
+                                              if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                setInputRefs.current[
+                                                  `${exercise.id}-${index}-weight`
+                                                ]?.focus();
+                                              }
+                                            }}
                                           >
                                             <span className="text-center text-[11px] text-teal-200/75 tabular-nums font-semibold">
                                               {index + 1}
@@ -1437,7 +1455,7 @@ export default function WorkoutPage() {
                                                 autoCapitalize="off"
                                                 spellCheck={false}
                                                 placeholder={prevWeightStr ?? "—"}
-                                                value={set?.weight ?? ""}
+                                                value={set.weight ?? ""}
                                                 onChange={(e) =>
                                                   updateSetValue(
                                                     exercise.id,
@@ -1460,10 +1478,15 @@ export default function WorkoutPage() {
                                                   if (isWeightDecimalKey(e.key, cur.includes("."))) return;
                                                   e.preventDefault();
                                                 }}
-                                                disabled={!isEditable}
-                                                aria-label={`Set ${index + 1} weight in ${unit}, numbers and decimal only`}
-                                                className={logInputInner}
+                                                aria-label={`Set ${index + 1} weight (${unit}), numbers and decimal only`}
+                                                className={`${logInputInner} pl-2 pr-1`}
                                               />
+                                              <span
+                                                className="shrink-0 pr-2 text-[9px] font-semibold uppercase tracking-wide text-teal-200/45 tabular-nums select-none"
+                                                aria-hidden
+                                              >
+                                                {unit}
+                                              </span>
                                             </div>
                                             <div className={logInputShell}>
                                               <input
@@ -1479,7 +1502,7 @@ export default function WorkoutPage() {
                                                 spellCheck={false}
                                                 pattern="[0-9]*"
                                                 placeholder={prevRepsStr ?? "—"}
-                                                value={set?.reps ?? ""}
+                                                value={set.reps ?? ""}
                                                 onChange={(e) =>
                                                   updateSetValue(
                                                     exercise.id,
@@ -1501,7 +1524,6 @@ export default function WorkoutPage() {
                                                   if (e.key >= "0" && e.key <= "9") return;
                                                   e.preventDefault();
                                                 }}
-                                                disabled={!isEditable}
                                                 aria-label={`Set ${index + 1} reps, whole numbers only`}
                                                 className={`${logInputInner} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                                               />
@@ -1513,7 +1535,7 @@ export default function WorkoutPage() {
                                               type="text"
                                               inputMode="numeric"
                                               enterKeyHint={
-                                                set?.rir === undefined ? "done" : index === exercise.sets.length - 1 ? "done" : "next"
+                                                set.rir === undefined ? "done" : index === exercise.sets.length - 1 ? "done" : "next"
                                               }
                                               autoComplete="off"
                                               autoCorrect="off"
@@ -1522,7 +1544,7 @@ export default function WorkoutPage() {
                                               pattern="[0-5]*"
                                               maxLength={1}
                                               placeholder="—"
-                                              value={set?.rir === undefined ? "" : String(set.rir)}
+                                              value={set.rir === undefined ? "" : String(set.rir)}
                                               onChange={(e) =>
                                                 updateSetRir(
                                                   exercise.id,
@@ -1533,7 +1555,7 @@ export default function WorkoutPage() {
                                               onKeyDown={(e) => {
                                                 if (e.key === "Enter") {
                                                   e.preventDefault();
-                                                  const rirUnset = set?.rir === undefined;
+                                                  const rirUnset = set.rir === undefined;
                                                   if (rirUnset) {
                                                     const doneKey = `${exercise.id}-${index}`;
                                                     setDoneButtonRefs.current[doneKey]?.focus();
@@ -1553,112 +1575,98 @@ export default function WorkoutPage() {
                                                 if (e.key >= "0" && e.key <= "5") return;
                                                 e.preventDefault();
                                               }}
-                                              disabled={!isEditable}
                                               aria-label={`Set ${index + 1} RIR 0–5, optional`}
                                               className="h-8 sm:h-9 min-h-0 w-full rounded-lg border border-teal-700/35 bg-zinc-800/40 px-1 text-center text-[11px] tabular-nums text-zinc-50 placeholder:text-teal-200/35 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] focus:outline-none focus:ring-1 focus:ring-teal-400/40 focus:border-teal-500/45 disabled:opacity-55 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             />
                                             <div className="flex justify-center">
-                                              {isEditable ? (
-                                                <button
-                                                  type="button"
-                                                  ref={(el) => {
-                                                    setDoneButtonRefs.current[`${exercise.id}-${index}`] = el;
-                                                  }}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleSetDone(exercise.id, index);
-                                                  }}
-                                                  className={`${rowIconBtn} rounded-full border-2 ${
-                                                    isDone
-                                                      ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/18 text-[color:var(--color-accent)] shadow-md shadow-[color:var(--color-accent)]/15"
-                                                      : "border-teal-600/50 bg-zinc-800/50 text-teal-100 hover:bg-zinc-700/50 hover:border-teal-500/45 shadow-sm shadow-black/20"
-                                                  }`}
-                                                  aria-label={`Mark set ${index + 1} complete`}
-                                                >
-                                                  <span className="text-base sm:text-sm font-semibold leading-none">
-                                                    ✓
-                                                  </span>
-                                                </button>
-                                              ) : (
-                                                <span className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9" />
-                                              )}
+                                              <button
+                                                type="button"
+                                                ref={(el) => {
+                                                  setDoneButtonRefs.current[`${exercise.id}-${index}`] = el;
+                                                }}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  toggleSetDone(exercise.id, index);
+                                                }}
+                                                className={`${rowIconBtn} rounded-full ${
+                                                  isDone
+                                                    ? "border border-[color:var(--color-accent)]/70 bg-[color:var(--color-accent)]/12 text-[color:var(--color-accent)] shadow-sm shadow-[color:var(--color-accent)]/10"
+                                                    : "border-teal-700/25 text-teal-200/70 hover:bg-zinc-800/55 hover:border-teal-600/30 hover:text-teal-100"
+                                                }`}
+                                                aria-label={`Mark set ${index + 1} complete`}
+                                              >
+                                                <span className="text-sm sm:text-xs font-semibold leading-none">
+                                                  ✓
+                                                </span>
+                                              </button>
                                             </div>
-                                            {index < exercise.sets.length ? (
-                                              <div className="flex justify-center">
-                                                {!isNoteExpanded ? (
-                                                  <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setExpandedNoteKey(noteKey);
-                                                    }}
-                                                    className={`${rowIconBtn} relative border-teal-700/40 bg-zinc-800/45 text-teal-200/85 hover:border-teal-500/40 hover:bg-zinc-700/50 hover:text-zinc-50 shadow-sm shadow-black/15`}
-                                                    aria-label={hasNote ? "Edit set note" : "Add set note"}
-                                                  >
-                                                    <svg
-                                                      className="h-[18px] w-[18px] sm:h-4 sm:w-4"
-                                                      fill="none"
-                                                      stroke="currentColor"
-                                                      strokeWidth={2}
-                                                      viewBox="0 0 24 24"
-                                                      aria-hidden
-                                                    >
-                                                      <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                                      />
-                                                    </svg>
-                                                    {hasNote && (
-                                                      <span className="absolute top-2 right-2 sm:top-1.5 sm:right-1.5 h-1.5 w-1.5 rounded-full bg-[color:var(--color-accent)] ring-2 ring-zinc-800" />
-                                                    )}
-                                                  </button>
-                                                ) : (
-                                                  <span className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9" />
-                                                )}
-                                              </div>
-                                            ) : (
-                                              <div className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9" />
-                                            )}
                                             <div className="flex justify-center">
-                                              {isEditable ? (
+                                              {!isNoteExpanded ? (
                                                 <button
                                                   type="button"
                                                   onClick={(e) => {
                                                     e.stopPropagation();
-                                                    deleteSet(exercise.id, index);
+                                                    setExpandedNoteKey(noteKey);
                                                   }}
-                                                  className={`${rowIconBtn} border-teal-700/35 bg-zinc-800/40 text-zinc-400 hover:border-red-500/35 hover:bg-red-950/30 hover:text-red-200 shadow-sm shadow-black/15`}
-                                                  aria-label={`Remove set ${index + 1}`}
+                                                  className={`${rowIconBtn} relative border-teal-700/20 text-teal-200/55 hover:border-teal-600/30 hover:bg-zinc-800/45 hover:text-teal-100/90`}
+                                                  aria-label={hasNote ? "Edit set note" : "Add set note"}
                                                 >
                                                   <svg
-                                                    className="h-[18px] w-[18px] sm:h-4 sm:w-4"
+                                                    className="h-4 w-4 sm:h-3.5 sm:w-3.5"
                                                     fill="none"
                                                     stroke="currentColor"
-                                                    strokeWidth={2}
+                                                    strokeWidth={1.5}
                                                     viewBox="0 0 24 24"
                                                     aria-hidden
                                                   >
                                                     <path
                                                       strokeLinecap="round"
                                                       strokeLinejoin="round"
-                                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
                                                     />
                                                   </svg>
+                                                  {hasNote && (
+                                                    <span className="absolute top-2 right-2 sm:top-1.5 sm:right-1.5 h-1 w-1 rounded-full bg-[color:var(--color-accent)] ring-1 ring-zinc-900/80" />
+                                                  )}
                                                 </button>
                                               ) : (
-                                                <span className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9" />
+                                                <span className="min-h-[44px] min-w-[44px] sm:min-h-8 sm:min-w-8" />
                                               )}
+                                            </div>
+                                            <div className="flex justify-center">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  deleteSet(exercise.id, index);
+                                                }}
+                                                className={`${rowIconBtn} text-zinc-500 hover:border-red-500/25 hover:bg-red-950/20 hover:text-red-300/90`}
+                                                aria-label={`Remove set ${index + 1}`}
+                                              >
+                                                <svg
+                                                  className="h-4 w-4 sm:h-3.5 sm:w-3.5"
+                                                  fill="none"
+                                                  stroke="currentColor"
+                                                  strokeWidth={1.5}
+                                                  viewBox="0 0 24 24"
+                                                  aria-hidden
+                                                >
+                                                  <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                  />
+                                                </svg>
+                                              </button>
                                             </div>
                                           </div>
 
-                                          {index < exercise.sets.length &&
-                                            isNoteExpanded &&
+                                          {isNoteExpanded &&
                                             (() => {
                                               const lastSetInner = lastSets[index];
                                               const lastNoteInner = (lastSetInner?.notes ?? "").trim();
                                               const notePlaceholderInner =
-                                                !(set?.notes ?? "").trim() && lastNoteInner
+                                                !(set.notes ?? "").trim() && lastNoteInner
                                                   ? lastNoteInner.length > 96
                                                     ? `${lastNoteInner.slice(0, 96)}…`
                                                     : lastNoteInner
@@ -1671,7 +1679,7 @@ export default function WorkoutPage() {
                                                   <input
                                                     type="text"
                                                     placeholder={notePlaceholderInner}
-                                                    value={set?.notes ?? ""}
+                                                    value={set.notes ?? ""}
                                                     onChange={(e) =>
                                                       updateSetNotes(exercise.id, index, e.target.value)
                                                     }
@@ -1707,89 +1715,48 @@ export default function WorkoutPage() {
                                 running: false,
                               };
                               const isActive = timer.running && timer.remainingSec > 0;
-                              const showRestPanel = restControlsExerciseId === exercise.id;
 
                               return (
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setRestControlsExerciseId((id) =>
-                                        id === exercise.id ? null : exercise.id
-                                      )
-                                    }
-                                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                                  <div
+                                    className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs shadow-sm shadow-black/15 ${
                                       isActive
-                                        ? "border-[color:var(--color-accent)]/55 bg-[color:var(--color-accent)]/14 text-zinc-50 shadow-sm shadow-[color:var(--color-accent)]/10"
-                                        : "border-teal-700/45 bg-zinc-800/45 text-zinc-200 hover:border-teal-500/40 shadow-sm shadow-black/15"
+                                        ? "border-[color:var(--color-accent)]/30 bg-[color:var(--color-accent)]/8 text-zinc-100"
+                                        : "border-teal-700/40 bg-zinc-800/35 text-zinc-200"
                                     }`}
-                                    aria-expanded={showRestPanel}
                                   >
-                                    <span className="text-teal-200/75">Rest</span>
-                                    <span className="tabular-nums font-medium text-white">
-                                      {formatRest(isActive ? timer.remainingSec : rest)}
-                                    </span>
-                                  </button>
-                                  {isActive ? (
+                                    {isActive ? (
+                                      <span className="tabular-nums font-semibold text-[color:var(--color-accent)]">
+                                        {formatRest(timer.remainingSec)}
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <span className="text-teal-200/55">Rest</span>
+                                        <span className="tabular-nums font-medium text-zinc-100">
+                                          {formatRest(rest)}
+                                        </span>
+                                      </>
+                                    )}
                                     <button
                                       type="button"
-                                      onClick={() => resetExerciseRest(exercise.id)}
-                                      className="text-[10px] px-2 py-1 rounded-md border border-teal-700/40 bg-zinc-800/40 text-teal-200/75 hover:text-white hover:bg-zinc-700/45 transition"
+                                      onClick={() =>
+                                        isActive
+                                          ? resetExerciseRest(exercise.id)
+                                          : startExerciseRest(exercise.id, rest)
+                                      }
+                                      className="rounded-md border border-teal-600/40 bg-zinc-800/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-100/95 hover:bg-zinc-700/80 hover:border-teal-500/45 transition touch-manipulation"
                                     >
-                                      Reset
+                                      {isActive ? "Stop" : "Start"}
                                     </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => startExerciseRest(exercise.id, rest)}
-                                      className="text-[10px] px-2 py-1 rounded-md border border-teal-700/40 bg-zinc-800/40 text-teal-200/75 hover:text-white hover:bg-zinc-700/45 transition"
-                                    >
-                                      Start
-                                    </button>
-                                  )}
+                                  </div>
+
                                   <button
                                     type="button"
                                     onClick={() => addSetRow(exercise.id)}
-                                    className="text-[10px] px-2.5 py-1.5 rounded-lg btn-primary font-semibold ml-auto sm:ml-0"
+                                    className="text-[10px] px-2.5 py-1.5 rounded-lg btn-primary font-semibold ml-auto sm:ml-0 touch-manipulation"
                                   >
                                     + Set
                                   </button>
-
-                                  {showRestPanel && (
-                                    <div className="w-full rounded-lg border border-teal-700/40 bg-zinc-800/40 px-2.5 py-2 mt-0.5 shadow-sm shadow-black/20">
-                                      <div className="flex items-center justify-between text-[10px] text-teal-200/70 mb-1.5">
-                                        <span>Rest duration</span>
-                                        <span className="tabular-nums text-zinc-200">{rest}s</span>
-                                      </div>
-                                      <input
-                                        type="range"
-                                        min={0}
-                                        max={300}
-                                        step={15}
-                                        value={rest}
-                                        onChange={(e) =>
-                                          setExerciseRest(
-                                            exercise.id,
-                                            Math.max(0, Math.min(300, Number(e.target.value) || 0))
-                                          )
-                                        }
-                                        className="w-full accent-teal-400 h-2"
-                                        aria-label={`Rest duration for ${exercise.name}`}
-                                      />
-                                      <div className="mt-2 flex flex-wrap gap-1.5">
-                                        {[60, 90, 120, 180].map((sec) => (
-                                          <button
-                                            key={sec}
-                                            type="button"
-                                            onClick={() => setExerciseRest(exercise.id, sec)}
-                                            className="text-[10px] px-2 py-1 rounded-md border border-teal-700/40 bg-zinc-800/50 text-teal-200/80 hover:text-white hover:bg-zinc-700/45"
-                                          >
-                                            {sec}s
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
                                 </div>
                               );
                             })()}
@@ -1928,6 +1895,71 @@ export default function WorkoutPage() {
         </div>
       </div>
 
+      {restAdjustExerciseId !== null &&
+        (() => {
+          const exAdj = exercises.find((e) => e.id === restAdjustExerciseId);
+          if (!exAdj) return null;
+          const rAdj = exAdj.restSec ?? 90;
+          return (
+            <div
+              className="fixed inset-0 z-[55] flex items-end justify-center bg-black/60 p-3 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:items-center sm:pb-3"
+              onClick={() => setRestAdjustExerciseId(null)}
+            >
+              <div
+                role="dialog"
+                aria-labelledby="rest-adjust-title"
+                aria-modal="true"
+                className="w-full max-w-md rounded-2xl border border-teal-700/45 bg-zinc-900/98 p-4 shadow-2xl shadow-black/55 ring-1 ring-teal-400/10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 id="rest-adjust-title" className="text-sm font-semibold text-white">
+                  Adjust rest · {exAdj.name}
+                </h2>
+                <p className="mt-1 text-[11px] leading-snug text-teal-200/60">
+                  Default duration for this exercise when the timer runs after a set.
+                </p>
+                <div className="mt-3 flex items-center justify-between text-[10px] text-teal-200/65">
+                  <span>Duration</span>
+                  <span className="tabular-nums text-zinc-200">{formatRest(rAdj)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={300}
+                  step={15}
+                  value={rAdj}
+                  onChange={(e) =>
+                    setExerciseRest(
+                      exAdj.id,
+                      Math.max(0, Math.min(300, Number(e.target.value) || 0))
+                    )
+                  }
+                  className="mt-1.5 w-full accent-teal-400 h-2"
+                  aria-label={`Rest duration for ${exAdj.name}`}
+                />
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {[60, 90, 120, 180].map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => setExerciseRest(exAdj.id, sec)}
+                      className="text-[10px] px-2 py-1 rounded-md border border-teal-700/40 bg-zinc-800/50 text-teal-200/80 hover:text-white hover:bg-zinc-700/45"
+                    >
+                      {sec}s
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="mt-4 w-full rounded-xl border border-teal-700/45 bg-zinc-800/60 py-2.5 text-sm font-semibold text-zinc-100 hover:bg-zinc-700/55 transition"
+                  onClick={() => setRestAdjustExerciseId(null)}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          );
+        })()}
     </main>
-  )
+  );
 }

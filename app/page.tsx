@@ -8,7 +8,7 @@ import {
   getWorkoutsFromLast7Days,
   getVolumeByMuscleGroup,
 } from "@/lib/trainingAnalysis";
-import { hasActiveWorkout } from "@/lib/activeWorkout";
+import { ACTIVE_WORKOUT_CHANGED_EVENT, hasActiveWorkout } from "@/lib/activeWorkout";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus, TRAINING_FOCUS_OPTIONS, type TrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel, EXPERIENCE_LEVEL_OPTIONS, type ExperienceLevel } from "@/lib/experienceLevel";
@@ -153,6 +153,23 @@ export default function Home() {
     if (hasMounted && pathname === "/") setHasActive(hasActiveWorkout());
   }, [hasMounted, pathname]);
 
+  useEffect(() => {
+    function syncActive() {
+      setHasActive(hasActiveWorkout());
+    }
+    function onStorage(e: StorageEvent) {
+      if (e.key === "activeWorkout") syncActive();
+    }
+    window.addEventListener(ACTIVE_WORKOUT_CHANGED_EVENT, syncActive);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", syncActive);
+    return () => {
+      window.removeEventListener(ACTIVE_WORKOUT_CHANGED_EVENT, syncActive);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", syncActive);
+    };
+  }, []);
+
   const lastWorkout = useMemo(() => {
     if (!workouts.length) return null;
     const sorted = [...workouts].sort(
@@ -227,7 +244,8 @@ export default function Home() {
 
   const weekConfidenceHint = useMemo(() => {
     if (workouts.length === 0) return "Log a session to start your week.";
-    if (workouts.length < 3) return "Early signal — a few more sessions sharpen this read.";
+    if (workouts.length < 3)
+      return "Still an early read — a few more sessions will make this weekly view much more reliable.";
     return null;
   }, [workouts.length]);
 
@@ -340,16 +358,28 @@ export default function Home() {
               <p className="mt-1 text-xl font-extrabold tracking-tight text-indigo-50">{homeStory.focusText}</p>
               <p className="mt-4 text-xs font-semibold uppercase tracking-[0.1em] text-indigo-200/75">Next move</p>
               <p className="mt-1 text-sm text-indigo-100/90 leading-snug">{homeStory.nextMove}</p>
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div
+                className={
+                  hasActive ? "mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap" : "mt-4 grid grid-cols-2 gap-2"
+                }
+              >
                 <Link
                   href={workouts.length === 0 ? "/coach" : "/coach/review"}
-                  className="rounded-xl border border-indigo-300/35 bg-gradient-to-br from-indigo-400 via-indigo-500 to-violet-600 px-3 py-2 text-center text-sm font-bold text-white shadow-[0_6px_20px_-10px_rgba(129,140,248,0.7)] transition hover:brightness-105 active:translate-y-[1px]"
+                  className={
+                    hasActive
+                      ? "rounded-xl border border-indigo-800/45 bg-zinc-950/80 px-3 py-2 text-center text-xs font-semibold text-indigo-200/75 transition hover:border-indigo-600/40 hover:bg-indigo-950/20 hover:text-indigo-100"
+                      : "rounded-xl border border-indigo-300/35 bg-gradient-to-br from-indigo-400 via-indigo-500 to-violet-600 px-3 py-2 text-center text-sm font-bold text-white shadow-[0_6px_20px_-10px_rgba(129,140,248,0.7)] transition hover:brightness-105 active:translate-y-[1px]"
+                  }
                 >
                   {workouts.length === 0 ? "Open Coach" : "Coach review"}
                 </Link>
                 <Link
                   href="/assistant"
-                  className="rounded-xl border border-indigo-700/35 bg-zinc-900/72 px-3 py-2 text-center text-sm font-semibold text-indigo-100/90 transition hover:bg-indigo-900/22 hover:border-indigo-500/35"
+                  className={
+                    hasActive
+                      ? "rounded-xl border border-indigo-800/45 bg-zinc-950/80 px-3 py-2 text-center text-xs font-semibold text-indigo-200/75 transition hover:border-indigo-600/40 hover:bg-indigo-950/20 hover:text-indigo-100"
+                      : "rounded-xl border border-indigo-700/35 bg-zinc-900/72 px-3 py-2 text-center text-sm font-semibold text-indigo-100/90 transition hover:bg-indigo-900/22 hover:border-indigo-500/35"
+                  }
                 >
                   Ask the Coach
                 </Link>

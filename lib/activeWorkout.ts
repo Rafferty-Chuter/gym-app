@@ -4,6 +4,9 @@
 
 export const ACTIVE_WORKOUT_KEY = "activeWorkout";
 
+/** Fired after save/clear so UI (e.g. resume bar) can refresh in the same tab. */
+export const ACTIVE_WORKOUT_CHANGED_EVENT = "gym:activeWorkoutChanged";
+
 export type DraftExercise = {
   id: number;
   exerciseId?: string;
@@ -45,6 +48,7 @@ export function saveActiveWorkout(draft: DraftWorkout): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(ACTIVE_WORKOUT_KEY, JSON.stringify(draft));
+    window.dispatchEvent(new Event(ACTIVE_WORKOUT_CHANGED_EVENT));
   } catch {
     /* ignore */
   }
@@ -54,6 +58,7 @@ export function clearActiveWorkout(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(ACTIVE_WORKOUT_KEY);
+    window.dispatchEvent(new Event(ACTIVE_WORKOUT_CHANGED_EVENT));
   } catch {
     /* ignore */
   }

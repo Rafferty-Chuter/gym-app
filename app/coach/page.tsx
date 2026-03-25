@@ -62,23 +62,24 @@ export default function CoachPage() {
     router.push("/assistant");
   }
 
+  const hasPositiveLine = Boolean(analysis.whatsGoingWell[0]);
   const summaryPositive =
     analysis.whatsGoingWell[0] ??
     (stats.totalWorkouts >= 3
-      ? `You have ${stats.totalWorkouts} logged sessions, which is enough to start seeing repeatable patterns.`
-      : "No clear positive signal yet - data is still limited.");
+      ? `You’ve got ${stats.totalWorkouts} sessions in the log — enough to see real patterns.`
+      : "We’re still painting the picture. A few more logged sessions and this section gets much more useful.");
   const summaryWatch =
     analysis.volumeBalance[0]?.summary ??
     analysis.actionableSuggestions[0] ??
     (stats.totalWorkouts === 0
-      ? "No training history yet. The first recommendation appears after your first logged session."
-      : "Training distribution is still emerging. Keep logging sessions to improve recommendation confidence.");
+      ? "Log a workout and I’ll call out what stands out in how you’re training."
+      : "Your training mix is still taking shape — keep logging and I’ll keep this sharper.");
   const summaryNext =
     analysis.nextSessionAdjustmentPlan?.title ??
     analysis.actionableSuggestions[0] ??
     (stats.totalWorkouts < 3
-      ? "Log 1-2 more sessions, then rerun Coach Review for a higher-confidence next step."
-      : "Run one focused session, then re-open Coach Review for a clearer next-step recommendation.");
+      ? "Log another session or two, then open your full review for a stronger next step."
+      : "Finish your next solid session, then check the full review for the adjustment I’d make.");
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
@@ -123,48 +124,48 @@ export default function CoachPage() {
           </div>
         </div>
 
-        <section className="card-app mb-6 border-indigo-900/35 bg-gradient-to-br from-indigo-950/30 via-zinc-900/92 to-violet-950/20">
+        <section className="card-app mb-5 border-indigo-900/35 bg-gradient-to-br from-indigo-950/30 via-zinc-900/92 to-violet-950/20">
           <h2 className="label-section mb-3 text-indigo-200/75">Recent Training Review</h2>
           <div className="space-y-3">
             <div
               className={`rounded-xl px-3 py-2.5 ${
-                summaryPositive.startsWith("No clear positive signal")
-                  ? "border border-zinc-700/60 bg-zinc-900/45"
-                  : "border border-emerald-900/30 bg-emerald-950/15"
+                hasPositiveLine
+                  ? "border border-emerald-900/30 bg-emerald-950/15"
+                  : "border border-zinc-700/60 bg-zinc-900/45"
               }`}
             >
               <p
                 className={`text-[11px] font-semibold uppercase tracking-[0.1em] ${
-                  summaryPositive.startsWith("No clear positive signal")
-                    ? "text-zinc-300/75"
-                    : "text-emerald-200/75"
+                  hasPositiveLine ? "text-emerald-200/75" : "text-zinc-400/85"
                 }`}
               >
-                {summaryPositive.startsWith("No clear positive signal") ? "Current signal" : "Positive signal"}
+                {hasPositiveLine ? "What’s working" : "Training snapshot"}
               </p>
-              <p className="mt-1 text-sm text-app-secondary">{summaryPositive}</p>
+              <p className="mt-1 text-sm text-app-secondary leading-relaxed">{summaryPositive}</p>
             </div>
             <div className="rounded-xl border border-amber-900/35 bg-amber-950/15 px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200/75">Main issue</p>
-              <p className="mt-1 text-sm text-app-secondary">{summaryWatch}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200/75">Worth watching</p>
+              <p className="mt-1 text-sm text-app-secondary leading-relaxed">{summaryWatch}</p>
             </div>
             <div className="rounded-xl border border-teal-900/35 bg-zinc-900/65 px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-teal-200/75">Next Step</p>
-              <p className="mt-1 text-sm text-app-secondary">{summaryNext}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-teal-200/75">Next focus</p>
+              <p className="mt-1 text-sm text-app-secondary leading-relaxed">{summaryNext}</p>
             </div>
           </div>
-          <div className="mt-4">
+          <div className="mt-4 border-t border-indigo-800/30 pt-4">
             <Link
               href="/coach/review"
-              className="flex w-full items-center justify-center rounded-xl border border-violet-300/35 bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 py-3.5 text-center text-sm font-bold tracking-tight text-white shadow-[0_10px_28px_-12px_rgba(139,92,246,0.6)] transition hover:brightness-105 active:translate-y-[1px]"
+              className="flex w-full items-center justify-center rounded-lg border border-violet-500/35 bg-indigo-950/40 py-2.5 text-center text-sm font-semibold text-violet-100 shadow-sm shadow-black/25 transition hover:border-violet-400/45 hover:bg-indigo-900/45 active:translate-y-[0.5px]"
             >
-              Run Coach Review
+              Open Full Review
             </Link>
-            <p className="mt-2 text-center text-xs text-app-meta">Opens a dedicated screen with your full structured review.</p>
+            <p className="mt-2 text-center text-[11px] text-app-meta leading-snug">
+              Detailed breakdown, evidence, and next steps on one screen.
+            </p>
           </div>
         </section>
 
-        <section className="mt-2 rounded-2xl border border-teal-300/35 bg-gradient-to-br from-teal-500/18 via-zinc-900/94 to-cyan-500/12 p-6 shadow-[0_18px_44px_-14px_rgba(20,184,166,0.35)]">
+        <section className="mt-2 rounded-2xl border border-teal-300/35 bg-gradient-to-br from-teal-500/18 via-zinc-900/94 to-cyan-500/12 p-5 shadow-[0_18px_44px_-14px_rgba(20,184,166,0.35)] sm:p-6">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-teal-200/75">Assistant</p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-white">Ask the Coach</h2>
           <p className="mt-1 text-sm text-app-secondary">

@@ -1163,7 +1163,7 @@ export function detectVolumeSignals(workouts: StoredWorkout[]): TrainingSignal[]
         explanation:
           weeksWithData >= 2
             ? `${group[0].toUpperCase()}${group.slice(1)} weekly volume is lower than we’d want for balanced training.`
-            : `${group[0].toUpperCase()}${group.slice(1)} looks light this week (early read — more data will sharpen this).`,
+            : `${group[0].toUpperCase()}${group.slice(1)} work is light this week so far. With only a short window of data, we’ll firm this up as you log more.`,
         target: { muscleGroup: group },
         evidence: [`weeklySets=${sets}`, `thresholdLow<8`, `window=last7days`, `weeksWithData=${weeksWithData}`],
         recommendationIds: [`fix-${group}-volume-low`],
@@ -1186,7 +1186,7 @@ export function detectVolumeSignals(workouts: StoredWorkout[]): TrainingSignal[]
         explanation:
           weeksWithData >= 2
             ? `${group[0].toUpperCase()}${group.slice(1)} weekly volume is quite high — watch recovery and joint comfort.`
-            : `${group[0].toUpperCase()}${group.slice(1)} looks heavy this week (early read — more data will sharpen this).`,
+            : `${group[0].toUpperCase()}${group.slice(1)} volume looks high for the week so far. Log a bit more history and we can judge this with more confidence.`,
         target: { muscleGroup: group },
         evidence: [`weeklySets=${sets}`, `thresholdHigh>20`, `window=last7days`, `weeksWithData=${weeksWithData}`],
         recommendationIds: [`fix-${group}-volume-high`],
