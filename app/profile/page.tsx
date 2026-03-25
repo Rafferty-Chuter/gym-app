@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useUnit } from "@/lib/unit-preference";
 import { usePriorityGoal, PRIORITY_GOAL_OPTIONS, type PriorityGoal } from "@/lib/priorityGoal";
 import { useTrainingFocus } from "@/lib/trainingFocus";
@@ -195,6 +196,18 @@ export default function ProfilePage() {
             {saved ? "Saved" : "Save Profile"}
           </button>
         </section>
+
+        {process.env.NODE_ENV === "development" && (
+          <section className="mt-8 rounded-xl border border-amber-500/30 bg-amber-950/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-200/90 mb-2">Development</p>
+            <Link
+              href="/dev/data-transfer"
+              className="text-sm text-amber-300 hover:text-amber-100 underline underline-offset-2"
+            >
+              Export / import local data (e.g. phone → Mac)
+            </Link>
+          </section>
+        )}
       </div>
     </main>
   );

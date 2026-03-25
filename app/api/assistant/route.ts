@@ -472,13 +472,33 @@ STYLE (keep):
 - Prefer specific log references over vague "your data" — e.g. "based on your recent logged sessions" when citing the digest or structured fields.
 `.trim();
 
+const INFERENCE_CERTAINTY_BLOCK = `
+INFERENCE & CERTAINTY (mandatory for all replies):
+- Logged numbers (weight, reps, dates, set counts) = state as facts.
+- Fatigue, form, technique, recovery, effort quality, or "what went wrong" inferred only from rep drops, load changes, or notes — is NOT a fact. Treat as interpretation.
+
+When interpreting from patterns, use careful language, for example:
+- "may suggest fatigue", "could reflect rep quality slipping", "might indicate fatigue or technique breakdown — the log alone can’t separate those"
+- "is consistent with accumulating fatigue (guess from the pattern)", "one possible read is…"
+
+Do NOT say (unless the user explicitly logged it in notes or the payload states it):
+- "form issues", "poor form", "technique breakdown" as definite facts
+- "this shows/proves/demonstrates" recovery problems, poor form, or definite fatigue
+- "you have" / "you are" + diagnostic labels (e.g. "overreaching") from thin indirect evidence
+
+RIR / effort:
+- If RIR was not logged on those sets, do not state RIR or proximity to failure as fact. Preface with "RIR wasn’t logged — as an estimate…" or avoid RIR entirely and speak in "load/rep pattern" terms.
+
+When one sentence mixes fact + guess, make the split obvious: e.g. "Third set dropped to 6 at 90 (logged). That pattern sometimes suggests fatigue or pacing (interpretation, not proof)."
+`.trim();
+
 const GLOBAL_REPLY_DISCIPLINE_BLOCK = `
 GLOBAL REPLY DISCIPLINE (all questions):
 - In-app replies should feel concise and premium: takeaway first, minimal preamble, no chain-of-thought or debug tone.
 - Lead with a direct answer; avoid padded intros and generic summaries when specifics exist in the payload.
 - If EXERCISE LOG ANCHOR or SESSION ANCHOR is present, treat it as the primary evidence for names, sets, and loads on this turn.
 - A logged set counts as completed performance only when reps are logged as a number > 0; blank, zero, or missing-rep rows are placeholders or incomplete — never quote those as work done.
-- Separate "logged fact" vs "coaching inference". When inferring, say so briefly (e.g. "pattern in the log", "estimate").
+- Separate "logged fact" vs "coaching inference" visibly; follow INFERENCE & CERTAINTY rules above for hedging.
 - Do not name exercises the user did not ask about unless clearly useful; if you add one, label it as optional context.
 - Match depth to the question: default to short; expand only when the user asked for detail, breakdown, or "every set".
 - Do not use report-style labels like "A)", "B)", "C)" in user-facing text.
@@ -930,11 +950,15 @@ Anchoring (non-negotiable):
 - "Introduced / newly added" only if SESSION ANCHOR explicitly allows vs the immediately prior session; otherwise say "included" or "part of the session".
 
 DEFAULT IN-APP FORMAT (use unless the user explicitly asked for full detail, set-by-set breakdown, or "every set"):
-1) Verdict: one short opening line (plain sentence, no "A)" prefix) — what kind of session it was + the headline takeaway.
-2) Bullets: 2–4 lines starting with "- ". One idea per bullet; max ~18 words each. Reference only the numbers that matter (e.g. standout load/rep pattern, vs prior if anchor has it) — do not prose-repeat every exercise’s full set list.
-3) Next step: one line starting with "Next step: " — a single clear action.
+1) Verdict: one short opening line (plain sentence, no "A)" prefix) — session type + headline takeaway.
+2) Blank line.
+3) Bullets: exactly 3–4 lines, each starting with "- ". One idea per bullet; max ~18 words. Reference only numbers that matter — do not restate every set. Apply INFERENCE & CERTAINTY: separate logged facts from guesses (e.g. rep drop = fact; "fatigue" = hedged).
+4) Blank line.
+5) Next step: one line starting with "Next step: " — single clear action.
 
-Target **~80–160 words** for this default block. No long paragraphs; no A), B), C); no debug tone.
+Layout: do not output one dense block — use blank lines between verdict, bullet list, and next step. No dash-heavy chains (avoid multiple "—" or mid-sentence "-" clauses in a row). No long paragraphs in the default layer.
+
+Target ~80–160 words for this default block. No A), B), C); no debug tone.
 
 OPTIONAL DEEPER LAYER (only if it adds value — after one blank line following the default block):
 Use plain section titles on their own line (works without markdown rendering), then bullets:
@@ -945,7 +969,7 @@ Compared to last time
 - Only if SESSION ANCHOR has prior/similar data; otherwise omit this entire section.
 
 Why this matters
-- 1–2 bullets max: brief coaching implication.
+- 1–2 bullets max; keep coaching implications hedged unless a note or metric in the anchor supports a stronger claim.
 
 If the user asked for depth, you may expand within these sections — still avoid wall-of-text and lettered lists.
 
@@ -1339,7 +1363,7 @@ If the user requests exact last-session reps/weights for the active exercise and
 
 ${benchProjectionBlock}`.trim();
 
-  const finalInput = `${loggedDataPreamble.trim()}\n\n${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}\n\n---\n${GLOBAL_REPLY_DISCIPLINE_BLOCK}`;
+  const finalInput = `${loggedDataPreamble.trim()}\n\n${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}\n\n---\nINFERENCE & CERTAINTY (apply to your reply):\n${INFERENCE_CERTAINTY_BLOCK}\n\n---\n${GLOBAL_REPLY_DISCIPLINE_BLOCK}`;
 
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",

@@ -494,7 +494,7 @@ ${hint} Say what is missing in one short phrase; do not invent session details.`
     "Use SESSION STRUCTURE, PER-EXERCISE PRIOR LOGS, SIMILAR PRIOR SESSION, and EXERCISES internally to reason — but the user-facing reply must follow the concise format in the assistant prompt (verdict + bullets + next step), not a full report."
   );
   lines.push(
-    "Default: one verdict line, 2–4 bullets (one idea each), one Next step line; ~80–160 words; do not restate every set unless the user asked for detail."
+    "Default: one verdict line, blank line, 3–4 bullets (one idea each), blank line, one Next step line; ~80–160 words; blank lines between sections; do not restate every set unless the user asked for detail. Hedge fatigue/form/recovery language per INFERENCE & CERTAINTY in the system prompt."
   );
   lines.push(
     "Optional deeper layer (after one blank line, only if useful): section titles Evidence / Compared to last time / Why this matters (plain lines), each followed by short bullets; no A), B), C) labels."

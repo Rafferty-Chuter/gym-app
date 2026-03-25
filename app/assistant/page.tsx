@@ -38,6 +38,23 @@ import {
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
+/** Split assistant text on blank lines so paragraphs and sections breathe in the UI. */
+function AssistantMessageBody({ content }: { content: string }) {
+  const blocks = content.trim().split(/\n{2,}/);
+  return (
+    <div className="space-y-3.5">
+      {blocks.map((block, i) => (
+        <div
+          key={i}
+          className="whitespace-pre-wrap break-words text-[15px] sm:text-base leading-[1.65] text-zinc-100/95"
+        >
+          {block}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AssistantPage() {
   const { unit } = useUnit();
   const { focus } = useTrainingFocus();
@@ -477,7 +494,7 @@ export default function AssistantPage() {
         className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_70%_30%_at_50%_100%,rgba(56,189,248,0.12),transparent_62%)]"
         aria-hidden
       />
-      <div className="max-w-2xl mx-auto w-full flex flex-col flex-1 min-h-0">
+      <div className="max-w-3xl mx-auto w-full flex flex-col flex-1 min-h-0 px-1 sm:px-0">
         <Link
           href="/coach"
           className="text-app-secondary hover:text-white transition-colors text-sm mb-4 inline-block font-medium"
@@ -491,25 +508,29 @@ export default function AssistantPage() {
           </p>
         </section>
 
-        <div className="flex-1 overflow-y-auto rounded-2xl border-2 border-blue-500/55 bg-gradient-to-b from-zinc-900/95 via-blue-950/20 to-indigo-950/22 p-4 mb-4 min-h-[200px] shadow-[0_0_0_1px_rgba(59,130,246,0.22)]">
+        <div className="flex-1 overflow-y-auto rounded-2xl border border-blue-500/20 bg-gradient-to-b from-zinc-900/95 via-blue-950/20 to-indigo-950/22 p-5 sm:p-6 mb-4 min-h-[200px] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
           {messages.length === 0 ? (
             <p className="text-app-meta text-sm">Send a message to start.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-5 sm:space-y-6">
               {messages.map((m, i) => (
                 <li
                   key={i}
                   className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <span
-                    className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                  <div
+                    className={
                       m.role === "user"
-                        ? "bg-gradient-to-br from-blue-500/35 to-indigo-500/35 text-white font-semibold border border-blue-400/35"
-                        : "border border-blue-900/45 bg-zinc-900/80 text-app-secondary"
-                    }`}
+                        ? "max-w-[min(92%,20rem)] rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed bg-gradient-to-br from-blue-500/35 to-indigo-500/35 text-white font-semibold border border-blue-400/25 shadow-sm"
+                        : "w-full max-w-[min(100%,36rem)] rounded-2xl px-4 py-4 sm:px-5 sm:py-4 border border-white/[0.08] bg-zinc-900/55 backdrop-blur-sm shadow-[0_8px_30px_-12px_rgba(0,0,0,0.45)]"
+                    }
                   >
-                    {m.content}
-                  </span>
+                    {m.role === "assistant" ? (
+                      <AssistantMessageBody content={m.content} />
+                    ) : (
+                      <span className="whitespace-pre-wrap break-words">{m.content}</span>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
