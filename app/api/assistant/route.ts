@@ -10,6 +10,10 @@ import { buildSelectiveMemoryBlock } from "@/lib/assistantMemory";
 import { buildInferredTrainingProfile } from "@/lib/inferredTrainingProfile";
 import type { CoachingContext } from "@/lib/coachingContext";
 import { countCompletedLoggedSets } from "@/lib/completedSets";
+import {
+  buildSessionReviewAnchorBlock,
+  parseSessionReviewVariant,
+} from "@/lib/sessionReviewAnchor";
 
 /** Mirrors client `coachStructuredOutput` — deterministic Coach tab output + evidence id hooks. */
 export type AssistantCoachStructuredOutput = {
@@ -144,6 +148,7 @@ export type AssistantResponse = {
 };
 
 export type AssistantIntent =
+  | "session_review"
   | "recent_training_analysis"
   | "coach_explanation"
   | "template_review"
@@ -217,6 +222,10 @@ function hasMinimumViableContext(parsed: ParsedContext): boolean {
 export function classifyAssistantIntent(message: string): AssistantIntent {
   const t = message.trim().toLowerCase();
   if (!t) return "unknown";
+
+  if (parseSessionReviewVariant(message)) {
+    return "session_review";
+  }
 
   if (
     t.includes("how is my training") ||
@@ -779,6 +788,15 @@ TONE:
   const effectiveIntent: AssistantIntent =
     intent === "unknown" ? "general_training_question" : intent;
 
+  const sessionReviewAnchorBlock =
+    effectiveIntent === "session_review"
+      ? buildSessionReviewAnchorBlock({
+          message,
+          recentWorkouts: coachingContext?.recentWorkouts,
+          unitLabel: profile.unit,
+        })
+      : "";
+
   const routingPreamble = `
 INTENT (classified): ${effectiveIntent}
 
@@ -908,7 +926,28 @@ ${message}
       break;
     case "analysis":
     default:
-      if (effectiveIntent === "recent_training_analysis") {
+      if (effectiveIntent === "session_review") {
+        input = `
+You are an elite strength coach. The user asked for a review of one specific logged session.
+
+${routingPreamble}
+
+Hard rules:
+- Base the entire answer on SESSION ANCHOR in the subject block above (exact exercise names, sets, reps, notes, duration). Do not substitute weekly summaries, exerciseTrends, trainingInsights, coach tab output, or the LOGGED TRAINING digest for exercise lists or loads.
+- Do not name any exercise that is not listed under EXERCISES in SESSION ANCHOR — even if it appears in chat history, memory, or global "recent exercises" lists.
+- Use "introduced", "newly added", or "newly included" ONLY for exercises SESSION ANCHOR explicitly marks as OK vs the immediately prior session. Otherwise say "included", "featured", or "part of this session".
+- Follow SESSION ANCHOR structure: (A) session focus/type, (B) key logged performance with verbatim weight×reps, (C) one or two implications tied only to those numbers, (D) stay specific.
+
+Tone: calm, practical, no alarmism. Short paragraphs or bullets are fine.
+
+${profileStr ? `User profile (constraints only): ${profileStr}.` : ""}
+${constraintsStr ? `User constraints (hard overrides): ${constraintsStr}` : ""}
+
+User question:
+${message}
+
+Reply in plain language. If SESSION ANCHOR says data is missing, say so briefly and do not invent details.`;
+      } else if (effectiveIntent === "recent_training_analysis") {
         input = `
 You are an elite strength coach: diagnose system constraints, prescribe fixes — not generic fitness explanation.
 
@@ -1089,7 +1128,17 @@ Rules:
   - If exactThreadLoaded is false: say you don't have the exact prior thread loaded right now, but you can still help using saved preferences + current training/profile context.
 `.trim();
 
-  const memoryContextBlock = `
+  const memoryContextBlock =
+    effectiveIntent === "session_review"
+      ? `
+MEMORY CONTEXT (session review — saved preferences only):
+${selectiveMemoryBlock}
+
+RECENT CHAT: intentionally omitted for this request so prior topics cannot add exercises that are not in SESSION ANCHOR.
+
+${exactThreadAccessBlock}
+`.trim()
+      : `
 MEMORY CONTEXT (preferences only; workout + profile override):
 ${selectiveMemoryBlock}
 
@@ -1130,7 +1179,14 @@ ${exactThreadAccessBlock}
         .join("\n")}`
     : "Bench projection data: none";
 
-  const conversationSubjectBlock = `
+  const conversationSubjectBlock =
+    effectiveIntent === "session_review"
+      ? `
+SESSION REVIEW — ANCHOR (overrides active exercise lock, bench projection, and normal conversation subject lock):
+
+${sessionReviewAnchorBlock}
+`.trim()
+      : `
 CONVERSATION SUBJECT LOCK (prevents topic drift):
 ${activeExerciseBlock}
 Rule: If the user asks a follow-up about the current active exercise, anchor your entire answer to it. Do not switch to another exercise just because it has a recent signal.
@@ -1451,11 +1507,14 @@ export async function POST(request: NextRequest) {
       );
     const shouldForceAdvisory =
       !hasWorkoutData && (minimumContextPresent || seemsProgramRequest);
-    const mode: AssistantMode = hardAnalysisMatch
+    let mode: AssistantMode = hardAnalysisMatch
       ? "analysis"
       : shouldForceAdvisory
         ? "advisory"
         : modeDetection.mode;
+    if (intent === "session_review") {
+      mode = "analysis";
+    }
     console.log("[assistant] intent:", intent, "templateDataAvailable:", templateDataAvailable);
     console.log("[assistant mode]", mode);
     console.log("[assistant mode check]", {
