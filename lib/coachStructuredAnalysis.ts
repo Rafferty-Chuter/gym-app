@@ -30,7 +30,7 @@ import { detectLimitingSupportMuscle } from "@/lib/goalSupportProfiles";
 import type { TrainingFocus } from "@/lib/trainingFocus";
 import type { ExperienceLevel } from "@/lib/experienceLevel";
 import type { PriorityGoal } from "@/lib/priorityGoal";
-import { getStoredUserProfile } from "@/lib/userProfile";
+import { getStoredUserProfile, type LowerBodyPriority } from "@/lib/userProfile";
 import {
   getEvidenceCardIdsForDecision,
   getEvidenceCardIdsForInteraction,
@@ -331,7 +331,11 @@ function interactionRecommendationToText(
   return [];
 }
 
-function recommendationToText(rec: Recommendation, unit: "kg" | "lb"): string {
+function recommendationToText(
+  rec: Recommendation,
+  unit: "kg" | "lb",
+  opts?: { goal?: PriorityGoal; lowerBodyPriority?: LowerBodyPriority }
+): string {
   const loadIncrement = unit === "kg" ? "2.5kg" : "5lb";
   const targetTitle =
     rec.target.length > 1 ? rec.target[0].toUpperCase() + rec.target.slice(1) : rec.target;
@@ -340,6 +344,15 @@ function recommendationToText(rec: Recommendation, unit: "kg" | "lb"): string {
     const area = plainCoachNameForCoarseGroup(rec.target);
     const hints = getSuggestedExercisesForCoarseGroup(rec.target).slice(0, 2);
     const hintText = hints.length >= 2 ? ` (e.g. ${hints[0]}, ${hints[1]})` : hints.length === 1 ? ` (e.g. ${hints[0]})` : "";
+    const isLowerBody = rec.target.trim().toLowerCase() === "legs" || area === "lower body";
+    const shouldSoftenLowerBody =
+      opts?.goal === "Build Overall Muscle" && opts?.lowerBodyPriority === "Reduced" && isLowerBody;
+    if (shouldSoftenLowerBody) {
+      return softenForConfidence(
+        `Lower body is a bit light. Next session, add 2–3 focused sets for ${area}${hintText} if it fits your week.`,
+        confidenceLevel(rec.confidence)
+      );
+    }
     return softenForConfidence(
       `This area needs more weekly sets. Next session, add 3–4 focused sets for ${area}${hintText}.`,
       confidenceLevel(rec.confidence)
@@ -690,6 +703,9 @@ export function buildCoachStructuredAnalysis(
     exerciseInsights: allExerciseInsights,
   };
   const userProfile = getStoredUserProfile(focus, experienceLevel, goal);
+  const lowerBodyPriority = userProfile.lowerBodyPriority ?? "Required";
+  const isBuildOverallMuscle = goal === "Build Overall Muscle";
+  const shouldSuppressLegs = isBuildOverallMuscle && lowerBodyPriority === "Not a focus";
   const minPlateauExposures = 4;
   const minDeclineExposures = 3;
   const minNegativeStepsForDecline = 2;
@@ -706,10 +722,13 @@ export function buildCoachStructuredAnalysis(
     ...detectFrequencySignals(allWorkouts),
   ];
   const scoredSignals = scoreTrainingSignals(rawSignals, focus, userProfile);
-  const interactions = buildSignalInteractions(scoredSignals, userProfile, insights.weeklyVolume);
+  const scoredSignalsForCoach = shouldSuppressLegs
+    ? scoredSignals.filter((s) => (s.target?.muscleGroup ?? "").toLowerCase() !== "legs")
+    : scoredSignals;
+  const interactions = buildSignalInteractions(scoredSignalsForCoach, userProfile, insights.weeklyVolume);
 
   const topInteraction = interactions[0];
-  const keyFocusSignal = topInteraction ? null : selectKeyFocusSignal(scoredSignals, goal);
+  const keyFocusSignal = topInteraction ? null : selectKeyFocusSignal(scoredSignalsForCoach, goal);
   const keyFocusConfidence = topInteraction
     ? topInteraction.confidenceLevel
     : keyFocusSignal
@@ -762,7 +781,7 @@ export function buildCoachStructuredAnalysis(
       : undefined,
   };
 
-  const whatsGoingWellWithEvidence = scoredSignals
+  const whatsGoingWellWithEvidence = scoredSignalsForCoach
     .filter((s) => s.status === "positive")
     .slice(0, 2)
     .map((s) => {
@@ -792,7 +811,7 @@ export function buildCoachStructuredAnalysis(
       return { text: softenForConfidence(s.title, cLevel), evidenceCardIds };
     });
 
-  const volumeBalance = scoredSignals
+  let volumeBalance = scoredSignalsForCoach
     .filter((s) => s.category === "volume" || s.category === "balance")
     .slice(0, 4)
     .map((s) => ({
@@ -802,7 +821,27 @@ export function buildCoachStructuredAnalysis(
       summary: softenForConfidence(s.explanation, confidenceLevel(s.confidence)),
     }));
 
-  const topPrioritySignals = scoredSignals.slice(0, 6);
+  // For overall muscle-building, make leg gaps visible in Weekly balance (unless legs are explicitly not a focus).
+  if (isBuildOverallMuscle && lowerBodyPriority !== "Not a focus") {
+    const legsSets = insights.weeklyVolume.legs ?? 0;
+    const chestSets = insights.weeklyVolume.chest ?? 0;
+    const backSets = insights.weeklyVolume.back ?? 0;
+    const upperTotal = chestSets + backSets;
+    const legsMissingOrClearlyLow = legsSets === 0 || legsSets < 8 || (upperTotal > 0 && legsSets < upperTotal * 0.5);
+
+    if (legsMissingOrClearlyLow) {
+      const legSummary =
+        lowerBodyPriority === "Required"
+          ? `${legsSets === 0 ? "Leg work is missing this week." : "Leg work is light this week."} For an overall muscle-building goal, lower-body work should still be part of the week.`
+          : `${legsSets === 0 ? "Leg work is missing this week." : "Leg work is light this week."} For your goal, lower-body work still matters—keep it flexible this week.`;
+
+      const existingIdx = volumeBalance.findIndex((v) => v.label.toLowerCase() === "legs");
+      if (existingIdx >= 0) volumeBalance[existingIdx] = { label: "Legs", summary: legSummary };
+      else volumeBalance = [{ label: "Legs", summary: legSummary }, ...volumeBalance].slice(0, 4);
+    }
+  }
+
+  const topPrioritySignals = scoredSignalsForCoach.slice(0, 6);
   const goalRelevantTopSignals = topPrioritySignals.filter((s) =>
     isGoalRelevantRecommendationSignal(s, goal)
   );
@@ -868,7 +907,7 @@ export function buildCoachStructuredAnalysis(
       const evidenceCardIds =
         byId.length > 0 ? byId : getEvidenceCardIdsForRecommendation(r.type);
       return {
-        text: recommendationToText(r, unit),
+        text: recommendationToText(r, unit, { goal, lowerBodyPriority }),
         evidenceCardIds,
       };
     }),
@@ -896,7 +935,7 @@ export function buildCoachStructuredAnalysis(
     topInteraction?.id.includes("support-gap") && topInteraction.weakMuscleGroup
       ? topInteraction.weakMuscleGroup
       : supportGapResult.limitingMuscle ??
-        supportGroupFromInteraction(topInteraction, scoredSignals);
+        supportGroupFromInteraction(topInteraction, scoredSignalsForCoach);
 
   const decisionContext: DecisionContext = {
     goal,
@@ -905,7 +944,7 @@ export function buildCoachStructuredAnalysis(
       !hasInsufficientGoalData &&
       (isLiftSpecificGoal(goal) ? true : allWorkouts.length >= MIN_WORKOUTS_FOR_NON_LIFT_DECISION_CONTEXT),
     fatigueRisk: mapFatigueRiskFromSignals(avgRIR, goalLiftProgress),
-    frequencyStatus: mapFrequencyStatusForDecisions(insights, scoredSignals),
+    frequencyStatus: mapFrequencyStatusForDecisions(insights, scoredSignalsForCoach),
     supportGap: Boolean(topInteraction?.id.includes("support-gap")),
     ...(resolvedSupportGroupForCoach ? { supportGroup: resolvedSupportGroupForCoach } : {}),
     goalLiftProgress,
@@ -922,6 +961,10 @@ export function buildCoachStructuredAnalysis(
   console.log("[coach structured analysis] decisionContext", decisionContext);
 
   const coachDecisions = decideNextActions(decisionContext);
+  const coachDecisionsForCoach =
+    shouldSuppressLegs && resolvedSupportGroupForCoach === "legs"
+      ? coachDecisions.filter((d) => d.type !== "increase_support_volume")
+      : coachDecisions;
   console.log("[coach structured analysis] coachDecisions", coachDecisions);
 
   if (
@@ -948,7 +991,7 @@ export function buildCoachStructuredAnalysis(
   console.log("[coach structured analysis] supportExercises", supportExercises);
   console.log("[coach structured analysis] supportGroupWeeklySets", supportGroupWeeklySets);
 
-  const decisionBasedSuggestions = coachDecisions.map((d) => {
+  const decisionBasedSuggestions = coachDecisionsForCoach.map((d) => {
     try {
       const prescription: Prescription = buildPrescription({
         decision: d,
@@ -963,7 +1006,8 @@ export function buildCoachStructuredAnalysis(
         recentExercises,
         supportExercises,
         supportGroup,
-        supportGroupWeeklySets
+        supportGroupWeeklySets,
+        isBuildOverallMuscle ? lowerBodyPriority : undefined
       );
       console.log("[coach structured analysis] final prescription text", {
         decisionId: d.id,
@@ -984,12 +1028,12 @@ export function buildCoachStructuredAnalysis(
       : suggestionSlots.map((s) => s.text);
 
   const actionableSuggestionEvidenceCardIds =
-    coachDecisions.length > 0
-      ? coachDecisions.map((d) => getEvidenceCardIdsForDecision(d.type))
+    coachDecisionsForCoach.length > 0
+      ? coachDecisionsForCoach.map((d) => getEvidenceCardIdsForDecision(d.type))
       : suggestionSlots.map((s) => s.evidenceCardIds);
 
   const nextSessionAdjustmentPlan = generateNextSessionAdjustments({
-    decisions: coachDecisions,
+    decisions: coachDecisionsForCoach,
     context: decisionContext,
     goal: String(goal),
     recentExercises,

@@ -1,6 +1,7 @@
 import type { CoachDecision, DecisionContext } from "@/lib/trainingDecisions";
 import { plainCoachNameForCoarseGroup } from "@/lib/coachMusclePools";
 import { selectSupportExercises } from "@/lib/supportExerciseSelection";
+import type { LowerBodyPriority } from "@/lib/userProfile";
 
 export type Prescription = {
   targetExercise?: string;
@@ -113,7 +114,8 @@ export function prescriptionToText(
   recentExercises?: string[],
   supportExercises?: string[],
   supportGroup?: string,
-  supportGroupWeeklySets?: number
+  supportGroupWeeklySets?: number,
+  lowerBodyPriority?: LowerBodyPriority
 ): string {
   const ex = prescription.targetExercise ?? context.keyFocusExercise ?? "your main lift";
   const lowerEx = ex.toLowerCase();
@@ -166,12 +168,20 @@ export function prescriptionToText(
       supportGroup
     );
     const groupLabel = plainCoachNameForCoarseGroup(supportGroup ?? "back");
+    const isLowerBody = (supportGroup ?? "").toLowerCase() === "legs" || groupLabel === "lower body";
+    const isReducedLowerBody = isLowerBody && lowerBodyPriority === "Reduced";
     const mappedBase =
       selectedSupportExercises.length >= 2
-        ? `Add 1 extra set to ${selectedSupportExercises[0]} and ${selectedSupportExercises[1]} next session.`
+        ? isReducedLowerBody
+          ? `If you can recover, add 1 extra set to ${selectedSupportExercises[0]} and ${selectedSupportExercises[1]} next session.`
+          : `Add 1 extra set to ${selectedSupportExercises[0]} and ${selectedSupportExercises[1]} next session.`
         : selectedSupportExercises.length === 1
-          ? `Add 2 extra sets to ${selectedSupportExercises[0]} next session.`
-          : `Add 2–4 weekly sets for ${groupLabel} next session.`;
+          ? isReducedLowerBody
+            ? `If you can recover, add 2 extra sets to ${selectedSupportExercises[0]} next session.`
+            : `Add 2 extra sets to ${selectedSupportExercises[0]} next session.`
+          : isReducedLowerBody
+            ? `If you can recover, add 2–4 weekly sets for ${groupLabel} next session.`
+            : `Add 2–4 weekly sets for ${groupLabel} next session.`;
     if (supportGroupWeeklySets !== undefined && Number.isFinite(supportGroupWeeklySets)) {
       const low = rounded(supportGroupWeeklySets + 2);
       const high = rounded(supportGroupWeeklySets + 4);
@@ -181,7 +191,9 @@ export function prescriptionToText(
     } else {
       parts.push(mappedBase);
       parts.push(
-        `${groupLabel} weekly volume looks light — a small bump here usually helps without wrecking recovery.`
+        isReducedLowerBody
+          ? `${groupLabel} weekly volume looks light. If it fits your week, add a small bump without overdoing it.`
+          : `${groupLabel} weekly volume looks light — a small bump here usually helps without wrecking recovery.`
       );
     }
     if (

@@ -23,26 +23,49 @@ export default function ProfilePage() {
   const { experienceLevel } = useExperienceLevel();
   const initial = useMemo(() => getStoredUserProfile(focus, experienceLevel, goal), [experienceLevel, focus, goal]);
 
-  const [trainingDays, setTrainingDays] = useState<number>(initial.trainingDaysAvailable);
-  const [equipmentCsv, setEquipmentCsv] = useState<string>(initial.equipment.join(", "));
+  const EQUIPMENT_CHIPS: Array<{ key: string; label: string }> = [
+    { key: "barbell", label: "Barbell" },
+    { key: "dumbbell", label: "Dumbbells" },
+    { key: "machine", label: "Machines" },
+    { key: "cables", label: "Cables" },
+    { key: "bodyweight", label: "Bodyweight" },
+    { key: "cardio machines", label: "Cardio machines" },
+    { key: "other", label: "Other" },
+  ];
+
+  function trainingDaysToUi(v: number): 2 | 3 | 4 | 5 {
+    if (v <= 2) return 2;
+    if (v === 3) return 3;
+    if (v === 4) return 4;
+    return 5;
+  }
+
+  const [trainingDays, setTrainingDays] = useState<number>(trainingDaysToUi(initial.trainingDaysAvailable));
+  const [selectedEquipment, setSelectedEquipment] = useState<string[]>(initial.equipment);
+  const [otherEquipmentText, setOtherEquipmentText] = useState<string>("");
   const [injuriesCsv, setInjuriesCsv] = useState<string>((initial.injuries ?? []).join(", "));
-  const [sessionTime, setSessionTime] = useState<number>(initial.availableSessionTime ?? 60);
+  const [trainingPrioritiesText, setTrainingPrioritiesText] = useState<string>(initial.trainingPrioritiesText ?? "");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setTrainingDays(initial.trainingDaysAvailable);
-    setEquipmentCsv(initial.equipment.join(", "));
+    setTrainingDays(trainingDaysToUi(initial.trainingDaysAvailable));
+    setSelectedEquipment(initial.equipment);
     setInjuriesCsv((initial.injuries ?? []).join(", "));
-    setSessionTime(initial.availableSessionTime ?? 60);
+    setTrainingPrioritiesText(initial.trainingPrioritiesText ?? "");
   }, [initial]);
 
   function saveProfile() {
+    const equipment =
+      selectedEquipment.includes("other") && otherEquipmentText.trim()
+        ? [...selectedEquipment.filter((k) => k !== "other"), otherEquipmentText.trim()]
+        : selectedEquipment.filter((k) => k !== "other");
+
     const payload = {
       goal,
       trainingDaysAvailable: Math.max(1, Math.min(7, trainingDays || 3)),
-      equipment: parseList(equipmentCsv),
+      equipment,
       injuries: parseList(injuriesCsv),
-      availableSessionTime: Math.max(20, Math.min(180, sessionTime || 60)),
+      trainingPrioritiesText,
     };
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(payload));
     setSaved(true);
@@ -54,7 +77,7 @@ export default function ProfilePage() {
     <main className="min-h-screen bg-zinc-950 px-6 pb-28 pt-8 text-white">
       <div className="mx-auto max-w-2xl">
         <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
-        <p className="mt-1 text-sm text-app-secondary">Adjust your constraints so coaching recommendations stay relevant.</p>
+        <p className="mt-1 text-sm text-app-secondary">Quick onboarding so the coach uses your real context.</p>
 
         <section className="mt-6 rounded-2xl border border-teal-900/35 bg-zinc-900/90 p-5">
           <div className="space-y-4">
@@ -74,26 +97,66 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="label-section block mb-1.5">Training days available</label>
-              <input
-                type="number"
-                min={1}
-                max={7}
+              <label className="label-section block mb-1.5">Typical training frequency</label>
+              <select
                 value={trainingDays}
                 onChange={(e) => setTrainingDays(Number(e.target.value))}
                 className="input-app w-full px-3 py-2.5 text-sm"
+              >
+                <option value={2}>2 days</option>
+                <option value={3}>3 days</option>
+                <option value={4}>4 days</option>
+                <option value={5}>5+ days</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="label-section block mb-1.5">Tell the coach what matters</label>
+              <textarea
+                value={trainingPrioritiesText}
+                onChange={(e) => setTrainingPrioritiesText(e.target.value)}
+                className="input-app w-full px-3 py-3 text-sm resize-none min-h-[96px]"
+                placeholder="e.g. What do you want to build, improve, or avoid? Build muscle overall, bring up chest and arms, keep legs ticking over, avoid irritating left shoulder"
               />
             </div>
 
             <div>
-              <label className="label-section block mb-1.5">Equipment (comma separated)</label>
-              <input
-                type="text"
-                value={equipmentCsv}
-                onChange={(e) => setEquipmentCsv(e.target.value)}
-                className="input-app w-full px-3 py-2.5 text-sm"
-                placeholder="barbell, dumbbell, machine"
-              />
+              <label className="label-section block mb-1.5">Equipment you have</label>
+              <div className="flex flex-wrap gap-2">
+                {EQUIPMENT_CHIPS.map((chip) => {
+                  const active = selectedEquipment.includes(chip.key);
+                  return (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      onClick={() => {
+                        setSelectedEquipment((prev) => {
+                          const isOn = prev.includes(chip.key);
+                          const next = isOn ? prev.filter((k) => k !== chip.key) : [...prev, chip.key];
+                          if (chip.key === "other" && !isOn) setOtherEquipmentText("");
+                          return next;
+                        });
+                      }}
+                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                        active
+                          ? "border-teal-500/45 bg-teal-950/35 text-teal-100"
+                          : "border-teal-900/35 bg-zinc-900/70 text-app-secondary hover:text-white"
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedEquipment.includes("other") && (
+                <input
+                  type="text"
+                  value={otherEquipmentText}
+                  onChange={(e) => setOtherEquipmentText(e.target.value)}
+                  className="input-app mt-3 w-full px-3 py-2.5 text-sm"
+                  placeholder="e.g. kettlebells, bands"
+                />
+              )}
             </div>
 
             <div>
@@ -104,18 +167,6 @@ export default function ProfilePage() {
                 onChange={(e) => setInjuriesCsv(e.target.value)}
                 className="input-app w-full px-3 py-2.5 text-sm"
                 placeholder="left shoulder, lower back"
-              />
-            </div>
-
-            <div>
-              <label className="label-section block mb-1.5">Session time (minutes)</label>
-              <input
-                type="number"
-                min={20}
-                max={180}
-                value={sessionTime}
-                onChange={(e) => setSessionTime(Number(e.target.value))}
-                className="input-app w-full px-3 py-2.5 text-sm"
               />
             </div>
 
