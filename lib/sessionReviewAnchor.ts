@@ -1,6 +1,15 @@
 import { getCompletedLoggedSets } from "@/lib/completedSets";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
+export type SessionBodyTag = "chest" | "back" | "legs" | "shoulders" | "arms";
+
+/** How to choose which logged session to anchor for session-review questions. */
+export type SessionReviewSelection =
+  | { mode: "most_recent" }
+  | { mode: "volume_bench" }
+  | { mode: "body_day"; tags: SessionBodyTag[] };
+
+/** @deprecated use SessionReviewSelection via parseSessionReviewSelection */
 export type SessionReviewVariant = "most_recent" | "volume_bench";
 
 function normalizeExerciseName(name: string): string {
@@ -13,14 +22,54 @@ function sortWorkoutsNewestFirst(workouts: StoredWorkout[]): StoredWorkout[] {
   );
 }
 
-/** First matching rule wins — keep in sync with `classifyAssistantIntent` session_review branch. */
-export function parseSessionReviewVariant(message: string): SessionReviewVariant | null {
+function exerciseTextBlob(w: StoredWorkout): string {
+  return (w.exercises ?? [])
+    .map((e) => (e.name ?? "").toLowerCase())
+    .join(" ");
+}
+
+function workoutMatchesBodyTag(w: StoredWorkout, tag: SessionBodyTag): boolean {
+  const blob = exerciseTextBlob(w);
+  switch (tag) {
+    case "chest":
+      return /\b(bench|incline|decline|chest|fly|pec|dip)\b/.test(blob);
+    case "back":
+      return /\b(row|pull[\s-]?up|pullup|chin[\s-]?up|pulldown|lat pulldown|t[\s-]?bar)\b/.test(blob);
+    case "legs":
+      return /\b(squat|leg press|lunge|rdl|romanian|leg curl|leg extension|calf|hack squat)\b/.test(blob);
+    case "shoulders":
+      return /\b(shoulder|ohp|overhead|lateral raise|rear delt|face pull)\b/.test(blob);
+    case "arms":
+      return /\b(curl|tricep|bicep|pushdown|skull|hammer curl)\b/.test(blob);
+    default:
+      return false;
+  }
+}
+
+function pickBodyDayWorkout(sorted: StoredWorkout[], tags: SessionBodyTag[]): StoredWorkout | null {
+  const uniq = [...new Set(tags)];
+  for (const w of sorted) {
+    if (uniq.every((tag) => workoutMatchesBodyTag(w, tag))) return w;
+  }
+  return null;
+}
+
+/** First matching rule wins — keep in sync with `classifyAssistantQuestionKind` session_review branch. */
+export function parseSessionReviewSelection(message: string): SessionReviewSelection | null {
   const t = message.trim().toLowerCase();
   if (!t) return null;
 
-  const hasSessionOrWorkout = /\b(session|workouts?)\b/.test(t);
+  const hasSessionOrWorkout = /\b(session|workouts?|day)\b/.test(t);
   const recencyOrWhat =
     /\b(last|latest|most recent|previous)\b/.test(t) || /\bwhat happened\b/.test(t);
+
+  const reviewLike =
+    /\breview\b/.test(t) ||
+    /\bthoughts\b/.test(t) ||
+    /\brecap\b/.test(t) ||
+    /\bwalk me through\b/.test(t) ||
+    /\bwhat happened\b/.test(t) ||
+    /\bhow was\b/.test(t);
 
   if (
     hasSessionOrWorkout &&
@@ -28,14 +77,18 @@ export function parseSessionReviewVariant(message: string): SessionReviewVariant
     /\bbench\b/.test(t) &&
     recencyOrWhat
   ) {
-    return "volume_bench";
+    return { mode: "volume_bench" };
   }
 
-  const reviewLike =
-    /\breview\b/.test(t) ||
-    /\brecap\b/.test(t) ||
-    /\bwalk me through\b/.test(t) ||
-    /\bwhat happened\b/.test(t);
+  if (
+    (reviewLike || /\bhow was\b/.test(t)) &&
+    recencyOrWhat &&
+    /\bchest\b/.test(t) &&
+    /\bback\b/.test(t) &&
+    /\b(session|workout|day)\b/.test(t)
+  ) {
+    return { mode: "body_day", tags: ["chest", "back"] };
+  }
 
   const anchoredSession =
     /\b(this|that)\s+session\b/.test(t) ||
@@ -47,9 +100,17 @@ export function parseSessionReviewVariant(message: string): SessionReviewVariant
     /\b(last|latest|most recent|previous)\b/.test(t) &&
     !/\bworkout\s+plan\b/.test(t);
 
-  if (reviewLike && (anchoredSession || anchoredWorkout)) return "most_recent";
+  if (reviewLike && (anchoredSession || anchoredWorkout)) return { mode: "most_recent" };
 
   return null;
+}
+
+/** Back-compat: volume_bench | most_recent only (body_day → most_recent fallback unused — use parseSessionReviewSelection). */
+export function parseSessionReviewVariant(message: string): SessionReviewVariant | null {
+  const s = parseSessionReviewSelection(message);
+  if (!s) return null;
+  if (s.mode === "volume_bench") return "volume_bench";
+  return "most_recent";
 }
 
 function workoutHasBenchLike(exercises: StoredWorkout["exercises"]): boolean {
@@ -67,13 +128,14 @@ function pickMostRecentWorkout(sorted: StoredWorkout[]): StoredWorkout | null {
   return sorted[0] ?? null;
 }
 
-function pickWorkout(
+function pickWorkoutForSelection(
   workouts: StoredWorkout[] | undefined,
-  variant: SessionReviewVariant
+  selection: SessionReviewSelection
 ): StoredWorkout | null {
   if (!workouts?.length) return null;
   const sorted = sortWorkoutsNewestFirst(workouts);
-  if (variant === "volume_bench") return pickVolumeBenchWorkout(sorted);
+  if (selection.mode === "volume_bench") return pickVolumeBenchWorkout(sorted);
+  if (selection.mode === "body_day") return pickBodyDayWorkout(sorted, selection.tags);
   return pickMostRecentWorkout(sorted);
 }
 
@@ -100,6 +162,171 @@ function formatSetLine(
     .join("; ");
 }
 
+function normalizedExerciseKeys(w: StoredWorkout): string[] {
+  const keys = (w.exercises ?? [])
+    .map((e) => normalizeExerciseName(e.name))
+    .filter(Boolean);
+  return [...new Set(keys)];
+}
+
+function jaccardExerciseOverlap(a: string[], b: string[]): number {
+  const A = new Set(a);
+  const B = new Set(b);
+  if (A.size === 0 && B.size === 0) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter++;
+  const union = A.size + B.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+function sharedExerciseCount(a: string[], b: string[]): number {
+  const B = new Set(b);
+  return a.filter((k) => B.has(k)).length;
+}
+
+/**
+ * Pick one older session in the payload to compare for progression/structure.
+ * 1) Same logged session `name` as current (newest older match).
+ * 2) Else best Jaccard overlap on exercise names with ≥2 shared lifts and Jaccard ≥ 0.4.
+ */
+function findSimilarPriorWorkout(
+  sorted: StoredWorkout[],
+  current: StoredWorkout
+): { workout: StoredWorkout; reason: string } | null {
+  const currentKeys = normalizedExerciseKeys(current);
+  const cn = current.name?.trim().toLowerCase() ?? "";
+
+  for (let i = 1; i < sorted.length; i++) {
+    const w = sorted[i];
+    if (cn && w.name?.trim().toLowerCase() === cn) {
+      return {
+        workout: w,
+        reason: `Same logged session name as current ("${current.name?.trim()}") — newest older occurrence in payload.`,
+      };
+    }
+  }
+
+  let best: StoredWorkout | null = null;
+  let bestJac = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    const w = sorted[i];
+    const wk = normalizedExerciseKeys(w);
+    const shared = sharedExerciseCount(currentKeys, wk);
+    const jac = jaccardExerciseOverlap(currentKeys, wk);
+    if (shared >= 2 && jac >= 0.4 && jac > bestJac) {
+      bestJac = jac;
+      best = w;
+    }
+  }
+  if (best) {
+    const sh = sharedExerciseCount(currentKeys, normalizedExerciseKeys(best));
+    return {
+      workout: best,
+      reason: `Best exercise overlap among older sessions in payload (Jaccard ${bestJac.toFixed(2)}, ${sh} shared exercise name(s), min 2 required).`,
+    };
+  }
+  return null;
+}
+
+function primaryMovementTag(name: string): string {
+  const n = name.toLowerCase();
+  if (
+    /\b(squat|deadlift|leg press|lunge|\brdl\b|romanian|hamstring curl|leg curl|leg extension|calf raise|hip thrust|glute bridge|split squat|step[\s-]?up)\b/.test(
+      n
+    )
+  ) {
+    return "legs";
+  }
+  if (/\b(pull[\s-]?up|chin[\s-]?up|lat pull|pulldown)\b/.test(n)) {
+    return "vertical_pull";
+  }
+  if (/\b(row|t[\s-]?bar|pendlay|seal row|cable row|machine row|barbell row)\b/.test(n)) {
+    return "horizontal_pull";
+  }
+  if (
+    /\b(ohp|overhead press|shoulder press|military press|arnold press|z press|push press)\b/.test(n)
+  ) {
+    return "vertical_push";
+  }
+  if (
+    /\b(bench|incline|decline|fly|chest press|push[\s-]?up|dip)\b/.test(n) &&
+    !/\bshoulder\b.*\bpress\b/.test(n)
+  ) {
+    return "horizontal_push";
+  }
+  return "other";
+}
+
+function sessionStructureSummary(workout: StoredWorkout): {
+  exerciseCount: number;
+  totalCompletedSets: number;
+  setCountByTag: Record<string, number>;
+  exerciseCountByTag: Record<string, number>;
+} {
+  const setCountByTag: Record<string, number> = {};
+  const exerciseCountByTag: Record<string, number> = {};
+  let totalCompletedSets = 0;
+  const exercises = workout.exercises ?? [];
+  for (const ex of exercises) {
+    const tag = primaryMovementTag(ex.name ?? "");
+    exerciseCountByTag[tag] = (exerciseCountByTag[tag] ?? 0) + 1;
+    const done = getCompletedLoggedSets(ex.sets ?? []);
+    totalCompletedSets += done.length;
+    setCountByTag[tag] = (setCountByTag[tag] ?? 0) + done.length;
+  }
+  return {
+    exerciseCount: exercises.length,
+    totalCompletedSets,
+    setCountByTag,
+    exerciseCountByTag,
+  };
+}
+
+function formatTagRecord(r: Record<string, number>): string {
+  return Object.entries(r)
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => `${k}:${n}`)
+    .join(", ");
+}
+
+function collectRirSummaryForWorkout(workout: StoredWorkout): string {
+  const rirs: number[] = [];
+  for (const ex of workout.exercises ?? []) {
+    for (const s of getCompletedLoggedSets(ex.sets ?? [])) {
+      if (typeof s.rir === "number" && Number.isFinite(s.rir)) rirs.push(s.rir);
+    }
+  }
+  if (rirs.length === 0) {
+    return "No RIR logged on any completed set in this session — do not imply you know RIR; you may infer effort only from load/rep patterns and label as estimate.";
+  }
+  const min = Math.min(...rirs);
+  const max = Math.max(...rirs);
+  const avg = rirs.reduce((a, b) => a + b, 0) / rirs.length;
+  return `RIR logged on ${rirs.length} completed set(s): min ${min}, max ${max}, avg ${avg.toFixed(1)}.`;
+}
+
+function priorPerformancesForExercise(
+  sorted: StoredWorkout[],
+  currentIdx: number,
+  exerciseNameNorm: string,
+  maxSessions: number
+): Array<{ date: string; rawName: string; line: string }> {
+  const out: Array<{ date: string; rawName: string; line: string }> = [];
+  for (let i = currentIdx + 1; i < sorted.length && out.length < maxSessions; i++) {
+    const w = sorted[i];
+    const ex = (w.exercises ?? []).find((e) => normalizeExerciseName(e.name) === exerciseNameNorm);
+    if (!ex) continue;
+    const line = formatSetLine(ex.sets ?? []);
+    if (line === "(no completed sets logged)") continue;
+    out.push({
+      date: w.completedAt.length >= 10 ? w.completedAt.slice(0, 10) : w.completedAt,
+      rawName: ex.name?.trim() || "Exercise",
+      line,
+    });
+  }
+  return out;
+}
+
 export type BuildSessionReviewAnchorParams = {
   message: string;
   recentWorkouts: StoredWorkout[] | undefined;
@@ -112,8 +339,8 @@ export type BuildSessionReviewAnchorParams = {
  * and evidence-gated wording for "introduced" vs prior session.
  */
 export function buildSessionReviewAnchorBlock(params: BuildSessionReviewAnchorParams): string {
-  const variant = parseSessionReviewVariant(params.message);
-  if (!variant) {
+  const selection = parseSessionReviewSelection(params.message);
+  if (!selection) {
     return "=== SESSION ANCHOR ===\n(internal: no session-review variant parsed — treat as normal coaching request)\n";
   }
 
@@ -124,10 +351,14 @@ No recent workouts were included in this request. You cannot review a specific l
   }
 
   const sorted = sortWorkoutsNewestFirst(workouts);
-  const workout = pickWorkout(workouts, variant);
+  const workout = pickWorkoutForSelection(workouts, selection);
   if (!workout) {
+    const hint =
+      selection.mode === "body_day"
+        ? `No logged session in the payload contains both ${selection.tags.join(" and ")} patterns (keyword match on exercise names).`
+        : "No workout in the payload matched this request (e.g. volume bench session not found).";
     return `=== SESSION ANCHOR ===
-No workout in the payload matched this request (e.g. volume bench session not found). Say what is missing in one short phrase; do not invent session details.`;
+${hint} Say what is missing in one short phrase; do not invent session details.`;
   }
 
   const previous = findPreviousWorkout(sorted, workout);
@@ -140,9 +371,17 @@ No workout in the payload matched this request (e.g. volume bench session not fo
   const lines: string[] = [];
   lines.push("=== SESSION ANCHOR (AUTHORITATIVE FOR THIS QUESTION) ===");
   lines.push(
-    "Use ONLY the exercises and set lines below for session review. Ignore exerciseTrends, trainingInsights, trainingSummary.recentExercises, coach tab summaries, and chat history for naming lifts."
+    "Use ONLY EXERCISES below for lift names. Ignore exerciseTrends, trainingInsights, trainingSummary.recentExercises, coach tab summaries, and chat for naming lifts. RECENT SESSION ORDER is dates/session titles only (no extra exercises)."
   );
-  lines.push(`Review variant: ${variant === "volume_bench" ? "last volume-style bench session in payload" : "most recent session in payload"}`);
+  lines.push(
+    `Review selection: ${
+      selection.mode === "volume_bench"
+        ? "last volume-style bench session in payload"
+        : selection.mode === "body_day"
+          ? `newest session whose exercises match body tags: ${selection.tags.join(" + ")} (keyword heuristic on names)`
+          : "most recent session in payload"
+    }`
+  );
   lines.push(`Unit label (display): ${params.unitLabel?.trim() || "kg"}`);
   lines.push(`Session date: ${workout.completedAt.length >= 10 ? workout.completedAt.slice(0, 10) : workout.completedAt}`);
   if (workout.name?.trim()) lines.push(`Logged session name: ${workout.name.trim()}`);
@@ -150,18 +389,79 @@ No workout in the payload matched this request (e.g. volume bench session not fo
     lines.push(`Logged duration: ${workout.durationSec} seconds`);
   }
 
+  const currentIdx = sorted.indexOf(workout);
+  const structure = sessionStructureSummary(workout);
+  lines.push(
+    `SESSION STRUCTURE (computed from this session only): ${structure.exerciseCount} exercise slot(s), ${structure.totalCompletedSets} completed set(s).`
+  );
+  lines.push(`Sets by movement heuristic: ${formatTagRecord(structure.setCountByTag) || "n/a"}.`);
+  lines.push(
+    `Exercises by movement heuristic: ${formatTagRecord(structure.exerciseCountByTag) || "n/a"}.`
+  );
+  lines.push(
+    "Movement tags are keyword guesses from exercise names — use as soft structure hints, not anatomy claims."
+  );
+  lines.push(collectRirSummaryForWorkout(workout));
+
+  lines.push("RECENT SESSION ORDER IN PAYLOAD (dates + logged names only — no other exercises; use for where this day may sit in the week):");
+  for (let i = 0; i < Math.min(8, sorted.length); i++) {
+    const w = sorted[i];
+    const d = w.completedAt.length >= 10 ? w.completedAt.slice(0, 10) : w.completedAt;
+    const label = i === 0 ? " ← ANCHORED (this question)" : "";
+    lines.push(`  ${i + 1}. ${d}: ${w.name?.trim() || "(unnamed session)"}${label}`);
+  }
+
   const exerciseLines: string[] = [];
-  let totalCompletedSets = 0;
   for (const ex of workout.exercises ?? []) {
     const name = ex.name?.trim() || "Exercise";
-    const done = getCompletedLoggedSets(ex.sets ?? []);
-    totalCompletedSets += done.length;
     const setStr = formatSetLine(ex.sets ?? []);
     exerciseLines.push(`- ${name}: ${setStr}`);
   }
-  lines.push(`Total completed sets (this session, counted): ${totalCompletedSets}`);
-  lines.push("EXERCISES (only mention these by name):");
+  lines.push(`Total completed sets (this session, counted): ${structure.totalCompletedSets}`);
+  lines.push("EXERCISES (only mention these by name in your answer):");
   lines.push(exerciseLines.length ? exerciseLines.join("\n") : "- (none listed)");
+
+  lines.push(
+    "PER-EXERCISE PRIOR LOGS (older sessions in payload, same normalized exercise name — use for progression; do not name lifts that are not in EXERCISES above):"
+  );
+  for (const ex of workout.exercises ?? []) {
+    const raw = ex.name?.trim() || "Exercise";
+    const key = normalizeExerciseName(raw);
+    if (!key) continue;
+    const priors = priorPerformancesForExercise(sorted, currentIdx, key, 2);
+    if (priors.length === 0) {
+      lines.push(`- ${raw}: no older logged performances of this name in payload.`);
+    } else {
+      for (const p of priors) {
+        lines.push(`- ${raw}: on ${p.date} → ${p.line}`);
+      }
+    }
+  }
+
+  const similar = findSimilarPriorWorkout(sorted, workout);
+  if (similar) {
+    const pw = similar.workout;
+    const ps = sessionStructureSummary(pw);
+    const sharedKeys = normalizedExerciseKeys(workout).filter((k) =>
+      normalizedExerciseKeys(pw).includes(k)
+    );
+    lines.push("SIMILAR PRIOR SESSION (for comparison — logic described on next line):");
+    lines.push(`Selection: ${similar.reason}`);
+    lines.push(
+      `That session: ${pw.completedAt.slice(0, 10)}; name: ${pw.name?.trim() || "(unnamed)"}; ${ps.exerciseCount} exercise slots; ${ps.totalCompletedSets} completed sets; sets-by-tag: ${formatTagRecord(ps.setCountByTag)}.`
+    );
+    lines.push("Shared exercises only (performance from that prior session) — quote when comparing:");
+    for (const key of sharedKeys) {
+      const ex = (pw.exercises ?? []).find((e) => normalizeExerciseName(e.name) === key);
+      if (!ex) continue;
+      const disp = ex.name?.trim() || key;
+      lines.push(`- ${disp}: ${formatSetLine(ex.sets ?? [])}`);
+    }
+  } else {
+    lines.push(
+      "SIMILAR PRIOR SESSION: none identified in payload (need same session name, or ≥2 shared exercise names with Jaccard ≥ 0.4 vs current). Compare using PER-EXERCISE PRIOR LOGS only, or say history is thin."
+    );
+  }
 
   const currentKeys = (workout.exercises ?? [])
     .map((e) => normalizeExerciseName(e.name))
@@ -189,11 +489,26 @@ No workout in the payload matched this request (e.g. volume bench session not fo
     );
   }
 
-  lines.push("ANSWER STRUCTURE (required):");
-  lines.push("A) Session focus/type (from logged name + movement pattern in the list only).");
-  lines.push("B) Key exercises and performance — quote the set lines above verbatim for weights×reps.");
-  lines.push("C) One or two implications tied only to those numbers.");
-  lines.push("D) Stay specific; do not drift to other sessions or trends.");
+  lines.push("ANSWER STRUCTURE (required — coach-like analysis, not a recap):");
+  lines.push(
+    "A) What this session was (e.g. upper push + pull volume) using logged session name + SESSION STRUCTURE + exercise list — one tight sentence."
+  );
+  lines.push(
+    "B) Exact performance: cite each anchored exercise with verbatim weight×reps from EXERCISES; mention set count / session totals where it sharpens the point."
+  );
+  lines.push(
+    "C) Progression: use PER-EXERCISE PRIOR LOGS and/or SIMILAR PRIOR SESSION shared lines — state what moved (load, reps, sets) or that payload has no prior match. If no prior data, say so once."
+  );
+  lines.push(
+    "D) Session design: reference set/exercise counts and pressing vs pulling (from SESSION STRUCTURE) vs the similar prior session when present — balanced vs specialized only with numbers."
+  );
+  lines.push(
+    "E) Optional muscle-emphasis (≤2 short phrases): only when tied to a named exercise in EXERCISES (e.g. incline press → upper-chest angle; pull-up + row → vertical + horizontal pull). No filler anatomy."
+  );
+  lines.push(
+    "F) 1–2 implications: tie to concrete log patterns (rep fall-off, load change between sets, match or beat prior session). Label difficulty guesses as estimates if RIR is missing."
+  );
+  lines.push("G) Do not drift: never name a lift outside EXERCISES. No vague praise without a cited number.");
 
   return lines.join("\n");
 }

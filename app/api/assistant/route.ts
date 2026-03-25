@@ -10,10 +10,16 @@ import { buildSelectiveMemoryBlock } from "@/lib/assistantMemory";
 import { buildInferredTrainingProfile } from "@/lib/inferredTrainingProfile";
 import type { CoachingContext } from "@/lib/coachingContext";
 import { countCompletedLoggedSets } from "@/lib/completedSets";
+import { buildSessionReviewAnchorBlock } from "@/lib/sessionReviewAnchor";
 import {
-  buildSessionReviewAnchorBlock,
-  parseSessionReviewVariant,
-} from "@/lib/sessionReviewAnchor";
+  buildExerciseLogAnchorBlock,
+  resolveExerciseFromMessage,
+} from "@/lib/assistantLogAnchors";
+import {
+  classifyAssistantQuestionKind,
+  mapQuestionKindToLegacyIntent,
+  type AssistantQuestionKind,
+} from "@/lib/assistantQuestionRouting";
 
 /** Mirrors client `coachStructuredOutput` — deterministic Coach tab output + evidence id hooks. */
 export type AssistantCoachStructuredOutput = {
@@ -218,80 +224,13 @@ function hasMinimumViableContext(parsed: ParsedContext): boolean {
   );
 }
 
-/** Deterministic intent from user message (first matching rule wins). */
+/**
+ * Legacy intent label (logging / compatibility). Prefer `classifyAssistantQuestionKind` for routing.
+ */
 export function classifyAssistantIntent(message: string): AssistantIntent {
   const t = message.trim().toLowerCase();
   if (!t) return "unknown";
-
-  if (parseSessionReviewVariant(message)) {
-    return "session_review";
-  }
-
-  if (
-    t.includes("how is my training") ||
-    t.includes("how is my week") ||
-    t.includes("how's my training") ||
-    t.includes("hows my training") ||
-    t.includes("analyze my training") ||
-    t.includes("recent training") ||
-    t.includes("my training look") ||
-    t.includes("training looking") ||
-    t.includes("how is my lifting") ||
-    t.includes("review my training") ||
-    t.includes("review my workouts") ||
-    (t.includes("review") && t.includes("training")) ||
-    t.includes("assess my training") ||
-    t.includes("feedback on my training") ||
-    t.includes("clearest next step") ||
-    t.includes("look at my training") ||
-    t.includes("what do you think of my training") ||
-    (t.includes("volume") &&
-      (t.includes("thoughts") ||
-        t.includes("overall") ||
-        (t.includes("how") && (t.includes("week") || t.includes("looking") || t.includes("doing")))))
-  ) {
-    return "recent_training_analysis";
-  }
-
-  if (
-    t.includes("why did you say") ||
-    t.includes("what do you mean") ||
-    (t.includes("why") &&
-      (t.includes("coach") || t.includes("suggestion") || t.includes("recommendation") || t.includes("assistant")))
-  ) {
-    return "coach_explanation";
-  }
-
-  if (
-    t.includes("template") ||
-    t.includes("split") ||
-    t.includes("program") ||
-    t.includes("routine") ||
-    t.includes("workout plan")
-  ) {
-    return "template_review";
-  }
-
-  if (
-    t.includes("exercise") ||
-    t.includes("is this exercise") ||
-    t.includes("should i do") ||
-    /\b(should i|is it ok to|can i)\b.*\b(bench|squat|deadlift|row|press|curl|pull|chin|lift)\b/.test(t)
-  ) {
-    return "exercise_question";
-  }
-
-  if (
-    t.includes("goal") ||
-    t.includes("bulk") ||
-    t.includes("cut") ||
-    /\bstrength\b/.test(t) ||
-    t.includes("hypertrophy")
-  ) {
-    return "goal_question";
-  }
-
-  return "general_training_question";
+  return mapQuestionKindToLegacyIntent(classifyAssistantQuestionKind(message)) as AssistantIntent;
 }
 
 function isStringArray(a: unknown): a is string[] {
@@ -533,10 +472,22 @@ STYLE (keep):
 - Prefer specific log references over vague "your data" — e.g. "based on your recent logged sessions" when citing the digest or structured fields.
 `.trim();
 
+const GLOBAL_REPLY_DISCIPLINE_BLOCK = `
+GLOBAL REPLY DISCIPLINE (all questions):
+- Lead with a direct answer to what they asked; avoid padded intros and generic summaries when specifics exist in the payload.
+- If EXERCISE LOG ANCHOR or SESSION ANCHOR is present, treat it as the primary evidence for names, sets, and loads on this turn.
+- A logged set counts as completed performance only when reps are logged as a number > 0; blank, zero, or missing-rep rows are placeholders or incomplete — never quote those as work done.
+- Separate "logged fact" vs "coaching inference". When inferring, say so in plain words (e.g. "from the pattern in your log", "estimate").
+- Do not name exercises the user did not ask about unless clearly useful; if you add one, label it as optional context.
+- Match depth to the question: factual questions get short, number-first answers; coaching questions add one clear recommendation and a brief why.
+- Calibrate confidence: thin logs → say what you cannot know and what would change the answer.
+`.trim();
+
 async function getAssistantReply(
   loggedDataPreamble: string,
   message: string,
   intent: AssistantIntent,
+  questionKind: AssistantQuestionKind,
   mode: AssistantMode,
   templateDataAvailable: boolean,
   templatesSummary: string | undefined,
@@ -797,8 +748,32 @@ TONE:
         })
       : "";
 
+  const shouldTryExerciseLock =
+    questionKind === "exact_factual_recall" ||
+    questionKind === "exercise_progression" ||
+    questionKind === "coaching_recommendation";
+
+  const resolvedExercise = shouldTryExerciseLock
+    ? resolveExerciseFromMessage(
+        message,
+        coachingContext?.recentWorkouts,
+        trainingSummary.recentExercises ?? [],
+        activeExerciseTopic
+      )
+    : null;
+
+  const exerciseLogAnchorBlock =
+    resolvedExercise && shouldTryExerciseLock
+      ? buildExerciseLogAnchorBlock({
+          workouts: coachingContext?.recentWorkouts,
+          exerciseKey: resolvedExercise.key,
+          displayName: resolvedExercise.displayName,
+        })
+      : "";
+
   const routingPreamble = `
-INTENT (classified): ${effectiveIntent}
+QUESTION KIND (routing): ${questionKind}
+INTENT (legacy label): ${effectiveIntent}
 
 GLOBAL RULES (always):
 - Only use detailed recent-training / coach-log analysis when the user's question is actually about recent training, their week, or coach output—or when explaining coach output in coach_explanation using the blocks provided for that purpose.
@@ -926,19 +901,44 @@ ${message}
       break;
     case "analysis":
     default:
-      if (effectiveIntent === "session_review") {
+      if (questionKind === "memory_continuity") {
         input = `
-You are an elite strength coach. The user asked for a review of one specific logged session.
+You are answering a thread / memory continuity question — training logs are secondary unless the user explicitly linked them.
 
 ${routingPreamble}
 
 Hard rules:
-- Base the entire answer on SESSION ANCHOR in the subject block above (exact exercise names, sets, reps, notes, duration). Do not substitute weekly summaries, exerciseTrends, trainingInsights, coach tab output, or the LOGGED TRAINING digest for exercise lists or loads.
-- Do not name any exercise that is not listed under EXERCISES in SESSION ANCHOR — even if it appears in chat history, memory, or global "recent exercises" lists.
-- Use "introduced", "newly added", or "newly included" ONLY for exercises SESSION ANCHOR explicitly marks as OK vs the immediately prior session. Otherwise say "included", "featured", or "part of this session".
-- Follow SESSION ANCHOR structure: (A) session focus/type, (B) key logged performance with verbatim weight×reps, (C) one or two implications tied only to those numbers, (D) stay specific.
+- Follow MEMORY CONTEXT and EXACT THREAD ACCESS. Never invent prior chat content.
+- If exactThreadLoaded is false, be explicit that you may not have the full prior thread.
+- Quote or paraphrase only what appears in RECENT CHAT when the user asked what was said.
 
-Tone: calm, practical, no alarmism. Short paragraphs or bullets are fine.
+User question:
+${message}
+
+Reply in 2–4 short sentences unless they asked for detail.`;
+      } else if (questionKind === "session_review") {
+        input = `
+You are an elite strength coach. The user asked for a substantive review of one specific logged session.
+
+${routingPreamble}
+
+Hard rules (anchoring):
+- Primary evidence: SESSION ANCHOR (subject block) — EXERCISES list, SESSION STRUCTURE, RIR line, PER-EXERCISE PRIOR LOGS, SIMILAR PRIOR SESSION, RECENT SESSION ORDER (names/dates only).
+- Do not name any exercise that is not listed under EXERCISES in SESSION ANCHOR. Do not pull other lifts from exerciseTrends, trainingInsights, digest exercise lists, or chat.
+- Use "introduced", "newly added", or "newly included" ONLY for exercises SESSION ANCHOR explicitly marks as OK vs the immediately prior session. Otherwise say "included", "featured", or "part of this session".
+
+Depth & analysis:
+- Follow the lettered ANSWER STRUCTURE at the end of SESSION ANCHOR (A–G). This should read like training analysis: session identity, numbers, progression vs prior payload data, structure vs similar prior session, then implications.
+- Use exact weight×reps from the anchor; cite session-level totals (exercise count, completed set count, movement-tag breakdown) when comparing balance or specialization.
+- Wider plan: you may use RECENT SESSION ORDER (names/dates only) plus the current session’s role (e.g. upper push/pull volume) to place this day in the week — one clause, framed as inference from logs, not certainty.
+
+RIR / fatigue:
+- If SESSION ANCHOR says no RIR was logged, do not state RIR as fact. You may infer effort from rep/load patterns (e.g. rep drop on last set, load step between sets) and label it clearly as an estimate or "pattern from the log".
+
+Style bans (unless immediately followed by a concrete number from SESSION ANCHOR):
+- Avoid empty praise: "complemented well", "balanced nicely", "solid volume", "great work", "looked good".
+
+Tone: calm, specific, coach-like. Sections or bullets are fine. If comparison data is missing, say once and still analyze what is logged.
 
 ${profileStr ? `User profile (constraints only): ${profileStr}.` : ""}
 ${constraintsStr ? `User constraints (hard overrides): ${constraintsStr}` : ""}
@@ -947,6 +947,112 @@ User question:
 ${message}
 
 Reply in plain language. If SESSION ANCHOR says data is missing, say so briefly and do not invent details.`;
+      } else if (questionKind === "exact_factual_recall") {
+        input = `
+You are answering a precise factual question about logged training.
+
+${routingPreamble}
+
+Hard rules:
+- If EXERCISE LOG ANCHOR is present, lead with the exact numbers (date → sets) from completed sets only.
+- If no anchor match, say the payload does not show that exercise; do not guess.
+- Treat non-completed rows as not performed; never cite blank or zero-rep rows as reps achieved.
+- Do not drift to unrelated exercises or weekly narratives unless the user asked.
+
+${profileStr ? `User profile (constraints only): ${profileStr}.` : ""}
+${constraintsStr ? `User constraints (hard overrides): ${constraintsStr}` : ""}
+
+User question:
+${message}
+
+Reply: number-first, 2–5 short sentences.`;
+      } else if (questionKind === "exercise_progression") {
+        input = `
+You are analyzing progression for one lift using logs.
+
+${routingPreamble}
+
+Hard rules:
+- EXERCISE LOG ANCHOR is primary: compare the most recent sessions shown there (dates + loads/reps).
+- You may supplement with exerciseTrends / exerciseInsights rows ONLY for the same exercise name if present; do not switch to a different lift.
+- State what changed (load, reps, set count) or that the log is too thin — label inference vs fact.
+- Mention consistency or within-session rep fall-off only when visible in the anchor/trends.
+
+${trendsStr ? `${trendsBlock}` : ""}
+${insightsBlock ? `\n${insightsBlock}` : ""}
+${profileStr ? `User profile (constraints only): ${profileStr}.` : ""}
+${constraintsStr ? `User constraints (hard overrides): ${constraintsStr}` : ""}
+
+User question:
+${message}
+
+Reply in plain language: specific, coach-like, minimal filler.`;
+      } else if (questionKind === "projection_estimate") {
+        input = `
+You are answering a projection / estimate question (e.g. 1RM, timelines, working weights).
+
+${routingPreamble}
+
+Hard rules:
+- Ground the answer in real logged performances from the payload (digest, exerciseTrends, bench projection block in subject when present).
+- Frame timelines and maxes as estimates, not promises. Avoid overconfident dates.
+- If data are sparse, say confidence is low and what extra logging would help.
+
+${profileStr ? `User profile: ${profileStr}.` : ""}
+${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
+${context}
+${trendsStr ? trendsBlock : ""}
+
+User question:
+${message}
+
+Reply: direct estimate + brief reasoning tied to logged numbers.`;
+      } else if (questionKind === "volume_balance") {
+        input = `
+You are answering a weekly volume / balance question.
+
+${routingPreamble}
+
+Hard rules:
+- Use trainingInsights weekly volume / frequency and trainingSummary figures verbatim where provided; those counts reflect completed logged sets in the app window.
+- Name muscle groups with very low or zero logged sets as potentially under-sampled in the app, not necessarily "weak".
+- Tie recommendations to the user’s stated goal/profile when available; avoid generic "watch recovery" unless logs justify it.
+
+${insightsBlock ? `${insightsBlock}` : ""}
+${profileStr ? `User profile: ${profileStr}.` : ""}
+${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
+${context}
+
+User question:
+${message}
+
+Reply: specific numbers first, then 1–2 practical implications.`;
+      } else if (questionKind === "coaching_recommendation") {
+        input = `
+You are giving a coaching recommendation grounded in their logs.
+
+${routingPreamble}
+
+Hard rules:
+- Start with a clear recommendation (what to do next session or how to adjust load/intensity).
+- Explain why in 1–2 sentences using log facts; if EXERCISE LOG ANCHOR exists, prioritize it over unrelated trends.
+- Calibrate confidence: sparse history → say what you are unsure about.
+- Do not list unrelated exercises unless they are clearly tied to the same bottleneck.
+
+${coachAuthorityBlock}
+${evidenceDrivenReasoningBlock}
+${insightsBlock ? `${insightsBlock}` : ""}
+${trendsStr ? trendsBlock : ""}
+${profileStr ? `User profile: ${profileStr}.` : ""}
+${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
+${inferredStr}
+${coachingMemoryStr}
+${context}
+
+User question:
+${message}
+
+Reply: decisive, specific, calm tone — no vague praise without numbers.`;
       } else if (effectiveIntent === "recent_training_analysis") {
         input = `
 You are an elite strength coach: diagnose system constraints, prescribe fixes — not generic fitness explanation.
@@ -974,6 +1080,7 @@ Answer format:
 - one limiting factor or watch item
 - one next step
 - use the three analysis anchors below explicitly; do not replace them with generic RIR advice unless the top issue is RIR/effort related.
+- Stay on the user’s question; cite the smallest set of exercises that actually answers it — avoid unrelated “also your X” drift.
 
 Target style example:
 "Your training is progressing well overall. Bench press is improving and frequency is consistent. Back volume is slightly low relative to your goal, so increasing it gradually would help keep progress balanced."
@@ -1138,7 +1245,21 @@ RECENT CHAT: intentionally omitted for this request so prior topics cannot add e
 
 ${exactThreadAccessBlock}
 `.trim()
-      : `
+      : questionKind === "memory_continuity"
+        ? `
+MEMORY CONTEXT (thread / continuity mode):
+${selectiveMemoryBlock}
+
+RECENT CHAT (authoritative for thread-memory questions — quote only what appears here):
+${recentConversationBlock}
+
+${exactThreadAccessBlock}
+
+Rules:
+- Do not claim exact prior-chat memory unless exactThreadLoaded is true and the snippet supports it.
+- App training logs are separate from chat memory; do not conflate them when the user asked about the conversation.
+`.trim()
+        : `
 MEMORY CONTEXT (preferences only; workout + profile override):
 ${selectiveMemoryBlock}
 
@@ -1186,7 +1307,17 @@ SESSION REVIEW — ANCHOR (overrides active exercise lock, bench projection, and
 
 ${sessionReviewAnchorBlock}
 `.trim()
-      : `
+      : exerciseLogAnchorBlock
+        ? `
+EXERCISE LOG — ANCHOR (overrides active exercise topic lock and bench projection for this turn when they conflict with the named exercise below):
+
+${exerciseLogAnchorBlock}
+
+Rules:
+- The user’s message + EXERCISE LOG ANCHOR outrank stale UI topic carryover: answer for the locked exercise above.
+- Use only completed sets as performance; cite dates from the anchor when comparing to prior sessions.
+`.trim()
+        : `
 CONVERSATION SUBJECT LOCK (prevents topic drift):
 ${activeExerciseBlock}
 Rule: If the user asks a follow-up about the current active exercise, anchor your entire answer to it. Do not switch to another exercise just because it has a recent signal.
@@ -1195,7 +1326,7 @@ If the user requests exact last-session reps/weights for the active exercise and
 
 ${benchProjectionBlock}`.trim();
 
-  const finalInput = `${loggedDataPreamble.trim()}\n\n${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}`;
+  const finalInput = `${loggedDataPreamble.trim()}\n\n${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}\n\n---\n${GLOBAL_REPLY_DISCIPLINE_BLOCK}`;
 
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -1474,7 +1605,8 @@ export async function POST(request: NextRequest) {
     if (deterministic) {
       return NextResponse.json({ reply: deterministic } satisfies AssistantResponse);
     }
-    const intent = classifyAssistantIntent(trimmedMessage);
+    const questionKind = classifyAssistantQuestionKind(trimmedMessage);
+    const intent = mapQuestionKindToLegacyIntent(questionKind) as AssistantIntent;
     const hasWorkoutData =
       (Number(trainingSummary.totalWorkouts) || 0) > 0 ||
       (Number(trainingSummary.totalSets) || 0) > 0;
@@ -1512,10 +1644,19 @@ export async function POST(request: NextRequest) {
       : shouldForceAdvisory
         ? "advisory"
         : modeDetection.mode;
-    if (intent === "session_review") {
+    const analysisPreferredKinds: AssistantQuestionKind[] = [
+      "session_review",
+      "exact_factual_recall",
+      "exercise_progression",
+      "projection_estimate",
+      "volume_balance",
+      "coaching_recommendation",
+      "memory_continuity",
+    ];
+    if (intent === "session_review" || analysisPreferredKinds.includes(questionKind)) {
       mode = "analysis";
     }
-    console.log("[assistant] intent:", intent, "templateDataAvailable:", templateDataAvailable);
+    console.log("[assistant] intent:", intent, "questionKind:", questionKind, "templateDataAvailable:", templateDataAvailable);
     console.log("[assistant mode]", mode);
     console.log("[assistant mode check]", {
       message: trimmedMessage,
@@ -1573,6 +1714,7 @@ export async function POST(request: NextRequest) {
       exerciseTrendsCount: Array.isArray(exerciseTrends) ? exerciseTrends.length : 0,
       coachStructuredIncluded: Boolean(coachStructuredOutput),
       intent,
+      questionKind,
       mode,
     });
 
@@ -1598,6 +1740,7 @@ export async function POST(request: NextRequest) {
       loggedDataPreamble,
       trimmedMessage,
       intent,
+      questionKind,
       mode,
       templateDataAvailable,
       templatesSummary,
