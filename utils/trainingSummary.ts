@@ -1,4 +1,5 @@
 import { getMuscleGroupForLoggedExercise } from "@/lib/trainingMetrics";
+import { countCompletedLoggedSets } from "@/lib/completedSets";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
 export type StoredWorkout = {
@@ -55,7 +56,7 @@ function getVolumeByMuscleGroup(workouts: StoredWorkout[]): WeeklyVolume {
     for (const ex of workout.exercises ?? []) {
       const group = getMuscleGroupForLoggedExercise(ex);
       if (group && group in counts) {
-        counts[group] += ex.sets?.length ?? 0;
+        counts[group] += countCompletedLoggedSets(ex.sets);
       }
     }
   }
@@ -75,7 +76,7 @@ export function getTrainingSummary(): TrainingSummary {
   for (const workout of workouts) {
     for (const ex of workout.exercises ?? []) {
       totalExercises += 1;
-      totalSets += ex.sets?.length ?? 0;
+      totalSets += countCompletedLoggedSets(ex.sets);
     }
   }
 

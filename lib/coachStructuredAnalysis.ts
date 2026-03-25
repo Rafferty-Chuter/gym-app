@@ -30,6 +30,7 @@ import { detectLimitingSupportMuscle } from "@/lib/goalSupportProfiles";
 import type { TrainingFocus } from "@/lib/trainingFocus";
 import type { ExperienceLevel } from "@/lib/experienceLevel";
 import type { PriorityGoal } from "@/lib/priorityGoal";
+import { countCompletedLoggedSets } from "@/lib/completedSets";
 import { getStoredUserProfile, type LowerBodyPriority } from "@/lib/userProfile";
 import {
   getEvidenceCardIdsForDecision,
@@ -631,7 +632,7 @@ function estimatedWeeklySetsForExercise(
     for (const ex of w.exercises ?? []) {
       const exKey = ex.name?.trim().toLowerCase().replace(/\s+/g, " ");
       if (!exKey || exKey !== key) continue;
-      total += ex.sets?.length ?? 0;
+      total += countCompletedLoggedSets(ex.sets);
     }
   }
   return total > 0 ? total : undefined;

@@ -1,5 +1,6 @@
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import { resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
+import { countCompletedLoggedSets, getCompletedLoggedSets } from "@/lib/completedSets";
 
 const MUSCLE_GROUP_KEYWORDS: Record<string, string[]> = {
   chest: ["bench", "incline", "chest press", "fly"],
@@ -53,7 +54,7 @@ export function getStats(workouts: StoredWorkout[]) {
   for (const workout of workouts) {
     for (const ex of workout.exercises ?? []) {
       totalExercises += 1;
-      totalSets += ex.sets?.length ?? 0;
+      totalSets += countCompletedLoggedSets(ex.sets);
     }
   }
   return {
@@ -129,7 +130,7 @@ export function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string
     for (const ex of workout.exercises ?? []) {
       const group = getMuscleGroupForLoggedExercise(ex);
       if (group && group in counts) {
-        counts[group] += ex.sets?.length ?? 0;
+        counts[group] += countCompletedLoggedSets(ex.sets);
       }
     }
   }
@@ -140,9 +141,10 @@ export function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string
 export function getBestSet(
   sets: { weight: string; reps: string }[]
 ): { weight: number; reps: number } | null {
-  if (!sets?.length) return null;
+  const completedSets = getCompletedLoggedSets(sets);
+  if (!completedSets.length) return null;
   let best = { weight: 0, reps: 0 };
-  for (const s of sets) {
+  for (const s of completedSets) {
     const w = parseFloat(String(s?.weight ?? 0)) || 0;
     const r = parseFloat(String(s?.reps ?? 0)) || 0;
     if (w > best.weight || (w === best.weight && r > best.reps)) best = { weight: w, reps: r };
@@ -209,8 +211,9 @@ export function getExerciseMetrics(
   const newestPerformances: ExerciseSessionPerformance[] = [];
   for (const w of sortedDesc) {
     const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
-    if (!ex?.sets?.length) continue;
-    const best = getBestSet(ex.sets);
+    const completedSets = getCompletedLoggedSets(ex?.sets ?? []);
+    if (!completedSets.length) continue;
+    const best = getBestSet(completedSets);
     if (!best) continue;
     newestPerformances.push({
       completedAt: w.completedAt,
@@ -244,8 +247,10 @@ export function getExerciseMetrics(
     if (!Number.isFinite(wMs) || wMs < cutoffMs) continue;
     const matched = (w.exercises ?? []).find((e) => exerciseKey(e.name) === key);
     if (!matched) continue;
+    const completedSetCount = countCompletedLoggedSets(matched.sets);
+    if (completedSetCount === 0) continue;
     exposuresLast28Days += 1;
-    hardSetsLast28Days += matched.sets?.length ?? 0;
+    hardSetsLast28Days += completedSetCount;
     if (wMs >= cutoff7Ms) exposuresLast7Days += 1;
   }
   const averageExposuresPerWeekLast4Weeks = Number((exposuresLast28Days / 4).toFixed(2));

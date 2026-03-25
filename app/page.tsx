@@ -18,6 +18,7 @@ import {
   EMPTY_COACH_STRUCTURED_ANALYSIS,
 } from "@/lib/coachStructuredAnalysis";
 import { buildHomePrimaryCoachingStory } from "@/lib/homeCoachingStory";
+import { countCompletedLoggedSets } from "@/lib/completedSets";
 
 type ProfileModalProps = {
   focus: TrainingFocus;
@@ -203,7 +204,7 @@ export default function Home() {
     const weeklyVolume = getVolumeByMuscleGroup(recent);
     const workoutsCount = recent.length;
     const totalSets = recent.reduce(
-      (sum, w) => sum + (w.exercises?.reduce((s, ex) => s + (ex.sets?.length ?? 0), 0) ?? 0),
+      (sum, w) => sum + (w.exercises?.reduce((s, ex) => s + countCompletedLoggedSets(ex.sets), 0) ?? 0),
       0
     );
 

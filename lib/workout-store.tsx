@@ -8,6 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { countCompletedLoggedSets } from "@/lib/completedSets";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
@@ -60,7 +61,7 @@ function loadFromStorage(): CompletedWorkout[] {
       durationSec: w.durationSec,
       exercises: w.exercises ?? [],
       totalExercises: w.exercises?.length ?? 0,
-      totalSets: w.exercises?.reduce((sum, ex) => sum + (ex.sets?.length ?? 0), 0) ?? 0,
+      totalSets: w.exercises?.reduce((sum, ex) => sum + countCompletedLoggedSets(ex.sets), 0) ?? 0,
     }));
   } catch {
     return [];

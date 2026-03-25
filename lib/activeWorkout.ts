@@ -21,6 +21,15 @@ export type DraftWorkout = {
   workoutName: string;
   templateName: string | null;
   exercises: DraftExercise[];
+  restTimerByExercise?: Record<
+    number,
+    {
+      timerRunning: boolean;
+      restDurationSec: number;
+      timerStartedAt?: number;
+      timerTargetEndAt?: number;
+    }
+  >;
 };
 
 export function getActiveWorkout(): DraftWorkout | null {

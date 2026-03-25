@@ -18,6 +18,7 @@ import {
   exerciseKey,
   getExerciseMetrics,
 } from "@/lib/trainingMetrics";
+import { getCompletedLoggedSets } from "@/lib/completedSets";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
@@ -52,7 +53,7 @@ function collectAllSetsFromWorkouts(workouts: StoredWorkout[]): { rir?: number }
   const out: { rir?: number }[] = [];
   for (const w of workouts) {
     for (const ex of w.exercises ?? []) {
-      for (const s of ex.sets ?? []) out.push(s);
+      for (const s of getCompletedLoggedSets(ex.sets ?? [])) out.push(s);
     }
   }
   return out;
@@ -67,7 +68,7 @@ function collectSetsForExerciseName(
   for (const w of workouts) {
     for (const ex of w.exercises ?? []) {
       if (exerciseKey(ex.name) === key) {
-        for (const s of ex.sets ?? []) out.push(s);
+        for (const s of getCompletedLoggedSets(ex.sets ?? [])) out.push(s);
       }
     }
   }
@@ -173,8 +174,9 @@ function computeExerciseRIRFields(
   const sessions: { sets: { rir?: number }[] }[] = [];
   for (const w of sortedDesc) {
     const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
-    if (!ex?.sets?.length) continue;
-    sessions.push({ sets: ex.sets });
+    const completedSets = getCompletedLoggedSets(ex?.sets ?? []);
+    if (!completedSets.length) continue;
+    sessions.push({ sets: completedSets });
     if (sessions.length >= cap) break;
   }
 
@@ -251,8 +253,9 @@ export function getExerciseTrends(
     const performances: RecentPerformance[] = [];
     for (const w of sorted) {
       const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
-      if (!ex?.sets?.length) continue;
-      const best = getBestSet(ex.sets);
+      const completedSets = getCompletedLoggedSets(ex?.sets ?? []);
+      if (!completedSets.length) continue;
+      const best = getBestSet(completedSets);
       if (!best) continue;
       performances.push({
         completedAt: w.completedAt,

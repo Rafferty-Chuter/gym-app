@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getWorkoutHistory } from "@/lib/trainingAnalysis";
 import { useWorkoutStore } from "@/lib/workout-store";
 import { useUnit } from "@/lib/unit-preference";
+import { countCompletedLoggedSets } from "@/lib/completedSets";
 
 type WorkoutRow = {
   completedAt: string;
@@ -25,7 +26,7 @@ function mapStoredToRows(stored: ReturnType<typeof getWorkoutHistory>): WorkoutR
     name: w.name,
     durationSec: w.durationSec,
     totalExercises: w.exercises?.length ?? 0,
-    totalSets: w.exercises?.reduce((sum, ex) => sum + (ex.sets?.length ?? 0), 0) ?? 0,
+    totalSets: w.exercises?.reduce((sum, ex) => sum + countCompletedLoggedSets(ex.sets), 0) ?? 0,
     exercises:
       w.exercises?.map((ex) => ({
         name: ex.name,

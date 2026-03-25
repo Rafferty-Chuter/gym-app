@@ -9,6 +9,7 @@ import type { AssistantSelectiveMemoryV1, RecentConversationTurn } from "@/lib/a
 import { buildSelectiveMemoryBlock } from "@/lib/assistantMemory";
 import { buildInferredTrainingProfile } from "@/lib/inferredTrainingProfile";
 import type { CoachingContext } from "@/lib/coachingContext";
+import { countCompletedLoggedSets } from "@/lib/completedSets";
 
 /** Mirrors client `coachStructuredOutput` — deterministic Coach tab output + evidence id hooks. */
 export type AssistantCoachStructuredOutput = {
@@ -120,6 +121,7 @@ export type AssistantBody = {
   activeExerciseLastSession?: {
     exerciseName: string;
     completedAt: string;
+    unloggedSetCount?: number;
     bestSet?: { weight: string; reps: string; e1rm?: number };
     lastSet?: { weight: string; reps: string; notes?: string; rir?: number };
     sets?: Array<{ weight: string; reps: string; notes?: string; rir?: number }>;
@@ -328,7 +330,7 @@ function formatRecentWorkoutsDigest(
     const title = typeof w.name === "string" && w.name.trim() ? w.name.trim() : "Session";
     const exParts = (w.exercises ?? []).map((e) => {
       const nm = typeof e.name === "string" && e.name.trim() ? e.name.trim() : "Exercise";
-      const n = Array.isArray(e.sets) ? e.sets.length : 0;
+      const n = countCompletedLoggedSets(Array.isArray(e.sets) ? (e.sets as Array<{ weight?: string; reps?: string }>) : []);
       return `${nm} (${n} sets)`;
     });
     return `${i + 1}. ${date} — ${title}: ${exParts.length ? exParts.join("; ") : "no exercises listed"}`;
@@ -1113,6 +1115,10 @@ ${exactThreadAccessBlock}
               activeExerciseLastSession.lastSet
                 ? `${activeExerciseLastSession.lastSet.weight}×${activeExerciseLastSession.lastSet.reps}`
                 : "n/a"
+            }${
+              (activeExerciseLastSession.unloggedSetCount ?? 0) > 0
+                ? `\n- Unlogged/incomplete sets in that session: ${activeExerciseLastSession.unloggedSetCount}`
+                : ""
             }`
           : "- Last session data: missing"
       }`
@@ -1281,7 +1287,8 @@ function tryBuildDeterministicExerciseReply(params: {
 
   const asksForExact =
     /(what reps|what weight|weight and reps|what did i|i did|i achieve)/.test(m) ||
-    /(reps?\s+(did|i)|weight.*reps|weight and reps)/.test(m);
+    /(reps?\s+(did|i)|weight.*reps|weight and reps)/.test(m) ||
+    (/(what happened|how did it go)/.test(m) && /(last|most recent)/.test(m));
 
   if (!lastTimeRequested || !asksForExact) return null;
   const data = params.activeExerciseLastSession;
@@ -1291,7 +1298,11 @@ function tryBuildDeterministicExerciseReply(params: {
   if (!best || !lastSet) return null;
 
   const date = formatIsoDate(data.completedAt);
-  return `A) Your last ${data.exerciseName} session was logged on ${date}.\nB) Best set: ${best.weight}×${best.reps}. Last logged set: ${lastSet.weight}×${lastSet.reps}.\nC) Use that as the baseline—next time, aim to match it first, then build from there.`;
+  const unloggedLine =
+    (data.unloggedSetCount ?? 0) > 0
+      ? `\nC) ${data.unloggedSetCount} set${data.unloggedSetCount === 1 ? "" : "s"} in that session appear unlogged/incomplete, so they are not counted as completed performance.`
+      : "";
+  return `A) Your last ${data.exerciseName} session was logged on ${date}.\nB) Logged completed sets: best set ${best.weight}×${best.reps}; last completed set ${lastSet.weight}×${lastSet.reps}.${unloggedLine}\nD) Use the completed logged sets as your baseline for progression.`;
 }
 
 function tryBuildDeterministicBenchProjectionReply(params: {

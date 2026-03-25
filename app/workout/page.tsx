@@ -35,6 +35,7 @@ import {
   userRecordToExercise,
   type UserExerciseRecord,
 } from "@/lib/userExerciseLibrary";
+import { getCompletedLoggedSets } from "@/lib/completedSets";
 
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
@@ -65,6 +66,13 @@ type StoredWorkout = {
 };
 
 type ExerciseRef = { exerciseId?: string; name: string };
+type RestTimerState = {
+  timerRunning: boolean;
+  restDurationSec: number;
+  timerStartedAt?: number;
+  timerTargetEndAt?: number;
+  remainingSec: number;
+};
 
 function getBestSet(sets: { weight: string; reps: string }[]): { weight: number; reps: number } | null {
   if (!sets?.length) return null;
@@ -460,10 +468,12 @@ export default function WorkoutPage() {
   const setDoneButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [pendingFocus, setPendingFocus] = useState<{ exerciseId: number; setIndex: number } | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [restByExercise, setRestByExercise] = useState<Record<number, { remainingSec: number; running: boolean }>>({});
+  const [restByExercise, setRestByExercise] = useState<Record<number, RestTimerState>>({});
   const [startTime, setStartTime] = useState<number | null>(null);
   const [createExerciseOpen, setCreateExerciseOpen] = useState(false);
   const [createExerciseSeedName, setCreateExerciseSeedName] = useState("");
+  const [replaceExerciseTargetId, setReplaceExerciseTargetId] = useState<number | null>(null);
+  const [replaceExerciseInput, setReplaceExerciseInput] = useState("");
   const [userLibraryRevision, setUserLibraryRevision] = useState(0);
   const loadHandledRef = useRef(false);
   const persistReadyRef = useRef(false);
@@ -475,8 +485,40 @@ export default function WorkoutPage() {
     templateName,
     templateId,
     startTime,
+    restByExercise,
   });
-  latestWorkoutRef.current = { exercises, workoutName, templateName, templateId, startTime };
+  latestWorkoutRef.current = { exercises, workoutName, templateName, templateId, startTime, restByExercise };
+
+  function recalculateRestTimers(
+    timers: Record<number, RestTimerState>,
+    nowMs = Date.now()
+  ): Record<number, RestTimerState> {
+    const next: Record<number, RestTimerState> = {};
+    for (const [k, t] of Object.entries(timers)) {
+      const idNum = Number(k);
+      if (!t) continue;
+      if (!t.timerRunning) {
+        next[idNum] = {
+          ...t,
+          timerRunning: false,
+          remainingSec: Math.max(0, t.remainingSec ?? 0),
+        };
+        continue;
+      }
+      const target = t.timerTargetEndAt;
+      if (!target || !Number.isFinite(target)) {
+        next[idNum] = { ...t, timerRunning: false, remainingSec: 0 };
+        continue;
+      }
+      const remainingSec = Math.max(0, Math.ceil((target - nowMs) / 1000));
+      next[idNum] = {
+        ...t,
+        remainingSec,
+        timerRunning: remainingSec > 0,
+      };
+    }
+    return next;
+  }
 
   useEffect(() => {
     if (startTime === null) return;
@@ -512,22 +554,23 @@ export default function WorkoutPage() {
   }, []);
 
   useEffect(() => {
-    const anyRunning = Object.values(restByExercise).some((t) => t.running && t.remainingSec > 0);
+    const anyRunning = Object.values(restByExercise).some((t) => t.timerRunning && t.remainingSec > 0);
     if (!anyRunning) return;
     const id = window.setInterval(() => {
-      setRestByExercise((prev) => {
-        const next: typeof prev = { ...prev };
-        for (const [k, t] of Object.entries(prev)) {
-          const idNum = Number(k);
-          if (!t?.running || t.remainingSec <= 0) continue;
-          const remainingSec = t.remainingSec - 1;
-          next[idNum] = remainingSec <= 0 ? { remainingSec: 0, running: false } : { remainingSec, running: true };
-        }
-        return next;
-      });
+      setRestByExercise((prev) => recalculateRestTimers(prev));
     }, 1000);
     return () => window.clearInterval(id);
   }, [restByExercise]);
+
+  useEffect(() => {
+    function onVisibility() {
+      if (document.visibilityState === "visible") {
+        setRestByExercise((prev) => recalculateRestTimers(prev));
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   useEffect(() => {
     if (restAdjustExerciseId === null) return;
@@ -610,16 +653,28 @@ export default function WorkoutPage() {
   }
 
   function startExerciseRest(exerciseId: number, seconds: number) {
+    const now = Date.now();
+    const duration = Math.max(0, seconds);
     setRestByExercise((prev) => ({
       ...prev,
-      [exerciseId]: { remainingSec: Math.max(0, seconds), running: seconds > 0 },
+      [exerciseId]: {
+        timerRunning: duration > 0,
+        restDurationSec: duration,
+        timerStartedAt: now,
+        timerTargetEndAt: now + duration * 1000,
+        remainingSec: duration,
+      },
     }));
   }
 
   function resetExerciseRest(exerciseId: number) {
     setRestByExercise((prev) => ({
       ...prev,
-      [exerciseId]: { remainingSec: 0, running: false },
+      [exerciseId]: {
+        timerRunning: false,
+        restDurationSec: prev[exerciseId]?.restDurationSec ?? 0,
+        remainingSec: 0,
+      },
     }));
   }
 
@@ -864,6 +919,33 @@ export default function WorkoutPage() {
       );
       setStartTime(draft.startedAt);
       setElapsedSec(Math.max(0, Math.floor((Date.now() - draft.startedAt) / 1000)));
+      const restoredTimers: Record<number, RestTimerState> = {};
+      for (const [k, t] of Object.entries(draft.restTimerByExercise ?? {})) {
+        const key = Number(k);
+        if (!Number.isFinite(key)) continue;
+        const safeRest = Math.max(0, Number(t?.restDurationSec ?? 0) || 0);
+        const timerRunning = Boolean(t?.timerRunning);
+        const timerStartedAt =
+          typeof t?.timerStartedAt === "number" && Number.isFinite(t.timerStartedAt)
+            ? t.timerStartedAt
+            : undefined;
+        const timerTargetEndAt =
+          typeof t?.timerTargetEndAt === "number" && Number.isFinite(t.timerTargetEndAt)
+            ? t.timerTargetEndAt
+            : undefined;
+        const remainingSec =
+          timerRunning && timerTargetEndAt
+            ? Math.max(0, Math.ceil((timerTargetEndAt - Date.now()) / 1000))
+            : 0;
+        restoredTimers[key] = {
+          timerRunning,
+          restDurationSec: safeRest,
+          timerStartedAt,
+          timerTargetEndAt,
+          remainingSec,
+        };
+      }
+      setRestByExercise(recalculateRestTimers(restoredTimers));
     }
     persistReadyRef.current = true;
   }, []);
@@ -875,7 +957,13 @@ export default function WorkoutPage() {
   const persistActiveDraftRef = useRef<() => void>(() => {});
   persistActiveDraftRef.current = () => {
     if (typeof window === "undefined" || !persistReadyRef.current || !persistEnabledRef.current) return;
-    const { exercises: exs, workoutName: wn, templateName: tn, startTime: st } = latestWorkoutRef.current;
+    const {
+      exercises: exs,
+      workoutName: wn,
+      templateName: tn,
+      startTime: st,
+      restByExercise: timers,
+    } = latestWorkoutRef.current;
     const pseudo: DraftWorkout = {
       startedAt: 0,
       workoutName: wn,
@@ -907,13 +995,28 @@ export default function WorkoutPage() {
     const draft: DraftWorkout = {
       ...pseudo,
       startedAt: started,
+      restTimerByExercise: Object.fromEntries(
+        Object.entries(timers ?? {}).map(([k, t]) => [
+          Number(k),
+          {
+            timerRunning: Boolean(t?.timerRunning),
+            restDurationSec: Math.max(0, Number(t?.restDurationSec ?? 0) || 0),
+            ...(typeof t?.timerStartedAt === "number" && Number.isFinite(t.timerStartedAt)
+              ? { timerStartedAt: t.timerStartedAt }
+              : {}),
+            ...(typeof t?.timerTargetEndAt === "number" && Number.isFinite(t.timerTargetEndAt)
+              ? { timerTargetEndAt: t.timerTargetEndAt }
+              : {}),
+          },
+        ])
+      ),
     };
     saveActiveWorkout(draft);
   };
 
   useLayoutEffect(() => {
     persistActiveDraftRef.current();
-  }, [exercises, workoutName, templateName, startTime]);
+  }, [exercises, workoutName, templateName, startTime, restByExercise]);
 
   useEffect(() => {
     const flush = () => persistActiveDraftRef.current();
@@ -944,24 +1047,33 @@ export default function WorkoutPage() {
     if (exercises.length === 0) return;
     setRoutineSaved(false);
     setRestByExercise({});
-    const totalSets = exercises.reduce((total, ex) => total + ex.sets.length, 0);
+    const completedExercises = exercises
+      .map(({ exerciseId, name, sets, restSec }) => {
+        const completedSets = getCompletedLoggedSets(sets).map(({ weight, reps, notes, rir }) => {
+          const out: { weight: string; reps: string; notes?: string; rir?: number } = {
+            weight: String(weight ?? ""),
+            reps: String(reps ?? ""),
+          };
+          if (notes?.trim()) out.notes = notes.trim();
+          if (typeof rir === "number" && Number.isFinite(rir)) out.rir = rir;
+          return out;
+        });
+        return {
+          ...(exerciseId ? { exerciseId } : {}),
+          name,
+          restSec,
+          sets: completedSets,
+        };
+      })
+      .filter((ex) => ex.sets.length > 0);
+    const totalSets = completedExercises.reduce((total, ex) => total + ex.sets.length, 0);
     const finalName = getWorkoutDisplayName();
     const completed = {
       completedAt: new Date().toISOString(),
       name: finalName,
       durationSec: elapsedSec,
-      exercises: exercises.map(({ exerciseId, name, sets, restSec }) => ({
-        ...(exerciseId ? { exerciseId } : {}),
-        name,
-        sets: sets.map(({ weight, reps, notes, rir }) => {
-          const out: { weight: string; reps: string; notes?: string; rir?: number } = { weight, reps };
-          if (notes?.trim()) out.notes = notes.trim();
-          if (typeof rir === "number" && Number.isFinite(rir)) out.rir = rir;
-          return out;
-        }),
-        restSec,
-      })),
-      totalExercises: exercises.length,
+      exercises: completedExercises,
+      totalExercises: completedExercises.length,
       totalSets,
     };
     addWorkout(completed);
@@ -988,6 +1100,81 @@ export default function WorkoutPage() {
     setCreateExerciseOpen(true);
   }
 
+  function moveExercise(exerciseId: number, direction: "up" | "down") {
+    setExercises((prev) => {
+      const index = prev.findIndex((e) => e.id === exerciseId);
+      if (index < 0) return prev;
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      const tmp = next[index];
+      next[index] = next[target];
+      next[target] = tmp;
+      return next;
+    });
+  }
+
+  function exerciseHasMeaningfulLoggedData(exerciseId: number): boolean {
+    const ex = exercises.find((e) => e.id === exerciseId);
+    if (!ex) return false;
+    return ex.sets.some((s) => {
+      const w = String(s.weight ?? "").trim();
+      const r = String(s.reps ?? "").trim();
+      const n = String(s.notes ?? "").trim();
+      return Boolean(w || r || n || s.done || (typeof s.rir === "number" && Number.isFinite(s.rir)));
+    });
+  }
+
+  function replaceExerciseAtSlot(exerciseId: number, nextExercise: { id: string; name: string }) {
+    setExercises((prev) =>
+      prev.map((ex) =>
+        ex.id === exerciseId
+          ? {
+              ...ex,
+              exerciseId: nextExercise.id,
+              name: nextExercise.name,
+              sets: [{ weight: "", reps: "", done: false, notes: "" }],
+            }
+          : ex
+      )
+    );
+    setRestByExercise((prev) => ({
+      ...prev,
+      [exerciseId]: {
+        timerRunning: false,
+        restDurationSec: prev[exerciseId]?.restDurationSec ?? 0,
+        remainingSec: 0,
+      },
+    }));
+  }
+
+  function requestReplaceExercise(selection?: ExercisePickerValue) {
+    if (replaceExerciseTargetId === null) return;
+    const value = (selection?.name ?? replaceExerciseInput).trim();
+    if (!value) return;
+    const selectedFromPicker = selection?.exerciseId
+      ? { id: selection.exerciseId, name: selection.name }
+      : null;
+    const matched = selectedFromPicker ?? getExerciseByName(value);
+    if (!matched) {
+      openCreateExerciseFlow(value);
+      return;
+    }
+    const hasData = exerciseHasMeaningfulLoggedData(replaceExerciseTargetId);
+    if (
+      hasData &&
+      !window.confirm(
+        "This exercise has logged data. Replacing it will clear sets for this slot. Continue?"
+      )
+    ) {
+      return;
+    }
+    replaceExerciseAtSlot(replaceExerciseTargetId, { id: matched.id, name: matched.name });
+    setReplaceExerciseTargetId(null);
+    setReplaceExerciseInput("");
+    setExerciseMenuOpenId(null);
+  }
+
   function appendExerciseFromLibrary(matched: { id: string; name: string }) {
     const newExercise = {
       id: Date.now(),
@@ -1002,7 +1189,23 @@ export default function WorkoutPage() {
 
   function handleUserExerciseCreated(record: UserExerciseRecord) {
     const ex = userRecordToExercise(record);
-    appendExerciseFromLibrary({ id: ex.id, name: ex.name });
+    if (replaceExerciseTargetId !== null) {
+      const hasData = exerciseHasMeaningfulLoggedData(replaceExerciseTargetId);
+      if (
+        hasData &&
+        !window.confirm(
+          "This exercise has logged data. Replacing it will clear sets for this slot. Continue?"
+        )
+      ) {
+        return;
+      }
+      replaceExerciseAtSlot(replaceExerciseTargetId, { id: ex.id, name: ex.name });
+      setReplaceExerciseTargetId(null);
+      setReplaceExerciseInput("");
+      setExerciseMenuOpenId(null);
+    } else {
+      appendExerciseFromLibrary({ id: ex.id, name: ex.name });
+    }
     setUserLibraryRevision((r) => r + 1);
   }
 
@@ -1314,6 +1517,37 @@ export default function WorkoutPage() {
                               type="button"
                               className="w-full px-3 py-2 text-left text-[11px] text-teal-100/90 hover:bg-zinc-700/45 transition"
                               onClick={() => {
+                                setReplaceExerciseTargetId(exercise.id);
+                                setReplaceExerciseInput("");
+                                setExerciseMenuOpenId(null);
+                              }}
+                            >
+                              Replace exercise
+                            </button>
+                            <button
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-[11px] text-teal-100/90 hover:bg-zinc-700/45 transition"
+                              onClick={() => {
+                                moveExercise(exercise.id, "up");
+                                setExerciseMenuOpenId(null);
+                              }}
+                            >
+                              Move up
+                            </button>
+                            <button
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-[11px] text-teal-100/90 hover:bg-zinc-700/45 transition"
+                              onClick={() => {
+                                moveExercise(exercise.id, "down");
+                                setExerciseMenuOpenId(null);
+                              }}
+                            >
+                              Move down
+                            </button>
+                            <button
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-[11px] text-teal-100/90 hover:bg-zinc-700/45 transition"
+                              onClick={() => {
                                 setRestAdjustExerciseId(exercise.id);
                                 setExerciseMenuOpenId(null);
                               }}
@@ -1396,10 +1630,11 @@ export default function WorkoutPage() {
                                   <li key={`${exercise.id}-set-${index}`} className="rounded-lg">
                                     {(() => {
                                       const timer = restByExercise[exercise.id] ?? {
+                                        timerRunning: false,
+                                        restDurationSec: exercise.restSec ?? 90,
                                         remainingSec: 0,
-                                        running: false,
                                       };
-                                      const isActive = timer.running && timer.remainingSec > 0;
+                                      const isActive = timer.timerRunning && timer.remainingSec > 0;
                                       return (
                                         <>
                                           {isNext && isActive && (
@@ -1711,10 +1946,11 @@ export default function WorkoutPage() {
                             {(() => {
                               const rest = exercise.restSec ?? 90;
                               const timer = restByExercise[exercise.id] ?? {
+                                timerRunning: false,
+                                restDurationSec: rest,
                                 remainingSec: 0,
-                                running: false,
                               };
-                              const isActive = timer.running && timer.remainingSec > 0;
+                              const isActive = timer.timerRunning && timer.remainingSec > 0;
 
                               return (
                                 <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -1802,6 +2038,60 @@ export default function WorkoutPage() {
           onClose={() => setCreateExerciseOpen(false)}
           onCreated={handleUserExerciseCreated}
         />
+
+        {replaceExerciseTargetId !== null && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="replace-exercise-title"
+            onClick={() => {
+              setReplaceExerciseTargetId(null);
+              setReplaceExerciseInput("");
+            }}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-teal-950/50 bg-gradient-to-b from-zinc-900 to-teal-950/30 shadow-xl p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 id="replace-exercise-title" className="text-base font-semibold text-white mb-1">
+                Replace exercise
+              </h2>
+              <p className="text-xs text-app-secondary mb-3">
+                Pick a replacement for this slot. Position in the workout stays the same.
+              </p>
+              <ExercisePicker
+                value={replaceExerciseInput}
+                onValueChange={setReplaceExerciseInput}
+                onSelect={(exercise) => requestReplaceExercise(exercise)}
+                onRequestCreateExercise={openCreateExerciseFlow}
+                placeholder="Search or type a movement"
+                inputClassName="input-app w-full p-3 text-sm"
+                dropdownClassName="mt-2 rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
+                libraryRevision={userLibraryRevision}
+              />
+              <div className="mt-3 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setReplaceExerciseTargetId(null);
+                    setReplaceExerciseInput("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => requestReplaceExercise()}
+                >
+                  Replace
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4">
           {showDiscardConfirm && (

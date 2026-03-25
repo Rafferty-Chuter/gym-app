@@ -10,6 +10,7 @@ import {
   getExerciseInsights,
 } from "@/lib/trainingAnalysis";
 import { getBestSet, estimateE1RM, getUniqueExerciseNames } from "@/lib/trainingMetrics";
+import { getCompletedLoggedSets } from "@/lib/completedSets";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
@@ -200,19 +201,28 @@ export default function AssistantPage() {
         for (const w of sorted) {
           const match = (w.exercises ?? []).find((ex) => norm(ex.name ?? "") === exNorm);
           if (match?.sets?.length) {
-            const sets = match.sets.map((s) => ({
+            const completedSetsOnly = getCompletedLoggedSets(match.sets);
+            if (!completedSetsOnly.length) continue;
+            const sets = completedSetsOnly.map((s) => ({
               weight: String(s.weight ?? ""),
               reps: String(s.reps ?? ""),
               notes: typeof s.notes === "string" ? s.notes : undefined,
               rir: typeof s.rir === "number" ? s.rir : undefined,
             }));
-            const best = getBestSet(match.sets.map((s) => ({ weight: String(s.weight ?? ""), reps: String(s.reps ?? "") })));
+            const best = getBestSet(
+              completedSetsOnly.map((s) => ({
+                weight: String(s.weight ?? ""),
+                reps: String(s.reps ?? ""),
+              }))
+            );
             const lastSet = sets[sets.length - 1] ?? undefined;
             const bestE1rm = best ? estimateE1RM(best.weight, best.reps) : undefined;
+            const unloggedSetCount = Math.max(0, (match.sets?.length ?? 0) - completedSetsOnly.length);
             return {
               exerciseName,
               completedAt: w.completedAt,
               sets,
+              unloggedSetCount,
               bestSet: best
                 ? {
                     weight: String(best.weight),

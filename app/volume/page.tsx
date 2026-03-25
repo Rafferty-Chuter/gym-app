@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useTrainingFocus, type TrainingFocus } from "@/lib/trainingFocus";
 import { getMuscleGroupForLoggedExercise } from "@/lib/trainingMetrics";
+import { countCompletedLoggedSets } from "@/lib/completedSets";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
@@ -47,7 +48,7 @@ function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string, numbe
     for (const ex of workout.exercises ?? []) {
       const group = getMuscleGroupForLoggedExercise(ex);
       if (group && group in counts) {
-        const setCount = ex.sets?.length ?? 0;
+        const setCount = countCompletedLoggedSets(ex.sets);
         counts[group] += setCount;
       }
     }
