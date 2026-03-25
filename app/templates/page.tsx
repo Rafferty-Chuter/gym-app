@@ -47,9 +47,6 @@ export default function TemplatesPage() {
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Link href="/workout/start" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
-            ← Workout
-          </Link>
           <h1 className="text-3xl font-bold text-white">Templates</h1>
           <div className="ml-auto flex items-center gap-2 rounded-xl border border-teal-900/40 bg-zinc-900/70 p-1">
             <button

@@ -28,6 +28,8 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
   const [restSecInput, setRestSecInput] = useState("90");
   const [createExerciseOpen, setCreateExerciseOpen] = useState(false);
   const [createExerciseSeedName, setCreateExerciseSeedName] = useState("");
+  const [replaceExerciseIndex, setReplaceExerciseIndex] = useState<number | null>(null);
+  const [replaceExerciseInput, setReplaceExerciseInput] = useState("");
   const [userLibraryRevision, setUserLibraryRevision] = useState(0);
 
   const canSave = useMemo(() => templateName.trim().length > 0 && exercises.length > 0, [templateName, exercises.length]);
@@ -76,9 +78,46 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
     pushTemplateExercise({ id: matched.id, name: matched.name });
   }
 
+  function replaceExerciseAtIndex(index: number, matched: { id: string; name: string }) {
+    setExercises((prev) =>
+      prev.map((ex, i) =>
+        i === index
+          ? {
+              ...ex,
+              exerciseId: matched.id,
+              name: matched.name,
+            }
+          : ex
+      )
+    );
+  }
+
+  function requestReplaceExercise(selection?: ExercisePickerValue) {
+    if (replaceExerciseIndex === null) return;
+    const value = (selection?.name ?? replaceExerciseInput).trim();
+    if (!value) return;
+    const selectedFromPicker = selection?.exerciseId
+      ? { id: selection.exerciseId, name: selection.name }
+      : null;
+    const matched = selectedFromPicker ?? getExerciseByName(value);
+    if (!matched) {
+      openCreateExerciseFlow(value);
+      return;
+    }
+    replaceExerciseAtIndex(replaceExerciseIndex, { id: matched.id, name: matched.name });
+    setReplaceExerciseIndex(null);
+    setReplaceExerciseInput("");
+  }
+
   function handleUserExerciseCreated(record: UserExerciseRecord) {
     const ex = userRecordToExercise(record);
-    pushTemplateExercise({ id: ex.id, name: ex.name });
+    if (replaceExerciseIndex !== null) {
+      replaceExerciseAtIndex(replaceExerciseIndex, { id: ex.id, name: ex.name });
+      setReplaceExerciseIndex(null);
+      setReplaceExerciseInput("");
+    } else {
+      pushTemplateExercise({ id: ex.id, name: ex.name });
+    }
     setUserLibraryRevision((r) => r + 1);
   }
 
@@ -187,6 +226,16 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
                         <div className="flex items-center gap-1 shrink-0 pt-1">
                           <button
                             type="button"
+                            onClick={() => {
+                              setReplaceExerciseIndex(i);
+                              setReplaceExerciseInput("");
+                            }}
+                            className="rounded-lg border border-teal-900/40 bg-zinc-800/40 px-2 py-1 text-xs text-teal-100/85 hover:text-white hover:bg-teal-700/45 transition"
+                          >
+                            Replace
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => moveExercise(i, "up")}
                             className="h-8 w-8 rounded-lg border border-teal-900/40 bg-zinc-800/40 text-teal-200/80 hover:text-white hover:bg-teal-700/45 transition flex items-center justify-center"
                             aria-label="Move exercise up"
@@ -278,6 +327,55 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
         onClose={() => setCreateExerciseOpen(false)}
         onCreated={handleUserExerciseCreated}
       />
+    )}
+    {replaceExerciseIndex !== null && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="replace-template-exercise-title"
+        onClick={() => {
+          setReplaceExerciseIndex(null);
+          setReplaceExerciseInput("");
+        }}
+      >
+        <div
+          className="w-full max-w-md rounded-2xl border border-teal-950/50 bg-gradient-to-b from-zinc-900 to-teal-950/30 shadow-xl p-5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 id="replace-template-exercise-title" className="text-base font-semibold text-white mb-1">
+            Replace exercise
+          </h2>
+          <p className="text-xs text-app-secondary mb-3">
+            Pick a replacement for this slot. Order, sets, and rest stay the same.
+          </p>
+          <ExercisePicker
+            value={replaceExerciseInput}
+            onValueChange={setReplaceExerciseInput}
+            onSelect={(exercise) => requestReplaceExercise(exercise)}
+            onRequestCreateExercise={openCreateExerciseFlow}
+            placeholder="Search or type a movement"
+            inputClassName="input-app w-full p-3 text-sm"
+            dropdownClassName="mt-2 rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
+            libraryRevision={userLibraryRevision}
+          />
+          <div className="mt-3 flex gap-2 justify-end">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setReplaceExerciseIndex(null);
+                setReplaceExerciseInput("");
+              }}
+            >
+              Cancel
+            </button>
+            <button type="button" className="btn-primary" onClick={() => requestReplaceExercise()}>
+              Replace
+            </button>
+          </div>
+        </div>
+      </div>
     )}
     </>
   );

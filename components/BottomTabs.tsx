@@ -7,7 +7,7 @@ type BottomTab = { href: string; label: string; matchPrefix?: string };
 
 const TABS: BottomTab[] = [
   { href: "/", label: "Home" },
-  { href: "/workout/start", label: "Workout", matchPrefix: "/workout" },
+  { href: "/templates", label: "Templates", matchPrefix: "/templates" },
   { href: "/coach", label: "Coach" },
   { href: "/profile", label: "Profile" },
 ];

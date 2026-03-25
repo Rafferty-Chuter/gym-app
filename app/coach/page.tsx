@@ -85,9 +85,6 @@ export default function CoachPage() {
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <Link href="/" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
-            ← Home
-          </Link>
           <h1 className="text-3xl font-bold text-white">Coach</h1>
           <div className="flex items-center gap-3">
             <div className="inline-flex items-center rounded-full border border-teal-900/40 bg-zinc-900/70 p-0.5">
