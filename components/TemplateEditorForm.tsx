@@ -98,6 +98,10 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
     setExercises((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function updateExercise(index: number, patch: Partial<TemplateExercise>) {
+    setExercises((prev) => prev.map((ex, i) => (i === index ? { ...ex, ...patch } : ex)));
+  }
+
   function saveTemplate() {
     if (!canSave) return;
     const template: WorkoutTemplate = {
@@ -110,6 +114,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
   }
 
   return (
+    <>
     <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-2xl mx-auto">
         <header className="mb-6">
@@ -139,29 +144,78 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
             <ul className="space-y-2">
               {exercises.map((ex, i) => (
                 <li key={`${ex.name}-${i}`} className="rounded-xl border border-teal-900/35 bg-zinc-900/70 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{ex.name}</p>
-                      <p className="text-xs text-app-meta mt-1">
-                        {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""} · {ex.restSec ?? 90}s rest
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => moveExercise(i, "up")} className="btn-secondary !px-2 !py-1 text-xs">
-                        Up
-                      </button>
-                      <button type="button" onClick={() => moveExercise(i, "down")} className="btn-secondary !px-2 !py-1 text-xs">
-                        Down
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeExercise(i)}
-                        className="rounded-lg border border-red-900/50 bg-red-950/25 px-2 py-1 text-xs text-red-200 hover:bg-red-900/35 transition"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-white leading-snug line-clamp-2">{ex.name}</p>
+
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <label className="block">
+                              <span className="text-[11px] text-app-meta mb-1 block">Sets</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={20}
+                                step={1}
+                                value={ex.targetSets}
+                                onChange={(e) => {
+                                  const n = Number(e.target.value);
+                                  if (!Number.isFinite(n)) return;
+                                  updateExercise(i, { targetSets: Math.max(1, Math.min(20, Math.round(n))) });
+                                }}
+                                className="input-app w-full !px-2 !py-2 text-sm"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="text-[11px] text-app-meta mb-1 block">Rest (sec)</span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={600}
+                                step={1}
+                                value={ex.restSec ?? 90}
+                                onChange={(e) => {
+                                  const n = Number(e.target.value);
+                                  if (!Number.isFinite(n)) return;
+                                  updateExercise(i, { restSec: Math.max(0, Math.min(600, Math.round(n))) });
+                                }}
+                                className="input-app w-full !px-2 !py-2 text-sm"
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => moveExercise(i, "up")}
+                            className="h-8 w-8 rounded-lg border border-teal-900/40 bg-zinc-800/40 text-teal-200/80 hover:text-white hover:bg-teal-700/45 transition flex items-center justify-center"
+                            aria-label="Move exercise up"
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                              <path d="M12 19V5" />
+                              <path d="M5 12l7-7 7 7" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveExercise(i, "down")}
+                            className="h-8 w-8 rounded-lg border border-teal-900/40 bg-zinc-800/40 text-teal-200/80 hover:text-white hover:bg-teal-700/45 transition flex items-center justify-center"
+                            aria-label="Move exercise down"
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                              <path d="M12 5v14" />
+                              <path d="M19 12l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeExercise(i)}
+                            className="rounded-lg border border-red-900/50 bg-red-950/25 px-2 py-1 text-xs text-red-200 hover:bg-red-900/35 transition"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
                 </li>
               ))}
             </ul>
@@ -217,6 +271,15 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
         </button>
       </div>
     </main>
+    {createExerciseOpen && (
+      <CreateExerciseModal
+        open={createExerciseOpen}
+        initialName={createExerciseSeedName}
+        onClose={() => setCreateExerciseOpen(false)}
+        onCreated={handleUserExerciseCreated}
+      />
+    )}
+    </>
   );
 }
 

@@ -91,12 +91,14 @@ export default function TemplatesPage() {
             <ul className="space-y-3">
               {savedTemplates.map((template) => (
                 <li key={template.id} className="card-app">
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-lg font-bold text-white truncate">{template.name}</h3>
-                      <p className="text-sm text-app-meta">{template.exercises.length} exercises</p>
+                      <h3 className="text-lg font-bold text-white leading-snug line-clamp-2">
+                        {template.name}
+                      </h3>
+                      <p className="text-sm text-app-meta mt-1">{template.exercises.length} exercises</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 shrink-0 justify-start sm:justify-end">
                       <button
                         type="button"
                         onClick={() => startWorkoutFromTemplate(template)}
