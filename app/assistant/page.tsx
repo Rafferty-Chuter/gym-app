@@ -9,7 +9,7 @@ import {
   getTrainingInsights,
   getExerciseInsights,
 } from "@/lib/trainingAnalysis";
-import { getUniqueExerciseNames } from "@/lib/trainingMetrics";
+import { getBestSet, estimateE1RM, getUniqueExerciseNames } from "@/lib/trainingMetrics";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
@@ -21,6 +21,14 @@ import {
 import { getEvidenceCardsForReferencedIds } from "@/lib/evidenceMapping";
 import { getStoredUserProfile } from "@/lib/userProfile";
 import { buildCoachingContext } from "@/lib/coachingContext";
+import {
+  buildRecentConversationMemory,
+  extractMemoryProposalsFromConversation,
+  getSelectiveAssistantMemory,
+  applySelectiveMemoryUpdates,
+  setSelectiveAssistantMemory,
+  type RecentConversationTurn,
+} from "@/lib/assistantMemory";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -33,6 +41,7 @@ export default function AssistantPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const listEndRef = useRef<HTMLDivElement>(null);
+  const activeExerciseTopicRef = useRef<string | null>(null);
   const starterPrompts = [
     "How is my training looking this week?",
     "Am I doing enough chest volume?",
@@ -68,6 +77,19 @@ export default function AssistantPage() {
     setIsLoading(true);
 
     try {
+      const assistantMemory = getSelectiveAssistantMemory();
+      console.log("[memory-debug] current stored memory", {
+        userId: assistantMemory.userId,
+        lastUpdatedAt: assistantMemory.lastUpdatedAt,
+        stablePreferences: Object.fromEntries(
+          Object.entries(assistantMemory.stablePreferences).map(([k, v]) => [k, v.value])
+        ),
+      });
+      const recentTurns: RecentConversationTurn[] = buildRecentConversationMemory(
+        [...messages, { role: "user", content: text } as const],
+        8
+      );
+
       const summary = getTrainingSummary();
       const recentExercises = new Set<string>();
       for (const w of summary.recentWorkouts) {
@@ -76,6 +98,78 @@ export default function AssistantPage() {
         }
       }
       const allWorkouts = getWorkoutHistory();
+
+      function norm(s: string) {
+        return s.trim().toLowerCase().replace(/\s+/g, " ");
+      }
+
+      const exerciseNames = getUniqueExerciseNames(allWorkouts);
+
+      function pickExerciseFromText(t: string): string | null {
+        const s = t.toLowerCase();
+
+        const benchLike = /\bbench\b|pb|bench press|barbell bench/;
+        if (benchLike.test(s)) {
+          const benchCandidates = exerciseNames.filter((n) => /bench/i.test(n));
+          return benchCandidates.sort((a, b) => a.length - b.length)[0] ?? null;
+        }
+
+        const hammerLike = /\bhammer curl\b|hammer curls/;
+        if (hammerLike.test(s)) {
+          const c = exerciseNames.find((n) => /hammer/i.test(n));
+          return c ?? null;
+        }
+
+        // fallback: any explicit exercise name substring match
+        for (const n of exerciseNames) {
+          const key = norm(n);
+          const parts = key.split(" ").filter(Boolean);
+          if (parts.length >= 2 && parts.some((p) => s.includes(p))) return n;
+        }
+        return null;
+      }
+
+      const detectedExercise = pickExerciseFromText(text);
+      if (detectedExercise) activeExerciseTopicRef.current = detectedExercise;
+      const activeExerciseTopic = activeExerciseTopicRef.current ?? undefined;
+
+      function getLastSessionSetsForExercise(exerciseName: string) {
+        const exNorm = norm(exerciseName);
+        const sorted = [...(allWorkouts ?? [])].sort(
+          (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+        );
+        for (const w of sorted) {
+          const match = (w.exercises ?? []).find((ex) => norm(ex.name ?? "") === exNorm);
+          if (match?.sets?.length) {
+            const sets = match.sets.map((s) => ({
+              weight: String(s.weight ?? ""),
+              reps: String(s.reps ?? ""),
+              notes: typeof s.notes === "string" ? s.notes : undefined,
+              rir: typeof s.rir === "number" ? s.rir : undefined,
+            }));
+            const best = getBestSet(match.sets.map((s) => ({ weight: String(s.weight ?? ""), reps: String(s.reps ?? "") })));
+            const lastSet = sets[sets.length - 1] ?? undefined;
+            const bestE1rm = best ? estimateE1RM(best.weight, best.reps) : undefined;
+            return {
+              exerciseName,
+              completedAt: w.completedAt,
+              sets,
+              bestSet: best
+                ? {
+                    weight: String(best.weight),
+                    reps: String(best.reps),
+                    e1rm: bestE1rm,
+                  }
+                : undefined,
+              lastSet,
+            };
+          }
+        }
+        return undefined;
+      }
+
+      const activeExerciseLastSession = activeExerciseTopic ? getLastSessionSetsForExercise(activeExerciseTopic) : undefined;
+
       const exerciseTrends = getExerciseTrends(allWorkouts, { maxSessions: 5 });
       const trainingInsights = getTrainingInsights(allWorkouts);
       const priorityGoalExerciseInsight = goal?.trim()
@@ -104,6 +198,74 @@ export default function AssistantPage() {
           latestSessionAllSetsToFailure: priorityGoalExerciseInsight.latestSessionAllSetsToFailure,
         },
       });
+
+      function parseTargetFromText(t: string): { value: number; unit: "kg" | "lb" } | null {
+        const m = t.match(/(\d+(?:\.\d+)?)\s*(kg|kgs|kilograms)\b/i);
+        if (m) return { value: parseFloat(m[1]), unit: "kg" };
+        const m2 = t.match(/(\d+(?:\.\d+)?)\s*(lb|lbs|pounds)\b/i);
+        if (m2) return { value: parseFloat(m2[1]), unit: "lb" };
+        const num = t.match(/\b(\d{2,3}(?:\.\d+)?)\b/);
+        if (num && /\bbench\b|pb|bench press/i.test(t)) return { value: parseFloat(num[1]), unit };
+        return null;
+      }
+
+      function isBenchQuestion(t: string): boolean {
+        return /\bbench\b|pb|bench press|barbell bench/i.test(t);
+      }
+
+      function getBenchProjectionIfAny() {
+        if (!isBenchQuestion(text)) return undefined;
+        const target = parseTargetFromText(text);
+        if (!target) return undefined;
+        const targetInPayloadUnit =
+          target.unit === unit ? target.value : target.unit === "kg" ? target.value * 2.20462 : target.value / 2.20462;
+
+        const benchName =
+          benchExerciseName ??
+          (exerciseNames.find((n) => /bench/i.test(n)) ?? undefined);
+        if (!benchName) return undefined;
+
+        const benchTrend =
+          exerciseTrends.find((et) => norm(et.exercise) === norm(benchName)) ?? null;
+        const perfs = benchTrend?.recentPerformances ?? [];
+        if (perfs.length < 2) return undefined;
+
+        const current = perfs[perfs.length - 1];
+        const prev = perfs[perfs.length - 2];
+        const currentE1rm = current.e1rm ?? estimateE1RM(current.weight, current.reps);
+        const prevE1rm = prev.e1rm ?? estimateE1RM(prev.weight, prev.reps);
+        const delta = currentE1rm - prevE1rm;
+        if (!Number.isFinite(delta) || delta <= 0) return undefined;
+
+        const remaining = targetInPayloadUnit - currentE1rm;
+        const sessionsEstimate = remaining <= 0 ? 0 : Math.max(1, Math.ceil(remaining / delta));
+
+        const repsSchemes = [3, 5, 8];
+        const workingWeights = repsSchemes.map((r) => {
+          // Invert Epley: 1RM = w * (1 + reps/30)
+          const w = targetInPayloadUnit / (1 + r / 30);
+          return { reps: r, weight: Number(w.toFixed(1)) };
+        });
+
+        return {
+          target1RM: Number(targetInPayloadUnit.toFixed(1)),
+          payloadUnit: unit,
+          benchExerciseName: benchName,
+          currentEstimated1RM: Number(currentE1rm.toFixed(1)),
+          deltaE1RMPerSession: Number(delta.toFixed(1)),
+          sessionsEstimate,
+          recentBestSets: perfs.map((p) => ({
+            completedAt: p.completedAt,
+            weight: p.weight,
+            reps: p.reps,
+            e1rm: p.e1rm,
+          })),
+          workingWeights,
+        };
+      }
+
+      const benchProjection = getBenchProjectionIfAny();
+
       const coachAnalysis = buildCoachStructuredAnalysis(allWorkouts, {
         focus,
         experienceLevel,
@@ -142,6 +304,8 @@ export default function AssistantPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
+          assistantMemory,
+          recentConversationMemory: recentTurns,
           trainingSummary: {
             totalWorkouts: summary.totalWorkouts,
             totalExercises: summary.totalExercises,
@@ -160,11 +324,38 @@ export default function AssistantPage() {
           evidenceCards,
           userProfile,
           coachingContext,
+          activeExerciseTopic,
+          activeExerciseLastSession,
+          benchProjection,
         }),
       });
 
       const data = await res.json();
       if (res.ok && typeof data.reply === "string") {
+        // Conservative long-term memory update: store only stable, explicit preferences.
+        try {
+          const proposals = extractMemoryProposalsFromConversation({
+            userText: text,
+            assistantText: data.reply,
+            explicitProfile: {
+              priorityGoal: goal,
+              trainingPrioritiesText: userProfile.trainingPrioritiesText,
+              lowerBodyPriority: userProfile.lowerBodyPriority,
+            },
+          });
+          console.log("[memory-debug] proposed updates", proposals);
+          const updated = applySelectiveMemoryUpdates({
+            current: assistantMemory,
+            proposals,
+          });
+          // Only persist if something changed.
+          if (updated.lastUpdatedAt !== assistantMemory.lastUpdatedAt) {
+            console.log("[memory-debug] memory updated", updated);
+            setSelectiveAssistantMemory(updated);
+          }
+        } catch (e) {
+          console.log("[memory-debug] memory update failed", e);
+        }
         setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
       } else {
         setMessages((prev) => [

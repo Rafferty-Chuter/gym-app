@@ -5,6 +5,8 @@ import {
   type AssistantMode,
 } from "@/lib/assistantMode";
 import type { UserProfile } from "@/lib/userProfile";
+import type { AssistantSelectiveMemoryV1, RecentConversationTurn } from "@/lib/assistantMemory";
+import { buildSelectiveMemoryBlock } from "@/lib/assistantMemory";
 import { buildInferredTrainingProfile } from "@/lib/inferredTrainingProfile";
 import type { CoachingContext } from "@/lib/coachingContext";
 
@@ -99,6 +101,31 @@ export type AssistantBody = {
   /** High-confidence user constraints only. */
   userProfile?: UserProfile;
   coachingContext?: CoachingContext;
+  /** Selective long-term coaching preferences learned from chats (client-owned). */
+  assistantMemory?: AssistantSelectiveMemoryV1;
+  /** Rolling window of recent chat turns for thread continuity (client-owned). */
+  recentConversationMemory?: RecentConversationTurn[];
+  /** Client-owned conversation subject locking: exercise topic to anchor follow-ups. */
+  activeExerciseTopic?: string;
+  /** Exact last-session data for the active exercise (client-owned). */
+  activeExerciseLastSession?: {
+    exerciseName: string;
+    completedAt: string;
+    bestSet?: { weight: string; reps: string; e1rm?: number };
+    lastSet?: { weight: string; reps: string; notes?: string; rir?: number };
+    sets?: Array<{ weight: string; reps: string; notes?: string; rir?: number }>;
+  };
+  /** Optional bench projection estimate (client-owned). */
+  benchProjection?: {
+    target1RM: number;
+    payloadUnit: "kg" | "lb";
+    benchExerciseName: string;
+    currentEstimated1RM: number;
+    deltaE1RMPerSession: number;
+    sessionsEstimate: number;
+    workingWeights: Array<{ reps: number; weight: number }>;
+    recentBestSets: Array<{ completedAt: string; weight: number; reps: number; e1rm?: number }>;
+  };
 };
 
 export type AssistantResponse = {
@@ -496,6 +523,11 @@ async function getAssistantReply(
   trainingSummary: AssistantBody["trainingSummary"],
   profile: { trainingFocus?: string; experienceLevel?: string; unit?: string; priorityGoal?: string },
   userProfile: UserProfile | undefined,
+  assistantMemory: AssistantSelectiveMemoryV1 | undefined,
+  recentConversationMemory: RecentConversationTurn[] | undefined,
+  activeExerciseTopic: string | undefined,
+  activeExerciseLastSession: AssistantBody["activeExerciseLastSession"] | undefined,
+  benchProjection: AssistantBody["benchProjection"] | undefined,
   coachingContext: CoachingContext | undefined,
   exerciseTrends: NonNullable<AssistantBody["exerciseTrends"]>,
   trainingInsights: AssistantBody["trainingInsights"] | undefined,
@@ -607,10 +639,11 @@ async function getAssistantReply(
         userProfile.injuries?.length
           ? `Injuries/limitations: ${userProfile.injuries.join(", ")}`
           : "Injuries/limitations: none reported",
-        userProfile.availableSessionTime
-          ? `Available session time: ${userProfile.availableSessionTime} min`
-          : "Available session time: not specified",
-      ].join("; ")
+        userProfile.trainingPrioritiesText?.trim()
+          ? `Training priorities: ${userProfile.trainingPrioritiesText.trim()}`
+          : null,
+        `Lower-body priority (inferred): ${userProfile.lowerBodyPriority}`,
+      ].filter(Boolean).join("; ")
     : "";
   const inferredStr = `Heuristic inference from logged workout patterns (not direct measurement — say so when you use it; higher priority than profile unless a safety/constraint conflict exists):
 - Weekly frequency: ${effectiveInferred.frequency}
@@ -1007,7 +1040,77 @@ Reply in plain language. Prefer 3–5 concise sentences unless the user asks for
       break;
   }
 
-  const finalInput = `${loggedDataPreamble.trim()}\n\n${input.trim()}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}`;
+  const profileHint = userProfile
+    ? {
+        lowerBodyPriority: userProfile.lowerBodyPriority,
+        trainingPrioritiesText: userProfile.trainingPrioritiesText,
+      }
+    : undefined;
+
+  const selectiveMemoryBlock =
+    assistantMemory != null
+      ? buildSelectiveMemoryBlock({ memory: assistantMemory, profileHint })
+      : "- None saved yet";
+
+  const recentChatLines =
+    (recentConversationMemory ?? [])
+      .slice(-6)
+      .map((t) => {
+        const c = (t.content ?? "").replace(/\s+/g, " ").trim();
+        const trimmed = c.length > 220 ? `${c.slice(0, 220)}…` : c;
+        return `${t.role}: ${trimmed}`;
+      })
+      .filter(Boolean) ?? [];
+
+  const recentConversationBlock = recentChatLines.length
+    ? recentChatLines.join("\n")
+    : "- None";
+
+  const memoryContextBlock = `
+MEMORY CONTEXT (preferences only; workout + profile override):
+${selectiveMemoryBlock}
+
+RECENT CHAT (thread continuity; brief):
+${recentConversationBlock}
+`.trim();
+
+  console.log("[memory-debug] retrieved for request", {
+    selectiveMemoryBlock,
+    recentConversationTurns: (recentConversationMemory ?? []).slice(-6).map((t) => t.role),
+  });
+
+  const activeExerciseBlock = activeExerciseTopic
+    ? `Active exercise topic (lock): ${activeExerciseTopic}\n${
+        activeExerciseLastSession
+          ? `Last logged session for this exercise: ${activeExerciseLastSession.completedAt}\n- Best set: ${
+              activeExerciseLastSession.bestSet
+                ? `${activeExerciseLastSession.bestSet.weight}×${activeExerciseLastSession.bestSet.reps}`
+                : "n/a"
+            }\n- Last set: ${
+              activeExerciseLastSession.lastSet
+                ? `${activeExerciseLastSession.lastSet.weight}×${activeExerciseLastSession.lastSet.reps}`
+                : "n/a"
+            }`
+          : "- Last session data: missing"
+      }`
+    : "Active exercise topic (lock): none\n- Last session data: missing";
+
+  const benchProjectionBlock = benchProjection
+    ? `Bench projection data (rough estimate; use as inference from recent logs):\n- Target: ${benchProjection.target1RM}${benchProjection.payloadUnit}\n- Current estimated 1RM: ~${benchProjection.currentEstimated1RM}${benchProjection.payloadUnit}\n- Recent e1RM step: ~${benchProjection.deltaE1RMPerSession}${benchProjection.payloadUnit} per progression signal\n- Sessions estimate: ${benchProjection.sessionsEstimate}\n- Working-weight guide for a ${benchProjection.payloadUnit} target:\n${benchProjection.workingWeights
+        .map((w) => `  - ${w.reps} reps: ${w.weight}${benchProjection.payloadUnit}`)
+        .join("\n")}`
+    : "Bench projection data: none";
+
+  const conversationSubjectBlock = `
+CONVERSATION SUBJECT LOCK (prevents topic drift):
+${activeExerciseBlock}
+Rule: If the user asks a follow-up about the current active exercise, anchor your entire answer to it. Do not switch to another exercise just because it has a recent signal.
+
+If the user requests exact last-session reps/weights for the active exercise and the payload includes last-session data, answer using the exact best/last set values (no vague summary).
+
+${benchProjectionBlock}`.trim();
+
+  const finalInput = `${loggedDataPreamble.trim()}\n\n${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}`;
 
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -1017,6 +1120,71 @@ Reply in plain language. Prefer 3–5 concise sentences unless the user asks for
   const reply = response.output_text?.trim();
   if (!reply) throw new Error("Empty response from model");
   return reply;
+}
+
+function formatIsoDate(iso: string | undefined): string {
+  if (!iso) return "unknown date";
+  if (typeof iso !== "string") return "unknown date";
+  return iso.length >= 10 ? iso.slice(0, 10) : iso;
+}
+
+function tryBuildDeterministicExerciseReply(params: {
+  message: string;
+  activeExerciseLastSession: AssistantBody["activeExerciseLastSession"] | undefined;
+}): string | null {
+  const m = params.message.toLowerCase();
+  const lastTimeRequested =
+    /(last time|last session|most recent|last logged)/.test(m) ||
+    (m.includes("last") && (m.includes("reps") || m.includes("weight")));
+
+  const asksForExact =
+    /(what reps|what weight|weight and reps|what did i|i did|i achieve)/.test(m) ||
+    /(reps?\s+(did|i)|weight.*reps|weight and reps)/.test(m);
+
+  if (!lastTimeRequested || !asksForExact) return null;
+  const data = params.activeExerciseLastSession;
+  if (!data) return null;
+  const best = data.bestSet;
+  const lastSet = data.lastSet;
+  if (!best || !lastSet) return null;
+
+  const date = formatIsoDate(data.completedAt);
+  return `A) Your last ${data.exerciseName} session was logged on ${date}.\nB) Best set: ${best.weight}×${best.reps}. Last logged set: ${lastSet.weight}×${lastSet.reps}.\nC) Use that as the baseline—next time, aim to match it first, then build from there.`;
+}
+
+function tryBuildDeterministicBenchProjectionReply(params: {
+  message: string;
+  benchProjection: AssistantBody["benchProjection"] | undefined;
+}): string | null {
+  const m = params.message.toLowerCase();
+  const benchish = /\bbench\b|pb|bench press|barbell bench/.test(m);
+  const asksWhen =
+    /(when|expect|timeline|when can i|how soon|can i expect)/.test(m) ||
+    (m.includes("expect") && m.includes("bench"));
+  const asksWorking =
+    /(working weight|working weights|what would my working weights|what weight.*reps|reps need|working weights\/reps)/.test(m) ||
+    m.includes("working weights") ||
+    m.includes("working weight");
+
+  if (!benchish || !(asksWhen || asksWorking)) return null;
+  const p = params.benchProjection;
+  if (!p) return null;
+
+  const target = `${p.target1RM}${p.payloadUnit}`;
+  const current = `${p.currentEstimated1RM}${p.payloadUnit}`;
+  const sessions = p.sessionsEstimate;
+
+  const working = p.workingWeights
+    .slice(0, 3)
+    .map((w) => `${w.weight}${p.payloadUnit}×${w.reps} reps`)
+    .join(", ");
+
+  const mentionsTemplates = /template|templates|program|routine|split/.test(m);
+  const templateLine = mentionsTemplates
+    ? `D) Apply this to your template’s bench working sets: aim for those rep targets at those weights (still an estimate).`
+    : "";
+
+  return `A) Best current read (estimate): based on your recent logged bench best sets, your estimated 1RM is ~${current}.\nB) To reach ${target}, a rough estimate is about ${sessions} more bench sessions with similar progression and recovery.\nC) Working-weight guide (estimate): ${working}.${templateLine}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -1037,6 +1205,11 @@ export async function POST(request: NextRequest) {
       templatesSummary: rawTemplatesSummary,
       userProfile,
       coachingContext,
+      assistantMemory,
+      recentConversationMemory,
+      activeExerciseTopic,
+      activeExerciseLastSession,
+      benchProjection,
     } = body;
 
     const templatesSummary =
@@ -1065,6 +1238,19 @@ export async function POST(request: NextRequest) {
     }
 
     const trimmedMessage = message.trim();
+    // Deterministic fast-paths for exact exercise questions + bench projections.
+    const deterministic =
+      tryBuildDeterministicExerciseReply({
+        message: trimmedMessage,
+        activeExerciseLastSession,
+      }) ??
+      tryBuildDeterministicBenchProjectionReply({
+        message: trimmedMessage,
+        benchProjection,
+      });
+    if (deterministic) {
+      return NextResponse.json({ reply: deterministic } satisfies AssistantResponse);
+    }
     const intent = classifyAssistantIntent(trimmedMessage);
     const hasWorkoutData =
       (Number(trainingSummary.totalWorkouts) || 0) > 0 ||
@@ -1200,6 +1386,11 @@ export async function POST(request: NextRequest) {
       },
       { trainingFocus, experienceLevel, unit, priorityGoal },
       userProfile,
+      assistantMemory,
+      recentConversationMemory,
+      activeExerciseTopic,
+      activeExerciseLastSession,
+      benchProjection,
       coachingContext,
       exerciseTrends ?? [],
       trainingInsights,
