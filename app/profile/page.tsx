@@ -201,7 +201,7 @@ export default function ProfilePage() {
           <section className="mt-8 rounded-xl border border-amber-500/30 bg-amber-950/20 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-200/90 mb-2">Development</p>
             <Link
-              href="/dev/data-transfer"
+              href="/dev/data-transfer?transfer=1"
               className="text-sm text-amber-300 hover:text-amber-100 underline underline-offset-2"
             >
               Export / import local data (e.g. phone → Mac)

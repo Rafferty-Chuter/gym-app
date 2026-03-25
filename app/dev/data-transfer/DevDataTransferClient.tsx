@@ -50,8 +50,9 @@ export default function DevDataTransferClient() {
           </Link>
           <h1 className="mt-4 text-2xl font-bold tracking-tight">Dev: data transfer</h1>
           <p className="mt-2 text-sm text-zinc-400">
-            Export all app localStorage to JSON, copy it, then import on another device.{" "}
-            <strong className="text-amber-200/90">Development only.</strong>
+            Export all app localStorage to JSON, copy it, then import on another device. Hidden by default:
+            use <span className="font-mono text-zinc-300">?transfer=1</span> or{" "}
+            <span className="font-mono text-zinc-300">?devtools=1</span> on this path in production.
           </p>
         </div>
 
