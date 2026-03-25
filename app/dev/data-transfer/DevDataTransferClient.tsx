@@ -48,11 +48,10 @@ export default function DevDataTransferClient() {
           <Link href="/profile" className="text-sm text-teal-400 hover:text-teal-200">
             ← Back to Profile
           </Link>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight">Dev: data transfer</h1>
+          <h1 className="mt-4 text-2xl font-bold tracking-tight">Data tools</h1>
           <p className="mt-2 text-sm text-zinc-400">
-            Export all app localStorage to JSON, copy it, then import on another device. Hidden by default:
-            use <span className="font-mono text-zinc-300">?transfer=1</span> or{" "}
-            <span className="font-mono text-zinc-300">?devtools=1</span> on this path in production.
+            Export your app data as JSON, copy it, then import on another device (e.g. phone → Mac). Temporary
+            utility — treat the file as private.
           </p>
         </div>
 

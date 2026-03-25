@@ -1,5 +1,5 @@
 /**
- * Dev-only: snapshot of all known app localStorage keys for phone ↔ Mac transfer.
+ * Snapshot of known app localStorage keys for export/import (Profile → Data tools).
  * Keep in sync with keys used across the app.
  */
 export const APP_LOCAL_STORAGE_KEYS = [

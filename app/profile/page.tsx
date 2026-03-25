@@ -197,17 +197,18 @@ export default function ProfilePage() {
           </button>
         </section>
 
-        {process.env.NODE_ENV === "development" && (
-          <section className="mt-8 rounded-xl border border-amber-500/30 bg-amber-950/20 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-200/90 mb-2">Development</p>
-            <Link
-              href="/dev/data-transfer?transfer=1"
-              className="text-sm text-amber-300 hover:text-amber-100 underline underline-offset-2"
-            >
-              Export / import local data (e.g. phone → Mac)
-            </Link>
-          </section>
-        )}
+        <section className="mt-8 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">Temporary</p>
+          <p className="text-sm text-zinc-400 mb-4">
+            Move your saved workouts, templates, profile, and assistant chats to another device.
+          </p>
+          <Link
+            href="/dev/data-transfer"
+            className="flex w-full items-center justify-center rounded-xl border border-teal-500/40 bg-teal-950/40 px-4 py-3 text-sm font-bold text-teal-100 hover:bg-teal-900/50 hover:border-teal-400/50 transition-colors"
+          >
+            Data Tools
+          </Link>
+        </section>
       </div>
     </main>
   );
