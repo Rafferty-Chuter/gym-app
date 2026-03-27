@@ -9,6 +9,9 @@ export type AssistantQuestionKind =
   | "prior_answer_correction"
   | "single_session_construction"
   | "multi_day_programme_construction"
+  | "split_comparison_or_recommendation"
+  | "split_explanation_education"
+  | "progression_readiness_path"
   | "session_review"
   | "exact_factual_recall"
   | "exercise_progression"
@@ -47,7 +50,6 @@ export function threadMessagesSupportCorrectionTurn(
 export function isPriorAnswerChallengeText(message: string): boolean {
   const raw = message.trim();
   if (!raw) return false;
-  const t = raw.toLowerCase();
   const words = raw.split(/\s+/).filter(Boolean);
   const wc = words.length;
 
@@ -111,19 +113,52 @@ export function classifyAssistantQuestionKind(
   const hasConstructionFamilyTerm =
     /\b(workout|session|routine|split|programme|program|training plan|weekly plan)\b/.test(t);
   const hasConstructionAction =
-    /\b(build|make|create|generate|suggest|design|plan|give me)\b/.test(t) ||
+    /\b(build|make|create|generate|write me|design|plan|give me)\b/.test(t) ||
     /\bwhat should i train today\b/.test(t);
+  const splitCompareCue =
+    (/\b(what is better|which is better|better than|do you prefer|vs|versus)\b/.test(t) &&
+      /\b(ppl|push pull legs|upper lower|split|routine|programme|program)\b/.test(t)) ||
+    (/\b(should i do)\b/.test(t) && /\b(vs|versus|or)\b/.test(t) && /\b(split|ppl|upper lower)\b/.test(t));
+  const splitExplainCue =
+    /\b(what is a good split for me|how does .* compare|pros and cons|difference between)\b/.test(t) &&
+    /\b(ppl|push pull legs|upper lower|split|routine|programme|program)\b/.test(t);
+  if (splitCompareCue) return "split_comparison_or_recommendation";
+  if (splitExplainCue) return "split_explanation_education";
+  const sessionTypeMentions = [
+    "chest",
+    "back",
+    "legs",
+    "leg",
+    "shoulders",
+    "shoulder",
+    "arms",
+    "push",
+    "pull",
+    "upper",
+    "lower",
+    "full body",
+    "full-body",
+  ].filter((token) => t.includes(token)).length;
+  const hasCustomMultiDayCue =
+    /\b(one day|another day|on another day|day\s*1|day\s*2|day\s*3|day\s*4)\b/.test(t) ||
+    (/\b(day)\b/.test(t) && /\b(and|then|another)\b/.test(t) && sessionTypeMentions >= 2);
   const hasMultiDayCue =
     /\b(split|routine|programme|program|training plan|weekly plan)\b/.test(t) ||
     /\b(push pull legs|ppl|upper lower)\b/.test(t) ||
     /\b\d+\s*(day|days)\b/.test(t) ||
-    /\b(week|weekly)\b/.test(t);
+    /\b(week|weekly)\b/.test(t) ||
+    hasCustomMultiDayCue;
   const hasSingleSessionCue =
-    /\b(leg|legs|push|pull|chest|back|shoulder|shoulders|arms|upper|lower|full body)\s+(workout|session|day)\b/.test(t) ||
-    /\b(workout|session|day)\b/.test(t);
+    /\b(leg|legs|push|pull|chest|back|shoulder|shoulders|arms|upper|lower|full body)\s+(workout|session|day)\b/.test(t);
   if (hasConstructionFamilyTerm && hasConstructionAction) {
-    if (hasMultiDayCue && !hasSingleSessionCue) return "multi_day_programme_construction";
-    if (/\b(push pull legs|ppl|upper lower)\b/.test(t) || /\b\d+\s*(day|days)\b/.test(t)) {
+    if (hasMultiDayCue && (!hasSingleSessionCue || sessionTypeMentions >= 2)) {
+      return "multi_day_programme_construction";
+    }
+    if (
+      /\b(push pull legs|ppl|upper lower)\b/.test(t) ||
+      /\b\d+\s*(day|days)\b/.test(t) ||
+      hasCustomMultiDayCue
+    ) {
       return "multi_day_programme_construction";
     }
     return "single_session_construction";
@@ -149,6 +184,16 @@ export function classifyAssistantQuestionKind(
     hasProgressionTimelineCue
   ) {
     return "projection_estimate";
+  }
+
+  const progressionPathCue =
+    /\b(what should my progress look like|what should my bench look like on the way|what milestones should i hit|how should my sessions progress)\b/.test(
+      t
+    ) ||
+    ((/\b(progress|milestones?|on the way|from here|up until)\b/.test(t) &&
+      /\b(1rm|e1rm|target|kg|lb|bench)\b/.test(t)));
+  if (progressionPathCue) {
+    return "progression_readiness_path";
   }
 
   if (
@@ -180,7 +225,7 @@ export function classifyAssistantQuestionKind(
       t
     ) ||
     (/\b(workout|session|day)\b/.test(t) &&
-      /\b(build|make|suggest|create|generate|plan)\b/.test(t)) ||
+      /\b(build|make|create|generate|plan|write)\b/.test(t)) ||
     (/\b(include)\b/.test(t) && /\b(sets|reps|rir)\b/.test(t) && /\b(workout|session|day)\b/.test(t));
   if (workoutBuildCue) {
     return "single_session_construction";
@@ -331,6 +376,10 @@ export function mapQuestionKindToLegacyIntent(kind: AssistantQuestionKind): Lega
       return "general_training_question";
     case "coach_explanation":
       return "coach_explanation";
+    case "split_comparison_or_recommendation":
+      return "template_review";
+    case "split_explanation_education":
+      return "template_review";
     case "template_review":
       return "template_review";
     case "exercise_question":

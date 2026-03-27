@@ -98,6 +98,8 @@ export function buildBenchContextSummary(workouts: StoredWorkout[]): BenchContex
   let latestHeavyBenchSession: BenchSessionSummary | null = null;
   let latestVolumeBenchSession: BenchSessionSummary | null = null;
 
+  // Pass 1 (strict): only explicit heavy/volume labels in session or exercise naming.
+  // This prevents "nearby" contexts from being silently substituted.
   for (const w of sorted) {
     for (const ex of w.exercises ?? []) {
       const exName = ex.name?.trim() ?? "";
@@ -108,26 +110,48 @@ export function buildBenchContextSummary(workouts: StoredWorkout[]): BenchContex
         .filter((s): s is NonNullable<ReturnType<typeof parseSet>> => s !== null);
       if (!parsed.length) continue;
       const ctx = classifyBenchContext(w.name, exName);
-      const hasHeavyPattern = parsed.some((s) => s.reps <= 5);
-      const hasVolumePattern = parsed.some((s) => s.reps >= 6);
-
-      if (!latestHeavyBenchSession && (ctx === "heavy" || (ctx === "unknown" && hasHeavyPattern))) {
-        latestHeavyBenchSession = summarizeSession(
-          w,
-          exName,
-          parsed.filter((s) => s.reps <= 5 || ctx === "heavy")
-        );
+      if (ctx === "heavy" && !latestHeavyBenchSession) {
+        latestHeavyBenchSession = summarizeSession(w, exName, parsed);
       }
-      if (!latestVolumeBenchSession && (ctx === "volume" || (ctx === "unknown" && hasVolumePattern))) {
-        latestVolumeBenchSession = summarizeSession(
-          w,
-          exName,
-          parsed.filter((s) => s.reps >= 6 || ctx === "volume")
-        );
+      if (ctx === "volume" && !latestVolumeBenchSession) {
+        latestVolumeBenchSession = summarizeSession(w, exName, parsed);
       }
       if (latestHeavyBenchSession && latestVolumeBenchSession) break;
     }
     if (latestHeavyBenchSession && latestVolumeBenchSession) break;
+  }
+
+  // Pass 2 (fallback): infer only for whichever side is still missing.
+  for (const w of sorted) {
+    if (latestHeavyBenchSession && latestVolumeBenchSession) break;
+    for (const ex of w.exercises ?? []) {
+      const exName = ex.name?.trim() ?? "";
+      if (!exName || !isLikelyBenchExercise(exName)) continue;
+      const done = getCompletedLoggedSets(ex.sets ?? []);
+      const parsed = done
+        .map(parseSet)
+        .filter((s): s is NonNullable<ReturnType<typeof parseSet>> => s !== null);
+      if (!parsed.length) continue;
+      const ctx = classifyBenchContext(w.name, exName);
+      if (ctx !== "unknown") continue;
+      const hasHeavyPattern = parsed.some((s) => s.reps <= 5);
+      const hasVolumePattern = parsed.some((s) => s.reps >= 6);
+      if (!latestHeavyBenchSession && hasHeavyPattern) {
+        latestHeavyBenchSession = summarizeSession(
+          w,
+          exName,
+          parsed.filter((s) => s.reps <= 5)
+        );
+      }
+      if (!latestVolumeBenchSession && hasVolumePattern) {
+        latestVolumeBenchSession = summarizeSession(
+          w,
+          exName,
+          parsed.filter((s) => s.reps >= 6)
+        );
+      }
+      if (latestHeavyBenchSession && latestVolumeBenchSession) break;
+    }
   }
 
   return {

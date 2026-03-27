@@ -172,6 +172,7 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [useAssistantMemory, setUseAssistantMemory] = useState(false);
   const listEndRef = useRef<HTMLDivElement>(null);
   const activeExerciseTopicRef = useRef<string | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -183,6 +184,16 @@ export default function AssistantPage() {
     "What should I improve next session?",
     "Am I neglecting any muscle groups?",
   ] as const;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("assistantUseLongTermMemory");
+      setUseAssistantMemory(raw === "1");
+    } catch {
+      setUseAssistantMemory(false);
+    }
+  }, []);
 
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -287,14 +298,19 @@ export default function AssistantPage() {
     setIsLoading(true);
 
     try {
-      const assistantMemory = getSelectiveAssistantMemory();
-      console.log("[memory-debug] current stored memory", {
-        userId: assistantMemory.userId,
-        lastUpdatedAt: assistantMemory.lastUpdatedAt,
-        stablePreferences: Object.fromEntries(
-          Object.entries(assistantMemory.stablePreferences).map(([k, v]) => [k, v.value])
-        ),
-      });
+      const assistantMemory = useAssistantMemory ? getSelectiveAssistantMemory() : undefined;
+      if (useAssistantMemory && assistantMemory) {
+        console.log("[memory-debug] long-term memory enabled for request", {
+          requestIncludesAssistantMemory: true,
+          storedMemoryLastUpdatedAt: assistantMemory.lastUpdatedAt,
+        });
+      } else {
+        const storedMemoryForDebug = getSelectiveAssistantMemory();
+        console.log("[memory-debug] cross-thread memory disabled for request", {
+          requestIncludesAssistantMemory: false,
+          storedMemoryLastUpdatedAt: storedMemoryForDebug.lastUpdatedAt,
+        });
+      }
       const recentTurns: RecentConversationTurn[] = recentTurnsForRequest;
 
       const summary = getTrainingSummary();
@@ -524,7 +540,7 @@ export default function AssistantPage() {
 
       const data = await res.json();
       if (res.ok && typeof data.reply === "string") {
-        // Conservative long-term memory update: store only stable, explicit preferences.
+        // Selective long-term memory can be toggled in UI.
         try {
           const proposals = extractMemoryProposalsFromConversation({
             userText: text,
@@ -536,14 +552,19 @@ export default function AssistantPage() {
             },
           });
           console.log("[memory-debug] proposed updates", proposals);
-          const updated = applySelectiveMemoryUpdates({
-            current: assistantMemory,
-            proposals,
-          });
-          // Only persist if something changed.
-          if (updated.lastUpdatedAt !== assistantMemory.lastUpdatedAt) {
-            console.log("[memory-debug] memory updated", updated);
-            setSelectiveAssistantMemory(updated);
+          if (!useAssistantMemory || !assistantMemory) {
+            console.log("[memory-debug] selective memory persistence skipped (toggle off)");
+          } else {
+            const updated = applySelectiveMemoryUpdates({
+              current: assistantMemory,
+              proposals,
+            });
+            if (updated.lastUpdatedAt !== assistantMemory.lastUpdatedAt) {
+              setSelectiveAssistantMemory(updated);
+              console.log("[memory-debug] selective memory persisted", {
+                lastUpdatedAt: updated.lastUpdatedAt,
+              });
+            }
           }
         } catch (e) {
           console.log("[memory-debug] memory update failed", e);
@@ -627,15 +648,19 @@ export default function AssistantPage() {
       return;
     }
     const result = createNewChatThread();
+    // Hard reset short-term assistant conversation state for this tab/thread.
+    activeExerciseTopicRef.current = null;
     threadRef.current = result.thread;
     setActiveThreadId(result.threadId);
     setExactThreadLoaded(result.exactThreadLoaded);
+    setInput("");
     setMessages([]);
     if (process.env.NODE_ENV === "development") {
       console.log("[thread-debug] New Chat (UI)", {
         threadId: result.threadId,
         freshThread: result.createdNewThread,
         messageCount: 0,
+        activeExerciseTopicReset: activeExerciseTopicRef.current,
       });
     }
   }
@@ -674,6 +699,23 @@ export default function AssistantPage() {
               New Chat
             </button>
           </div>
+          <label className="mt-3 inline-flex items-center gap-2 text-xs text-blue-100/80">
+            <input
+              type="checkbox"
+              checked={useAssistantMemory}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setUseAssistantMemory(next);
+                try {
+                  window.localStorage.setItem("assistantUseLongTermMemory", next ? "1" : "0");
+                } catch {
+                  // ignore storage issues
+                }
+              }}
+              className="h-3.5 w-3.5 rounded border-blue-400/40 bg-zinc-900"
+            />
+            Use long-term assistant memory across chats
+          </label>
         </section>
 
         <div className="flex-1 overflow-y-auto rounded-2xl border border-blue-500/20 bg-gradient-to-b from-zinc-900/95 via-blue-950/20 to-indigo-950/22 p-5 sm:p-6 mb-4 min-h-[200px] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
