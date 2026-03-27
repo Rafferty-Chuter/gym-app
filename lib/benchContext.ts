@@ -103,7 +103,9 @@ export function buildBenchContextSummary(workouts: StoredWorkout[]): BenchContex
       const exName = ex.name?.trim() ?? "";
       if (!exName || !isLikelyBenchExercise(exName)) continue;
       const done = getCompletedLoggedSets(ex.sets ?? []);
-      const parsed = done.map(parseSet).filter((s): s is { weight: number; reps: number; rir?: number } => Boolean(s));
+      const parsed = done
+        .map(parseSet)
+        .filter((s): s is NonNullable<ReturnType<typeof parseSet>> => s !== null);
       if (!parsed.length) continue;
       const ctx = classifyBenchContext(w.name, exName);
       const hasHeavyPattern = parsed.some((s) => s.reps <= 5);

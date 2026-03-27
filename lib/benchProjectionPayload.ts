@@ -362,7 +362,9 @@ function scanBenchHeavyVolumeFromWorkouts(
   };
 }
 
-function pickHeavyLeaned(enriched: Array<{ weight: number; reps: number; e1rm: number }>) {
+function pickHeavyLeaned(
+  enriched: Array<{ weight: number; reps: number; completedAt: string; e1rm: number }>
+) {
   const cands = enriched.filter((p) => p.reps <= 5);
   const pool = cands.length ? cands : enriched;
   return pool.reduce((a, b) =>
