@@ -32,11 +32,56 @@ import {
 } from "@/lib/assistantMemory";
 import {
   appendToThread,
+  createNewChatThread,
   loadActiveThread,
   type AssistantThread,
 } from "@/lib/assistantThreads";
+import { buildBenchProjectionPayload } from "@/lib/benchProjectionPayload";
+import { buildBenchContextSummary } from "@/lib/benchContext";
+import { buildBench1RMEstimate } from "@/lib/bench1rm";
 
-type ChatMessage = { role: "user" | "assistant"; content: string };
+type StructuredWorkout = {
+  sessionTitle: string;
+  sessionGoal: string;
+  purposeSummary?: string;
+  exercises: Array<{
+    slot: string;
+    exercise: string;
+    sets: string;
+    reps: string;
+    rir: string;
+    rest: string;
+    rationale?: string;
+  }>;
+  note: string;
+};
+
+type StructuredProgramme = {
+  programmeTitle: string;
+  programmeGoal: string;
+  notes: string;
+  days: Array<{
+    dayLabel: string;
+    sessionType: string;
+    purposeSummary: string;
+    exercises: Array<{
+      slotLabel: string;
+      exerciseName: string;
+      sets: string;
+      reps: string;
+      rir: string;
+      rest: string;
+      rationale: string;
+    }>;
+  }>;
+};
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  workout?: StructuredWorkout;
+  programme?: StructuredProgramme;
+};
 
 /** Split assistant text on blank lines so paragraphs and sections breathe in the UI. */
 function AssistantMessageBody({ content }: { content: string }) {
@@ -51,6 +96,70 @@ function AssistantMessageBody({ content }: { content: string }) {
           {block}
         </div>
       ))}
+    </div>
+  );
+}
+
+function AssistantWorkoutCard({ workout }: { workout: StructuredWorkout }) {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2">
+        <p className="text-sm font-semibold text-blue-100">{workout.sessionTitle}</p>
+        <p className="text-xs text-blue-100/80 mt-0.5">{workout.sessionGoal}</p>
+      </div>
+      <div className="space-y-2">
+        {workout.exercises.map((ex, i) => (
+          <div
+            key={`${ex.slot}-${ex.exercise}-${i}`}
+            className="rounded-xl border border-white/10 bg-zinc-900/70 px-3 py-3"
+          >
+            <p className="text-xs uppercase tracking-wide text-blue-200/80">{i + 1}. {ex.slot}</p>
+            <p className="text-sm font-semibold text-zinc-100 mt-1">{ex.exercise}</p>
+            <p className="text-xs text-zinc-300 mt-1">
+              {ex.sets} sets · {ex.reps} reps · {ex.rir} RIR · {ex.rest} rest
+            </p>
+            {ex.rationale ? (
+              <p className="text-xs text-zinc-400 mt-1">{ex.rationale}</p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-zinc-300">
+        <span className="text-zinc-100 font-medium">Practical note:</span> {workout.note}
+      </p>
+    </div>
+  );
+}
+
+function AssistantProgrammeCard({ programme }: { programme: StructuredProgramme }) {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2">
+        <p className="text-sm font-semibold text-blue-100">{programme.programmeTitle}</p>
+        <p className="text-xs text-blue-100/80 mt-0.5">{programme.programmeGoal}</p>
+      </div>
+      <div className="space-y-3">
+        {programme.days.map((day) => (
+          <div key={day.dayLabel} className="rounded-xl border border-white/10 bg-zinc-900/70 px-3 py-3">
+            <p className="text-sm font-semibold text-zinc-100">{day.dayLabel}</p>
+            <p className="text-xs text-zinc-400 mt-0.5">{day.purposeSummary}</p>
+            <div className="space-y-2 mt-2">
+              {day.exercises.map((ex, i) => (
+                <div key={`${day.dayLabel}-${ex.slotLabel}-${i}`} className="rounded-lg border border-white/10 bg-zinc-950/40 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-blue-200/80">{i + 1}. {ex.slotLabel}</p>
+                  <p className="text-sm font-semibold text-zinc-100 mt-0.5">{ex.exerciseName}</p>
+                  <p className="text-xs text-zinc-300 mt-0.5">
+                    {ex.sets} sets · {ex.reps} reps · {ex.rir} RIR · {ex.rest} rest
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-zinc-300">
+        <span className="text-zinc-100 font-medium">Note:</span> {programme.notes}
+      </p>
     </div>
   );
 }
@@ -85,7 +194,14 @@ export default function AssistantPage() {
       setActiveThreadId(threadId);
       setExactThreadLoaded(loaded);
       threadRef.current = thread;
-      setMessages(thread.messages.map((m) => ({ role: m.role, content: m.content })));
+      setMessages(
+        thread.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          workout: m.workout,
+          programme: m.programme,
+        }))
+      );
       console.log("[thread-debug] active thread loaded", {
         threadId,
         exactThreadLoaded: loaded,
@@ -127,7 +243,14 @@ export default function AssistantPage() {
       setActiveThreadId(loaded.threadId);
       setExactThreadLoaded(loaded.exactThreadLoaded);
       threadRef.current = loaded.thread;
-      setMessages(loaded.thread.messages.map((m) => ({ role: m.role, content: m.content })));
+      setMessages(
+        loaded.thread.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          workout: m.workout,
+          programme: m.programme,
+        }))
+      );
     }
 
     const nextThread = appendToThread({
@@ -137,7 +260,14 @@ export default function AssistantPage() {
     });
     threadRef.current = nextThread;
     setActiveThreadId(nextThread.thread_id);
-    setMessages(nextThread.messages.map((m) => ({ role: m.role, content: m.content })));
+    setMessages(
+      nextThread.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        workout: m.workout,
+        programme: m.programme,
+      }))
+    );
     console.log("[thread-debug] appended user message", {
       threadId: nextThread.thread_id,
       exactThreadLoaded: localExactThreadLoaded,
@@ -146,7 +276,7 @@ export default function AssistantPage() {
 
     const threadMessagesForRequest = nextThread.messages
       .slice(-30)
-      .map((m) => ({ role: m.role, content: m.content }));
+      .map((m) => ({ role: m.role, content: m.content, workout: m.workout, programme: m.programme }));
 
     // Use a short rolling window for model continuity.
     const recentTurnsForRequest: RecentConversationTurn[] = buildRecentConversationMemory(
@@ -285,72 +415,43 @@ export default function AssistantPage() {
         },
       });
 
-      function parseTargetFromText(t: string): { value: number; unit: "kg" | "lb" } | null {
-        const m = t.match(/(\d+(?:\.\d+)?)\s*(kg|kgs|kilograms)\b/i);
-        if (m) return { value: parseFloat(m[1]), unit: "kg" };
-        const m2 = t.match(/(\d+(?:\.\d+)?)\s*(lb|lbs|pounds)\b/i);
-        if (m2) return { value: parseFloat(m2[1]), unit: "lb" };
-        const num = t.match(/\b(\d{2,3}(?:\.\d+)?)\b/);
-        if (num && /\bbench\b|pb|bench press/i.test(t)) return { value: parseFloat(num[1]), unit };
-        return null;
-      }
-
-      function isBenchQuestion(t: string): boolean {
-        return /\bbench\b|pb|bench press|barbell bench/i.test(t);
-      }
-
-      function getBenchProjectionIfAny() {
-        if (!isBenchQuestion(text)) return undefined;
-        const target = parseTargetFromText(text);
-        if (!target) return undefined;
-        const targetInPayloadUnit =
-          target.unit === unit ? target.value : target.unit === "kg" ? target.value * 2.20462 : target.value / 2.20462;
-
-        const benchName =
-          benchExerciseName ??
-          (exerciseNames.find((n) => /bench/i.test(n)) ?? undefined);
-        if (!benchName) return undefined;
-
-        const benchTrend =
-          exerciseTrends.find((et) => norm(et.exercise) === norm(benchName)) ?? null;
-        const perfs = benchTrend?.recentPerformances ?? [];
-        if (perfs.length < 2) return undefined;
-
-        const current = perfs[perfs.length - 1];
-        const prev = perfs[perfs.length - 2];
-        const currentE1rm = current.e1rm ?? estimateE1RM(current.weight, current.reps);
-        const prevE1rm = prev.e1rm ?? estimateE1RM(prev.weight, prev.reps);
-        const delta = currentE1rm - prevE1rm;
-        if (!Number.isFinite(delta) || delta <= 0) return undefined;
-
-        const remaining = targetInPayloadUnit - currentE1rm;
-        const sessionsEstimate = remaining <= 0 ? 0 : Math.max(1, Math.ceil(remaining / delta));
-
-        const repsSchemes = [3, 5, 8];
-        const workingWeights = repsSchemes.map((r) => {
-          // Invert Epley: 1RM = w * (1 + reps/30)
-          const w = targetInPayloadUnit / (1 + r / 30);
-          return { reps: r, weight: Number(w.toFixed(1)) };
-        });
-
-        return {
-          target1RM: Number(targetInPayloadUnit.toFixed(1)),
-          payloadUnit: unit,
-          benchExerciseName: benchName,
-          currentEstimated1RM: Number(currentE1rm.toFixed(1)),
-          deltaE1RMPerSession: Number(delta.toFixed(1)),
-          sessionsEstimate,
-          recentBestSets: perfs.map((p) => ({
-            completedAt: p.completedAt,
-            weight: p.weight,
-            reps: p.reps,
-            e1rm: p.e1rm,
-          })),
-          workingWeights,
-        };
-      }
-
-      const benchProjection = getBenchProjectionIfAny();
+      const benchProjection = buildBenchProjectionPayload({
+        message: text,
+        unit,
+        exerciseTrends,
+        workouts: allWorkouts,
+        priorityGoal: goal,
+        benchExerciseName:
+          benchExerciseName ?? exerciseNames.find((n) => /bench/i.test(n)) ?? undefined,
+      });
+      const benchContext = buildBenchContextSummary(allWorkouts);
+      const benchEstimate = buildBench1RMEstimate({
+        message: text,
+        benchContext,
+      });
+      console.log("[assistant-debug] bench context payload:", {
+        heavy: benchContext.latestHeavyBenchSession
+          ? {
+              date: benchContext.latestHeavyBenchSession.completedAt,
+              sessionName: benchContext.latestHeavyBenchSession.sessionName,
+              exerciseName: benchContext.latestHeavyBenchSession.exerciseName,
+              sets: benchContext.latestHeavyBenchSession.sets.map((s) => `${s.weight}x${s.reps}`),
+              best: `${benchContext.latestHeavyBenchSession.bestSet.weight}x${benchContext.latestHeavyBenchSession.bestSet.reps}`,
+              avgRIR: benchContext.latestHeavyBenchSession.avgRIR,
+            }
+          : null,
+        volume: benchContext.latestVolumeBenchSession
+          ? {
+              date: benchContext.latestVolumeBenchSession.completedAt,
+              sessionName: benchContext.latestVolumeBenchSession.sessionName,
+              exerciseName: benchContext.latestVolumeBenchSession.exerciseName,
+              sets: benchContext.latestVolumeBenchSession.sets.map((s) => `${s.weight}x${s.reps}`),
+              best: `${benchContext.latestVolumeBenchSession.bestSet.weight}x${benchContext.latestVolumeBenchSession.bestSet.reps}`,
+              avgRIR: benchContext.latestVolumeBenchSession.avgRIR,
+            }
+          : null,
+      });
+      console.log("[assistant-debug] bench estimate payload:", benchEstimate);
 
       const coachAnalysis = buildCoachStructuredAnalysis(allWorkouts, {
         focus,
@@ -416,6 +517,8 @@ export default function AssistantPage() {
           activeExerciseTopic,
           activeExerciseLastSession,
           benchProjection,
+          benchContext,
+          benchEstimate,
         }),
       });
 
@@ -449,9 +552,24 @@ export default function AssistantPage() {
           threadId: localThreadId!,
           role: "assistant",
           content: data.reply,
+          workout:
+            data.structuredWorkout && typeof data.structuredWorkout === "object"
+              ? (data.structuredWorkout as StructuredWorkout)
+              : undefined,
+          programme:
+            data.structuredProgramme && typeof data.structuredProgramme === "object"
+              ? (data.structuredProgramme as StructuredProgramme)
+              : undefined,
         });
         threadRef.current = nextThreadAfterAssistant;
-        setMessages(nextThreadAfterAssistant.messages.map((m) => ({ role: m.role, content: m.content })));
+        setMessages(
+          nextThreadAfterAssistant.messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+            workout: m.workout,
+            programme: m.programme,
+          }))
+        );
         setActiveThreadId(nextThreadAfterAssistant.thread_id);
       } else {
         const nextThreadAfterAssistant = appendToThread({
@@ -460,7 +578,14 @@ export default function AssistantPage() {
           content: `Error: ${data.error ?? "Sorry, I couldn’t get a response. Please try again."}`,
         });
         threadRef.current = nextThreadAfterAssistant;
-        setMessages(nextThreadAfterAssistant.messages.map((m) => ({ role: m.role, content: m.content })));
+        setMessages(
+          nextThreadAfterAssistant.messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+            workout: m.workout,
+            programme: m.programme,
+          }))
+        );
       }
     } catch {
       try {
@@ -471,7 +596,14 @@ export default function AssistantPage() {
           content: "Error: Something went wrong. Please try again.",
         });
         threadRef.current = nextThreadAfterAssistant;
-        setMessages(nextThreadAfterAssistant.messages.map((m) => ({ role: m.role, content: m.content })));
+        setMessages(
+          nextThreadAfterAssistant.messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+            workout: m.workout,
+            programme: m.programme,
+          }))
+        );
         setActiveThreadId(nextThreadAfterAssistant.thread_id);
       } catch {
         setMessages((prev) => [
@@ -481,6 +613,30 @@ export default function AssistantPage() {
       }
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  function handleNewChat() {
+    if (isLoading) return;
+    if (
+      messages.length > 0 &&
+      !window.confirm(
+        "Start a new chat? This screen clears for testing. Your previous thread stays in storage on this device (not deleted). Workout data and assistant memory are unchanged."
+      )
+    ) {
+      return;
+    }
+    const result = createNewChatThread();
+    threadRef.current = result.thread;
+    setActiveThreadId(result.threadId);
+    setExactThreadLoaded(result.exactThreadLoaded);
+    setMessages([]);
+    if (process.env.NODE_ENV === "development") {
+      console.log("[thread-debug] New Chat (UI)", {
+        threadId: result.threadId,
+        freshThread: result.createdNewThread,
+        messageCount: 0,
+      });
     }
   }
 
@@ -502,10 +658,22 @@ export default function AssistantPage() {
           ← Back to Coach
         </Link>
         <section className="mb-4 rounded-2xl border border-blue-500/30 bg-gradient-to-br from-blue-500/20 via-indigo-500/12 to-zinc-900/85 p-4 shadow-[0_16px_40px_-18px_rgba(59,130,246,0.5)]">
-          <h1 className="text-3xl font-extrabold tracking-tight text-blue-50 mb-1">Assistant</h1>
-          <p className="text-blue-100/80 text-sm">
-            Ask anything about your training. Your coach responds using your logged sessions and current goals.
-          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-3xl font-extrabold tracking-tight text-blue-50 mb-1">Assistant</h1>
+              <p className="text-blue-100/80 text-sm">
+                Ask anything about your training. Your coach responds using your logged sessions and current goals.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleNewChat}
+              disabled={isLoading}
+              className="shrink-0 self-start rounded-xl border border-blue-400/35 bg-zinc-900/70 px-3 py-2 text-sm font-semibold text-blue-100 hover:border-blue-300/50 hover:bg-zinc-800/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              New Chat
+            </button>
+          </div>
         </section>
 
         <div className="flex-1 overflow-y-auto rounded-2xl border border-blue-500/20 bg-gradient-to-b from-zinc-900/95 via-blue-950/20 to-indigo-950/22 p-5 sm:p-6 mb-4 min-h-[200px] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
@@ -526,7 +694,13 @@ export default function AssistantPage() {
                     }
                   >
                     {m.role === "assistant" ? (
-                      <AssistantMessageBody content={m.content} />
+                      m.programme ? (
+                        <AssistantProgrammeCard programme={m.programme} />
+                      ) : m.workout ? (
+                        <AssistantWorkoutCard workout={m.workout} />
+                      ) : (
+                        <AssistantMessageBody content={m.content} />
+                      )
                     ) : (
                       <span className="whitespace-pre-wrap break-words">{m.content}</span>
                     )}

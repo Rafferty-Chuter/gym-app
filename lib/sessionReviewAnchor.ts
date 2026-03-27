@@ -424,6 +424,8 @@ ${hint} Say what is missing in one short phrase; do not invent session details.`
   lines.push(
     "PER-EXERCISE PRIOR LOGS (older sessions in payload, same normalized exercise name — use for progression; do not name lifts that are not in EXERCISES above):"
   );
+  const newBaselineExerciseNames: string[] = [];
+  const comparableExerciseNames: string[] = [];
   for (const ex of workout.exercises ?? []) {
     const raw = ex.name?.trim() || "Exercise";
     const key = normalizeExerciseName(raw);
@@ -431,11 +433,38 @@ ${hint} Say what is missing in one short phrase; do not invent session details.`
     const priors = priorPerformancesForExercise(sorted, currentIdx, key, 2);
     if (priors.length === 0) {
       lines.push(`- ${raw}: no older logged performances of this name in payload.`);
+      newBaselineExerciseNames.push(raw);
     } else {
       for (const p of priors) {
         lines.push(`- ${raw}: on ${p.date} → ${p.line}`);
       }
+      comparableExerciseNames.push(raw);
     }
+  }
+
+  lines.push("COMPARISON GROUNDING (mandatory — your reply must respect this):");
+  if (newBaselineExerciseNames.length > 0) {
+    lines.push(
+      `NEW BASELINE / NO TREND DATA for these lifts (no older log lines above for this name): ${newBaselineExerciseNames.join(
+        ", "
+      )}.`
+    );
+    lines.push(
+      "For each of those: this session establishes a baseline only. Do NOT imply usual, typical, normal, trend, decline, progress, better/worse vs history, or “compared to what you normally do” — there is no prior performance in the payload to support that."
+    );
+    lines.push(
+      'Allowed phrasing: "first logged session for this lift in the data here", "sets a baseline", "no direct trend yet", "trend confidence is limited until more sessions are logged".'
+    );
+  }
+  if (comparableExerciseNames.length > 0) {
+    lines.push(
+      `COMPARABLE TO PRIOR LOG ONLY: ${comparableExerciseNames.join(
+        ", "
+      )}. For these, you may say improved / held steady / dipped slightly ONLY versus the specific prior dates and set lines above — hedge if mixed or ambiguous.`
+    );
+  }
+  if (newBaselineExerciseNames.length === 0 && comparableExerciseNames.length === 0) {
+    lines.push("(No named exercises in session for comparison grouping.)");
   }
 
   const similar = findSimilarPriorWorkout(sorted, workout);
@@ -491,10 +520,10 @@ ${hint} Say what is missing in one short phrase; do not invent session details.`
 
   lines.push("HOW TO USE THIS ANCHOR (reasoning vs what the user sees):");
   lines.push(
-    "Use SESSION STRUCTURE, PER-EXERCISE PRIOR LOGS, SIMILAR PRIOR SESSION, and EXERCISES internally to reason — but the user-facing reply must follow the concise format in the assistant prompt (verdict + bullets + next step), not a full report."
+    "Use SESSION STRUCTURE, PER-EXERCISE PRIOR LOGS, SIMILAR PRIOR SESSION, and EXERCISES internally to reason — but speak to the user like a sharp coach in plain language, not an analyst exporting stats."
   );
   lines.push(
-    "Default: one verdict line, blank line, 3–4 bullets (one idea each), blank line, one Next step line; ~80–160 words; blank lines between sections; do not restate every set unless the user asked for detail. Hedge fatigue/form/recovery language per INFERENCE & CERTAINTY in the system prompt."
+    "Default shape: (A) one-line verdict, blank line, (B) 3–4 bullets covering progressed vs prior / stable vs slight dip / new-baseline-only per COMPARISON GROUNDING, blank line, (C) one direct Next step — ~80–160 words; blank lines between sections. Do not restate every set unless asked. Hedge fatigue/form per INFERENCE & CERTAINTY. Avoid sounding like a lab report (no min/max rep summaries, no average RIR decimals) unless the user asked for that level of detail."
   );
   lines.push(
     "Optional deeper layer (after one blank line, only if useful): section titles Evidence / Compared to last time / Why this matters (plain lines), each followed by short bullets; no A), B), C) labels."

@@ -2,6 +2,38 @@ export type AssistantThreadMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  workout?: {
+    sessionTitle: string;
+    sessionGoal: string;
+    exercises: Array<{
+      slot: string;
+      exercise: string;
+      sets: string;
+      reps: string;
+      rir: string;
+      rest: string;
+    }>;
+    note: string;
+  };
+  programme?: {
+    programmeTitle: string;
+    programmeGoal: string;
+    notes: string;
+    days: Array<{
+      dayLabel: string;
+      sessionType: string;
+      purposeSummary: string;
+      exercises: Array<{
+        slotLabel: string;
+        exerciseName: string;
+        sets: string;
+        reps: string;
+        rir: string;
+        rest: string;
+        rationale: string;
+      }>;
+    }>;
+  };
   createdAt: string; // ISO
 };
 
@@ -92,7 +124,12 @@ function writeActiveThreadId(threadId: string) {
 }
 
 function safeTrimContent(s: string): string {
-  return String(s ?? "").replace(/\s+/g, " ").trim();
+  return String(s ?? "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trimEnd())
+    .join("\n")
+    .trim();
 }
 
 function normalizeThreadMessage(m: unknown): AssistantThreadMessage | null {
@@ -105,6 +142,16 @@ function normalizeThreadMessage(m: unknown): AssistantThreadMessage | null {
     id,
     role: r.role,
     content: safeTrimContent(r.content),
+    ...(r.workout && typeof r.workout === "object"
+      ? {
+          workout: r.workout as AssistantThreadMessage["workout"],
+        }
+      : {}),
+    ...(r.programme && typeof r.programme === "object"
+      ? {
+          programme: r.programme as AssistantThreadMessage["programme"],
+        }
+      : {}),
     createdAt: typeof r.createdAt === "string" && r.createdAt ? r.createdAt : safeNowIso(),
   };
 }
@@ -194,6 +241,8 @@ export function appendToThread(params: {
   threadId: string;
   role: "user" | "assistant";
   content: string;
+  workout?: AssistantThreadMessage["workout"];
+  programme?: AssistantThreadMessage["programme"];
 }): AssistantThread {
   if (typeof window === "undefined") {
     const now = safeNowIso();
@@ -206,6 +255,8 @@ export function appendToThread(params: {
           id: `m_${Math.random().toString(16).slice(2)}`,
           role: params.role,
           content: safeTrimContent(params.content),
+          ...(params.workout ? { workout: params.workout } : {}),
+          ...(params.programme ? { programme: params.programme } : {}),
           createdAt: now,
         },
       ],
@@ -229,6 +280,8 @@ export function appendToThread(params: {
     id: `m_${Math.random().toString(16).slice(2)}`,
     role: params.role,
     content: safeTrimContent(params.content),
+    ...(params.workout ? { workout: params.workout } : {}),
+    ...(params.programme ? { programme: params.programme } : {}),
     createdAt: now,
   };
   const nextThread: AssistantThread = {
@@ -247,5 +300,61 @@ export function appendToThread(params: {
 
 export function getActiveThreadId(): string | null {
   return readActiveThreadId();
+}
+
+/**
+ * Start a fresh assistant thread (empty messages, new id). Does not delete the previous thread
+ * from storage — it remains in `assistantThreadsV1` but is no longer active.
+ * Does not touch workout logs, profile, templates, or selective assistant memory.
+ */
+export function createNewChatThread(): {
+  threadId: string;
+  thread: AssistantThread;
+  exactThreadLoaded: boolean;
+  createdNewThread: boolean;
+} {
+  if (typeof window === "undefined") {
+    const now = safeNowIso();
+    return {
+      threadId: "server",
+      thread: {
+        thread_id: "server",
+        created_at: now,
+        updated_at: now,
+        messages: [],
+      },
+      exactThreadLoaded: false,
+      createdNewThread: true,
+    };
+  }
+
+  const map = readThreads();
+  const now = safeNowIso();
+  const newId = makeThreadId();
+  const newThread: AssistantThread = {
+    thread_id: newId,
+    created_at: now,
+    updated_at: now,
+    messages: [],
+  };
+  const nextMap: StoredThreadMap = { ...map, [newId]: newThread };
+  writeThreads(nextMap);
+  writeActiveThreadId(newId);
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[thread-debug] createNewChatThread", {
+      threadId: newId,
+      freshThread: true,
+      priorActivePreservedInMap: true,
+      totalThreadsInStorage: Object.keys(nextMap).length,
+    });
+  }
+
+  return {
+    threadId: newId,
+    thread: newThread,
+    exactThreadLoaded: true,
+    createdNewThread: true,
+  };
 }
 

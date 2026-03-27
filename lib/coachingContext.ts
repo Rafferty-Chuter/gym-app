@@ -9,6 +9,8 @@ import { buildCoachStructuredAnalysis } from "@/lib/coachStructuredAnalysis";
 import type { TrainingFocus } from "@/lib/trainingFocus";
 import type { ExperienceLevel } from "@/lib/experienceLevel";
 import type { PriorityGoal } from "@/lib/priorityGoal";
+import { buildBenchContextSummary, type BenchContextSummary } from "@/lib/benchContext";
+import { buildBench1RMEstimate, type Bench1RMEstimate } from "@/lib/bench1rm";
 
 export type WorkoutTemplate = {
   id: string;
@@ -42,6 +44,8 @@ export type CoachingContext = {
     frequency: number;
     coachInsight?: string | null;
   };
+  benchContext?: BenchContextSummary;
+  benchEstimate?: Bench1RMEstimate | null;
 };
 
 const TEMPLATE_STORAGE_KEY = "workoutTemplates";
@@ -125,6 +129,11 @@ export function buildCoachingContext(params: {
     .filter((t) => t.trend === "plateau" || t.trend === "declining")
     .slice(0, 4)
     .map((t) => t.exercise);
+  const benchContext = buildBenchContextSummary(workouts);
+  const benchEstimate = buildBench1RMEstimate({
+    message: "current bench 1rm",
+    benchContext,
+  });
 
   return {
     profile: params.profile,
@@ -146,5 +155,7 @@ export function buildCoachingContext(params: {
       frequency: insights.frequency,
       coachInsight: coach.keyFocus,
     },
+    benchContext,
+    benchEstimate,
   };
 }

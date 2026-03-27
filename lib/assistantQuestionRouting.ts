@@ -6,6 +6,9 @@ import { parseSessionReviewSelection } from "@/lib/sessionReviewAnchor";
  */
 export type AssistantQuestionKind =
   | "memory_continuity"
+  | "prior_answer_correction"
+  | "single_session_construction"
+  | "multi_day_programme_construction"
   | "session_review"
   | "exact_factual_recall"
   | "exercise_progression"
@@ -19,9 +22,134 @@ export type AssistantQuestionKind =
   | "recent_training_analysis"
   | "general_training_question";
 
-export function classifyAssistantQuestionKind(message: string): AssistantQuestionKind {
+export type AssistantThreadTurn = { role: string; content: string };
+
+/** True when the last turn is user and the one before is assistant (follow-up on the bot’s last reply). */
+export function threadMessagesSupportCorrectionTurn(
+  threadMessages: AssistantThreadTurn[] | null | undefined
+): boolean {
+  if (!threadMessages?.length) return false;
+  const msgs = threadMessages.filter((m) => typeof m.content === "string" && m.content.trim());
+  if (msgs.length < 2) return false;
+  const last = msgs[msgs.length - 1];
+  const prev = msgs[msgs.length - 2];
+  return (
+    last.role === "user" &&
+    prev.role === "assistant" &&
+    (prev.content?.trim().length ?? 0) > 0
+  );
+}
+
+/**
+ * Heuristic: user is disputing, clarifying, or correcting something from the assistant’s prior reply.
+ * Keep in sync with server routing — only used when `threadMessagesSupportCorrectionTurn` is true.
+ */
+export function isPriorAnswerChallengeText(message: string): boolean {
+  const raw = message.trim();
+  if (!raw) return false;
+  const t = raw.toLowerCase();
+  const words = raw.split(/\s+/).filter(Boolean);
+  const wc = words.length;
+
+  const strong = [
+    /\bthat'?s?\s+wrong\b/i,
+    /\b(this|it)\s+is\s+wrong\b/i,
+    /\bnot\s+(true|right|correct)\b/i,
+    /\bthat\s+isn'?t\s+(right|true|correct)\b/i,
+    /\bwhat\s+do\s+you\s+mean\b/i,
+    /\bwdym\b/i,
+    /\b(they|it)\s+(is|are)\s+there\b/i,
+    /\b(you|you'?re|you\s+are)\s+(wrong|incorrect)\b/i,
+    /\b(you|you'?re|you\s+are)\s+(lying|a\s+liar)\b/i,
+    /\bno,?\s+i\s+meant\b/i,
+    /\bi\s+meant\s+(bench|squat|dead|deadlift|row|ohp|press|curl|pull)\b/i,
+    /\b(i\s+do\s+have|i\s+have)\s+(those|that|them|it)\b/i,
+    /\bi\s+(also\s+)?have\s+.*\blogged\b/i,
+    /\bi\s+did\s+log\b/i,
+    /\b(it'?s|they'?re)\s+in\s+my\s+log\b/i,
+    /\b(my\s+)?log\s+shows\b/i,
+    /\byou\s+said\b.*\b(but|wrong|not|isn'?t|actually)\b/i,
+    /\bwhy did you say\b/i,
+    /\b(that|this) doesn'?t match\b/i,
+    /\b(that|this) doesn'?t make sense\b/i,
+    /\b(i\s+)?disagree\b/i,
+    /\bfix\s+your\b.*\b(answer|reply)\b/i,
+    /\byou\s+missed\b/i,
+    /\byou\s+overlooked\b/i,
+  ].some((re) => re.test(raw));
+
+  const trimmedForWeak = raw.trim();
+  const weakStandalone =
+    /^\?+$/.test(trimmedForWeak) ||
+    (wc <= 2 && /^(what|huh|eh)\?*$/i.test(trimmedForWeak)) ||
+    (wc <= 3 && /^(no|nope|nah)\.?$/i.test(trimmedForWeak)) ||
+    (wc <= 4 && /^(wrong|incorrect|false)\.?$/i.test(trimmedForWeak));
+
+  return strong || weakStandalone;
+}
+
+export function shouldRoutePriorAnswerCorrection(
+  message: string,
+  threadMessages: AssistantThreadTurn[] | null | undefined
+): boolean {
+  return (
+    threadMessagesSupportCorrectionTurn(threadMessages) && isPriorAnswerChallengeText(message)
+  );
+}
+
+export function classifyAssistantQuestionKind(
+  message: string,
+  opts?: { threadMessages?: AssistantThreadTurn[] | null }
+): AssistantQuestionKind {
   const t = message.trim().toLowerCase();
   if (!t) return "general_training_question";
+
+  if (shouldRoutePriorAnswerCorrection(message, opts?.threadMessages)) {
+    return "prior_answer_correction";
+  }
+
+  const hasConstructionFamilyTerm =
+    /\b(workout|session|routine|split|programme|program|training plan|weekly plan)\b/.test(t);
+  const hasConstructionAction =
+    /\b(build|make|create|generate|suggest|design|plan|give me)\b/.test(t) ||
+    /\bwhat should i train today\b/.test(t);
+  const hasMultiDayCue =
+    /\b(split|routine|programme|program|training plan|weekly plan)\b/.test(t) ||
+    /\b(push pull legs|ppl|upper lower)\b/.test(t) ||
+    /\b\d+\s*(day|days)\b/.test(t) ||
+    /\b(week|weekly)\b/.test(t);
+  const hasSingleSessionCue =
+    /\b(leg|legs|push|pull|chest|back|shoulder|shoulders|arms|upper|lower|full body)\s+(workout|session|day)\b/.test(t) ||
+    /\b(workout|session|day)\b/.test(t);
+  if (hasConstructionFamilyTerm && hasConstructionAction) {
+    if (hasMultiDayCue && !hasSingleSessionCue) return "multi_day_programme_construction";
+    if (/\b(push pull legs|ppl|upper lower)\b/.test(t) || /\b\d+\s*(day|days)\b/.test(t)) {
+      return "multi_day_programme_construction";
+    }
+    return "single_session_construction";
+  }
+
+  // Projection-first override: 1RM estimate/readiness/timeline questions should not fall
+  // into session_review or exercise_progression even when they contain "progression" or "session" words.
+  const has1rmCue = /\b(1rm|e1rm|one rep max|one-rep max|estimated 1rm|current 1rm|pr 1rm)\b/.test(t);
+  const hasTargetWeight = /\b\d{2,3}\s*(kg|kgs|lb|lbs|kilograms|pounds)\b/.test(t);
+  const hasTimelineCue = /\b(when|how long|how soon|timeline|expect|realistic)\b/.test(t);
+  const hasBenchCue = /\bbench\b|bench press|barbell bench|pb/.test(t);
+  const hasProgressionTimelineCue =
+    /\b(based on|from)\b/.test(t) &&
+    /\b(progress|progression|recent|workouts?|sets?)\b/.test(t) &&
+    (hasTimelineCue || has1rmCue || hasTargetWeight);
+
+  if (
+    (has1rmCue && hasBenchCue &&
+      (/\b(estimate|current|read|readiness|expect|likely|taking into account|given that|based on)\b/.test(t) ||
+        /\b(heavy|volume)\b/.test(t))) ||
+    (has1rmCue && hasTargetWeight && hasTimelineCue) ||
+    (hasTargetWeight && hasTimelineCue && (hasBenchCue || /\b(hit|reach|get|attempt|lift)\b/.test(t))) ||
+    hasProgressionTimelineCue
+  ) {
+    return "projection_estimate";
+  }
 
   if (
     /\b(do you remember|remember our|what did we (just )?say|what was my (previous|last) message|our last chat|recall what we)\b/.test(
@@ -32,8 +160,30 @@ export function classifyAssistantQuestionKind(message: string): AssistantQuestio
     return "memory_continuity";
   }
 
+  // Bench 1RM path + workout anchoring → projection (not a pure session recap); keeps bench projection block available.
+  if (
+    /\b(1rm|one rep max|one-rep max|e1rm)\b/.test(t) &&
+    /\b(kg|lb|kgs|lbs)\b/.test(t) &&
+    /\b(last|latest|most recent|previous|based on)\b/.test(t) &&
+    /\b(workout|session)\b/.test(t) &&
+    !/\b(squat|deadlift|dead lift|sumo)\b/.test(t)
+  ) {
+    return "projection_estimate";
+  }
+
   if (parseSessionReviewSelection(message)) {
     return "session_review";
+  }
+
+  const workoutBuildCue =
+    /\b(suggest me a workout|build me a|make me a|what should i train today|build me a full workout)\b/.test(
+      t
+    ) ||
+    (/\b(workout|session|day)\b/.test(t) &&
+      /\b(build|make|suggest|create|generate|plan)\b/.test(t)) ||
+    (/\b(include)\b/.test(t) && /\b(sets|reps|rir)\b/.test(t) && /\b(workout|session|day)\b/.test(t));
+  if (workoutBuildCue) {
+    return "single_session_construction";
   }
 
   const progressionCue =
@@ -64,7 +214,12 @@ export function classifyAssistantQuestionKind(message: string): AssistantQuestio
   if (
     /\b(1rm|one rep max|one-rep max|e1rm|estimated 1rm)\b/.test(t) ||
     (/\bwhen (could|can|should) i\b/.test(t) && /\b(kg|lb|kgs|lbs|attempt|hit|lift)\b/.test(t)) ||
-    /\bworking sets\b.*\b(look|should|need to)\b/.test(t)
+    /\bworking sets\b.*\b(look|should|need to)\b/.test(t) ||
+    (/\b(bench|bench press|pb)\b/.test(t) &&
+      /\b(heavy|volume)\b/.test(t) &&
+      /\b(session|sessions|day)\b/.test(t) &&
+      /\b(expect|look|what)\b/.test(t) &&
+      /\b(like|should|would)\b/.test(t))
   ) {
     return "projection_estimate";
   }
@@ -172,6 +327,8 @@ export function mapQuestionKindToLegacyIntent(kind: AssistantQuestionKind): Lega
   switch (kind) {
     case "session_review":
       return "session_review";
+    case "prior_answer_correction":
+      return "general_training_question";
     case "coach_explanation":
       return "coach_explanation";
     case "template_review":

@@ -19,7 +19,17 @@ import {
   classifyAssistantQuestionKind,
   mapQuestionKindToLegacyIntent,
   type AssistantQuestionKind,
+  type AssistantThreadTurn,
 } from "@/lib/assistantQuestionRouting";
+import { buildAssistantEvidenceScopeBlock } from "@/lib/assistantAnswerScope";
+import type { BenchContextSummary } from "@/lib/benchContext";
+import type { Bench1RMEstimate } from "@/lib/bench1rm";
+import {
+  buildWorkout,
+  type WorkoutBuilderGoal,
+  type RecoveryMode,
+} from "@/lib/workoutBuilder";
+import type { SessionType } from "@/lib/sessionTemplates";
 
 /** Mirrors client `coachStructuredOutput` — deterministic Coach tab output + evidence id hooks. */
 export type AssistantCoachStructuredOutput = {
@@ -138,19 +148,89 @@ export type AssistantBody = {
   };
   /** Optional bench projection estimate (client-owned). */
   benchProjection?: {
-    target1RM: number;
+    target1RM?: number;
     payloadUnit: "kg" | "lb";
     benchExerciseName: string;
+    /** Canonical max-of-recent-sessions e1RM — model must not contradict with a separate “current 1RM”. */
+    authoritativeEstimated1RM: number;
     currentEstimated1RM: number;
-    deltaE1RMPerSession: number;
-    sessionsEstimate: number;
-    workingWeights: Array<{ reps: number; weight: number }>;
+    estimateBasisLine: string;
+    progressionDeltaKgPerSession: number | null;
+    progressionDeltaExplanation: string;
+    sessionsEstimate: number | null;
+    gapToTarget: number | null;
+    workingWeights?: Array<{ reps: number; weight: number }>;
     recentBestSets: Array<{ completedAt: string; weight: number; reps: number; e1rm?: number }>;
+    heavyDay: {
+      topSetKgMin: number;
+      topSetKgMax: number;
+      repRangeLabel: string;
+      loggedTieIn: string;
+    };
+    heavyAnchor?: { completedAt: string; weight: number; reps: number; rir?: number };
+    volumeDay: {
+      workingKgMin: number;
+      workingKgMax: number;
+      repRangeLabel: string;
+      setsHint: string;
+      loggedTieIn: string;
+    };
+    volumeAnchor?: { completedAt: string; weight: number; reps: number; rir?: number } | null;
+    readinessLines: string[];
+    evidenceScopeLine?: string;
+    concreteHeavy?: { loggedBenchmark: string; nearerTargetBand: string };
+    concreteVolume?: { loggedBenchmark: string; nearerTargetBand: string };
+    readinessSignals?: string[];
+    coachFacing?: {
+      evidenceLead: string;
+      bestCurrentRead: string;
+      heavyBenchDay: string;
+      volumeBenchDay: string;
+      whenTargetLooksRealistic: string;
+      nextMove: string;
+    };
+    subsectionEvidenceLock?: string;
   };
+  benchContext?: BenchContextSummary;
+  benchEstimate?: Bench1RMEstimate;
 };
 
 export type AssistantResponse = {
   reply: string;
+  structuredWorkout?: {
+    sessionTitle: string;
+    sessionGoal: string;
+    purposeSummary: string;
+    exercises: Array<{
+      slot: string;
+      exercise: string;
+      sets: string;
+      reps: string;
+      rir: string;
+      rest: string;
+      rationale: string;
+    }>;
+    note: string;
+  };
+  structuredProgramme?: {
+    programmeTitle: string;
+    programmeGoal: string;
+    notes: string;
+    days: Array<{
+      dayLabel: string;
+      sessionType: string;
+      purposeSummary: string;
+      exercises: Array<{
+        slotLabel: string;
+        exerciseName: string;
+        sets: string;
+        reps: string;
+        rir: string;
+        rest: string;
+        rationale: string;
+      }>;
+    }>;
+  };
 };
 
 export type AssistantIntent =
@@ -215,6 +295,225 @@ function withDefaultsForCoaching(parsed: ParsedContext): Required<ParsedContext>
   };
 }
 
+function inferSessionTypeFromMessage(message: string): SessionType | null {
+  const t = message.toLowerCase();
+  if (/\blegs?\b|\bleg day\b|\blower body\b/.test(t)) return "legs";
+  if (/\bpush\b|\bpush day\b/.test(t)) return "push";
+  if (/\bpull\b|\bpull day\b/.test(t)) return "pull";
+  if (/\bchest\b/.test(t)) return "chest";
+  if (/\bback\b/.test(t)) return "back";
+  if (/\bshoulders?\b|\bdelts?\b/.test(t)) return "shoulders";
+  if (/\barms?\b/.test(t)) return "arms";
+  if (/\bupper\b/.test(t)) return "upper";
+  if (/\blower\b/.test(t)) return "lower";
+  if (/\bfull[\s-_]?body\b|\bfull workout\b/.test(t)) return "full_body";
+  return null;
+}
+
+function inferSessionTypeFromContext(args: {
+  message: string;
+  coachingContext?: CoachingContext;
+}): SessionType {
+  const explicit = inferSessionTypeFromMessage(args.message);
+  if (explicit) return explicit;
+  const split = args.coachingContext?.inferred?.split ?? "";
+  const s = split.toLowerCase();
+  if (s.includes("push_pull_legs")) return "push";
+  if (s.includes("upper_lower")) return "upper";
+  if (s.includes("full_body")) return "full_body";
+  return "upper";
+}
+
+function inferWorkoutBuilderGoal(
+  message: string,
+  priorityGoal?: string
+): WorkoutBuilderGoal {
+  const t = message.toLowerCase();
+  const p = (priorityGoal ?? "").toLowerCase();
+  if (/\bbench\b/.test(t) || p.includes("bench")) return "bench_strength_emphasis";
+  if (/\bchest\b/.test(t) || p.includes("chest")) return "chest_emphasis";
+  if (/\bstrength\b/.test(t) || p.includes("strength")) return "improve_overall_strength";
+  if (/\bhypertrophy\b|\bmuscle\b/.test(t) || p.includes("hypertrophy")) return "build_overall_muscle";
+  if (/\bupper\b/.test(t)) return "upper_body_emphasis";
+  return "balanced";
+}
+
+function inferEquipmentFromParsed(parsed: ParsedContext): string[] {
+  if (parsed.equipment === "minimal") return ["bodyweight", "dumbbells", "bench", "floor"];
+  if (parsed.equipment === "home") return ["barbell", "rack", "bench", "dumbbells", "pullup_bar"];
+  return [
+    "barbell",
+    "rack",
+    "bench",
+    "dumbbells",
+    "cable_machine",
+    "pullup_bar",
+    "leg_curl_machine",
+    "leg_extension_machine",
+  ];
+}
+
+function renderBuiltWorkoutReply(workout: ReturnType<typeof buildWorkout>): string {
+  const lines: string[] = [`Session: ${workout.purposeSummary}`, "", "Workout:", ""];
+  for (const [idx, ex] of workout.exercises.entries()) {
+    lines.push(`${idx + 1}) ${ex.slotLabel}`);
+    lines.push(`- Exercise: ${ex.exerciseName}`);
+    lines.push(
+      `- Prescription: ${ex.sets.min}-${ex.sets.max} sets · ${ex.repRange.min}-${ex.repRange.max} reps · ${ex.rirRange.min}-${ex.rirRange.max} RIR · ${ex.restSeconds.min}-${ex.restSeconds.max}s rest`
+    );
+    lines.push("");
+  }
+  const practical =
+    workout.notes[0] ??
+    workout.warnings[0] ??
+    "Run compounds first, then accessories, and keep execution quality high.";
+  lines.push(`Practical note: ${practical}`);
+  if (workout.warnings.length > 0) {
+    lines.push("");
+    lines.push("Watch-outs:");
+    for (const warning of workout.warnings.slice(0, 2)) {
+      lines.push(`- ${warning}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function toStructuredWorkout(workout: ReturnType<typeof buildWorkout>): NonNullable<AssistantResponse["structuredWorkout"]> {
+  const sessionTitle = `${workout.sessionType.replace("_", " ")} workout`;
+  const sessionGoal = workout.purposeSummary;
+  const note =
+    workout.notes[0] ??
+    workout.warnings[0] ??
+    "Run compounds first, then accessories, and keep execution quality high.";
+  return {
+    sessionTitle,
+    sessionGoal,
+    purposeSummary: workout.purposeSummary,
+    exercises: workout.exercises.map((ex) => ({
+      slot: ex.slotLabel,
+      exercise: ex.exerciseName,
+      sets: `${ex.sets.min}-${ex.sets.max}`,
+      reps: `${ex.repRange.min}-${ex.repRange.max}`,
+      rir: `${ex.rirRange.min}-${ex.rirRange.max}`,
+      rest: `${ex.restSeconds.min}-${ex.restSeconds.max}s`,
+      rationale: ex.rationale,
+    })),
+    note,
+  };
+}
+
+function isProgrammeBuildRequest(message: string): boolean {
+  const t = message.toLowerCase();
+  return (
+    /\b(program|programme|split|routine|weekly plan|full plan|training plan)\b/.test(t) ||
+    /\b(push pull legs|ppl|upper lower)\b/.test(t) ||
+    /\b\d+\s*(day|days)\b/.test(t)
+  );
+}
+
+function buildStructuredProgramme(params: {
+  message: string;
+  priorityGoal?: string;
+  recoveryMode: RecoveryMode;
+  equipmentAvailable: string[];
+}): NonNullable<AssistantResponse["structuredProgramme"]> | null {
+  const t = params.message.toLowerCase();
+  const goal = inferWorkoutBuilderGoal(params.message, params.priorityGoal);
+  const toDay = (dayLabel: string, sessionType: SessionType) => {
+    const built = buildWorkout({
+      sessionType,
+      goal,
+      recoveryMode: params.recoveryMode,
+      equipmentAvailable: params.equipmentAvailable,
+    });
+    return {
+      dayLabel,
+      sessionType,
+      purposeSummary: built.purposeSummary,
+      exercises: built.exercises.map((ex) => ({
+        slotLabel: ex.slotLabel,
+        exerciseName: ex.exerciseName,
+        sets: `${ex.sets.min}-${ex.sets.max}`,
+        reps: `${ex.repRange.min}-${ex.repRange.max}`,
+        rir: `${ex.rirRange.min}-${ex.rirRange.max}`,
+        rest: `${ex.restSeconds.min}-${ex.restSeconds.max}s`,
+        rationale: ex.rationale,
+      })),
+    };
+  };
+
+  if (/\b(push pull legs|ppl)\b/.test(t)) {
+    return {
+      programmeTitle: "Push Pull Legs Programme",
+      programmeGoal: "Hypertrophy-oriented weekly structure with coherent fatigue and movement coverage.",
+      notes: "Run compounds first, isolate after. Keep progression small and repeatable week to week.",
+      days: [
+        toDay("Day 1 - Push", "push"),
+        toDay("Day 2 - Pull", "pull"),
+        toDay("Day 3 - Legs", "legs"),
+      ],
+    };
+  }
+  if (/\b(upper lower)\b/.test(t)) {
+    return {
+      programmeTitle: "Upper Lower Split",
+      programmeGoal: "Balanced hypertrophy split with repeatable recovery across the week.",
+      notes: "Alternate upper and lower days. Keep one rep in reserve on most working sets early in the week.",
+      days: [
+        toDay("Day 1 - Upper", "upper"),
+        toDay("Day 2 - Lower", "lower"),
+        toDay("Day 3 - Upper", "upper"),
+        toDay("Day 4 - Lower", "lower"),
+      ],
+    };
+  }
+  const dayMatch = t.match(/\b([3-6])\s*(day|days)\b/);
+  const dayCount = dayMatch ? Number(dayMatch[1]) : 0;
+  if (dayCount >= 3) {
+    const order: SessionType[] =
+      dayCount === 3
+        ? ["upper", "lower", "full_body"]
+        : dayCount === 4
+          ? ["upper", "lower", "upper", "lower"]
+          : dayCount === 5
+            ? ["push", "pull", "legs", "upper", "lower"]
+            : ["push", "pull", "legs", "upper", "lower", "full_body"];
+    return {
+      programmeTitle: `${dayCount}-Day Training Plan`,
+      programmeGoal: "Structured weekly hypertrophy plan with balanced movement coverage.",
+      notes: "Keep progression conservative. If fatigue accumulates, reduce one accessory slot before dropping compounds.",
+      days: order.map((s, i) => toDay(`Day ${i + 1} - ${s.replace("_", " ")}`, s)),
+    };
+  }
+  return {
+    programmeTitle: "Structured Training Programme",
+    programmeGoal: "Weekly plan generated from your prompt with coherent fatigue and movement coverage.",
+    notes: "Progress with small load/rep jumps and keep execution quality high.",
+    days: [toDay("Day 1 - Upper", "upper"), toDay("Day 2 - Lower", "lower")],
+  };
+}
+
+function renderStructuredProgrammeText(
+  programme: NonNullable<AssistantResponse["structuredProgramme"]>
+): string {
+  const lines: string[] = [
+    `${programme.programmeTitle}`,
+    programme.programmeGoal,
+    "",
+  ];
+  for (const day of programme.days) {
+    lines.push(`${day.dayLabel} (${day.sessionType})`);
+    for (const ex of day.exercises) {
+      lines.push(
+        `- ${ex.slotLabel}: ${ex.exerciseName} — ${ex.sets} sets, ${ex.reps} reps, ${ex.rir} RIR, ${ex.rest} rest`
+      );
+    }
+    lines.push("");
+  }
+  lines.push(`Note: ${programme.notes}`);
+  return lines.join("\n");
+}
+
 function hasMinimumViableContext(parsed: ParsedContext): boolean {
   return Boolean(
     parsed.goal &&
@@ -224,13 +523,96 @@ function hasMinimumViableContext(parsed: ParsedContext): boolean {
   );
 }
 
+type ExplicitEvidenceAnchor = {
+  id:
+    | "heavy_bench"
+    | "volume_bench"
+    | "most_recent_session"
+    | "named_session_type"
+    | "named_exercise";
+  label: string;
+  detail: string;
+};
+
+function normalizeAnchorText(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** User-explicit evidence anchor from the message: primary source hint for weighting rules. */
+function detectExplicitEvidenceAnchor(
+  message: string,
+  activeExerciseTopic: string | undefined
+): ExplicitEvidenceAnchor | null {
+  const t = normalizeAnchorText(message);
+
+  if (
+    /\b(last|latest|most recent)\s+(heavy)\s+(bench|bench press|bench session|bench day)\b/.test(t) ||
+    /\b(given|based)\b.*\bheavy\s+bench\b/.test(t) ||
+    /\bheavy\s+bench\b.*\b(session|day)\b/.test(t)
+  ) {
+    return {
+      id: "heavy_bench",
+      label: "Explicit user anchor: heavy bench",
+      detail: "Primary = heavy-bench evidence (e.g., top sets in heavy range). Volume bench can support, not replace.",
+    };
+  }
+
+  if (
+    /\b(last|latest|most recent)\s+(volume)\s+(bench|bench press|bench session|bench day)\b/.test(t) ||
+    /\b(given|based)\b.*\bvolume\s+bench\b/.test(t) ||
+    /\bvolume\s+bench\b.*\b(session|day)\b/.test(t)
+  ) {
+    return {
+      id: "volume_bench",
+      label: "Explicit user anchor: volume bench",
+      detail: "Primary = volume-bench evidence (6+ rep bench exposures). Heavy bench can support, not replace.",
+    };
+  }
+
+  if (
+    /\b(most recent|latest|last)\s+(workout|session|day)\b/.test(t) ||
+    /\bbased on my (most )?recent\b/.test(t)
+  ) {
+    return {
+      id: "most_recent_session",
+      label: "Explicit user anchor: most recent session",
+      detail: "Primary = exact latest logged session they named. Wider trends only as supporting context.",
+    };
+  }
+
+  if (/\b(chest and back|push pull|upper lower|legs|pull day|push day|chest day|back day)\b/.test(t)) {
+    return {
+      id: "named_session_type",
+      label: "Explicit user anchor: named session type",
+      detail: "Primary = matching session/day type in logs. Other days can support only if clearly labeled secondary.",
+    };
+  }
+
+  const exerciseMention =
+    t.match(
+      /\b(bench press|barbell bench|bench|squat|deadlift|row|overhead press|ohp|lat pulldown|pull[- ]?up|chin[- ]?up|curl)\b/
+    )?.[1] ?? null;
+  if (exerciseMention || activeExerciseTopic?.trim()) {
+    const ex = exerciseMention ?? activeExerciseTopic?.trim() ?? "named exercise";
+    return {
+      id: "named_exercise",
+      label: "Explicit user anchor: named exercise",
+      detail: `Primary = ${ex} evidence only; other lifts are secondary context.`,
+    };
+  }
+
+  return null;
+}
+
 /**
  * Legacy intent label (logging / compatibility). Prefer `classifyAssistantQuestionKind` for routing.
  */
 export function classifyAssistantIntent(message: string): AssistantIntent {
   const t = message.trim().toLowerCase();
   if (!t) return "unknown";
-  return mapQuestionKindToLegacyIntent(classifyAssistantQuestionKind(message)) as AssistantIntent;
+  return mapQuestionKindToLegacyIntent(
+    classifyAssistantQuestionKind(message)
+  ) as AssistantIntent;
 }
 
 function isStringArray(a: unknown): a is string[] {
@@ -501,8 +883,37 @@ GLOBAL REPLY DISCIPLINE (all questions):
 - Separate "logged fact" vs "coaching inference" visibly; follow INFERENCE & CERTAINTY rules above for hedging.
 - Do not name exercises the user did not ask about unless clearly useful; if you add one, label it as optional context.
 - Match depth to the question: default to short; expand only when the user asked for detail, breakdown, or "every set".
-- Do not use report-style labels like "A)", "B)", "C)" in user-facing text.
+- Do not use report-style labels like "A)", "B)", "C)" in user-facing text — including when a task used internal steps A/B/C; write flowing prose instead.
+- Do not reuse one generic multi-section template for every question type. Follow the FORMAT HINT for this turn in the task above; only use extra headings when that hint or the Bench projection rules explicitly call for them.
+- Exception (bench + projection block only): use exactly these four headings with colons as scan anchors — “Best current read:”, “Why:”, “Supporting evidence:”, “Next move:” — with brief copy under each (see FINAL RESPONSE POLISH).
 - Calibrate confidence: thin logs → one short line on what you cannot know.
+`.trim();
+
+/** Applied last — writing quality and scan layout; does not override evidence or routing rules above. */
+const FINAL_RESPONSE_POLISH_BLOCK = `
+FINAL RESPONSE POLISH (apply before you finish — user-visible text only):
+
+Grammar & mechanics:
+- Normal sentence capitalization; capitalize exercise names and “I” only where standard English expects it. No random Title Case or mid-sentence capitals for emphasis.
+- Clean punctuation (commas, periods, apostrophes); no run-ons; no half-finished trailing clauses.
+- Prefer contractions where they sound natural in a coach voice (“you’re”, “it’s”) when they read smoothly.
+
+Digestibility (mobile / in-app):
+- Put the direct answer in the first line or first very short paragraph (one to two sentences max).
+- Use short paragraphs: one to three sentences each; add a blank line between paragraphs so the reply is easy to scan.
+- Use “- ” bullets only when they genuinely help (e.g. a few distinct numbers or takeaways). One idea per bullet; do not bullet every sentence.
+- Avoid dense walls of text and avoid stacking many labeled sections unless this turn’s task explicitly requires that structure.
+- If you use headings, render them cleanly with a colon (e.g., “Best current read:”) and put the content on the next line or same line consistently.
+
+Tone:
+- Sound like a polished coach: calm, specific, human — not robotic, not a slide deck, not a lab report.
+
+Question-type fit (default shapes — tighten further if the task above says otherwise):
+- Factual recall: answer first, blank line, then at most one or two short supporting lines (no extra headings).
+- Session review: one-line verdict, blank line, three or four “- ” bullets, blank line, one “Next step:” line.
+- Recommendation: what to do first, blank line, brief why from logs, optional single “Next:” line.
+- Progression: open with improving / stable / mixed / too early to tell (pick one honest read), then two to four short sentences — no fake subsection headers.
+- Bench projection (when block present): keep the four headings (“Best current read:”, “Why:”, “Supporting evidence:”, “Next move:”); at most two short sentences each unless the user asked for depth; blank line between sections; keep heavy vs volume evidence separation inside “Why:” and use “Supporting evidence:” for secondary context only.
 `.trim();
 
 async function getAssistantReply(
@@ -522,12 +933,16 @@ async function getAssistantReply(
   activeExerciseTopic: string | undefined,
   activeExerciseLastSession: AssistantBody["activeExerciseLastSession"] | undefined,
   benchProjection: AssistantBody["benchProjection"] | undefined,
+  benchContext: AssistantBody["benchContext"] | undefined,
+  benchEstimate: AssistantBody["benchEstimate"] | undefined,
   coachingContext: CoachingContext | undefined,
   exerciseTrends: NonNullable<AssistantBody["exerciseTrends"]>,
   trainingInsights: AssistantBody["trainingInsights"] | undefined,
   priorityGoalExerciseInsight: AssistantBody["priorityGoalExerciseInsight"],
   coachStructuredOutput: AssistantCoachStructuredOutput | undefined,
-  evidenceCards: AssistantEvidenceCard[]
+  evidenceCards: AssistantEvidenceCard[],
+  priorAssistantTurnContent: string | null | undefined,
+  explicitAnchor: ExplicitEvidenceAnchor | null
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -773,7 +1188,8 @@ TONE:
   const shouldTryExerciseLock =
     questionKind === "exact_factual_recall" ||
     questionKind === "exercise_progression" ||
-    questionKind === "coaching_recommendation";
+    questionKind === "coaching_recommendation" ||
+    questionKind === "prior_answer_correction";
 
   const resolvedExercise = shouldTryExerciseLock
     ? resolveExerciseFromMessage(
@@ -793,16 +1209,42 @@ TONE:
         })
       : "";
 
-  const routingPreamble = `
+  const correctionTurnRule =
+    questionKind === "prior_answer_correction"
+      ? "- This turn is PRIOR_ANSWER_CORRECTION: the user is disputing or clarifying your last reply — follow CORRECTION MODE in the task (narrow A→D repair first). Do not repeat or restructure your entire prior answer unless they explicitly ask for the full version again.\n"
+      : "";
+  const explicitAnchorRule = explicitAnchor
+    ? `- EXPLICIT USER ANCHOR: ${explicitAnchor.label}. ${explicitAnchor.detail}\n- Evidence weighting order (mandatory): primary = explicit user anchor; secondary = directly relevant supporting evidence; tertiary = broader recent context.\n- Do not let secondary or tertiary evidence replace the primary anchor benchmark.\n`
+    : "";
+  const explicitAnchorValidationRule = explicitAnchor
+    ? "- Before finalizing any estimate: validate anchor fit in order: (1) identify named anchor, (2) name the exact matching logged benchmark for that anchor, (3) confirm the estimate is anchored to that benchmark. If validation fails, say anchor evidence is missing or ambiguous rather than silently switching anchors.\n"
+    : "";
+
+  const routingPreambleBase = `
 QUESTION KIND (routing): ${questionKind}
 INTENT (legacy label): ${effectiveIntent}
 
 GLOBAL RULES (always):
-- Only use detailed recent-training / coach-log analysis when the user's question is actually about recent training, their week, or coach output—or when explaining coach output in coach_explanation using the blocks provided for that purpose.
+${correctionTurnRule}- Only use detailed recent-training / coach-log analysis when the user's question is actually about recent training, their week, or coach output—or when explaining coach output in coach_explanation using the blocks provided for that purpose.
+${explicitAnchorRule}
+${explicitAnchorValidationRule}
 - Do not answer a different question just because training data is available.
 - Do not pivot unrelated questions into bench/support-volume or generic weekly analysis unless the intent is recent_training_analysis.
 - If LOGGED TRAINING above shows workouts exist, never ask the user to describe their whole program from scratch; use the digest and structured fields.
+- Multi-part answers: each subsection (e.g. heavy day vs volume day vs one session vs weekly totals) must cite only evidence that matches that subsection. Do not let the strongest global benchmark replace a more specific anchor for another subsection.
 `;
+
+  const evidenceScopeBlock = buildAssistantEvidenceScopeBlock({
+    questionKind,
+    message,
+    hasExerciseLogAnchor: Boolean(exerciseLogAnchorBlock),
+    hasSessionReview: questionKind === "session_review",
+    hasBenchProjection: Boolean(benchProjection),
+    activeExerciseTopic,
+  });
+
+  const routingPreamble = `${routingPreambleBase}
+${evidenceScopeBlock}`;
 
   const insightsBlock =
     trainingInsights
@@ -810,7 +1252,11 @@ GLOBAL RULES (always):
       : "";
 
   const trendsBlock = trendsStr
-    ? `exerciseTrends (use for progression / plateau language tied to actual loads and reps):\n${trendsStr}\n`
+    ? `exerciseTrends (use for progression / plateau language tied to actual loads and reps):\n${
+        exerciseLogAnchorBlock
+          ? "When EXERCISE LOG ANCHOR is present, use only the trend row for that same exercise — ignore other lifts’ rows for this answer.\n"
+          : ""
+      }${trendsStr}\n`
     : "";
 
   const analysisInputs = buildAnalysisInputs(
@@ -879,6 +1325,8 @@ Minimum viable context explicitly provided in this message: ${mvcPresent ? "yes"
 User question:
 ${message}
 
+FORMAT HINT (advisory): use the four labels Split / Reps / RIR / Progression on their own lines, each followed by one or two short sentences — not long paragraphs under each.
+
 Reply in plain language as a coach. 4-8 concise sentences with clear section flow:
 "Split:", "Reps:", "RIR:", "Progression:".`;
       break;
@@ -901,6 +1349,8 @@ ${profileStr ? `User profile: ${profileStr}.` : ""}
 User question:
 ${message}
 
+FORMAT HINT (coach explanation): one short opening line, blank line, then 3–5 short sentences — no extra headings.
+
 Answer in plain language. 3–5 short sentences. Focus on "why" and practical meaning.`;
       break;
     case "clarification":
@@ -919,6 +1369,8 @@ The user's question may be broad or underspecified.
 ${trainingSummary.totalWorkouts > 0 ? `${context}\n${insightsBlock ? insightsBlock : ""}\n` : ""}
 User question:
 ${message}
+
+FORMAT HINT (clarification): direct answer first, then at most one short paragraph; avoid labeled sections.
 `;
       break;
     case "analysis":
@@ -937,45 +1389,88 @@ Hard rules:
 User question:
 ${message}
 
+FORMAT HINT (memory / thread): 2–4 short sentences, blank line optional between distinct points — no headings.
+
 Reply in 2–4 short sentences unless they asked for detail.`;
-      } else if (questionKind === "session_review") {
+      } else if (questionKind === "prior_answer_correction") {
+        const priorRaw = (priorAssistantTurnContent ?? "").trim();
+        const priorCapped =
+          priorRaw.length > 4500 ? `${priorRaw.slice(0, 4500)}… [truncated]` : priorRaw;
+        const priorBlock =
+          priorCapped ||
+          "(Full prior assistant text not attached to this request — use RECENT CHAT snippet below if it includes that reply; otherwise say you cannot see the exact prior wording and ask them to paste the sentence they dispute.)";
         input = `
-You are an elite strength coach. The user asked about one specific logged session — answer for mobile: scannable, premium, not a written report.
+You are a careful strength coach repairing a prior reply after the user challenged it, asked what you meant, or pointed out a mistake.
 
 ${routingPreamble}
 
-Anchoring (non-negotiable):
-- Use SESSION ANCHOR only for lift names and facts: EXERCISES, SESSION STRUCTURE, RIR line, priors, SIMILAR PRIOR SESSION, RECENT SESSION ORDER (titles/dates).
+PRIOR ASSISTANT TURN (verbatim — for diagnosis only; do NOT paste this whole block back to the user):
+"""
+${priorBlock}
+"""
+
+CORRECTION / CLARIFICATION MODE — classify their message as: correction request, dispute of a factual claim, or clarification about a prior statement.
+
+Mandatory response order (internal — do not prefix lines with A), B), or “Step” in the user-visible reply; use short paragraphs with blank lines between):
+A) One short sentence: name the exact claim they are pushing back on (quote or paraphrase precisely).
+B) One short sentence: whether you were wrong, partially wrong, imprecise, or they clarified scope — if you were wrong, say so directly (“I was wrong about …”). No defensiveness. Skip “I’m an AI” / “I’m here to help” filler when the issue is factual.
+C) Correct the claim using the best evidence in this request (SESSION ANCHOR, EXERCISE LOG ANCHOR, bench projection COACH LINES, exerciseTrends, trainingInsights, LOGGED TRAINING digest). If logs support the user, agree explicitly.
+D) One sentence: what the corrected picture means in plain language.
+E) Optional: at most 1–2 sentences of broader coaching only if clearly useful — only after A–D.
+
+Repetition ban (critical):
+- Do NOT reproduce your prior answer at length or re-run the same multi-section structure (e.g. all five bench headings, full session review essay) unless the user explicitly asks you to repeat the full answer.
+- Ignore other instructions in this prompt that ask for ~150–190 words or five bench section headings on this turn — this is a surgical fix unless they ask to regenerate everything.
+
+Length: default ~60–120 words unless they asked for more detail.
+
+${coachStructuredOutput ? `If the dispute is about Coach-tab output, treat coachStructuredOutput + evidenceCards as authoritative for what the coach said; repair any mismatch between that and your prior free-text reply.\n${coachAuthorityBlock}` : ""}
+
+${trainingSummary.totalWorkouts > 0 ? `${context}\n` : ""}${insightsBlock ? `${insightsBlock}\n` : ""}${trendsStr ? `${trendsBlock}\n` : ""}
+${profileStr ? `User profile (constraints only): ${profileStr}.\n` : ""}
+${constraintsStr ? `User constraints: ${constraintsStr}\n` : ""}
+
+User follow-up (challenge / clarification):
+${message}
+`;
+      } else if (questionKind === "session_review") {
+        input = `
+You are a sharp, practical strength coach texting feedback after one session. Sound human and confident, not like an analytics export.
+
+${routingPreamble}
+
+Anchoring (non-negotiable — logic stays strict):
+- Use SESSION ANCHOR only: EXERCISES, SESSION STRUCTURE, RIR line, PER-EXERCISE PRIOR LOGS, COMPARISON GROUNDING, SIMILAR PRIOR SESSION, RECENT SESSION ORDER (titles/dates).
 - Do not name exercises outside EXERCISES. Ignore exerciseTrends, trainingInsights lists, digest exercise lines, and chat for naming lifts.
 - "Introduced / newly added" only if SESSION ANCHOR explicitly allows vs the immediately prior session; otherwise say "included" or "part of the session".
 
-DEFAULT IN-APP FORMAT (use unless the user explicitly asked for full detail, set-by-set breakdown, or "every set"):
-1) Verdict: one short opening line (plain sentence, no "A)" prefix) — session type + headline takeaway.
+COMPARISON SAFETY (mandatory — same accuracy rules, natural wording out):
+- NEW BASELINE / NO TREND DATA lifts: never imply usual, typical, trend, better/worse vs history. Say it like a coach: e.g. "First time this lift shows up in what I can see — repeat it next time and we’ll know more" or "This gives you a starting point for next week."
+- COMPARABLE TO PRIOR LOG ONLY: improved / held steady / dipped slightly only vs those prior dated lines; if messy, say it in plain language ("harder to call — looks mixed").
+
+COACH VOICE (default session reviews — avoid report tone):
+- Do NOT sound like a spreadsheet: avoid "max X reps, min Y reps", "average RIR ~0.42 across N sets", or lab-style summaries unless the user explicitly asked for detailed analytics.
+- When RIR is logged in the anchor, prefer everyday coaching lines: e.g. "most work was very close to failure", "effort looked controlled", "RIR was mostly logged on the low side" — not decimal averages unless they asked.
+- Weave in weights/reps where they help the story ("same 90 as last time, last set just fell off one rep") instead of listing every set mechanically.
+- Keep COMPARISON GROUNDING rules but phrase them warmly: e.g. "matched what you did last session" not "metrics aligned with prior observation".
+
+FORMAT HINT (session review — use only this shape; no extra titled blocks like “Summary” or “Overview”):
+1) One opening line: verdict — what kind of day + main takeaway (coach tone, no “Verdict:” label).
 2) Blank line.
-3) Bullets: exactly 3–4 lines, each starting with "- ". One idea per bullet; max ~18 words. Reference only numbers that matter — do not restate every set. Apply INFERENCE & CERTAINTY: separate logged facts from guesses (e.g. rep drop = fact; "fatigue" = hedged).
+3) Bullets: 3–4 lines with "- " (use a 5th only if the anchor clearly needs it). One clear point per bullet; natural language, not metrics soup. Max ~18 words per bullet when possible.
 4) Blank line.
-5) Next step: one line starting with "Next step: " — single clear action.
+5) One line starting with "Next step: " — one specific action (load, reps, sets, rest, or repeat to confirm). Avoid vague "monitor recovery" unless the anchor supports it.
 
-Layout: do not output one dense block — use blank lines between verdict, bullet list, and next step. No dash-heavy chains (avoid multiple "—" or mid-sentence "-" clauses in a row). No long paragraphs in the default layer.
+Layout: blank lines between verdict, bullets, and next step. No dense wall of text. No dash-stacking beyond these bullets.
 
-Target ~80–160 words for this default block. No A), B), C); no debug tone.
+Length: ~80–150 words default. Premium and concise.
 
-OPTIONAL DEEPER LAYER (only if it adds value — after one blank line following the default block):
-Use plain section titles on their own line (works without markdown rendering), then bullets:
-Evidence
-- Extra numeric detail only if not already implied above.
+Style bans: "solid", "fits well", "balanced", empty hype — unless tied to a concrete fact from the anchor in the same breath.
 
-Compared to last time
-- Only if SESSION ANCHOR has prior/similar data; otherwise omit this entire section.
+OPTIONAL DEEPER LAYER (only after a blank line, if useful):
+Evidence / Compared to last time / Why this matters — short bullets only; still coach voice, not a data dump.
 
-Why this matters
-- 1–2 bullets max; keep coaching implications hedged unless a note or metric in the anchor supports a stronger claim.
-
-If the user asked for depth, you may expand within these sections — still avoid wall-of-text and lettered lists.
-
-RIR: if anchor says none logged, do not state RIR as fact; optional "pattern from the log" phrasing for rep/load shape.
-
-Style: direct, coach-like. Ban empty filler ("solid session", "balanced nicely", "complemented well") unless tied to a concrete anchor fact in the same breath.
+RIR: if anchor says none logged, do not invent RIR numbers; you may reference load/rep feel in hedged coach language.
 
 ${profileStr ? `User profile (constraints only): ${profileStr}.` : ""}
 ${constraintsStr ? `User constraints (hard overrides): ${constraintsStr}` : ""}
@@ -983,7 +1478,7 @@ ${constraintsStr ? `User constraints (hard overrides): ${constraintsStr}` : ""}
 User question:
 ${message}
 
-If SESSION ANCHOR says data is missing, one short verdict + one bullet + next step to log/sync — no invention.`;
+If SESSION ANCHOR says data is missing, brief coach line + one bullet + next step to log — no invention.`;
       } else if (questionKind === "exact_factual_recall") {
         input = `
 You are answering a precise factual question about logged training.
@@ -996,13 +1491,15 @@ Hard rules:
 - Treat non-completed rows as not performed; never cite blank or zero-rep rows as reps achieved.
 - Do not drift to unrelated exercises or weekly narratives unless the user asked.
 
+FORMAT HINT (factual recall): first line = the direct answer (the numbers/dates they asked for). Blank line. Then at most two short supporting sentences. No section headings. Bullets only if you are listing several distinct logged facts.
+
 ${profileStr ? `User profile (constraints only): ${profileStr}.` : ""}
 ${constraintsStr ? `User constraints (hard overrides): ${constraintsStr}` : ""}
 
 User question:
 ${message}
 
-Reply: number-first, 2–5 short sentences.`;
+Reply: number-first, tight and scannable.`;
       } else if (questionKind === "exercise_progression") {
         input = `
 You are analyzing progression for one lift using logs.
@@ -1014,6 +1511,8 @@ Hard rules:
 - You may supplement with exerciseTrends / exerciseInsights rows ONLY for the same exercise name if present; do not switch to a different lift.
 - State what changed (load, reps, set count) or that the log is too thin — label inference vs fact.
 - Mention consistency or within-session rep fall-off only when visible in the anchor/trends.
+
+FORMAT HINT (progression): first sentence = honest headline — improving, roughly stable, mixed, or too early to tell from the log. Then two to four short sentences with specifics (loads/reps/dates). No subsection headers or bullet list unless the user asked for a breakdown.
 
 ${trendsStr ? `${trendsBlock}` : ""}
 ${insightsBlock ? `\n${insightsBlock}` : ""}
@@ -1034,6 +1533,26 @@ Hard rules:
 - Ground the answer in real logged performances from the payload (digest, exerciseTrends, bench projection block in subject when present).
 - Frame timelines and maxes as estimates, not promises. Avoid overconfident dates.
 - If data are sparse, say confidence is low and what extra logging would help.
+- If the user explicitly named an anchor context (heavy bench / volume bench / most recent session / named day / named exercise), open from that anchor first, then add other evidence as supporting context.
+${
+  benchProjection
+    ? `
+BENCH GOAL / PROJECTION (when the Bench projection block appears above):
+- DEFAULT REPLY = sharp coach note (~120–170 words). Follow the COACH LINES in the block; paraphrase lightly in a warm, readable voice.
+- STRUCTURE: use exactly these four headings with colons, each on its own line with a blank line between sections: “Best current read:” → “Why:” → “Supporting evidence:” → “Next move:”.
+- Under each heading: at most two short sentences unless the user asked for more depth.
+- In “Why:”, enforce evidence weighting: explicit user anchor first, directly relevant support second, broader context last.
+- In “Supporting evidence:”, include only secondary evidence and label it as supporting context (never as the primary benchmark).
+- NUMBERS: Stick to what COACH LINES already give — one best-current max read, one heavy-day range, one volume-day range. Do not stack extra formula bands, session tables, or “working weight” grids unless the user explicitly asks for detail.
+- EVIDENCE: If COACH LINES open with broader-context wording, keep that one light sentence — do not lecture about methodology.
+- SUBSECTION EVIDENCE: Obey SUBSECTION EVIDENCE LOCK in the bench block — “Volume bench day” must never recycle the heavy-day anchor numbers unless the lock explicitly says there is no volume data (then say so, don’t copy heavy).
+- BANNED in user-facing text: “authoritative”, “Epley”, “inverse”, “app window”, “estimate — not a promise”, long liability disclaimers, “interpretation… diagnosis”, or sounding like an internal calculation dump.
+- TIMELINES: Skip vague “a few months” unless you tie one short clause to their actual log trend and uncertainty; prefer readiness signs over dates.
+- For direct timeline/readiness questions (“when can I hit 120”, “how long until 120”), use this dedicated format instead: “Best current read:” → “Timeline (rough):” → “Readiness markers:” → “Next move:”.
+- Ban filler (“gradually increase intensity and volume”) unless the same breath includes specific loads/reps from COACH LINES.
+`
+    : ""
+}
 
 ${profileStr ? `User profile: ${profileStr}.` : ""}
 ${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
@@ -1043,7 +1562,9 @@ ${trendsStr ? trendsBlock : ""}
 User question:
 ${message}
 
-Reply: direct estimate + brief reasoning tied to logged numbers.`;
+FORMAT HINT: if no Bench projection block, use a short opening answer plus one blank line and two or three sentences — no multi-heading template. If the block is present, use the four-heading layout above (or timeline format when explicitly asked).
+
+Reply: follow the structure rules above when the Bench projection block is present; otherwise direct estimate + brief reasoning tied to logged numbers.`;
       } else if (questionKind === "volume_balance") {
         input = `
 You are answering a weekly volume / balance question.
@@ -1054,6 +1575,8 @@ Hard rules:
 - Use trainingInsights weekly volume / frequency and trainingSummary figures verbatim where provided; those counts reflect completed logged sets in the app window.
 - Name muscle groups with very low or zero logged sets as potentially under-sampled in the app, not necessarily "weak".
 - Tie recommendations to the user’s stated goal/profile when available; avoid generic "watch recovery" unless logs justify it.
+
+FORMAT HINT (volume / balance): lead with the key numbers in one or two sentences, blank line, then one short paragraph of implications (optional “- ” bullets if comparing 2–3 muscle groups).
 
 ${insightsBlock ? `${insightsBlock}` : ""}
 ${profileStr ? `User profile: ${profileStr}.` : ""}
@@ -1075,6 +1598,8 @@ Hard rules:
 - Explain why in 1–2 sentences using log facts; if EXERCISE LOG ANCHOR exists, prioritize it over unrelated trends.
 - Calibrate confidence: sparse history → say what you are unsure about.
 - Do not list unrelated exercises unless they are clearly tied to the same bottleneck.
+
+FORMAT HINT (recommendation): paragraph 1 = clear directive (what to do). Blank line. Paragraph 2 = why, tied to log facts in one or two sentences. Optional final line starting with "Next: " for the single best follow-up. No extra labeled sections.
 
 ${coachAuthorityBlock}
 ${evidenceDrivenReasoningBlock}
@@ -1111,12 +1636,10 @@ ${context}
 User question:
 ${message}
 
-Answer in plain language. 3–4 sentences; ~15–18 words each; one new idea per sentence; structure: progress → limiter → if unchanged → fix.
-Answer format:
-- one thing going well
-- one limiting factor or watch item
-- one next step
-- use the three analysis anchors below explicitly; do not replace them with generic RIR advice unless the top issue is RIR/effort related.
+FORMAT HINT (week / training analysis): either (a) three short paragraphs with blank lines between — what’s going well, what to watch, next step — or (b) three “- ” bullets for those same beats plus one closing line. Keep sentences short; one idea per sentence. Do not add extra headers beyond what scan needs.
+
+Answer in plain language. 3–4 sentences; ~15–18 words each; one new idea per sentence; cover: progress → limiter → fix.
+- Use the three analysis anchors below explicitly; do not replace them with generic RIR advice unless the top issue is RIR/effort related.
 - Stay on the user’s question; cite the smallest set of exercises that actually answers it — avoid unrelated “also your X” drift.
 
 Target style example:
@@ -1144,6 +1667,8 @@ ${context}
 User question:
 ${message}
 
+FORMAT HINT: one short opening line, blank line, then 3–5 short sentences — no extra headings; optional closing takeaway line.
+
 Answer in plain language. 3–5 short sentences. Focus on "why" the coach said what it said.
 `;
       } else if (effectiveIntent === "template_review") {
@@ -1163,6 +1688,8 @@ ${context}
 
 User question:
 ${message}
+
+FORMAT HINT: direct answer first, then short supporting detail; use “- ” bullets only if comparing days or options.
 
 Answer directly about templates/programs. If template data was missing above, ask clearly for the missing details before reviewing. Do not default to recent-session training analysis.
 `;
@@ -1186,6 +1713,8 @@ ${trendsStr ? trendsBlock : ""}
 User question:
 ${message}
 
+FORMAT HINT: opening answer in one or two sentences, blank line, then brief context if needed — no multi-section template unless bench projection rules apply above.
+
 Reply in plain language, concise (3–5 sentences unless they asked for detail).
 `;
       } else if (effectiveIntent === "goal_question") {
@@ -1195,6 +1724,13 @@ You are an elite strength coach.
 ${routingPreamble}
 
 Answer about goals, phases (bulk/cut), strength vs hypertrophy, or priorities. Use profile when helpful. Do not open with unrelated weekly log analysis unless the question ties to it.
+${
+  benchProjection
+    ? `
+Bench projection block is available: if the question is how bench sessions should look for a target max, follow the block’s COACH LINES (premium coach tone, no technical jargon in the user reply) — same density rules as projection_estimate.
+`
+    : ""
+}
 ${profileStr ? `User profile: ${profileStr}.` : ""}
 ${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
 ${inferredStr}
@@ -1205,6 +1741,8 @@ ${context}
 
 User question:
 ${message}
+
+FORMAT HINT: match the question shape — short Q gets a short reply; avoid extra headings unless the bench projection block rules apply.
 
 Reply in plain language, concise.
 `;
@@ -1228,6 +1766,8 @@ ${trendsStr ? trendsBlock : ""}
 
 User question:
 ${message}
+
+FORMAT HINT: default = one short paragraph or two with a blank line between; no invented section headers.
 
 Reply in plain language. Prefer 3–5 concise sentences unless the user asks for more.
 `;
@@ -1332,10 +1872,92 @@ ${exactThreadAccessBlock}
     : "Active exercise topic (lock): none\n- Last session data: missing";
 
   const benchProjectionBlock = benchProjection
-    ? `Bench projection data (rough estimate; use as inference from recent logs):\n- Target: ${benchProjection.target1RM}${benchProjection.payloadUnit}\n- Current estimated 1RM: ~${benchProjection.currentEstimated1RM}${benchProjection.payloadUnit}\n- Recent e1RM step: ~${benchProjection.deltaE1RMPerSession}${benchProjection.payloadUnit} per progression signal\n- Sessions estimate: ${benchProjection.sessionsEstimate}\n- Working-weight guide for a ${benchProjection.payloadUnit} target:\n${benchProjection.workingWeights
-        .map((w) => `  - ${w.reps} reps: ${w.weight}${benchProjection.payloadUnit}`)
-        .join("\n")}`
+    ? (() => {
+        const p = benchProjection;
+        const auth = p.authoritativeEstimated1RM ?? p.currentEstimated1RM;
+        const explicitAnchorLine =
+          explicitAnchor?.id === "heavy_bench" && p.heavyAnchor
+            ? `PRIMARY ANCHOR FOR THIS TURN (mandatory): heavy bench ${p.heavyAnchor.weight}×${p.heavyAnchor.reps} (${formatIsoDate(
+                p.heavyAnchor.completedAt
+              )}) is the main estimate anchor.`
+            : explicitAnchor?.id === "volume_bench" && p.volumeAnchor
+              ? `PRIMARY ANCHOR FOR THIS TURN (mandatory): volume bench ${p.volumeAnchor.weight}×${p.volumeAnchor.reps} (${formatIsoDate(
+                  p.volumeAnchor.completedAt
+                )}) is the main estimate anchor.`
+              : explicitAnchor?.id === "most_recent_session"
+                ? "PRIMARY ANCHOR FOR THIS TURN (mandatory): use the most recent logged session as the main estimate anchor."
+                : "";
+        const parts: string[] = [
+          `BENCH — Reply like a premium in-app coach (~120–170 words). Readable, specific, calm — not a lab report. Blank line between the five sections; 1–2 short sentences per section unless the user asked for depth.`,
+          ...(explicitAnchorLine ? [explicitAnchorLine, ``] : []),
+          ...(p.subsectionEvidenceLock ? [p.subsectionEvidenceLock, ``] : []),
+          `Use these section headings (with colons): “Best current read:” / “Why:” / “Supporting evidence:” / “Next move:”.`,
+          `In “Why:”, cite primary anchor first. In “Supporting evidence:”, mention secondary context only; it must not replace the primary anchor.`,
+          `COACH LINES (primary — light paraphrase only; do not add extra number bands or formulas in the user reply):`,
+          p.coachFacing?.evidenceLead ?? "",
+          p.coachFacing?.bestCurrentRead ?? `About ${auth}${p.payloadUnit} max strength from logged bench tops (rough estimate).`,
+          `Heavy bench day: ${p.coachFacing?.heavyBenchDay ?? ""}`,
+          `Volume bench day: ${p.coachFacing?.volumeBenchDay ?? ""}`,
+          `When target looks realistic:\n${p.coachFacing?.whenTargetLooksRealistic ?? ""}`,
+          `Next move: ${p.coachFacing?.nextMove ?? ""}`,
+          ``,
+          `INTERNAL (stay consistent; do not read jargon aloud): ${p.estimateBasisLine}`,
+          ...(p.evidenceScopeLine ? [p.evidenceScopeLine] : []),
+          ...(p.readinessSignals?.length ? p.readinessSignals : []),
+        ];
+        const tail = p.recentBestSets
+          .slice(-4)
+          .map((s) => `${s.weight}×${s.reps}`)
+          .join(" → ");
+        if (tail) {
+          parts.push(
+            `Optional — only if user asks for history: recent bench bests chain ${tail} (${p.benchExerciseName}).`
+          );
+        }
+        return `Bench projection block:\n${parts.filter(Boolean).join("\n")}`;
+      })()
     : "Bench projection data: none";
+  const benchEstimateBlock = benchEstimate
+    ? `Bench 1RM estimate object (deterministic):
+- estimated1RM: ${benchEstimate.estimated1RM}
+- estimateLow: ${benchEstimate.estimateLow}
+- estimateHigh: ${benchEstimate.estimateHigh}
+- confidence: ${benchEstimate.confidence}
+- primaryAnchorUsed: ${benchEstimate.primaryAnchorUsed.kind} | ${
+        benchEstimate.primaryAnchorUsed.set.weight
+      }x${benchEstimate.primaryAnchorUsed.set.reps}${
+        benchEstimate.primaryAnchorUsed.set.rir !== undefined
+          ? ` @~${benchEstimate.primaryAnchorUsed.set.rir} RIR`
+          : ""
+      } | effectiveRTF ${benchEstimate.primaryAnchorUsed.effectiveRTF} | ${benchEstimate.primaryAnchorUsed.formulaUsed}
+- supportingEvidenceUsed: ${benchEstimate.supportingEvidenceUsed.used ? "yes" : "no"} | agreement ${benchEstimate.supportingEvidenceUsed.agreement}${
+        benchEstimate.supportingEvidenceUsed.set
+          ? ` | ${benchEstimate.supportingEvidenceUsed.set.weight}x${benchEstimate.supportingEvidenceUsed.set.reps}`
+          : ""
+      }
+- reasoningSummary: ${benchEstimate.reasoningSummary}
+Rules:
+- Prefer this object for estimate numbers/ranges/confidence.
+- Keep primary vs supporting evidence separation from this object.
+`
+    : "Bench 1RM estimate object: none";
+  const benchContextBlock = benchContext
+    ? `Bench context (structured, completed sets only):
+- latest heavy bench session: ${
+        benchContext.latestHeavyBenchSession
+          ? `${formatIsoDate(benchContext.latestHeavyBenchSession.completedAt)} | ${benchContext.latestHeavyBenchSession.sessionName} | ${benchContext.latestHeavyBenchSession.exerciseName} | sets ${benchContext.latestHeavyBenchSession.sets.map((s) => `${s.weight}x${s.reps}`).join(", ")} | best ${benchContext.latestHeavyBenchSession.bestSet.weight}x${benchContext.latestHeavyBenchSession.bestSet.reps}${benchContext.latestHeavyBenchSession.avgRIR !== undefined ? ` | avgRIR~${benchContext.latestHeavyBenchSession.avgRIR.toFixed(2)}` : ""}`
+          : "none found"
+      }
+- latest volume bench session: ${
+        benchContext.latestVolumeBenchSession
+          ? `${formatIsoDate(benchContext.latestVolumeBenchSession.completedAt)} | ${benchContext.latestVolumeBenchSession.sessionName} | ${benchContext.latestVolumeBenchSession.exerciseName} | sets ${benchContext.latestVolumeBenchSession.sets.map((s) => `${s.weight}x${s.reps}`).join(", ")} | best ${benchContext.latestVolumeBenchSession.bestSet.weight}x${benchContext.latestVolumeBenchSession.bestSet.reps}${benchContext.latestVolumeBenchSession.avgRIR !== undefined ? ` | avgRIR~${benchContext.latestVolumeBenchSession.avgRIR.toFixed(2)}` : ""}`
+          : "none found"
+      }
+Rules:
+- Use these summaries as authoritative heavy-vs-volume context when the user asks about heavy/volume bench explicitly.
+- Do not swap heavy and volume anchors.
+`
+    : "Bench context: none";
 
   const conversationSubjectBlock =
     effectiveIntent === "session_review"
@@ -1361,9 +1983,13 @@ Rule: If the user asks a follow-up about the current active exercise, anchor you
 
 If the user requests exact last-session reps/weights for the active exercise and the payload includes last-session data, answer using the exact best/last set values (no vague summary).
 
-${benchProjectionBlock}`.trim();
+${benchProjectionBlock}
 
-  const finalInput = `${loggedDataPreamble.trim()}\n\n${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}\n\n---\nINFERENCE & CERTAINTY (apply to your reply):\n${INFERENCE_CERTAINTY_BLOCK}\n\n---\n${GLOBAL_REPLY_DISCIPLINE_BLOCK}`;
+${benchContextBlock}
+
+${benchEstimateBlock}`.trim();
+
+  const finalInput = `${loggedDataPreamble.trim()}\n\n${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}\n\n---\nINFERENCE & CERTAINTY (apply to your reply):\n${INFERENCE_CERTAINTY_BLOCK}\n\n---\n${GLOBAL_REPLY_DISCIPLINE_BLOCK}\n\n---\n${FINAL_RESPONSE_POLISH_BLOCK}`;
 
   const response = await openai.responses.create({
     model: "gpt-4.1-mini",
@@ -1381,7 +2007,32 @@ function formatIsoDate(iso: string | undefined): string {
   return iso.length >= 10 ? iso.slice(0, 10) : iso;
 }
 
+function stripHeadingPrefix(text: string, labels: string[]): string {
+  let out = (text ?? "").trim();
+  for (const label of labels) {
+    const re = new RegExp(`^${label}\\s*:?\\s*`, "i");
+    out = out.replace(re, "").trim();
+  }
+  return out;
+}
+
 type ThreadMessageForDeterministic = { role: "user" | "assistant"; content: string };
+
+/** Prior assistant message when the user’s latest turn is a challenge/clarification (user, assistant, user). */
+function extractPriorAssistantTurnForCorrection(
+  threadMessages: ThreadMessageForDeterministic[] | undefined
+): string | null {
+  if (!threadMessages?.length) return null;
+  const history = threadMessages.filter(
+    (t): t is ThreadMessageForDeterministic =>
+      Boolean(t?.content?.trim() && (t.role === "user" || t.role === "assistant"))
+  );
+  if (history.length < 2) return null;
+  const last = history[history.length - 1];
+  const prev = history[history.length - 2];
+  if (last.role !== "user" || prev.role !== "assistant") return null;
+  return prev.content.trim();
+}
 
 function normalizeForThreadMatch(s: string): string {
   return (s ?? "")
@@ -1524,44 +2175,209 @@ function tryBuildDeterministicExerciseReply(params: {
   const date = formatIsoDate(data.completedAt);
   const unloggedLine =
     (data.unloggedSetCount ?? 0) > 0
-      ? `\nC) ${data.unloggedSetCount} set${data.unloggedSetCount === 1 ? "" : "s"} in that session appear unlogged/incomplete, so they are not counted as completed performance.`
+      ? `\n\n${data.unloggedSetCount} set${data.unloggedSetCount === 1 ? "" : "s"} in that session look unlogged or incomplete, so they don’t count as completed performance.`
       : "";
-  return `A) Your last ${data.exerciseName} session was logged on ${date}.\nB) Logged completed sets: best set ${best.weight}×${best.reps}; last completed set ${lastSet.weight}×${lastSet.reps}.${unloggedLine}\nD) Use the completed logged sets as your baseline for progression.`;
+  return `Your last ${data.exerciseName} session was logged on ${date}.
+
+Logged completed sets: best set ${best.weight}×${best.reps}; last completed set ${lastSet.weight}×${lastSet.reps}.${unloggedLine}
+
+Use those completed sets as your baseline for progression.`;
 }
 
 function tryBuildDeterministicBenchProjectionReply(params: {
   message: string;
   benchProjection: AssistantBody["benchProjection"] | undefined;
+  explicitAnchor: ExplicitEvidenceAnchor | null;
+  benchContext: AssistantBody["benchContext"] | undefined;
+  benchEstimate: AssistantBody["benchEstimate"] | undefined;
 }): string | null {
   const m = params.message.toLowerCase();
-  const benchish = /\bbench\b|pb|bench press|barbell bench/.test(m);
+  const oneRm = /\b(1rm|e1rm|one rep max)\b/.test(m);
+  const benchish =
+    /\bbench\b|pb|bench press|barbell bench/.test(m) ||
+    (params.benchProjection != null && oneRm);
+
   const asksWhen =
     /(when|expect|timeline|when can i|how soon|can i expect)/.test(m) ||
     (m.includes("expect") && m.includes("bench"));
+  const asksTimelineReadiness =
+    /\b(when|how long|timeline|how soon|realistic)\b/.test(m) &&
+    (/\b\d{2,3}\s*(kg|kgs|lb|lbs)?\b/.test(m) || /\btarget\b/.test(m) || /\b(hit|reach|get|expect)\b/.test(m));
   const asksWorking =
     /(working weight|working weights|what would my working weights|what weight.*reps|reps need|working weights\/reps)/.test(m) ||
     m.includes("working weights") ||
     m.includes("working weight");
+  const asksHeavyVolumeSessions =
+    /\b(heavy|volume)\b/.test(m) &&
+    /\b(session|sessions|day)\b/.test(m) &&
+    (/what can i expect/.test(m) || /look like/.test(m) || /should my/.test(m));
+  const asksBenchGoalSessions =
+    /what should my session/.test(m) ||
+    /when this is possible/.test(m) ||
+    /need to look/.test(m) ||
+    /based on my (most )?recent/.test(m) ||
+    /how can i expect/.test(m) ||
+    /increase to\b/.test(m);
 
-  if (!benchish || !(asksWhen || asksWorking)) return null;
+  if (!benchish) return null;
   const p = params.benchProjection;
-  if (!p) return null;
+  if (!p?.heavyDay || !p.volumeDay || !p.recentBestSets.length) return null;
 
-  const target = `${p.target1RM}${p.payloadUnit}`;
-  const current = `${p.currentEstimated1RM}${p.payloadUnit}`;
-  const sessions = p.sessionsEstimate;
+  const wantsProjection =
+    asksWhen ||
+    asksWorking ||
+    asksHeavyVolumeSessions ||
+    asksBenchGoalSessions ||
+    (oneRm && p.target1RM != null);
 
-  const working = p.workingWeights
-    .slice(0, 3)
-    .map((w) => `${w.weight}${p.payloadUnit}×${w.reps} reps`)
-    .join(", ");
+  if (!wantsProjection) return null;
+
+  const u = p.payloadUnit;
+  const cf = p.coachFacing;
+  if (!cf) return null;
 
   const mentionsTemplates = /template|templates|program|routine|split/.test(m);
   const templateLine = mentionsTemplates
-    ? `D) Apply this to your template’s bench working sets: aim for those rep targets at those weights (still an estimate).`
+    ? `\n\nIf you use a template, keep heavy bench on your heavy day and volume bench on your lighter slot.`
     : "";
+  const heavyAnchor = params.benchContext?.latestHeavyBenchSession?.bestSet
+    ? {
+        weight: params.benchContext.latestHeavyBenchSession.bestSet.weight,
+        reps: params.benchContext.latestHeavyBenchSession.bestSet.reps,
+        completedAt: params.benchContext.latestHeavyBenchSession.completedAt,
+      }
+    : (p.heavyAnchor ?? null);
+  const volumeAnchor = params.benchContext?.latestVolumeBenchSession?.bestSet
+    ? {
+        weight: params.benchContext.latestVolumeBenchSession.bestSet.weight,
+        reps: params.benchContext.latestVolumeBenchSession.bestSet.reps,
+        completedAt: params.benchContext.latestVolumeBenchSession.completedAt,
+      }
+    : (p.volumeAnchor ?? null);
+  const heavySessionRir = params.benchContext?.latestHeavyBenchSession?.avgRIR;
 
-  return `A) Best current read (estimate): based on your recent logged bench best sets, your estimated 1RM is ~${current}.\nB) To reach ${target}, a rough estimate is about ${sessions} more bench sessions with similar progression and recovery.\nC) Working-weight guide (estimate): ${working}.${templateLine}`;
+  // Validation gate: if user explicitly named heavy/volume as primary anchor, the chosen benchmark must match.
+  if (params.explicitAnchor?.id === "heavy_bench" && (!heavyAnchor || heavyAnchor.reps > 5)) return null;
+  if (params.explicitAnchor?.id === "volume_bench" && (!volumeAnchor || volumeAnchor.reps < 6)) return null;
+
+  const primaryEvidence =
+    params.explicitAnchor?.id === "heavy_bench"
+      ? heavyAnchor
+        ? `Primary anchor: heavy bench ${heavyAnchor.weight}×${heavyAnchor.reps} (${formatIsoDate(heavyAnchor.completedAt)})${
+            heavySessionRir !== undefined ? `, with logged effort around ${heavySessionRir.toFixed(1)} RIR` : ""
+          }.`
+        : "Primary anchor: your heavy bench work."
+      : params.explicitAnchor?.id === "volume_bench"
+        ? volumeAnchor
+          ? `Primary anchor: volume bench ${volumeAnchor.weight}×${volumeAnchor.reps} (${formatIsoDate(volumeAnchor.completedAt)}).`
+          : "Primary anchor: your volume bench work."
+        : params.explicitAnchor?.id === "most_recent_session"
+          ? "Primary anchor: your most recent logged session."
+          : heavyAnchor
+            ? `Primary anchor: heavy bench around ${heavyAnchor.weight}×${heavyAnchor.reps}.`
+            : volumeAnchor
+              ? `Primary anchor: volume bench around ${volumeAnchor.weight}×${volumeAnchor.reps}.`
+              : "Primary anchor: your recent logged bench work.";
+
+  const supportingEvidence =
+    params.explicitAnchor?.id === "heavy_bench"
+      ? volumeAnchor
+        ? `Supporting evidence: volume bench around ${volumeAnchor.weight}×${volumeAnchor.reps} keeps the read honest without replacing the heavy anchor.`
+        : "Supporting evidence: no separate 6+ rep volume anchor was found in this payload."
+      : heavyAnchor
+        ? `Supporting evidence: heavy bench around ${heavyAnchor.weight}×${heavyAnchor.reps} gives the top-end context.`
+        : "Supporting evidence: broader bench trend context only.";
+
+  const readinessLine = cf.whenTargetLooksRealistic
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  const estimateLine = params.benchEstimate
+    ? `About ${params.benchEstimate.estimateLow}–${params.benchEstimate.estimateHigh} ${u} (center ~${params.benchEstimate.estimated1RM} ${u}, ${params.benchEstimate.confidence} confidence).`
+    : cf.bestCurrentRead;
+  const supportLine = params.benchEstimate
+    ? `${supportingEvidence} ${params.benchEstimate.reasoningSummary}`
+    : supportingEvidence;
+  const cleanSupportLine = stripHeadingPrefix(supportLine, ["Supporting evidence"]);
+  const cleanNextMove = stripHeadingPrefix(cf.nextMove, ["Next move"]);
+  const readinessLines = cf.whenTargetLooksRealistic
+    .split("\n")
+    .map((line) => stripHeadingPrefix(line, ["When target looks realistic", "When"]))
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (asksTimelineReadiness) {
+    const est = params.benchEstimate;
+    const target = p.target1RM ?? null;
+    const gap = est && target != null ? Number((target - est.estimated1RM).toFixed(1)) : null;
+    const progressRate = p.progressionDeltaKgPerSession;
+
+    let closenessLine: string;
+    if (gap != null && gap <= 0) {
+      closenessLine = `Your current estimated range already covers ${target} ${u} — you may be ready to attempt it now or very soon.`;
+    } else if (gap != null) {
+      closenessLine = `You're roughly ${gap} ${u} short of ${target} ${u} on this read.`;
+    } else {
+      closenessLine = "Current position relative to target is unclear from the data available.";
+    }
+
+    let timelineText: string;
+    if (gap != null && gap <= 0) {
+      timelineText = "Near-term: a peaking session or a strong heavy day could confirm it.";
+    } else if (gap != null && progressRate != null && progressRate > 0) {
+      const sessions = Math.ceil(gap / progressRate);
+      const weeksLow = Math.ceil(sessions * 0.7);
+      const weeksHigh = Math.ceil(sessions * 1.5);
+      timelineText = `At your recent rate (~${progressRate} ${u} per bench exposure), roughly ${sessions} focused bench sessions — so roughly ${weeksLow}–${weeksHigh} weeks if benching 1–2 times a week. Treat this as an order-of-magnitude guess, not a guarantee.`;
+    } else if (est) {
+      timelineText = est.confidence === "high"
+        ? "Rough estimate: the next 4–8 focused bench exposures if recovery and execution stay consistent."
+        : est.confidence === "medium"
+          ? "Rough estimate: the next 6–12 focused bench exposures, with normal week-to-week variability."
+          : "Timeline is uncertain from current data — likely measured in training blocks rather than individual sessions.";
+    } else {
+      timelineText = "Not enough progression data to give a specific timeline.";
+    }
+
+    const heavyLine = heavyAnchor
+      ? `Heavy triples around ${heavyAnchor.weight}×${heavyAnchor.reps} should start to feel repeatable, not near-max every week.`
+      : "Heavy triples at your current top weight should feel repeatable.";
+    const volumeLine = volumeAnchor
+      ? `Volume bench around ${volumeAnchor.weight}×${volumeAnchor.reps} should keep pace without hurting the next heavy session.`
+      : "Volume bench should keep pace without hurting the next heavy session.";
+    const markerLines = [
+      readinessLines[0] ?? heavyLine,
+      readinessLines[1] ?? volumeLine,
+    ];
+
+    return `Where you are now:
+${closenessLine} ${estimateLine}
+
+Timeline:
+${timelineText}
+
+What would make ${target ?? "the target"} ${u ?? ""} realistic:
+- ${markerLines[0]}
+- ${markerLines[1]}
+
+Next move:
+${cleanNextMove}${templateLine}`.trim();
+  }
+
+  return `Best current read:
+${estimateLine}
+
+Why:
+${primaryEvidence}
+
+${readinessLine ?? ""}
+
+Supporting evidence:
+${cleanSupportLine}
+
+Next move:
+${cleanNextMove}${templateLine}`.trim();
 }
 
 export async function POST(request: NextRequest) {
@@ -1590,6 +2406,8 @@ export async function POST(request: NextRequest) {
       activeExerciseTopic,
       activeExerciseLastSession,
       benchProjection,
+      benchContext,
+      benchEstimate,
     } = body;
 
     const templatesSummary =
@@ -1624,26 +2442,149 @@ export async function POST(request: NextRequest) {
       threadMessagesLength: Array.isArray(threadMessages) ? threadMessages.length : 0,
       recentConversationTurnsLength: Array.isArray(recentConversationMemory) ? recentConversationMemory.length : 0,
     });
-    // Deterministic fast-paths for exact exercise questions + bench projections.
-    const deterministic =
-      tryBuildDeterministicThreadReferenceReply({
-        message: trimmedMessage,
-        threadMessages,
-        exactThreadLoaded,
-      }) ??
-      tryBuildDeterministicExerciseReply({
-        message: trimmedMessage,
-        activeExerciseLastSession,
-      }) ??
-      tryBuildDeterministicBenchProjectionReply({
-        message: trimmedMessage,
-        benchProjection,
-      });
-    if (deterministic) {
-      return NextResponse.json({ reply: deterministic } satisfies AssistantResponse);
+    const explicitAnchor = detectExplicitEvidenceAnchor(trimmedMessage, activeExerciseTopic);
+    const wantsBenchEstimateDebug =
+      /\b(1rm|e1rm|one rep max|one-rep max|estimated 1rm|current 1rm)\b/i.test(trimmedMessage) &&
+      /\bbench\b|bench press|barbell bench/i.test(trimmedMessage);
+    const questionKind = classifyAssistantQuestionKind(trimmedMessage, {
+      threadMessages: Array.isArray(threadMessages)
+        ? (threadMessages as AssistantThreadTurn[])
+        : undefined,
+    });
+    // Deterministic fast-paths are gated by freshly computed intent each turn.
+    const deterministicByKind =
+      (questionKind === "memory_continuity"
+        ? tryBuildDeterministicThreadReferenceReply({
+            message: trimmedMessage,
+            threadMessages,
+            exactThreadLoaded,
+          })
+        : null) ??
+      (questionKind === "exact_factual_recall"
+        ? tryBuildDeterministicExerciseReply({
+            message: trimmedMessage,
+            activeExerciseLastSession,
+          })
+        : null) ??
+      (questionKind === "projection_estimate"
+        ? tryBuildDeterministicBenchProjectionReply({
+            message: trimmedMessage,
+            benchProjection,
+            explicitAnchor,
+            benchContext,
+            benchEstimate,
+          })
+        : null);
+    if (deterministicByKind) {
+      return NextResponse.json({ reply: deterministicByKind } satisfies AssistantResponse);
     }
-    const questionKind = classifyAssistantQuestionKind(trimmedMessage);
+    if (questionKind === "single_session_construction") {
+      const parsed = parseContextFromMessage(trimmedMessage);
+      const sessionType = inferSessionTypeFromContext({
+        message: trimmedMessage,
+        coachingContext,
+      });
+      const built = buildWorkout({
+        sessionType,
+        goal: inferWorkoutBuilderGoal(trimmedMessage, priorityGoal),
+        equipmentAvailable: inferEquipmentFromParsed(parsed),
+        injuriesOrExclusions:
+          parsed.injuryStatus === "present" ? ["injury", "pain"] : [],
+        recentTrainingContext: {
+          recentExerciseIds:
+            coachingContext?.recentWorkouts?.flatMap((w) =>
+              Array.isArray(w.exercises) ? w.exercises.map((e) => e.name || e.exerciseId || "") : []
+            ) ?? [],
+        },
+        preferredExercises:
+          Array.isArray(activeExerciseTopic) && activeExerciseTopic.length > 0
+            ? activeExerciseTopic
+            : activeExerciseTopic
+              ? [activeExerciseTopic]
+              : [],
+        recoveryMode: /\b(low fatigue|recovery|deload|easy)\b/i.test(trimmedMessage)
+          ? ("low_fatigue" as RecoveryMode)
+          : ("normal" as RecoveryMode),
+      });
+      if (!built.exercises.length) {
+        const fallbackStructured = {
+          sessionTitle: `${sessionType.replace("_", " ")} workout`,
+          sessionGoal: "Structured fallback after generator issue",
+          purposeSummary: "Could not fully build this session from current constraints.",
+          exercises: [],
+          note: "I couldn't generate exercises with current constraints. Try adding equipment or removing exclusions.",
+        };
+        return NextResponse.json({
+          reply: "I couldn't generate this session from the current constraints.",
+          structuredWorkout: fallbackStructured,
+        } satisfies AssistantResponse);
+      }
+      return NextResponse.json({
+        reply: renderBuiltWorkoutReply(built),
+        structuredWorkout: toStructuredWorkout(built),
+      } satisfies AssistantResponse);
+    }
+    if (questionKind === "multi_day_programme_construction" || (questionKind === "template_review" && isProgrammeBuildRequest(trimmedMessage))) {
+      const parsed = parseContextFromMessage(trimmedMessage);
+      const programme = buildStructuredProgramme({
+        message: trimmedMessage,
+        priorityGoal: priorityGoal ?? undefined,
+        recoveryMode: /\b(low fatigue|recovery|deload|easy)\b/i.test(trimmedMessage)
+          ? ("low_fatigue" as RecoveryMode)
+          : ("normal" as RecoveryMode),
+        equipmentAvailable: inferEquipmentFromParsed(parsed),
+      });
+      if (programme) {
+        return NextResponse.json({
+          reply: renderStructuredProgrammeText(programme),
+          structuredProgramme: programme,
+        } satisfies AssistantResponse);
+      }
+      const fallbackProgramme: NonNullable<AssistantResponse["structuredProgramme"]> = {
+        programmeTitle: "Programme builder unavailable",
+        programmeGoal: "Structured fallback",
+        notes: "I couldn't generate a full programme from current constraints. Try specifying split and available equipment.",
+        days: [],
+      };
+      return NextResponse.json({
+        reply: "I couldn't generate a full programme from current constraints.",
+        structuredProgramme: fallbackProgramme,
+      } satisfies AssistantResponse);
+    }
+    const priorAssistantTurnContent =
+      questionKind === "prior_answer_correction"
+        ? extractPriorAssistantTurnForCorrection(threadMessages)
+        : null;
     const intent = mapQuestionKindToLegacyIntent(questionKind) as AssistantIntent;
+    console.log("[assistant-anchor]", {
+      explicitAnchor: explicitAnchor?.id ?? null,
+      label: explicitAnchor?.label ?? null,
+      primaryHeavyFromContext: benchContext?.latestHeavyBenchSession
+        ? `${benchContext.latestHeavyBenchSession.bestSet.weight}x${benchContext.latestHeavyBenchSession.bestSet.reps}`
+        : null,
+      primaryVolumeFromContext: benchContext?.latestVolumeBenchSession
+        ? `${benchContext.latestVolumeBenchSession.bestSet.weight}x${benchContext.latestVolumeBenchSession.bestSet.reps}`
+        : null,
+    });
+    if (wantsBenchEstimateDebug) {
+      console.log("[assistant-bench-debug] context payload", {
+        message: trimmedMessage,
+        explicitAnchor: explicitAnchor?.id ?? null,
+        benchContext,
+        benchProjectionInputs: benchProjection
+          ? {
+              benchExerciseName: benchProjection.benchExerciseName,
+              payloadUnit: benchProjection.payloadUnit,
+              authoritativeEstimated1RM: benchProjection.authoritativeEstimated1RM,
+              heavyAnchor: benchProjection.heavyAnchor ?? null,
+              volumeAnchor: benchProjection.volumeAnchor ?? null,
+              recentBestSets: benchProjection.recentBestSets,
+              progressionDeltaKgPerSession: benchProjection.progressionDeltaKgPerSession,
+            }
+          : null,
+        benchEstimate,
+      });
+    }
     const hasWorkoutData =
       (Number(trainingSummary.totalWorkouts) || 0) > 0 ||
       (Number(trainingSummary.totalSets) || 0) > 0;
@@ -1683,6 +2624,9 @@ export async function POST(request: NextRequest) {
         : modeDetection.mode;
     const analysisPreferredKinds: AssistantQuestionKind[] = [
       "session_review",
+      "single_session_construction",
+      "multi_day_programme_construction",
+      "prior_answer_correction",
       "exact_factual_recall",
       "exercise_progression",
       "projection_estimate",
@@ -1798,12 +2742,16 @@ export async function POST(request: NextRequest) {
       activeExerciseTopic,
       activeExerciseLastSession,
       benchProjection,
+      benchContext,
+      benchEstimate,
       coachingContext,
       exerciseTrends ?? [],
       trainingInsights,
       priorityGoalExerciseInsight,
       coachStructuredOutput,
-      evidenceCards
+      evidenceCards,
+      priorAssistantTurnContent,
+      explicitAnchor
     );
 
     return NextResponse.json({ reply } satisfies AssistantResponse);
