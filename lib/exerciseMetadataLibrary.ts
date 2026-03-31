@@ -12,6 +12,12 @@ export type ExerciseMetadata = {
   name: string;
   primaryMuscles: string[];
   secondaryMuscles: string[];
+  /**
+   * Optional explicit stimulus mappings.
+   * v1 can infer these from primaryMuscles/secondaryMuscles, but allowing overrides keeps the system extensible.
+   */
+  directStimulusMuscles?: string[];
+  indirectStimulusMuscles?: string[];
   movementPattern: string;
   role: ExerciseRole;
   equipment: string[];
@@ -21,6 +27,11 @@ export type ExerciseMetadata = {
   recommendedRepRange: string;
   lengthBias: "stretch_biased" | "neutral" | "shortened_biased";
   tags: string[];
+  /** Optional grouping id to represent “redundant” exercise variants (e.g. same pattern family). */
+  redundancyGroup?: string;
+  /** Optional assistant usage guidance. */
+  idealUseCases?: string[];
+  typicalPlacementInSession?: string;
 };
 
 function norm(s: string): string {
@@ -121,6 +132,21 @@ export const EXERCISE_METADATA_LIBRARY: ExerciseMetadata[] = [
     recommendedRepRange: "4-10",
     lengthBias: "stretch_biased",
     tags: ["back", "pull", "upper", "full_body", "vertical_pull"],
+  },
+  {
+    id: "cable_face_pull",
+    name: "Cable Face Pull",
+    primaryMuscles: ["rear_delts"],
+    secondaryMuscles: ["mid_traps", "rhomboids"],
+    movementPattern: "horizontal_pull",
+    role: "isolation",
+    equipment: ["cable_machine"],
+    fatigueCost: "low",
+    substitutes: ["rear_delt_cable_fly", "reverse_pec_deck", "band_pull_apart"],
+    loadCategory: "isolation_machine_cable",
+    recommendedRepRange: "12-20",
+    lengthBias: "stretch_biased",
+    tags: ["shoulders", "back", "pull", "upper", "full_body"],
   },
   {
     id: "rear_delt_cable_fly",
@@ -228,6 +254,21 @@ export const EXERCISE_METADATA_LIBRARY: ExerciseMetadata[] = [
     tags: ["legs", "lower", "calf"],
   },
   {
+    id: "seated_calf_raise",
+    name: "Seated Calf Raise",
+    primaryMuscles: ["calves"],
+    secondaryMuscles: [],
+    movementPattern: "ankle_plantarflexion",
+    role: "isolation",
+    equipment: ["calf_machine_or_leg_press_or_dumbbells"],
+    fatigueCost: "low",
+    substitutes: ["standing_or_seated_calf_raise", "leg_press_calf_raise"],
+    loadCategory: "isolation_machine_cable",
+    recommendedRepRange: "10-20",
+    lengthBias: "stretch_biased",
+    tags: ["legs", "lower", "calf"],
+  },
+  {
     id: "overhead_press",
     name: "Overhead Press",
     primaryMuscles: ["front_delts", "side_delts"],
@@ -258,6 +299,21 @@ export const EXERCISE_METADATA_LIBRARY: ExerciseMetadata[] = [
     tags: ["shoulders", "push", "upper", "full_body"],
   },
   {
+    id: "hammer_curl",
+    name: "Hammer Curl",
+    primaryMuscles: ["biceps"],
+    secondaryMuscles: ["brachialis", "forearms"],
+    movementPattern: "elbow_flexion",
+    role: "isolation",
+    equipment: ["dumbbells_or_barbell_or_cable"],
+    fatigueCost: "low",
+    substitutes: ["biceps_curl", "preacher_curl", "cable_curl"],
+    loadCategory: "isolation_machine_cable",
+    recommendedRepRange: "8-15",
+    lengthBias: "neutral",
+    tags: ["arms", "pull", "upper", "full_body", "biceps"],
+  },
+  {
     id: "biceps_curl",
     name: "Biceps Curl",
     primaryMuscles: ["biceps"],
@@ -286,6 +342,36 @@ export const EXERCISE_METADATA_LIBRARY: ExerciseMetadata[] = [
     recommendedRepRange: "8-15",
     lengthBias: "stretch_biased",
     tags: ["arms", "push", "upper", "full_body", "triceps"],
+  },
+  {
+    id: "jm_press",
+    name: "JM Press",
+    primaryMuscles: ["triceps"],
+    secondaryMuscles: ["chest", "shoulders"],
+    movementPattern: "horizontal_push",
+    role: "secondary_compound",
+    equipment: ["barbell", "bench", "rack"],
+    fatigueCost: "moderate",
+    substitutes: ["triceps_pushdown_or_extension", "flat_barbell_bench_press"],
+    loadCategory: "free_weight_compound",
+    recommendedRepRange: "6-12",
+    lengthBias: "neutral",
+    tags: ["arms", "push", "upper", "full_body", "triceps"],
+  },
+  {
+    id: "bulgarian_split_squat",
+    name: "Bulgarian Split Squat",
+    primaryMuscles: ["glutes", "quads"],
+    secondaryMuscles: ["hamstrings"],
+    movementPattern: "split_squat",
+    role: "secondary_compound",
+    equipment: ["dumbbells_or_barbell", "bench_optional"],
+    fatigueCost: "moderate",
+    substitutes: ["back_squat", "split_squat", "step_up"],
+    loadCategory: "free_weight_compound",
+    recommendedRepRange: "8-12",
+    lengthBias: "stretch_biased",
+    tags: ["legs", "lower", "glute", "quad_dominant"],
   },
   {
     id: "hip_thrust_or_glute_bridge",

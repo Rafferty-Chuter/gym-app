@@ -19,6 +19,9 @@ export type AssistantThreadMessage = {
     programmeTitle: string;
     programmeGoal: string;
     notes: string;
+    debugSource?: string;
+    debugRequestId?: string;
+    debugBuiltAt?: string;
     days: Array<{
       dayLabel: string;
       sessionType: string;

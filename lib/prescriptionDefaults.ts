@@ -73,7 +73,7 @@ export const PRESCRIPTION_DEFAULTS: Record<PrescriptionBucket, PrescriptionRule>
   // hypertrophy-oriented defaults with practical strength compatibility
   main_compound: {
     bucket: "main_compound",
-    sets: { min: 3, max: 3 },
+    sets: { min: 3, max: 4 },
     repRange: { min: 6, max: 10 },
     rirRange: { min: 1, max: 3 },
     restSeconds: { min: 120, max: 240 },
@@ -144,7 +144,11 @@ export const PRESCRIPTION_ADJUSTMENTS: Record<GoalAdjustment, PrescriptionAdjust
     id: "strength_emphasis",
     apply: (base, exercise) => {
       const next = cloneRule(base);
-      if (base.bucket === "main_compound" || base.bucket === "secondary_compound") {
+      if (
+        base.bucket === "main_compound" ||
+        base.bucket === "secondary_compound" ||
+        base.bucket === "machine_compound"
+      ) {
         next.repRange = clampRange({ min: next.repRange.min - 2, max: next.repRange.max - 3 }, 3, 10);
         next.rirRange = clampRange({ min: Math.max(0, next.rirRange.min - 1), max: next.rirRange.max - 1 }, 0, 3);
         next.restSeconds = clampRange(
@@ -153,9 +157,8 @@ export const PRESCRIPTION_ADJUSTMENTS: Record<GoalAdjustment, PrescriptionAdjust
           360
         );
         next.notes += " Strength emphasis: lower reps on main lifts, slightly harder effort, longer rest.";
-      } else if (base.bucket === "isolation" || base.bucket === "accessory") {
-        next.sets = clampRange({ min: Math.max(1, next.sets.min - 1), max: next.sets.max - 1 }, 1, 4);
       }
+      // Strength bias applies to compounds only — do not strip isolation volume or day structure suffers.
       return next;
     },
   },

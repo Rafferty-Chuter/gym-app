@@ -39,6 +39,7 @@ import {
 import { buildBenchProjectionPayload } from "@/lib/benchProjectionPayload";
 import { buildBenchContextSummary } from "@/lib/benchContext";
 import { buildBench1RMEstimate } from "@/lib/bench1rm";
+import type { ActiveProgrammeState as PipelineActiveProgrammeState } from "@/lib/programmePipeline";
 
 type StructuredWorkout = {
   sessionTitle: string;
@@ -60,10 +61,14 @@ type StructuredProgramme = {
   programmeTitle: string;
   programmeGoal: string;
   notes: string;
+  debugSource?: string;
+  debugRequestId?: string;
+  debugBuiltAt?: string;
   days: Array<{
     dayLabel: string;
     sessionType: string;
     purposeSummary: string;
+    targetMuscles?: string[];
     exercises: Array<{
       slotLabel: string;
       exerciseName: string;
@@ -82,6 +87,8 @@ type ChatMessage = {
   workout?: StructuredWorkout;
   programme?: StructuredProgramme;
 };
+
+const ASSISTANT_PROGRAMME_PIPELINE_V1 = "new_programme_pipeline_v1" as const;
 
 /** Split assistant text on blank lines so paragraphs and sections breathe in the UI. */
 function AssistantMessageBody({ content }: { content: string }) {
@@ -132,6 +139,41 @@ function AssistantWorkoutCard({ workout }: { workout: StructuredWorkout }) {
 }
 
 function AssistantProgrammeCard({ programme }: { programme: StructuredProgramme }) {
+  const allowed = programme.debugSource === ASSISTANT_PROGRAMME_PIPELINE_V1;
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    if (!allowed) {
+      console.error("[programme-render-blocked]", {
+        where: "client_AssistantProgrammeCard",
+        debugSource: programme.debugSource ?? "missing",
+        programmeTitle: programme.programmeTitle,
+        dayCount: programme.days?.length ?? 0,
+      });
+      return;
+    }
+    console.log("[programme-render-allowed]", {
+      where: "client_AssistantProgrammeCard",
+      debugSource: programme.debugSource,
+      debugRequestId: programme.debugRequestId ?? null,
+      programmeTitle: programme.programmeTitle,
+      dayCount: programme.days.length,
+    });
+  }, [programme, allowed]);
+  if (process.env.NODE_ENV === "development" && !allowed) {
+    return (
+      <div
+        className="rounded-xl border-2 border-red-500 bg-red-950/50 px-4 py-3 text-red-100"
+        role="alert"
+      >
+        <p className="text-sm font-bold uppercase tracking-wide text-red-200">
+          Blocked: programme did not come from new programme pipeline
+        </p>
+        <p className="text-xs mt-2 font-mono text-red-200/90">
+          debugSource={JSON.stringify(programme.debugSource ?? null)} · days={programme.days?.length ?? 0}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2">
@@ -142,6 +184,9 @@ function AssistantProgrammeCard({ programme }: { programme: StructuredProgramme 
         {programme.days.map((day) => (
           <div key={day.dayLabel} className="rounded-xl border border-white/10 bg-zinc-900/70 px-3 py-3">
             <p className="text-sm font-semibold text-zinc-100">{day.dayLabel}</p>
+            {day.targetMuscles && day.targetMuscles.length > 0 ? (
+              <p className="text-xs text-zinc-500 mt-0.5">Targets: {day.targetMuscles.join(", ")}</p>
+            ) : null}
             <p className="text-xs text-zinc-400 mt-0.5">{day.purposeSummary}</p>
             <div className="space-y-2 mt-2">
               {day.exercises.map((ex, i) => (
@@ -178,6 +223,7 @@ export default function AssistantPage() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [exactThreadLoaded, setExactThreadLoaded] = useState(false);
   const threadRef = useRef<AssistantThread | null>(null);
+  const activeProgrammeStateRef = useRef<PipelineActiveProgrammeState | null>(null);
   const starterPrompts = [
     "How is my training looking this week?",
     "Am I doing enough chest volume?",
@@ -213,6 +259,36 @@ export default function AssistantPage() {
           programme: m.programme,
         }))
       );
+      const programmeMessages = thread.messages.filter(
+        (m) => m.role === "assistant" && m.programme && m.programme.days?.length
+      );
+      if (programmeMessages.length > 0) {
+        const nonV1 = programmeMessages.filter(
+          (m) => m.programme!.debugSource !== ASSISTANT_PROGRAMME_PIPELINE_V1
+        );
+        if (process.env.NODE_ENV === "development" && nonV1.length > 0) {
+          console.warn("[programme-cache-hit]", {
+            hit: true,
+            source: "thread_localStorage_assistantThreadsV1",
+            nonV1ProgrammeMessages: nonV1.length,
+            debugSources: nonV1.map((m) => m.programme?.debugSource ?? "missing"),
+            note: "UI will block these cards unless debugSource is new_programme_pipeline_v1",
+          });
+        }
+        console.log("[programme-cache-hit]", {
+          hit: true,
+          source: "thread_localStorage_assistantThreadsV1",
+          programmeCardCount: programmeMessages.length,
+          threadId,
+          note: "Not a server cache — persisted chat history replayed in UI",
+        });
+      } else {
+        console.log("[programme-cache-hit]", {
+          hit: false,
+          source: "thread_load",
+          threadId,
+        });
+      }
       console.log("[thread-debug] active thread loaded", {
         threadId,
         exactThreadLoaded: loaded,
@@ -535,11 +611,48 @@ export default function AssistantPage() {
           benchProjection,
           benchContext,
           benchEstimate,
+          activeProgrammeState: activeProgrammeStateRef.current ?? undefined,
         }),
       });
 
       const data = await res.json();
       if (res.ok && typeof data.reply === "string") {
+        if (data.programmeConstraintFailure === true) {
+          activeProgrammeStateRef.current = null;
+          if (process.env.NODE_ENV === "development") {
+            console.error("[programme-constraint-failure]", {
+              where: "client_after_fetch_api_assistant",
+              replyPreview: (data.reply as string).slice(0, 200),
+            });
+          }
+        }
+        if (process.env.NODE_ENV === "development" && data.activeProgrammeState) {
+          console.log("[assistant-client-active-programme-state]", data.activeProgrammeState);
+        }
+        if (process.env.NODE_ENV === "development" && data.structuredProgramme) {
+          const sp = data.structuredProgramme as StructuredProgramme;
+          if (sp.debugSource !== ASSISTANT_PROGRAMME_PIPELINE_V1) {
+            console.error("[old-programme-path-hit]", {
+              where: "client_after_fetch_api_assistant",
+              debugSource: sp.debugSource ?? "missing",
+            });
+          }
+          console.log("[programme-rendered]", {
+            where: "client_after_fetch_api_assistant",
+            debugSource: sp.debugSource ?? "missing_debugSource",
+            debugRequestId: sp.debugRequestId ?? null,
+            programmeTitle: sp.programmeTitle,
+            dayCount: sp.days?.length ?? 0,
+          });
+        }
+        if (
+          data.activeProgrammeState &&
+          typeof data.activeProgrammeState === "object" &&
+          "programme" in data.activeProgrammeState &&
+          "parsedRequest" in data.activeProgrammeState
+        ) {
+          activeProgrammeStateRef.current = data.activeProgrammeState as PipelineActiveProgrammeState;
+        }
         // Selective long-term memory can be toggled in UI.
         try {
           const proposals = extractMemoryProposalsFromConversation({
@@ -578,7 +691,9 @@ export default function AssistantPage() {
               ? (data.structuredWorkout as StructuredWorkout)
               : undefined,
           programme:
-            data.structuredProgramme && typeof data.structuredProgramme === "object"
+            data.programmeConstraintFailure !== true &&
+            data.structuredProgramme &&
+            typeof data.structuredProgramme === "object"
               ? (data.structuredProgramme as StructuredProgramme)
               : undefined,
         });
@@ -650,6 +765,7 @@ export default function AssistantPage() {
     const result = createNewChatThread();
     // Hard reset short-term assistant conversation state for this tab/thread.
     activeExerciseTopicRef.current = null;
+    activeProgrammeStateRef.current = null;
     threadRef.current = result.thread;
     setActiveThreadId(result.threadId);
     setExactThreadLoaded(result.exactThreadLoaded);
