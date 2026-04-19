@@ -10,6 +10,12 @@ export type AssistantStructuredProgramme = {
   programmeTitle: string;
   programmeGoal: string;
   notes: string;
+  /** Mechanical proof: which generator built this programme. */
+  debugProgrammeGenerator?:
+    | "assistant_unified_path"
+    | "ui_builder_path"
+    | "programme_structure_llm_path"
+    | "error_fallback";
   /** Set only by `buildProgramme` (new pipeline). */
   debugSource?: AssistantStructuredProgrammeDebugSource;
   /** Correlates one assistant request with the built programme object. */
@@ -20,6 +26,8 @@ export type AssistantStructuredProgramme = {
     dayLabel: string;
     sessionType: string;
     purposeSummary: string;
+    /** Per-day generator tag when mixed sources are needed for debugging. */
+    debugDayGenerator?: string;
     targetMuscles?: string[];
     exercises: Array<{
       slotLabel: string;

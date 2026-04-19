@@ -32,17 +32,20 @@ function countBy(
 /** Documented minimums enforced by validation + templates. */
 export const MINIMUM_VIABLE_DAY_RULES = {
   push: [
-    "At least 1 horizontal chest press (compound or machine).",
-    "At least 1 vertical shoulder press.",
-    "At least 1 direct chest isolation (fly, pec deck, etc.).",
-    "At least 1 direct triceps isolation.",
-    "If user asks for more isolation: ≥1 extra isolation beyond those four movement roles (typically a second chest or triceps isolation).",
+    "At least 1 flat/horizontal chest press (compound or machine) — targets mid/sternal chest.",
+    "At least 1 incline chest press — targets clavicular/upper chest; flat press alone is insufficient.",
+    "At least 1 vertical shoulder press (overhead press).",
+    "At least 1 lateral raise — mandatory for medial delt; pressing does not train it.",
+    "At least 1 triceps overhead extension (triceps_overhead_extension) — long head via stretched position.",
+    "At least 1 triceps pushdown (triceps_pushdown) — lateral/medial head complement.",
+    "If user asks for more isolation: ≥1 extra isolation beyond those six roles (e.g. cable fly, extra shoulder work).",
   ],
   pull: [
-    "At least 1 vertical pull.",
-    "At least 1 horizontal pull / row.",
-    "At least 1 rear-delt or upper-back isolation (face pull, rear fly, etc.).",
-    "At least 1 biceps isolation.",
+    "At least 1 vertical pull (lat pulldown or pull-up) — lat width.",
+    "At least 1 horizontal pull / row — back thickness, rhomboids.",
+    "At least 1 rear-delt isolation (face pull, rear fly) — posterior delt; rows alone are insufficient.",
+    "At least 1 supinated curl (biceps_curl) — short-head / standard biceps.",
+    "At least 1 neutral/hammer curl (hammer_curl) — long head + brachialis; distinct from supinated.",
     "If user asks for more isolation: add extra row/curl or rear-delt slot via higher target count.",
   ],
   legs: [
@@ -61,9 +64,12 @@ export type DayQualityResult = {
   suggestedTargetCount: number;
 };
 
+export type DayQualityOptions = Record<string, never>
+
 export function validateBuiltDayQuality(
   built: BuiltWorkoutLike,
-  intent: BuilderStructuralIntent | undefined
+  intent: BuilderStructuralIntent | undefined,
+  opts?: DayQualityOptions
 ): DayQualityResult {
   const warnings: string[] = [];
   const st = built.sessionType;
@@ -169,6 +175,13 @@ export function validateBuiltDayQuality(
       (e.tags.includes("biceps") || e.primaryMuscles.some((p) => p.toLowerCase().includes("biceps")))
   );
 
+  const hasInclineCompound = countBy(
+    metas,
+    (e) =>
+      e.movementPattern.includes("incline") &&
+      ["main_compound", "secondary_compound", "machine_compound"].includes(e.role)
+  );
+
   const quadComp = countBy(
     metas,
     (e) => e.tags.includes("quad_dominant") && ["main_compound", "machine_compound", "secondary_compound"].includes(e.role)
@@ -188,19 +201,101 @@ export function validateBuiltDayQuality(
 
   if (st === "push") {
     if (hasHorizontalPush < 1) warnings.push("Push day missing a clear horizontal chest press.");
-    if (hasVerticalPush < 1) warnings.push("Push day missing a vertical shoulder press.");
-    if (hasChestIso < 1) warnings.push("Push day missing direct chest isolation.");
-    if (hasTriIso < 1) warnings.push("Push day missing direct triceps work.");
+    if (hasVerticalPush < 1) warnings.push("Push day missing a vertical shoulder press (e.g. overhead press).");
+
+    // Incline / upper chest: flat press alone leaves the clavicular head undertrained.
+    if (hasInclineCompound < 1) {
+      warnings.push(
+        "Push day missing an incline/upper-chest compound (e.g. incline_dumbbell_press). Flat press targets mid-chest; incline press is needed to train the clavicular head. Add incline_dumbbell_press or similar."
+      );
+    }
+
+    // Medial delt: lateral raise is mandatory — pressing alone does not train it.
+    const hasLateralRaise = countBy(
+      metas,
+      (e) => e.tags.includes("lateral_raise") || (e.tags.includes("shoulders") && (e.role === "isolation" || e.role === "accessory") && !e.tags.includes("vertical_push"))
+    );
+    if (hasLateralRaise < 1) {
+      warnings.push("Push day: medial delt (lateral raise) not covered — pressing alone does not train the side delt effectively.");
+    }
+
+    // Triceps: two distinct heads need two different exercises.
+    const hasOverheadTri = countBy(
+      metas,
+      (e) =>
+        e.id === "triceps_overhead_extension" ||
+        e.tags.includes("triceps_long_head") ||
+        e.movementPattern === "elbow_extension_overhead"
+    );
+    const hasPushdownTri = countBy(
+      metas,
+      (e) =>
+        e.id === "triceps_pushdown" ||
+        e.tags.includes("triceps_lateral_head") ||
+        (e.primaryMuscles.some((p) => p.toLowerCase().includes("triceps")) && e.movementPattern === "elbow_extension")
+    );
+    if (hasTriIso < 1) {
+      warnings.push("Push day missing direct triceps work.");
+    } else if (hasTriIso < 2) {
+      warnings.push(
+        "Push day has only one triceps exercise. The triceps long head requires overhead loading (triceps_overhead_extension) while the lateral/medial heads are best trained by pushdowns (triceps_pushdown). Add both for complete triceps development."
+      );
+    } else if (hasOverheadTri < 1) {
+      warnings.push(
+        "Push day triceps work missing an overhead extension (triceps_overhead_extension). The long head — the largest triceps portion — needs a stretched position; pushdowns alone cannot replicate this. Add triceps_overhead_extension."
+      );
+    } else if (hasPushdownTri < 1) {
+      warnings.push(
+        "Push day triceps work missing a pushdown (triceps_pushdown). Overhead extensions bias the long head; add triceps_pushdown to also target the lateral and medial heads."
+      );
+    }
+
     if (intent?.moreIsolation && isolationCount < 3) {
       warnings.push("More isolation requested: expected at least three isolation/accessory movements on push day.");
     }
   }
 
-  if (st === "pull") {
-    if (hasVertPull < 1) warnings.push("Pull day missing a vertical pull.");
+  if (st === "pull" || st === "back") {
+    if (hasVertPull < 1) warnings.push("Pull day missing a vertical pull (lat pulldown or pull-up).");
     if (hasHorizPull < 1) warnings.push("Pull day missing a horizontal pull / row.");
-    if (hasRearOrUpperIso < 1) warnings.push("Pull day missing rear-delt / upper-back isolation.");
-    if (hasBicepsIso < 1) warnings.push("Pull day missing biceps isolation.");
+    if (hasRearOrUpperIso < 1)
+      warnings.push("Pull day missing rear-delt / upper-back isolation (face pull or rear fly).");
+
+    // Biceps: two distinct curl grips target different heads — mirrors push requiring 2 tricep exercises.
+    const hasSupinatedCurl = countBy(
+      metas,
+      (e) =>
+        e.id === "biceps_curl" ||
+        (e.primaryMuscles.some((p) => p.toLowerCase().includes("biceps")) &&
+          e.movementPattern === "elbow_flexion" &&
+          e.lengthBias === "neutral")
+    );
+    const hasNeutralCurl = countBy(
+      metas,
+      (e) =>
+        e.id === "hammer_curl" ||
+        (e.primaryMuscles.some((p) => p.toLowerCase().includes("biceps")) &&
+          e.movementPattern === "elbow_flexion" &&
+          e.lengthBias !== "neutral" &&
+          e.id !== "biceps_curl")
+    );
+
+    if (hasBicepsIso < 1) {
+      warnings.push("Pull day missing direct biceps work.");
+    } else if (hasBicepsIso < 2) {
+      warnings.push(
+        "Pull day has only one bicep exercise. A supinated curl (biceps_curl, short-head emphasis) and a neutral/hammer curl (hammer_curl, long-head + brachialis) target distinct aspects of the biceps. Add both."
+      );
+    } else if (hasSupinatedCurl < 1) {
+      warnings.push(
+        "Pull day biceps missing a supinated curl (biceps_curl). Hammer curls alone bias the long head; add a standard supinated curl for full biceps development."
+      );
+    } else if (hasNeutralCurl < 1) {
+      warnings.push(
+        "Pull day biceps missing a neutral/hammer curl (hammer_curl). Supinated curls alone under-develop the brachialis and long head; add hammer_curl."
+      );
+    }
+
     if (intent?.moreIsolation && isolationCount < 3) {
       warnings.push("More isolation requested: expected extra curl/rear-delt or similar on pull day.");
     }
@@ -235,16 +330,17 @@ export function validateBuiltDayQuality(
     }
   }
 
-  const suggestedTargetCount = Math.max(
-    built.exercises.length + 2,
-    st === "push" || st === "pull"
+  const baseTemplateCount =
+    st === "push"
       ? 6
-      : st === "legs" || st === "lower"
-        ? 6
-        : st === "upper"
+      : st === "pull"
+        ? 5
+        : st === "legs" || st === "lower"
           ? 6
-          : 4
-  );
+          : st === "upper"
+            ? 6
+            : 4;
+  const suggestedTargetCount = Math.max(built.exercises.length + 1, baseTemplateCount);
 
   return {
     ok: warnings.length === 0,

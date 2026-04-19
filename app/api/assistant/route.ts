@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import {
   detectAssistantModeWithReason,
   type AssistantMode,
@@ -22,11 +22,18 @@ import {
   type AssistantQuestionKind,
   type AssistantThreadTurn,
 } from "@/lib/assistantQuestionRouting";
+import {
+  classifyWorkoutArtefactIntent,
+  detectConstructionResponseMode,
+  hasExplicitLexicalConstructionAsk,
+  mayRunStructuredProgrammePath,
+  shouldEmitStructuredSingleSessionWorkout,
+  userExplicitlyBlocksStructuredWorkoutGeneration,
+} from "@/lib/workoutConstructionIntent";
 import { buildAssistantEvidenceScopeBlock } from "@/lib/assistantAnswerScope";
 import type { BenchContextSummary } from "@/lib/benchContext";
 import type { Bench1RMEstimate } from "@/lib/bench1rm";
 import {
-  buildWorkoutWithQualityPasses,
   type BuiltWorkout,
   type WorkoutBuilderGoal,
   type RecoveryMode,
@@ -41,6 +48,7 @@ import { parseRequestedExerciseConstraints } from "@/lib/parseRequestedExerciseC
 import type { SplitDefinition } from "@/lib/splitDefinition";
 import {
   buildProgramme,
+  buildProgrammeWithUnifiedSessionPlanner,
   classifyProgrammeIntent,
   composeModificationUserMessage,
   parseProgrammeRequest,
@@ -48,6 +56,7 @@ import {
   validateProgrammeAgainstRequest,
   type ActiveProgrammeState as PipelineActiveProgrammeState,
   type AssistantStructuredProgrammeDebugSource,
+  type BuildProgrammeUserContext,
   type ParsedProgrammeRequest,
 } from "@/lib/programmePipeline";
 import { getPrescriptionForExercise } from "@/lib/prescriptionDefaults";
@@ -57,6 +66,9 @@ import {
 } from "@/lib/extractProgrammeConstraintsLLM";
 import { extractProgrammeStructureLLM } from "@/lib/extractProgrammeStructureLLM";
 import { buildProgrammeFromLLMPlan } from "@/lib/buildProgrammeFromLLMPlan";
+import { generateAssistantSingleSessionWorkout } from "@/lib/assistantSingleSessionGeneration";
+import { generateCoachRoutineReviewLLM } from "@/lib/explainRoutineCoachLLM";
+import { isGenericSessionBuildRequest } from "@/lib/sessionExerciseCountPolicy";
 import {
   exclusionStringsForExerciseIds,
   mergeLLMIntoProgrammeBuildState,
@@ -71,6 +83,23 @@ import type { MuscleGroupId } from "@/lib/muscleGroupRules";
 import { MUSCLE_GROUP_RULES } from "@/lib/muscleGroupRules";
 import { buildSessionFeedbackFromBuiltWorkout } from "@/lib/trainingKnowledge/sessionReviewLogic";
 import { tryAnswerFromTrainingKnowledge as tryAnswerTrainingKnowledgeQuestion } from "@/lib/trainingKnowledge/trainingAnswerSupport";
+import {
+  buildMuscleRulesSnippetFromMessage,
+  selectServerEvidenceCards,
+  shouldAttachScienceContext,
+  type ServerEvidenceCard,
+} from "@/lib/assistantScienceContext";
+import {
+  extractRecentAssistantWorkoutsFromThread,
+  formatAssistantBuiltWorkoutsForPrompt,
+} from "@/lib/assistantThreadWorkouts";
+/** Dev/proof: log full chain for this exact probe message. */
+const PUSH_DAY_HYPERTROPHY_PROBE =
+  /build\s+me\s+a\s+push\s+day\s+for\s+hypertrophy\s+with\s+balanced\s+chest,?\s*shoulder\s+and\s+tricep\s+coverage/i;
+
+function logWorkoutGenChain(payload: Record<string, unknown>): void {
+  console.log("[workout-gen-chain]", JSON.stringify({ t: new Date().toISOString(), ...payload }, null, 2));
+}
 
 /** Mirrors client `coachStructuredOutput` — deterministic Coach tab output + evidence id hooks. */
 export type AssistantCoachStructuredOutput = {
@@ -245,11 +274,15 @@ export type AssistantBody = {
 
 export type AssistantResponse = {
   reply: string;
+  /** When set, natural-language coach review of structured output; also prepended to `reply`. */
+  coachReview?: string;
   structuredWorkout?: {
     sessionTitle: string;
     sessionGoal: string;
     purposeSummary: string;
     exercises: Array<{
+      slotLabel?: string;
+      exerciseName?: string;
       slot: string;
       exercise: string;
       sets: string;
@@ -258,7 +291,10 @@ export type AssistantResponse = {
       rest: string;
       rationale: string;
     }>;
+    notes?: string;
     note: string;
+    debugGenerator?: string;
+    debugTrace?: string;
   };
   structuredProgramme?: {
     programmeTitle: string;
@@ -290,6 +326,36 @@ export type AssistantResponse = {
   /** When set, client must not treat the turn as a successful programme (no card / clear pipeline state). */
   programmeConstraintFailure?: boolean;
 };
+
+function buildCoachContextSnippetForReview(opts: {
+  trainingFocus?: string;
+  experienceLevel?: string;
+  priorityGoal?: string;
+  unit?: string;
+  weeklyVolumeByMuscle?: Record<string, number>;
+  recentExercises?: string[];
+}): string {
+  const parts: string[] = [];
+  if (opts.trainingFocus) parts.push(`Training focus: ${opts.trainingFocus}`);
+  if (opts.experienceLevel) parts.push(`Experience level: ${opts.experienceLevel}`);
+  if (opts.priorityGoal) parts.push(`Priority goal: ${opts.priorityGoal}`);
+  if (opts.unit) parts.push(`Units: ${opts.unit}`);
+
+  if (opts.weeklyVolumeByMuscle) {
+    const volumeStr = Object.entries(opts.weeklyVolumeByMuscle)
+      .filter(([, n]) => n > 0)
+      .sort(([, a], [, b]) => b - a)
+      .map(([g, n]) => `${g}: ${n} sets`)
+      .join(", ");
+    if (volumeStr) parts.push(`Recent weekly volume (last 7 days): ${volumeStr}`);
+  }
+
+  if (opts.recentExercises?.length) {
+    parts.push(`Recently trained exercises: ${opts.recentExercises.slice(0, 12).join(", ")}`);
+  }
+
+  return parts.length ? parts.join(". ") + "." : "No extra profile fields were sent.";
+}
 
 export type AssistantIntent =
   | "session_review"
@@ -388,12 +454,19 @@ function inferWorkoutBuilderGoal(
 ): WorkoutBuilderGoal {
   const t = message.toLowerCase();
   const p = (priorityGoal ?? "").toLowerCase();
+  const explicitBalancedCoverage =
+    /\bbalanced\b/.test(t) &&
+    /(?:chest|shoulders?|triceps?|back|biceps?|legs?|quads?|hamstrings?)/.test(t);
+  if (explicitBalancedCoverage) return "balanced";
   if (/\bbench\b/.test(t) || p.includes("bench")) return "bench_strength_emphasis";
-  if (/\bchest\b/.test(t) || p.includes("chest")) return "chest_emphasis";
+  if (/\b(chest\s+emphasis|chest\s+priority|prioriti[sz]e\s+chest|more\s+chest)\b/.test(t) || p.includes("chest")) {
+    return "chest_emphasis";
+  }
   if (/\bstrength\b/.test(t) || p.includes("strength")) return "improve_overall_strength";
   if (/\bhypertrophy\b|\bmuscle\b/.test(t) || p.includes("hypertrophy")) return "build_overall_muscle";
   if (/\bupper\b/.test(t)) return "upper_body_emphasis";
-  return "balanced";
+  // Default: hypertrophy-style training without implying a “full balanced template” session contract.
+  return "build_overall_muscle";
 }
 
 function inferEquipmentFromParsed(parsed: ParsedContext): string[] {
@@ -460,6 +533,7 @@ type StrictIntentLock = {
 
 function computeStrictIntentLock(message: string): StrictIntentLock {
   const t = message.toLowerCase().trim();
+  const constructionBlocked = userExplicitlyBlocksStructuredWorkoutGeneration(message);
   const heavy = /\bheavy\b/.test(t);
   const volume = /\bvolume\b/.test(t);
   const lastOrRecent = /\b(last|latest|most recent|recent)\b/.test(t);
@@ -516,12 +590,14 @@ function computeStrictIntentLock(message: string): StrictIntentLock {
   if (correctionLike) mode = "correction_clarification";
   else if (splitComparisonLike) mode = "split_comparison_or_recommendation";
   else if (splitEducationLike) mode = "split_explanation_education";
-  else if (programmeLike && planActionLike && !asksOpinionOrComparison)
+  else if (!constructionBlocked && programmeLike && planActionLike && !asksOpinionOrComparison)
     mode = "multi_day_programme_construction";
   else if (
+    !constructionBlocked &&
     workoutLike &&
-    (/\b(build|make|create|suggest|generate|plan|what should i train today)\b/.test(t) ||
-      (nextSession && /\b(look like|should be|program|session)\b/.test(t)) ) &&
+    (/\b(build|make|create|generate|plan|what should i train today)\b/.test(t) ||
+      (/\bsuggest\b/.test(t) && /\b(workout|session)\b/.test(t)) ||
+      (nextSession && /\b(look like|should be|program|session)\b/.test(t))) &&
     !asksOpinionOrComparison
   )
     mode = "single_workout_construction";
@@ -587,17 +663,6 @@ function applyStrictIntentLock(
   }
 }
 
-function hasExplicitConstructionAsk(message: string): boolean {
-  const t = message.toLowerCase();
-  return (
-    /\b(build|make|create|generate|write me|give me|plan|rebuild|adjust|modify)\b/.test(t) &&
-    (
-      /\b(workout|session|routine|split|programme|program|training plan|weekly plan)\b/.test(t) ||
-      /\b(push pull legs|ppl|upper lower|upper\/lower|upper-lower)\b/.test(t)
-    )
-  ) || /\bwhat should i train today\b/.test(t);
-}
-
 function renderBuiltWorkoutReply(workout: BuiltWorkout): string {
   const lines: string[] = [`Session: ${workout.purposeSummary}`, "", "Workout:", ""];
   for (const [idx, ex] of workout.exercises.entries()) {
@@ -627,30 +692,6 @@ function renderBuiltWorkoutReply(workout: BuiltWorkout): string {
     for (const f of feedback.slice(0, 2)) lines.push(`- ${f}`);
   }
   return lines.join("\n");
-}
-
-function toStructuredWorkout(workout: BuiltWorkout): NonNullable<AssistantResponse["structuredWorkout"]> {
-  const sessionTitle = `${workout.sessionType.replace("_", " ")} workout`;
-  const sessionGoal = workout.purposeSummary;
-  const note =
-    workout.notes[0] ??
-    workout.warnings[0] ??
-    "Run compounds first, then accessories, and keep execution quality high.";
-  return {
-    sessionTitle,
-    sessionGoal,
-    purposeSummary: workout.purposeSummary,
-    exercises: workout.exercises.map((ex) => ({
-      slot: ex.slotLabel,
-      exercise: ex.exerciseName,
-      sets: formatIntRange(ex.sets),
-      reps: formatIntRange(ex.repRange),
-      rir: formatIntRange(ex.rirRange),
-      rest: `${formatIntRange(ex.restSeconds)}s`,
-      rationale: ex.rationale,
-    })),
-    note,
-  };
 }
 
 function isProgrammeBuildRequest(message: string): boolean {
@@ -1241,6 +1282,18 @@ function referencedEvidenceIds(coach: AssistantCoachStructuredOutput): Set<strin
   return ids;
 }
 
+function mergeEvidenceCards(
+  coachCards: AssistantEvidenceCard[],
+  serverCards: ServerEvidenceCard[]
+): AssistantEvidenceCard[] {
+  const map = new Map<string, AssistantEvidenceCard>();
+  for (const c of coachCards) map.set(c.id, c);
+  for (const c of serverCards) {
+    if (!map.has(c.id)) map.set(c.id, c);
+  }
+  return [...map.values()];
+}
+
 function buildAnalysisInputs(
   trainingSummary: AssistantBody["trainingSummary"],
   trainingInsights: AssistantBody["trainingInsights"] | undefined,
@@ -1400,6 +1453,26 @@ Question-type fit (default shapes — tighten further if the task above says oth
 - Bench projection (when block present): no forced labels by default. Use 2-4 short coach-like paragraphs (answer first, then why from logs, then next move). Keep heavy vs volume evidence separated naturally.
 `.trim();
 
+/**
+ * Stable system prompt — never changes between requests, so it always hits the
+ * prompt cache after the first call. Contains all static instruction blocks.
+ */
+const STATIC_COACH_SYSTEM_PROMPT = `You are an expert AI strength and hypertrophy coach embedded in a training app. Answer based strictly on the user's logged workout data, coaching context, and evidence-based training principles provided in each request. Never fabricate training data, studies, statistics, or coaching claims not present in the request payload.
+
+---
+TRUST & CALIBRATION:
+${TRUST_AND_CALIBRATION_BLOCK}
+
+---
+INFERENCE & CERTAINTY:
+${INFERENCE_CERTAINTY_BLOCK}
+
+---
+${GLOBAL_REPLY_DISCIPLINE_BLOCK}
+
+---
+${FINAL_RESPONSE_POLISH_BLOCK}`.trim();
+
 async function getAssistantReply(
   loggedDataPreamble: string,
   message: string,
@@ -1427,14 +1500,16 @@ async function getAssistantReply(
   coachStructuredOutput: AssistantCoachStructuredOutput | undefined,
   evidenceCards: AssistantEvidenceCard[],
   priorAssistantTurnContent: string | null | undefined,
-  explicitAnchor: ExplicitEvidenceAnchor | null
+  explicitAnchor: ExplicitEvidenceAnchor | null,
+  /** Full detail of assistant-built sessions from thread (not chat truncation). */
+  builtWorkoutsFromThreadBlock: string
 ): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
+    throw new Error("ANTHROPIC_API_KEY is not set");
   }
 
-  const openai = new OpenAI({ apiKey });
+  const anthropic = new Anthropic({ apiKey });
 
   const weeklyVolumeStr =
     Object.entries(trainingSummary.weeklyVolume ?? {})
@@ -1601,6 +1676,22 @@ Strict rules when coach output is present:
 `
     : "";
 
+  const standaloneAppEvidenceBlock =
+    !coachStructuredOutput && evidenceCards.length > 0
+      ? `
+App-provided evidence cards (authoritative for this turn — paraphrase for the user; do not invent external studies, DOIs, or paper details beyond these entries):
+${evidenceJson}
+
+Rules:
+- These entries align with the app hypertrophy framework and programming logic in this request.
+- Do not add evidence card IDs or claims not listed in this JSON.
+`.trim()
+      : "";
+
+  const blendedEvidenceAuthorityBlock = coachStructuredOutput
+    ? coachAuthorityBlock
+    : standaloneAppEvidenceBlock;
+
   const evidenceDrivenReasoningBlock = hasEvidenceCards
     ? `
 EVIDENCE CARDS (when non-empty — required):
@@ -1647,7 +1738,8 @@ DEPTH (compressed):
 - Keep mechanism, cause→effect, one system link when data support — spread across short sentences, not one dense block.
 
 HOW TO REASON:
-- With coach output: coachStructuredOutput + evidenceCards → trainingInsights → exerciseTrends → context. Without: insights + trends + context.
+- With coach tab output: coachStructuredOutput + evidenceCards → trainingInsights → exerciseTrends → context.
+- Without coach tab output but with evidenceCards: use evidenceCards + hypertrophy framework + APP MUSCLE RULES (if present) → then insights + trends + context.
 
 PLAIN LANGUAGE:
 - Support muscles; sets, frequency, effort — not lab jargon unless the card uses it. Prefer "system constraint" framing over vague wellness talk.
@@ -1710,6 +1802,11 @@ TONE:
     ? "- Before finalizing any estimate: validate anchor fit in order: (1) identify named anchor, (2) name the exact matching logged benchmark for that anchor, (3) confirm the estimate is anchored to that benchmark. If validation fails, say anchor evidence is missing or ambiguous rather than silently switching anchors.\n"
     : "";
 
+  const appMuscleRulesBlock =
+    shouldAttachScienceContext(questionKind) && message.trim()
+      ? buildMuscleRulesSnippetFromMessage(message)
+      : "";
+
   const routingPreambleBase = `
 QUESTION KIND (routing): ${questionKind}
 INTENT (legacy label): ${effectiveIntent}
@@ -1723,6 +1820,7 @@ ${explicitAnchorValidationRule}
 - If LOGGED TRAINING above shows workouts exist, never ask the user to describe their whole program from scratch; use the digest and structured fields.
 - Multi-part answers: each subsection (e.g. heavy day vs volume day vs one session vs weekly totals) must cite only evidence that matches that subsection. Do not let the strongest global benchmark replace a more specific anchor for another subsection.
 - For hypertrophy/workout design questions, use the evidence framework block below as primary training logic.
+${appMuscleRulesBlock ? `\n${appMuscleRulesBlock}\n` : ""}
 `;
 
   const evidenceScopeBlock = buildAssistantEvidenceScopeBlock({
@@ -1839,7 +1937,7 @@ You are an elite strength coach. The user wants an explanation of existing coach
 
 ${routingPreamble}
 
-${coachStructuredOutput ? coachAuthorityBlock : "No coach structured output is available; say so briefly and answer from profile + general principles only."}
+${blendedEvidenceAuthorityBlock || "No coach structured output is available; say so briefly and answer from profile + general principles only."}
 
 ${evidenceDrivenReasoningBlock}
 
@@ -2142,7 +2240,7 @@ Hard rules:
 
 FORMAT HINT (recommendation): paragraph 1 = clear directive (what to do). Blank line. Paragraph 2 = why, tied to log facts in one or two sentences. Optional final line starting with "Next: " for the single best follow-up. No extra labeled sections.
 
-${coachAuthorityBlock}
+${blendedEvidenceAuthorityBlock}
 ${evidenceDrivenReasoningBlock}
 ${hypertrophyEvidenceBlock ? `\n${hypertrophyEvidenceBlock}\n` : ""}
 ${insightsBlock ? `${insightsBlock}` : ""}
@@ -2197,7 +2295,7 @@ You are an elite strength coach: diagnose system constraints, prescribe fixes �
 
 ${routingPreamble}
 ${reasoningBaseBlock}
-${coachAuthorityBlock}
+${blendedEvidenceAuthorityBlock}
 ${evidenceDrivenReasoningBlock}
 ${insightsBlock}
 ${trendsBlock}
@@ -2229,7 +2327,7 @@ You are an elite strength coach. The user wants an explanation of what the coach
 
 ${routingPreamble}
 
-${coachStructuredOutput ? coachAuthorityBlock : "No coach structured output is available; say so briefly and answer from profile + general principles only."}
+${blendedEvidenceAuthorityBlock || "No coach structured output is available; say so briefly and answer from profile + general principles only."}
 
 ${evidenceDrivenReasoningBlock}
 
@@ -2329,25 +2427,28 @@ You are an elite strength coach.
 
 ${routingPreamble}
 
-Answer the question normally. You may use training context below only when it directly helps—do not lead with or default to "your training this week" unless the question calls for it.
-${plannedDayMuscleCoverageBlock ? `\nPlanned session muscle coverage (deterministic; use for “push/pull/leg day hits X” questions):\n${plannedDayMuscleCoverageBlock}` : ""}
+HARD RULES:
+- Lead with the direct answer to the question. Do not open with their training data or a weekly summary.
+- Only reference logged training data when the user's question is specifically about their recent sessions, volume, or progress.
+- For general training principle questions, answer from principles first — brief, practical, concrete.
+- One specific data point from their profile may personalise the answer, but only when it clearly sharpens the response. Do not run a full training audit on an off-topic question.
+- 2–4 sentences for simple questions; short focused paragraphs for multi-part ones. No invented headers.
+${plannedDayMuscleCoverageBlock ? `\nPlanned session muscle coverage (use for "push/pull/leg day hits X" questions):\n${plannedDayMuscleCoverageBlock}` : ""}
 ${hypertrophyEvidenceBlock ? `\n${hypertrophyEvidenceBlock}\n` : ""}
 ${profileStr ? `User profile: ${profileStr}.` : ""}
 ${constraintsStr ? `User constraints: ${constraintsStr}` : ""}
 ${inferredStr}
 ${coachingMemoryStr}
 
-Training context (optional reference):
+Training context (reference only — use a detail to personalise if clearly helpful; do not default to a full weekly audit):
 ${context}
-${insightsBlock ? `\n${insightsBlock}` : ""}
-${trendsStr ? trendsBlock : ""}
+${/\b(this week|last week|recent|my session|my workout|my training|my volume|my progress)\b/.test(message.toLowerCase()) && insightsBlock ? `\n${insightsBlock}` : ""}
+${/\b(this week|last week|recent|my session|my workout|my training|my volume|my progress)\b/.test(message.toLowerCase()) && trendsStr ? trendsBlock : ""}
 
 User question:
 ${message}
 
-FORMAT HINT: default = one short paragraph or two with a blank line between; no invented section headers.
-
-Reply in plain language. Prefer 3–5 concise sentences unless the user asks for more.
+Reply in plain language. Answer the question directly first. Prefer 2–4 concise sentences for simple questions.
 `;
       }
       break;
@@ -2370,7 +2471,8 @@ Reply in plain language. Prefer 3–5 concise sentences unless the user asks for
       .slice(-6)
       .map((t) => {
         const c = (t.content ?? "").replace(/\s+/g, " ").trim();
-        const trimmed = c.length > 220 ? `${c.slice(0, 220)}…` : c;
+        const cap = t.role === "assistant" ? 900 : 400;
+        const trimmed = c.length > cap ? `${c.slice(0, cap)}…` : c;
         return `${t.role}: ${trimmed}`;
       })
       .filter(Boolean) ?? [];
@@ -2567,14 +2669,27 @@ ${benchContextBlock}
 
 ${benchEstimateBlock}`.trim();
 
-  const finalInput = `${loggedDataPreamble.trim()}\n\n${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}\n\n---\nTRUST & CALIBRATION (apply to your reply):\n${TRUST_AND_CALIBRATION_BLOCK}\n\n---\nINFERENCE & CERTAINTY (apply to your reply):\n${INFERENCE_CERTAINTY_BLOCK}\n\n---\n${GLOBAL_REPLY_DISCIPLINE_BLOCK}\n\n---\n${FINAL_RESPONSE_POLISH_BLOCK}`;
+  const builtSessionsSection = builtWorkoutsFromThreadBlock.trim()
+    ? `${builtWorkoutsFromThreadBlock.trim()}\n\n---\n`
+    : "";
 
-  const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    input: finalInput,
+  const userContent = `${loggedDataPreamble.trim()}\n\n${builtSessionsSection}${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}`;
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 2048,
+    system: [
+      {
+        type: "text",
+        text: STATIC_COACH_SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: [{ role: "user", content: userContent }],
   });
 
-  const reply = response.output_text?.trim();
+  const textBlock = response.content.find((b) => b.type === "text");
+  const reply = textBlock?.type === "text" ? textBlock.text.trim() : "";
   if (!reply) throw new Error("Empty response from model");
   return reply;
 }
@@ -3184,7 +3299,7 @@ export async function POST(request: NextRequest) {
     const templateDataAvailable = Boolean(templatesSummary?.trim());
 
     const coachStructuredOutput = isCoachStructuredOutput(rawCoach) ? rawCoach : undefined;
-    const evidenceCards =
+    const coachEvidenceCards =
       coachStructuredOutput != null
         ? sanitizeEvidenceCards(rawEvidence).filter((c) =>
             referencedEvidenceIds(coachStructuredOutput).has(c.id)
@@ -3228,6 +3343,13 @@ export async function POST(request: NextRequest) {
     });
     const strictIntentLock = computeStrictIntentLock(trimmedMessage);
     const questionKind = applyStrictIntentLock(initialQuestionKind, strictIntentLock);
+    const serverEvidenceCards = selectServerEvidenceCards(trimmedMessage, questionKind);
+    const evidenceCards = mergeEvidenceCards(coachEvidenceCards, serverEvidenceCards);
+    const recentAssistantWorkouts = extractRecentAssistantWorkoutsFromThread(
+      Array.isArray(threadMessages) ? threadMessages : undefined,
+      5
+    );
+    const builtWorkoutsPromptBlock = formatAssistantBuiltWorkoutsForPrompt(recentAssistantWorkouts);
     console.log("[assistant-question-kind]", {
       initialQuestionKind,
       lockedQuestionKind: questionKind,
@@ -3296,8 +3418,27 @@ export async function POST(request: NextRequest) {
       programmeModificationIntent,
       programmeAdjustmentAsk,
     });
+    const strictConstructionMode = detectConstructionResponseMode(trimmedMessage);
+    const explicitLexicalConstructionAsk = hasExplicitLexicalConstructionAsk(trimmedMessage);
+    const explicitConstructionAsk =
+      explicitLexicalConstructionAsk || strictConstructionMode !== "none";
+    const structuredProgrammePathAllowed = mayRunStructuredProgrammePath({
+      message: trimmedMessage,
+      programmeModificationFlow,
+    });
+    console.log("[assistant-workout-artefact-intent]", {
+      artefactIntent: classifyWorkoutArtefactIntent(trimmedMessage),
+      strictConstructionMode,
+      explicitLexicalConstructionAsk,
+      explicitConstructionAsk,
+      blocksStructuredGeneration: userExplicitlyBlocksStructuredWorkoutGeneration(trimmedMessage),
+      structuredProgrammePathAllowed,
+    });
     // Deterministic fast-paths are gated by freshly computed intent each turn.
     const deterministicByKind =
+      explicitConstructionAsk
+        ? null
+        :
       tryAnswerTrainingKnowledgeQuestion({
         message: trimmedMessage,
         activeProgramme: mergedStructuredProgramme,
@@ -3342,7 +3483,6 @@ export async function POST(request: NextRequest) {
     if (deterministicByKind) {
       return NextResponse.json({ reply: deterministicByKind } satisfies AssistantResponse);
     }
-    const explicitConstructionAsk = hasExplicitConstructionAsk(trimmedMessage);
     const parsed = parseContextFromMessage(trimmedMessage);
     const resolvedEquipment = resolveEquipmentForBuilder({
       parsed,
@@ -3379,10 +3519,12 @@ export async function POST(request: NextRequest) {
     );
     const splitTypeDetected = splitTypeFromMessage(trimmedMessage);
     const programmeLikeRequested =
-      questionKind === "multi_day_programme_construction" ||
-      (questionKind === "template_review" && isProgrammeBuildRequest(trimmedMessage)) ||
-      explicitConstructionAsk ||
-      programmeModificationFlow;
+      structuredProgrammePathAllowed &&
+      (questionKind === "multi_day_programme_construction" ||
+        (questionKind === "template_review" && isProgrammeBuildRequest(trimmedMessage)) ||
+        strictConstructionMode === "programme_build" ||
+        explicitConstructionAsk ||
+        programmeModificationFlow);
     console.log("[programme-template-path-hit]", {
       hit: false,
       reason: "No static template return path allowed for programme requests.",
@@ -3407,14 +3549,17 @@ export async function POST(request: NextRequest) {
       pipelineIntent.intent === "programme_modify" && Boolean(mergedStructuredProgramme);
 
     const pipelineWantsProgrammeBuild =
+      structuredProgrammePathAllowed &&
       pipelineIntent.intent === "programme_build" &&
       (explicitConstructionAsk ||
         questionKind === "multi_day_programme_construction" ||
         isProgrammeBuildRequest(trimmedMessage));
 
     const legacyEnterStructuredProgrammePath =
+      structuredProgrammePathAllowed &&
       (questionKind === "multi_day_programme_construction" ||
         (questionKind === "template_review" && isProgrammeBuildRequest(trimmedMessage)) ||
+        strictConstructionMode === "programme_build" ||
         programmeModificationFlow) &&
       (explicitConstructionAsk ||
         programmeModificationFlow ||
@@ -3455,7 +3600,7 @@ export async function POST(request: NextRequest) {
       try {
         const llmOut = await extractProgrammeConstraintsLLM({
           userMessage: programmeBuildUserMessage,
-          apiKey: process.env.OPENAI_API_KEY.trim(),
+          apiKey: process.env.OPENAI_API_KEY!.trim(),
         });
         if (llmOut) {
           programmeLlmConstraints = llmOut;
@@ -3545,42 +3690,149 @@ export async function POST(request: NextRequest) {
       flow: programmeLikeRequested ? "programme" : "non-programme",
       cannedTemplateBypassed: true,
     });
-    if (questionKind === "single_session_construction" && explicitConstructionAsk) {
-      const sessionType = inferSessionTypeFromContext({
+    const enterSingleSessionStructuredBuild =
+      !enterStructuredProgrammePath &&
+      shouldEmitStructuredSingleSessionWorkout({
+        message: trimmedMessage,
+        questionKind,
+        explicitLexicalConstructionAsk,
+        strictConstructionMode,
+      });
+    if (enterSingleSessionStructuredBuild) {
+      const sessionTypeInferred = inferSessionTypeFromContext({
         message: trimmedMessage,
         coachingContext,
       });
-      const built = buildWorkoutWithQualityPasses({
-        sessionType,
-        goal: inferWorkoutBuilderGoal(trimmedMessage, priorityGoal),
-        equipmentAvailable: resolvedEquipment,
-        injuriesOrExclusions: inferredExclusions,
-        recentTrainingContext: {
-          recentExerciseIds: recentExerciseIdsFromContext,
-        },
-        preferredExercises: mergedPreferredExercises,
-        requestedExerciseIds,
-        userMessage: trimmedMessage,
-        recoveryMode: /\b(low fatigue|recovery|deload|easy)\b/i.test(trimmedMessage)
-          ? ("low_fatigue" as RecoveryMode)
-          : ("normal" as RecoveryMode),
+      const recoveryModeSingle: RecoveryMode = /\b(low fatigue|recovery|deload|easy)\b/i.test(trimmedMessage)
+        ? ("low_fatigue" as RecoveryMode)
+        : ("normal" as RecoveryMode);
+      const baseGoal = inferWorkoutBuilderGoal(trimmedMessage, priorityGoal);
+      const coachPlanContextSnippet = buildCoachContextSnippetForReview({
+        trainingFocus,
+        experienceLevel,
+        priorityGoal,
+        unit,
+        weeklyVolumeByMuscle: trainingInsights?.weeklyVolume ?? trainingSummary.weeklyVolume ?? undefined,
+        recentExercises: trainingSummary.recentExercises ?? undefined,
       });
-      if (!built.exercises.length) {
+      const preferredResolvedIds = preferredExercisesFromContext
+        .map((name) => getExerciseByIdOrName(name)?.id)
+        .filter((id): id is string => Boolean(id));
+      const mergedRequestedIdsForLlm = Array.from(
+        new Set([...requestedExerciseIds, ...preferredResolvedIds])
+      );
+      const singleSessionApiKey = process.env.OPENAI_API_KEY?.trim();
+      const coachPlanAttempt = singleSessionApiKey
+        ? await generateAssistantSingleSessionWorkout({
+            apiKey: singleSessionApiKey,
+            userMessage: trimmedMessage,
+            sessionTypeHint: sessionTypeInferred,
+            equipmentAvailable: resolvedEquipment,
+            exclusions: inferredExclusions,
+            requestedExerciseIds: mergedRequestedIdsForLlm,
+            recoveryMode: recoveryModeSingle,
+            goal: baseGoal,
+            coachContextSnippet: coachPlanContextSnippet,
+          })
+        : null;
+      const builtSession = coachPlanAttempt?.built ?? null;
+      if (!singleSessionApiKey) {
+        return NextResponse.json({
+          reply:
+            "I couldn't build this session with the coach-planning pipeline because the OpenAI API key is missing on the server.",
+        } satisfies AssistantResponse);
+      }
+      if (!builtSession?.exercises.length) {
+        if (coachPlanAttempt?.issues?.length) {
+          console.warn("[single-session-llm-coach-plan-failed]", {
+            issues: coachPlanAttempt.issues,
+            sessionTypeInferred,
+            equipmentCount: resolvedEquipment.length,
+            equipmentPreview: resolvedEquipment.slice(0, 24),
+            exclusionsCount: inferredExclusions.length,
+          });
+        }
         const fallbackStructured = {
-          sessionTitle: `${sessionType.replace("_", " ")} workout`,
-          sessionGoal: "Structured fallback after generator issue",
-          purposeSummary: "Could not fully build this session from current constraints.",
+          sessionTitle: `${sessionTypeInferred.replace("_", " ")} workout`,
+          sessionGoal: "LLM coach-plan validation failed",
+          purposeSummary: "Could not produce a valid coach-planned session from current constraints.",
           exercises: [],
-          note: "I couldn't generate exercises with current constraints. Try adding equipment or removing exclusions.",
+          note: "DEBUG: generated by error_fallback_no_built_workout. Try relaxing constraints (equipment or exclusions) and retry.",
+          debugGenerator: "error_fallback_no_built_workout",
+          debugTrace: "assistant route enterSingleSessionStructuredBuild — generateAssistantSingleSessionWorkout returned no built session",
         };
         return NextResponse.json({
-          reply: "I couldn't generate this session from the current constraints.",
+          reply:
+            "I couldn't satisfy this session request through the coach-planning pipeline. Try relaxing equipment/exclusions or rephrase the request.",
           structuredWorkout: fallbackStructured,
         } satisfies AssistantResponse);
       }
+      const built: BuiltWorkout = builtSession;
+      const baseWorkoutReply = renderBuiltWorkoutReply(built);
+      let workoutCoachReview: string | undefined;
+      const reviewApiKey = process.env.OPENAI_API_KEY?.trim();
+      if (reviewApiKey) {
+        workoutCoachReview =
+          (await generateCoachRoutineReviewLLM({
+            apiKey: reviewApiKey,
+            userMessage: trimmedMessage,
+            coachContextSnippet: buildCoachContextSnippetForReview({
+              trainingFocus,
+              experienceLevel,
+              priorityGoal,
+              unit,
+              weeklyVolumeByMuscle: trainingInsights?.weeklyVolume ?? trainingSummary.weeklyVolume ?? undefined,
+              recentExercises: trainingSummary.recentExercises ?? undefined,
+            }),
+            kind: "single_workout",
+            verbosity: "compact",
+            workout: {
+              sessionType: built.sessionType,
+              purposeSummary: built.purposeSummary,
+              exercises: built.exercises.map((e) => ({
+                slotLabel: e.slotLabel,
+                exerciseName: e.exerciseName,
+              })),
+              ...(built.weeklyFrequency ? { weeklyFrequency: built.weeklyFrequency } : {}),
+            },
+          })) ?? undefined;
+      }
+      // Workout card always first; brief coach note appended when present.
+      const workoutReply = workoutCoachReview
+        ? `${baseWorkoutReply}\n\n${workoutCoachReview}`
+        : baseWorkoutReply;
+      const structuredWorkoutFinal = coachPlanAttempt!.structuredWorkout!;
+      if (PUSH_DAY_HYPERTROPHY_PROBE.test(trimmedMessage)) {
+        logWorkoutGenChain({
+          probe: "push_day_hypertrophy_balanced",
+          questionKind,
+          intentDetected: "single_session_structured_build",
+          parsedRequestSummary: {
+            sessionTypeInferred,
+            recoveryMode: recoveryModeSingle,
+            goal: baseGoal,
+            equipmentCount: resolvedEquipment.length,
+          },
+          generationFunction: "generateAssistantSingleSessionWorkout",
+          debugGenerator: structuredWorkoutFinal.debugGenerator,
+          debugTrace: structuredWorkoutFinal.debugTrace,
+          structuredWorkoutReturned: structuredWorkoutFinal,
+          rendererInput: "NextResponse.json → client appendToThread(workout) → AssistantWorkoutCard",
+        });
+      }
+      if (
+        process.env.NODE_ENV === "development" ||
+        PUSH_DAY_HYPERTROPHY_PROBE.test(trimmedMessage)
+      ) {
+        console.log(
+          "[structured-workout-final-json]",
+          JSON.stringify(structuredWorkoutFinal, null, 2)
+        );
+      }
       return NextResponse.json({
-        reply: renderBuiltWorkoutReply(built),
-        structuredWorkout: toStructuredWorkout(built),
+        reply: workoutReply,
+        ...(workoutCoachReview ? { coachReview: workoutCoachReview } : {}),
+        structuredWorkout: structuredWorkoutFinal,
       } satisfies AssistantResponse);
     }
     if (enterStructuredProgrammePath) {
@@ -3638,10 +3890,50 @@ export async function POST(request: NextRequest) {
       }
       let programme: NonNullable<AssistantResponse["structuredProgramme"]> | null = null;
       let llmProgrammeBuilt = false;
-      if (process.env.OPENAI_API_KEY?.trim()) {
+      const programmeLlmApiKey = process.env.OPENAI_API_KEY?.trim();
+      const uniformPerMuscleQuota =
+        progParsed.structuralConstraints?.uniformPerMuscleExerciseCount != null &&
+        progParsed.structuralConstraints.uniformPerMuscleExerciseCount > 0;
+      const programmeCoachSnippet = buildCoachContextSnippetForReview({
+        trainingFocus,
+        experienceLevel,
+        priorityGoal,
+        unit,
+      });
+      const programmeBuilderCtx: BuildProgrammeUserContext = {
+        message: programmeBuildUserMessage,
+        priorityGoal: priorityGoal ?? undefined,
+        goal: inferWorkoutBuilderGoal(programmeBuildUserMessage, priorityGoal),
+        recoveryMode: recoveryModeForStructured,
+        equipmentAvailable: resolvedEquipment,
+        injuriesOrExclusions: progExclusions,
+        recentExerciseIds: recentExerciseIdsFromContext,
+        preferredExercises: progMergedPreferred,
+        requestedExerciseIds: progRequestedIds,
+        programmeModification: programmeModificationUnified,
+        activeProgramme: mergedStructuredProgramme,
+        forcedSplitDefinition: forcedSplitDefinition ?? null,
+        debugRequestId: programmeDebugRequestId,
+      };
+      if (programmeLlmApiKey && !uniformPerMuscleQuota) {
+        programme = await buildProgrammeWithUnifiedSessionPlanner({
+          parsed: progParsed,
+          ctx: programmeBuilderCtx,
+          llmApiKey: programmeLlmApiKey,
+          coachContextSnippet: programmeCoachSnippet,
+        });
+        if (programme) {
+          llmProgrammeBuilt = true;
+          console.log("[programme-build-unified-session-planner]", {
+            programmeDebugRequestId,
+            dayCount: programme.days.length,
+          });
+        }
+      }
+      if (!programme && programmeLlmApiKey) {
         const llmPlan1 = await extractProgrammeStructureLLM({
           userMessage: programmeBuildUserMessage,
-          apiKey: process.env.OPENAI_API_KEY.trim(),
+          apiKey: programmeLlmApiKey,
           requestedExerciseIds: progRequestedIds,
           excludedExerciseIds: progParsed.excludedExercises ?? [],
         });
@@ -3665,7 +3957,7 @@ export async function POST(request: NextRequest) {
           } else {
             const llmPlan2 = await extractProgrammeStructureLLM({
               userMessage: programmeBuildUserMessage,
-              apiKey: process.env.OPENAI_API_KEY.trim(),
+              apiKey: programmeLlmApiKey,
               requestedExerciseIds: progRequestedIds,
               excludedExerciseIds: progParsed.excludedExercises ?? [],
               retryIssues: built1.issues,
@@ -4021,8 +4313,39 @@ export async function POST(request: NextRequest) {
           programmeTitle: structuredProgramme.programmeTitle,
         });
         console.log("[active-programme-state-stored]", activeState);
+        const baseProgrammeReply = renderStructuredProgrammeText(structuredProgramme);
+        let programmeCoachReview: string | undefined;
+        const programmeReviewKey = process.env.OPENAI_API_KEY?.trim();
+        if (programmeReviewKey) {
+          programmeCoachReview =
+            (await generateCoachRoutineReviewLLM({
+              apiKey: programmeReviewKey,
+              userMessage: trimmedMessage,
+              coachContextSnippet: buildCoachContextSnippetForReview({
+                trainingFocus,
+                experienceLevel,
+                priorityGoal,
+                unit,
+              }),
+              kind: "programme",
+              programme: {
+                programmeTitle: structuredProgramme.programmeTitle,
+                programmeGoal: structuredProgramme.programmeGoal,
+                notes: structuredProgramme.notes,
+                days: structuredProgramme.days.map((d) => ({
+                  dayLabel: d.dayLabel,
+                  sessionType: d.sessionType,
+                  exercises: d.exercises.map((e) => e.exerciseName),
+                })),
+              },
+            })) ?? undefined;
+        }
+        const programmeReply = programmeCoachReview
+          ? `${programmeCoachReview}\n\n${baseProgrammeReply}`
+          : baseProgrammeReply;
         return NextResponse.json({
-          reply: renderStructuredProgrammeText(structuredProgramme),
+          reply: programmeReply,
+          ...(programmeCoachReview ? { coachReview: programmeCoachReview } : {}),
           structuredProgramme,
           activeProgrammeState: activeState,
         } satisfies AssistantResponse);
@@ -4257,6 +4580,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Final response-mode guard: construction asks must not fall back to prose-only chat.
+    if (
+      explicitConstructionAsk &&
+      !userExplicitlyBlocksStructuredWorkoutGeneration(trimmedMessage)
+    ) {
+      if (strictConstructionMode === "programme_build") {
+        return NextResponse.json({
+          reply:
+            "I couldn't return a prose answer for this request because it requires structured programme output. Please retry with split and equipment details if generation fails.",
+          structuredProgramme: {
+            programmeTitle: "Structured programme required",
+            programmeGoal: "Programme build request",
+            notes:
+              "Construction intent detected. A structured programme response is required for this request.",
+            debugSource: "template_fallback",
+            days: [],
+          },
+        } satisfies AssistantResponse);
+      }
+    }
+
     const reply = await getAssistantReply(
       loggedDataPreamble,
       trimmedMessage,
@@ -4292,7 +4636,8 @@ export async function POST(request: NextRequest) {
       coachStructuredOutput,
       evidenceCards,
       priorAssistantTurnContent,
-      explicitAnchor
+      explicitAnchor,
+      builtWorkoutsPromptBlock
     );
 
     return NextResponse.json({ reply } satisfies AssistantResponse);

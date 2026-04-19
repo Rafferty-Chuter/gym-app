@@ -30,6 +30,10 @@ import {
   buildSessionFatigueReview,
   shouldAddAnotherExercise,
 } from "@/lib/trainingKnowledge/sessionFatigueReview";
+import { getProgressionRulesForExercise } from "@/lib/trainingKnowledge/progressionEngine";
+import { validateSessionVolumeV1 } from "@/lib/trainingKnowledge/volumeValidation";
+import { resolveRedundantExerciseConflicts } from "@/lib/trainingKnowledge/redundancyResolution";
+import { validateExerciseCombination } from "@/lib/trainingKnowledge/sessionCoverageRules";
 
 export type WorkoutBuilderGoal =
   | "build_overall_muscle"
@@ -75,12 +79,23 @@ export type WorkoutExercise = {
   rationale: string;
 };
 
+export type WeeklyFrequencyRecommendation = {
+  /** Recommended number of times to run this session per week. */
+  timesPerWeek: number;
+  /** Minimum rest days between repeat sessions for recovery. */
+  restDaysBetween: number;
+  /** One-sentence rationale tying frequency to muscle recovery and weekly volume targets. */
+  rationale: string;
+};
+
 export type BuiltWorkout = {
   sessionType: SessionType;
   purposeSummary: string;
   exercises: WorkoutExercise[];
   notes: string[];
   warnings: string[];
+  /** How often per week this session should be performed and why. */
+  weeklyFrequency?: WeeklyFrequencyRecommendation;
   requestedPlacements?: Array<{
     exerciseId: string;
     exerciseName: string;
@@ -187,6 +202,202 @@ function structuralIntentSlotBonus(
     b += 10;
   }
   return b;
+}
+
+function patternTagKey(ex: ExerciseMetadata): string {
+  if (ex.tags.includes("vertical_push")) return "vertical_push";
+  if (ex.tags.includes("horizontal_push")) return "horizontal_push";
+  if (ex.tags.includes("vertical_pull")) return "vertical_pull";
+  if (ex.tags.includes("horizontal_pull")) return "horizontal_pull";
+  if (ex.tags.includes("hip_hinge")) return "hip_hinge";
+  if (ex.tags.includes("quad_dominant")) return "quad_dominant";
+  return ex.movementPattern;
+}
+
+function coverageContractUnmet(
+  selected: WorkoutExercise[],
+  sessionType: SessionType,
+  intent?: BuilderStructuralIntent,
+  goal?: WorkoutBuilderGoal
+): string[] {
+  const metas = selected
+    .map((e) => getExerciseByIdOrName(e.exerciseId))
+    .filter((m): m is ExerciseMetadata => Boolean(m));
+  const gaps: string[] = [];
+  const balancedRequested = Boolean(intent?.balancedCoverage || goal === "balanced");
+  const countBy = (pred: (e: ExerciseMetadata) => boolean) => metas.filter(pred).length;
+  const patterns = new Set(metas.map(patternTagKey));
+  const tricepsDirect = countBy(
+    (e) =>
+      e.tags.includes("triceps") ||
+      e.primaryMuscles.some((m) => m.toLowerCase().includes("triceps"))
+  );
+
+  if (sessionType === "push" && balancedRequested) {
+    const shoulderIso = countBy(
+      (e) => e.tags.includes("shoulders") && (e.role === "isolation" || e.role === "accessory")
+    );
+    if (shoulderIso < 1) gaps.push("balanced_push_missing_shoulder_isolation");
+    if (tricepsDirect < 2) gaps.push("balanced_push_missing_triceps_density");
+    const hasIncline = metas.some((e) => e.movementPattern.includes("incline"));
+    if (!hasIncline) gaps.push("balanced_push_missing_upper_chest_incline_pattern");
+  }
+  if (sessionType === "pull" && balancedRequested) {
+    if (!patterns.has("vertical_pull")) gaps.push("balanced_pull_missing_vertical_pull");
+    if (!patterns.has("horizontal_pull")) gaps.push("balanced_pull_missing_horizontal_pull");
+    const bicepsDirect = countBy(
+      (e) => e.tags.includes("biceps") || e.primaryMuscles.some((m) => m.toLowerCase().includes("biceps"))
+    );
+    if (bicepsDirect < 1) gaps.push("balanced_pull_missing_direct_biceps");
+  }
+  if ((sessionType === "legs" || sessionType === "lower") && balancedRequested) {
+    if (!patterns.has("quad_dominant")) gaps.push("balanced_legs_missing_knee_dominant");
+    if (!patterns.has("hip_hinge")) gaps.push("balanced_legs_missing_hinge");
+    const calfDirect = countBy((e) => e.tags.includes("calf"));
+    if (calfDirect < 1) gaps.push("balanced_legs_missing_calf_direct");
+  }
+  return gaps;
+}
+
+const BALANCED_COVERAGE_CAP_EXTRA = 2;
+
+function pickExerciseForCoverageGap(
+  gap: string,
+  selectedIds: Set<string>,
+  equipmentAvailable: string[],
+  exclusions: string[],
+  library: ExerciseMetadata[]
+): ExerciseMetadata | undefined {
+  const eligible = (ex: ExerciseMetadata) =>
+    !selectedIds.has(ex.id) && !excludedByUser(ex, exclusions);
+
+  const equipmentOk = (ex: ExerciseMetadata) =>
+    equipmentAvailable.length === 0 || equipmentCompatible(ex, equipmentAvailable);
+
+  const pool = library.filter((ex) => eligible(ex) && equipmentOk(ex));
+  if (pool.length === 0) return undefined;
+
+  const fatigueRank = (ex: ExerciseMetadata) => {
+    const order: Record<string, number> = {
+      very_low: 0,
+      low: 1,
+      moderate: 2,
+      high: 3,
+      very_high: 4,
+    };
+    return order[ex.fatigueCost] ?? 2;
+  };
+
+  const pickLowestFatigue = (candidates: ExerciseMetadata[]) => {
+    if (candidates.length === 0) return undefined;
+    return [...candidates].sort((a, b) => fatigueRank(a) - fatigueRank(b))[0];
+  };
+
+  switch (gap) {
+    case "balanced_push_missing_shoulder_isolation": {
+      const f = pool.filter(
+        (e) => e.tags.includes("shoulders") && (e.role === "isolation" || e.role === "accessory")
+      );
+      return pickLowestFatigue(f);
+    }
+    case "balanced_push_missing_triceps_density": {
+      const tri = (e: ExerciseMetadata) =>
+        e.tags.includes("triceps") || e.primaryMuscles.some((m) => m.toLowerCase().includes("triceps"));
+      const iso = pool.filter(
+        (e) => tri(e) && (e.role === "isolation" || e.role === "accessory")
+      );
+      const any = pool.filter(tri);
+      return pickLowestFatigue(iso.length ? iso : any);
+    }
+    case "balanced_push_missing_upper_chest_incline_pattern": {
+      const incline = pool.filter(
+        (e) =>
+          e.movementPattern.includes("incline") &&
+          (e.tags.includes("horizontal_push") || e.tags.includes("chest") || e.tags.includes("push"))
+      );
+      const loose = pool.filter((e) => e.movementPattern.includes("incline"));
+      return pickLowestFatigue(incline.length ? incline : loose);
+    }
+    case "balanced_pull_missing_vertical_pull": {
+      return pickLowestFatigue(pool.filter((e) => e.tags.includes("vertical_pull")));
+    }
+    case "balanced_pull_missing_horizontal_pull": {
+      return pickLowestFatigue(pool.filter((e) => e.tags.includes("horizontal_pull")));
+    }
+    case "balanced_pull_missing_direct_biceps": {
+      const f = pool.filter(
+        (e) =>
+          (e.tags.includes("biceps") || e.primaryMuscles.some((m) => m.toLowerCase().includes("biceps"))) &&
+          (e.role === "isolation" || e.role === "accessory")
+      );
+      return pickLowestFatigue(f);
+    }
+    case "balanced_legs_missing_knee_dominant": {
+      return pickLowestFatigue(pool.filter((e) => e.tags.includes("quad_dominant")));
+    }
+    case "balanced_legs_missing_hinge": {
+      return pickLowestFatigue(pool.filter((e) => e.tags.includes("hip_hinge")));
+    }
+    case "balanced_legs_missing_calf_direct": {
+      return pickLowestFatigue(pool.filter((e) => e.tags.includes("calf")));
+    }
+    default:
+      return undefined;
+  }
+}
+
+function injectBalancedCoverageClosures(
+  selectedExercises: WorkoutExercise[],
+  sessionType: SessionType,
+  structuralIntent: BuilderStructuralIntent | undefined,
+  goal: WorkoutBuilderGoal,
+  adjustments: GoalAdjustment[],
+  equipmentAvailable: string[],
+  exclusions: string[],
+  templateMaxExercises: number,
+  notes: string[]
+): void {
+  const balancedRequested = Boolean(structuralIntent?.balancedCoverage || goal === "balanced");
+  if (!balancedRequested) return;
+  if (sessionType !== "push" && sessionType !== "pull" && sessionType !== "legs" && sessionType !== "lower") {
+    return;
+  }
+
+  const cap = templateMaxExercises + BALANCED_COVERAGE_CAP_EXTRA;
+  const library = EXERCISE_METADATA_LIBRARY;
+  let safety = 0;
+
+  while (safety++ < 12 && selectedExercises.length < cap) {
+    const gaps = coverageContractUnmet(selectedExercises, sessionType, structuralIntent, goal);
+    if (gaps.length === 0) break;
+
+    const selectedIds = new Set(selectedExercises.map((e) => e.exerciseId));
+    const gap = gaps[0];
+    const exercise = pickExerciseForCoverageGap(
+      gap,
+      selectedIds,
+      equipmentAvailable,
+      exclusions,
+      library
+    );
+    if (!exercise) {
+      notes.push(`Could not resolve coverage gap (${gap}) with current equipment or exclusions.`);
+      break;
+    }
+
+    const prescription = getPrescriptionForExercise(exercise, adjustments).adjusted;
+    selectedExercises.push({
+      slotLabel: "Balanced coverage add-on",
+      exerciseId: exercise.id,
+      exerciseName: exercise.name,
+      sets: prescription.sets,
+      repRange: prescription.repRange,
+      rirRange: prescription.rirRange,
+      restSeconds: prescription.restSeconds,
+      rationale: `Auto-selected to close coverage gap (${gap.replace(/_/g, " ")}).`,
+    });
+    notes.push(`Added ${exercise.name} to satisfy balanced coverage.`);
+  }
 }
 
 function sourceScoreForSlot(
@@ -500,6 +711,10 @@ export function buildWorkout(input: WorkoutBuilderInput): BuiltWorkout {
     if (recentExerciseIds.has(exercise.id)) {
       rationaleBits.push("Recently repeated; selected due to slot constraints.");
     }
+    const progRule = getProgressionRulesForExercise(exercise);
+    rationaleBits.push(
+      `Progression cue: ${progRule.preferredProgressionStyle.replace("_", " ")} with ${progRule.targetRIRRange.min}-${progRule.targetRIRRange.max} RIR.`
+    );
 
     selectedExercises.push({
       slotLabel: slot.slotLabel,
@@ -539,21 +754,37 @@ export function buildWorkout(input: WorkoutBuilderInput): BuiltWorkout {
       if (!result.chosen) continue;
 
       const exercise = result.chosen;
-      const allowAdd = shouldAddAnotherExercise({
-        built: {
-          sessionType: input.sessionType,
-          purposeSummary: "",
-          exercises: selectedExercises,
-          notes: [],
-          warnings: [],
-        },
-        candidateIsCompound:
-          exercise.role === "main_compound" ||
-          exercise.role === "secondary_compound" ||
-          exercise.role === "machine_compound",
-        lowFatigueMode: recoveryMode === "low_fatigue",
-      });
+      const unmetBeforeAdd = coverageContractUnmet(
+        selectedExercises,
+        input.sessionType,
+        structuralIntent,
+        goal
+      );
+      const candidateIsCompound =
+        exercise.role === "main_compound" ||
+        exercise.role === "secondary_compound" ||
+        exercise.role === "machine_compound";
+      const allowAdd =
+        unmetBeforeAdd.length > 0 && !candidateIsCompound
+          ? true
+          : shouldAddAnotherExercise({
+              built: {
+                sessionType: input.sessionType,
+                purposeSummary: "",
+                exercises: selectedExercises,
+                notes: [],
+                warnings: [],
+              },
+              candidateIsCompound,
+              lowFatigueMode: recoveryMode === "low_fatigue",
+            });
       if (!allowAdd) {
+        if (unmetBeforeAdd.length > 0) {
+          notes.push(
+            "Skipped a high-fatigue optional candidate while still searching for lower-fatigue coverage fixes."
+          );
+          continue;
+        }
         notes.push("Stopped adding optional movements due to fatigue/recovery cap.");
         break;
       }
@@ -567,8 +798,17 @@ export function buildWorkout(input: WorkoutBuilderInput): BuiltWorkout {
         repRange: prescription.repRange,
         rirRange: prescription.rirRange,
         restSeconds: prescription.restSeconds,
-        rationale: result.rationale,
+        rationale: `${result.rationale} Progression cue: ${getProgressionRulesForExercise(exercise).preferredProgressionStyle.replace("_", " ")}.`,
       });
+      const unmetAfterAdd = coverageContractUnmet(
+        selectedExercises,
+        input.sessionType,
+        structuralIntent,
+        goal
+      );
+      if (unmetAfterAdd.length === 0 && structuralIntent?.balancedCoverage) {
+        break;
+      }
     }
   }
 
@@ -588,6 +828,64 @@ export function buildWorkout(input: WorkoutBuilderInput): BuiltWorkout {
       (orderIdx.get(a.exerciseId ?? a.exerciseName) ?? 999) -
       (orderIdx.get(b.exerciseId ?? b.exerciseName) ?? 999)
   );
+  const redundancyResolved = resolveRedundantExerciseConflicts({
+    exercises: selectedExercises.map((e) => ({ exerciseId: e.exerciseId })),
+  });
+  if (redundancyResolved.removed.length) {
+    selectedExercises.splice(
+      0,
+      selectedExercises.length,
+      ...selectedExercises.filter((e) => redundancyResolved.kept.includes(e.exerciseId))
+    );
+    notes.push(`Removed redundant overlap: ${redundancyResolved.removed.join(", ")}.`);
+    if (redundancyResolved.suggestions.length) notes.push(`Alternative mix: ${redundancyResolved.suggestions[0]}.`);
+  }
+
+  injectBalancedCoverageClosures(
+    selectedExercises,
+    input.sessionType,
+    structuralIntent,
+    goal,
+    adjustments,
+    equipmentAvailable,
+    exclusions,
+    template.maxExercises,
+    notes
+  );
+
+  const orderedAfterInject = orderExercisesForSession(
+    selectedExercises.map((e) => ({ exerciseId: e.exerciseId, exerciseName: e.exerciseName })),
+    { priorityExerciseIds: input.requestedExerciseIds ?? [] }
+  );
+  const orderIdxInject = new Map(orderedAfterInject.map((o, i) => [o.exerciseId ?? o.exerciseName, i]));
+  selectedExercises.sort(
+    (a, b) =>
+      (orderIdxInject.get(a.exerciseId ?? a.exerciseName) ?? 999) -
+      (orderIdxInject.get(b.exerciseId ?? b.exerciseName) ?? 999)
+  );
+
+  const balancedContractActive = Boolean(structuralIntent?.balancedCoverage || goal === "balanced");
+  const maxExercisesAllowed =
+    balancedContractActive &&
+    (input.sessionType === "push" ||
+      input.sessionType === "pull" ||
+      input.sessionType === "legs" ||
+      input.sessionType === "lower")
+      ? template.maxExercises + BALANCED_COVERAGE_CAP_EXTRA
+      : template.maxExercises;
+  if (selectedExercises.length > maxExercisesAllowed) {
+    selectedExercises.splice(maxExercisesAllowed);
+    notes.push("Trimmed to max exercise count after balanced-coverage adds.");
+  }
+
+  const contractGaps = coverageContractUnmet(selectedExercises, input.sessionType, structuralIntent, goal);
+  if (contractGaps.length > 0) {
+    notes.push(
+      `Coverage contract gaps: ${contractGaps
+        .map((g) => g.replace(/^balanced_[^_]+_/, "").replace(/_/g, " "))
+        .join(", ")}.`
+    );
+  }
 
   // 4) Validate final output against coverage + warning rules.
   const selectedMeta = selectedExercises
@@ -617,6 +915,26 @@ export function buildWorkout(input: WorkoutBuilderInput): BuiltWorkout {
     out = applyLowFatigueAdjustments(out);
   }
   out.warnings = [...out.warnings, ...buildSessionFatigueReview(out, { lowFatigueMode: recoveryMode === "low_fatigue" })];
+  out.warnings = [
+    ...out.warnings,
+    ...validateSessionVolumeV1(
+      {
+        targetMuscles: [input.sessionType],
+        exercises: out.exercises.map((e) => ({
+          exerciseName: e.exerciseName,
+          sets: { min: e.sets.min, max: e.sets.max },
+        })),
+      },
+      "trained"
+    ),
+  ];
+  const combo = validateExerciseCombination(
+    {
+      exercises: out.exercises.map((e) => ({ exerciseId: e.exerciseId })),
+    },
+    input.sessionType
+  );
+  if (!combo.ok) out.warnings.push(...combo.issues);
   return out;
 }
 
@@ -625,9 +943,15 @@ export function buildWorkout(input: WorkoutBuilderInput): BuiltWorkout {
  */
 export function buildWorkoutWithQualityPasses(input: WorkoutBuilderInput): BuiltWorkout {
   const intent = mergeStructuralIntent(input);
+  const goal = input.goal ?? "balanced";
   let built = buildWorkout(input);
   let quality = validateBuiltDayQuality(built, intent);
-  if (!quality.ok) {
+  const contractGapsAfterBuild = coverageContractUnmet(built.exercises, input.sessionType, intent, goal);
+  const needsContractRepair =
+    !quality.ok ||
+    (Boolean(intent?.balancedCoverage) && quality.warnings.length > 0) ||
+    contractGapsAfterBuild.length > 0;
+  if (needsContractRepair) {
     const template = getSessionTemplateByType(input.sessionType);
     const repairInput: WorkoutBuilderInput = {
       ...input,
@@ -635,6 +959,10 @@ export function buildWorkoutWithQualityPasses(input: WorkoutBuilderInput): Built
       targetExerciseCount: Math.max(
         input.targetExerciseCount ?? 0,
         quality.suggestedTargetCount,
+        (input.sessionType === "push" &&
+        (intent?.balancedCoverage || contractGapsAfterBuild.length > 0)
+          ? 6
+          : 0),
         template?.minExercises ?? 4
       ),
       includeOptionalSlots: true,

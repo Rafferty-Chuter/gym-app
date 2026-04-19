@@ -14,6 +14,7 @@ export { resolveSplitDefinitionForRequest } from "./resolveSplit";
 export { splitDefinitionFromStandardType, splitDefinitionFromCustomDayGroups } from "./splitGroupings";
 export { validateProgrammeAgainstRequest } from "./validation";
 export { composeModificationUserMessage } from "./builders";
-export { buildProgramme, renderStructuredProgramme } from "./buildProgramme";
+export { buildProgramme, renderStructuredProgramme, resolveProgrammeSplitDefinition } from "./buildProgramme";
 export type { BuildProgrammeUserContext } from "./buildProgramme";
+export { buildProgrammeWithUnifiedSessionPlanner } from "./buildProgrammeUnifiedLlm";
 export { resolveMuscleGroupingsOnly } from "./resolveMuscleGroupingsOnly";

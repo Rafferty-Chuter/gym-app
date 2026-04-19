@@ -19,6 +19,11 @@ import {
   suggestSplitFixes,
 } from "@/lib/trainingKnowledge/splitValidation";
 import { getProgrammeFatigueProfile } from "@/lib/trainingKnowledge/fatigueScoring";
+import {
+  detectOverstackedMusclesByWeeklyVolume,
+  detectUndercoveredMusclesByWeeklyVolume,
+} from "@/lib/trainingKnowledge/weeklyVolume";
+import { detectFrequencyTooLowForVolumeGoal } from "@/lib/trainingKnowledge/frequencyLogic";
 
 const MIN_EXERCISES_PER_DAY = 2;
 
@@ -325,6 +330,12 @@ export function validateProgrammeAgainstRequest(
   if (skewed.length) softIssues.push(`Potential skewed split emphasis: ${skewed.join(", ")}`);
   const splitFixes = suggestSplitFixes(programme);
   if (splitFixes.length) softIssues.push(`Split fix suggestions: ${splitFixes.slice(0, 2).join(" ")}`);
+  const underWeekly = detectUndercoveredMusclesByWeeklyVolume(programme, "trained");
+  if (underWeekly.length) softIssues.push(`Weekly volume under-coverage: ${underWeekly.slice(0, 4).join(", ")}.`);
+  const overWeekly = detectOverstackedMusclesByWeeklyVolume(programme, "trained");
+  if (overWeekly.length) softIssues.push(`Weekly volume high/overstacked: ${overWeekly.slice(0, 4).join(", ")}.`);
+  const freqLowChest = detectFrequencyTooLowForVolumeGoal(programme, "chest");
+  if (freqLowChest) softIssues.push("Chest weekly volume may be better split across more sessions.");
   const fatigueProfile = getProgrammeFatigueProfile(programme);
   const highDays = fatigueProfile.dayScores.filter((d) => d.classification === "high");
   if (highDays.length >= 2) {

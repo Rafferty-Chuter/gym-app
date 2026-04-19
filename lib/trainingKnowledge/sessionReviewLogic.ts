@@ -1,4 +1,5 @@
 import type { BuiltWorkout } from "@/lib/workoutBuilder";
+import { getExerciseByIdOrName } from "@/lib/exerciseMetadataLibrary";
 import {
   detectOverstackedMuscles,
   detectUndercoveredMuscles,
@@ -8,6 +9,12 @@ import type { MuscleRuleId } from "@/lib/trainingKnowledge/muscleRules";
 import { assessSessionValidity } from "@/lib/trainingKnowledge/sessionValidity";
 import { detectRedundantExerciseStacking as detectExerciseRedundancy } from "@/lib/trainingKnowledge/exerciseRedundancy";
 import { buildSessionFatigueReview } from "@/lib/trainingKnowledge/sessionFatigueReview";
+import { recommendNextSessionForExercise } from "@/lib/trainingKnowledge/nextSessionLogic";
+import {
+  evaluatePerSessionDose,
+  detectSessionOverstacking,
+} from "@/lib/trainingKnowledge/sessionDose";
+import { getV1VolumeStatus } from "@/lib/trainingKnowledge/volumeValidation";
 
 function defaultTargetsForSession(sessionType: string): MuscleRuleId[] {
   const s = sessionType.toLowerCase();
@@ -45,6 +52,45 @@ export function buildSessionFeedbackFromBuiltWorkout(built: BuiltWorkout): strin
   if (redundancy.length) out.push(redundancy[0]);
   const fatigueNotes = buildSessionFatigueReview(built);
   if (fatigueNotes.length) out.push(fatigueNotes[0]);
+  const doseCheck = evaluatePerSessionDose(
+    {
+      targetMuscles: targetIds,
+      exercises: built.exercises.map((e) => ({ exerciseId: e.exerciseId, sets: e.sets })),
+    },
+    targetIds[0] ?? "chest",
+    "trained"
+  );
+  if (doseCheck.status === "high") out.push("Session dose looks high for at least one target muscle; consider stopping earlier.");
+  const overstack = detectSessionOverstacking({
+    targetMuscles: targetIds,
+    exercises: built.exercises.map((e) => ({ exerciseId: e.exerciseId, sets: e.sets })),
+  });
+  if (overstack.length) out.push(overstack[0]);
+  const anchor = built.exercises.find((e) =>
+    ["main_compound", "secondary_compound", "machine_compound"].includes(
+      (getExerciseByIdOrName(e.exerciseId)?.role ?? "")
+    )
+  );
+  if (anchor) {
+    out.push(
+      `Progression: ${recommendNextSessionForExercise({
+        exerciseIdOrName: anchor.exerciseId,
+        history: [
+          {
+            date: new Date().toISOString(),
+            load: 1,
+            reps: anchor.repRange.max,
+            sets: anchor.sets.max,
+            rir: anchor.rirRange.min,
+          },
+        ],
+        targetRange: { min: anchor.repRange.min, max: anchor.repRange.max },
+      })}`
+    );
+  }
+  const weeklyGuess = built.exercises.length * 3;
+  const volStatus = getV1VolumeStatus(targetIds[0] ?? "chest", weeklyGuess, "trained");
+  if (volStatus === "under") out.push("Weekly dose may still be low for this target muscle.");
   return out;
 }
 

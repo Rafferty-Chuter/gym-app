@@ -1,11 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050607;
-  --foreground: #f3f7f7;
-  /* Primary accent: teal */
-  --accent: 20 184 166; /* rgb */
-  --accent-foreground: 4 20 20; /* rgb */
+  /* ── Base surfaces: rich navy-black ──────────────────── */
+  --background: #07090f;
+  --foreground: #edf9f8;
+
+  /* ── Brand accent: vivid teal ────────────────────────── */
+  --accent: 20 184 166;
+  --accent-foreground: 2 18 16;
 }
 
 @theme inline {
@@ -17,104 +19,139 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #050607;
-    --foreground: #f3f7f7;
-    --accent: 20 184 166;
-    --accent-foreground: 4 20 20;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer utilities {
-  /* Keep the app on simple dark surfaces. */
+  /* Refined surfaces with subtle navy-blue depth */
   [class*="bg-zinc-950"] {
-    background-color: #050607 !important;
+    background-color: #07090f !important;
   }
   [class*="bg-zinc-900"] {
-    background-color: #0b0f10 !important;
+    background-color: #0c1219 !important;
   }
   [class*="bg-zinc-800"] {
-    background-color: #12181a !important;
+    background-color: #121d28 !important;
   }
   [class*="border-zinc-"] {
-    border-color: rgba(45, 212, 191, 0.18) !important;
+    border-color: rgba(20, 184, 166, 0.13) !important;
   }
 }
 
 @layer components {
+
+  /* ── Primary CTA ─────────────────────────────────────── */
   .btn-primary {
-    @apply bg-[color:var(--color-accent)] text-[color:var(--color-accent-foreground)] font-semibold transition shadow-sm shadow-black/35 active:translate-y-[1px];
+    @apply font-semibold transition-all duration-150 active:translate-y-[1px] active:scale-[0.99];
+    background: linear-gradient(145deg, #0e9e8c 0%, #0d9488 55%, #0b7c70 100%);
+    color: #ccf9f4;
+    border: 1px solid rgba(20, 184, 166, 0.32);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+      0 4px 16px -4px rgba(20, 184, 166, 0.28),
+      0 2px 6px rgba(0, 0, 0, 0.45);
   }
   .btn-primary:hover {
-    filter: brightness(1.06);
+    filter: brightness(1.09);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+      0 6px 22px -4px rgba(20, 184, 166, 0.38),
+      0 3px 8px rgba(0, 0, 0, 0.5);
   }
+
+  /* ── Secondary / outline button ──────────────────────── */
+  .btn-secondary {
+    @apply rounded-xl border px-3 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98];
+    border-color: rgba(20, 184, 166, 0.22);
+    background: rgba(12, 18, 25, 0.85);
+    color: rgba(196, 232, 230, 0.76);
+  }
+  .btn-secondary:hover {
+    border-color: rgba(20, 184, 166, 0.38);
+    background: rgba(20, 184, 166, 0.07);
+    color: rgba(220, 248, 245, 0.92);
+  }
+
+  /* ── App card ────────────────────────────────────────── */
+  .card-app {
+    @apply rounded-2xl p-5 transition-all duration-200;
+    background: linear-gradient(145deg, #0c1219 0%, #0f1822 100%);
+    border: 1px solid rgba(20, 184, 166, 0.14);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.025) inset,
+      0 8px 32px -8px rgba(0, 0, 0, 0.65),
+      0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+  .card-app:hover {
+    border-color: rgba(20, 184, 166, 0.26);
+    transform: translateY(-1px);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.035) inset,
+      0 12px 40px -8px rgba(0, 0, 0, 0.7),
+      0 4px 12px rgba(0, 0, 0, 0.45);
+  }
+
+  /* ── Input ───────────────────────────────────────────── */
+  .input-app {
+    @apply rounded-xl text-white transition-all duration-150;
+    background: rgba(7, 9, 15, 0.92);
+    border: 1px solid rgba(20, 184, 166, 0.18);
+    color: #edf9f8;
+  }
+  .input-app::placeholder {
+    color: rgba(100, 155, 165, 0.48);
+  }
+  .input-app:focus {
+    outline: none;
+    border-color: rgba(20, 184, 166, 0.44);
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.11);
+  }
+
   .focus-accent {
     @apply focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent)] focus:border-[color:var(--color-accent)];
   }
 
-  /* App-wide: tinted text (not flat grey) */
-  .text-app-secondary {
-    color: rgba(214, 227, 227, 0.78);
-  }
-  .text-app-tertiary {
-    color: rgba(148, 180, 185, 0.62);
-  }
-  .text-app-meta {
-    color: rgba(172, 203, 208, 0.68);
-  }
-  .link-accent {
-    @apply font-semibold text-teal-300 transition-colors duration-150 hover:text-teal-200;
-  }
+  /* ── Text hierarchy ──────────────────────────────────── */
+  .text-app-secondary  { color: rgba(196, 232, 230, 0.76); }
+  .text-app-tertiary   { color: rgba(128, 188, 192, 0.54); }
+  .text-app-meta       { color: rgba(150, 202, 207, 0.60); }
 
-  /* Legacy aliases for Home */
-  .text-home-secondary { color: rgba(214, 227, 227, 0.78); }
-  .text-home-tertiary { color: rgba(148, 180, 185, 0.62); }
-  .text-home-meta { color: rgba(172, 203, 208, 0.68); }
+  /* Legacy home aliases */
+  .text-home-secondary { color: rgba(196, 232, 230, 0.76); }
+  .text-home-tertiary  { color: rgba(128, 188, 192, 0.54); }
+  .text-home-meta      { color: rgba(150, 202, 207, 0.60); }
+
+  .link-accent      { @apply font-semibold text-teal-300 transition-colors duration-150 hover:text-teal-200; }
   .link-home-accent { @apply font-semibold text-teal-300 transition-colors duration-150 hover:text-teal-200; }
 
-  /* App-wide card: layered dark with subtle teal tint */
-  .card-app {
-    @apply rounded-2xl border border-teal-900/35 bg-zinc-900 p-5 shadow-md shadow-black/45 transition-all duration-200 ease-out;
-  }
-  .card-app:hover {
-    @apply -translate-y-0.5 border-teal-500/28 shadow-lg shadow-black/55;
-  }
-
-  /* App-wide input: dark, subtle border, focus accent */
-  .input-app {
-    @apply rounded-xl bg-zinc-950 border border-teal-900/30 text-white placeholder-zinc-500 transition-colors duration-150;
-  }
-  .input-app:focus {
-    @apply outline-none ring-2 ring-teal-500/40 border-teal-500/30;
-  }
-
-  /* Secondary button / outline */
-  .btn-secondary {
-    @apply rounded-xl border border-teal-900/35 bg-zinc-900 px-3 py-2 text-sm font-semibold transition-all duration-150 hover:border-teal-500/30 hover:bg-teal-950/25 hover:text-teal-200 active:scale-[0.98];
-    color: rgba(214, 227, 227, 0.78);
-  }
-
-  /* Volume/status chips: red / emerald / blue */
+  /* ── Status chips ────────────────────────────────────── */
   .chip-low {
-    @apply bg-rose-500/16 border border-rose-400/35 text-rose-100 shadow-sm shadow-rose-950/20;
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    background: rgba(244, 63, 94, 0.10);
+    border: 1px solid rgba(251, 113, 133, 0.26);
+    color: #fda4af;
   }
   .chip-moderate {
-    @apply bg-emerald-500/15 border border-emerald-400/32 text-emerald-100 shadow-sm shadow-emerald-950/20;
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    background: rgba(52, 211, 153, 0.09);
+    border: 1px solid rgba(52, 211, 153, 0.26);
+    color: #6ee7b7;
   }
   .chip-high {
-    @apply bg-sky-500/16 border border-sky-400/35 text-sky-100 shadow-sm shadow-sky-950/25;
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    background: rgba(56, 189, 248, 0.09);
+    border: 1px solid rgba(56, 189, 248, 0.26);
+    color: #7dd3fc;
   }
 
-  /* Section label: uppercase, tertiary */
+  /* ── Section label ───────────────────────────────────── */
   .label-section {
-    @apply text-[10px] font-semibold uppercase tracking-[0.12em];
-    color: rgba(148, 180, 185, 0.62);
+    @apply text-[10px] font-bold uppercase tracking-[0.14em];
+    color: rgba(128, 188, 192, 0.52);
   }
 }

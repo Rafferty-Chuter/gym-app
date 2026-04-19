@@ -1,4 +1,8 @@
 import { parseSessionReviewSelection } from "@/lib/sessionReviewAnchor";
+import {
+  hasExplicitLexicalConstructionAsk,
+  userExplicitlyBlocksStructuredWorkoutGeneration,
+} from "@/lib/workoutConstructionIntent";
 
 /**
  * Fine-grained question routing for assistant prompts (first matching rule wins).
@@ -110,6 +114,19 @@ export function classifyAssistantQuestionKind(
     return "prior_answer_correction";
   }
 
+  const blockStructuredWorkout = userExplicitlyBlocksStructuredWorkoutGeneration(message);
+
+  // Weekly / muscle “what’s optimal” advisory → volume/Q&A, not session construction.
+  if (
+    !blockStructuredWorkout &&
+    /\b(optimal|best approach|how much|how often|enough|too much|too little|frequency)\b/.test(t) &&
+    /\b(chest|back|legs|arms|shoulders|biceps|triceps|quads|hamstrings)\b/.test(t) &&
+    /\b(week|weekly|per week|in a week|each week)\b/.test(t) &&
+    !hasExplicitLexicalConstructionAsk(message)
+  ) {
+    return "volume_balance";
+  }
+
   const hasConstructionFamilyTerm =
     /\b(workout|session|routine|split|programme|program|training plan|weekly plan)\b/.test(t);
   const hasConstructionAction =
@@ -150,7 +167,7 @@ export function classifyAssistantQuestionKind(
     hasCustomMultiDayCue;
   const hasSingleSessionCue =
     /\b(leg|legs|push|pull|chest|back|shoulder|shoulders|arms|upper|lower|full body)\s+(workout|session|day)\b/.test(t);
-  if (hasConstructionFamilyTerm && hasConstructionAction) {
+  if (!blockStructuredWorkout && hasConstructionFamilyTerm && hasConstructionAction) {
     if (hasMultiDayCue && (!hasSingleSessionCue || sessionTypeMentions >= 2)) {
       return "multi_day_programme_construction";
     }
@@ -226,8 +243,11 @@ export function classifyAssistantQuestionKind(
     ) ||
     (/\b(workout|session|day)\b/.test(t) &&
       /\b(build|make|create|generate|plan|write)\b/.test(t)) ||
-    (/\b(include)\b/.test(t) && /\b(sets|reps|rir)\b/.test(t) && /\b(workout|session|day)\b/.test(t));
-  if (workoutBuildCue) {
+    (/\b(include)\b/.test(t) && /\b(sets|reps|rir)\b/.test(t) && /\b(workout|session|day)\b/.test(t)) ||
+    // "i want / i'd like / i need a [session type] day|session|workout"
+    (/\b(i want|i'?d like|i need|can i (get|have))\b/.test(t) &&
+      /\b(push|pull|leg|legs|upper|lower|chest|back|shoulder|shoulders|arms?|full.?body)\s+(day|session|workout)\b/.test(t));
+  if (!blockStructuredWorkout && workoutBuildCue) {
     return "single_session_construction";
   }
 
@@ -286,7 +306,10 @@ export function classifyAssistantQuestionKind(
     /\bshould i (increase|add|reduce|cut|deload|lower|raise|up|drop)\b/.test(t) ||
     /\bshould i (train|take|skip)\b/.test(t) ||
     /\bwhat'?s lagging\b/.test(t) ||
-    /\bwhat is lagging\b/.test(t)
+    /\bwhat is lagging\b/.test(t) ||
+    /\bhow should i (structure|approach|set up|program|adjust|fix|improve|change|modify)\b/.test(t) ||
+    (/\b(plateau|stuck|stalled|breaking a plateau|break.*plateau|plateau.*break)\b/.test(t) &&
+      /\b(bench|squat|deadlift|row|press|overhead|ohp|pull|curl|lift|programming)\b/.test(t))
   ) {
     return "coaching_recommendation";
   }

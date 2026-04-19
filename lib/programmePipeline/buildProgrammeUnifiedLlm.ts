@@ -1,0 +1,138 @@
+/**
+ * Multi-day programme using the same single-session coach planner for each day
+ * (`generateAssistantSingleSessionWorkout` → LLM exercise selection + app prescriptions).
+ *
+ * Use when a uniform per-muscle exercise quota is not required; otherwise fall back to
+ * `buildProgramme` (deterministic muscle-target / quota builders).
+ */
+
+import { randomUUID } from "crypto";
+import { formatIntRange } from "@/lib/formatPrescriptionDisplay";
+import { inferSessionTypeHintFromDay } from "@/lib/inferSessionTypeHintFromDay";
+import { generateAssistantSingleSessionWorkout } from "@/lib/assistantSingleSessionGeneration";
+import { validateDayStructure } from "@/lib/trainingKnowledge/dayValidity";
+import { detectUnrealisticSplit } from "@/lib/trainingKnowledge/splitValidation";
+import { reviewSplit } from "@/lib/splitReview";
+import type { BuiltWorkout } from "@/lib/workoutBuilder";
+import type { SplitDayDef } from "@/lib/splitDefinition";
+import {
+  resolveProgrammeSplitDefinition,
+  type BuildProgrammeUserContext,
+} from "./buildProgramme";
+import type { AssistantStructuredProgramme, ParsedProgrammeRequest } from "./types";
+
+function mapLlmBuiltToDayCard(
+  built: BuiltWorkout,
+  d: SplitDayDef,
+  dayIndex: number,
+  dayValidityNote: string
+): AssistantStructuredProgramme["days"][0] {
+  return {
+    dayLabel: `Day ${dayIndex + 1} - ${d.dayLabel}`,
+    sessionType: built.sessionType.replace("_", " "),
+    purposeSummary: [built.purposeSummary, d.notes, dayValidityNote].filter(Boolean).join(" — "),
+    debugDayGenerator: "assistant_unified_path",
+    targetMuscles: d.targetMuscles,
+    exercises: built.exercises.map((ex) => ({
+      slotLabel: ex.slotLabel,
+      exerciseName: ex.exerciseName,
+      sets: formatIntRange(ex.sets),
+      reps: formatIntRange(ex.repRange),
+      rir: formatIntRange(ex.rirRange),
+      rest: `${formatIntRange(ex.restSeconds)}s`,
+      rationale: ex.rationale,
+    })),
+  };
+}
+
+export async function buildProgrammeWithUnifiedSessionPlanner(params: {
+  parsed: ParsedProgrammeRequest;
+  ctx: BuildProgrammeUserContext;
+  llmApiKey: string;
+  coachContextSnippet: string;
+}): Promise<AssistantStructuredProgramme | null> {
+  const { parsed, ctx, llmApiKey, coachContextSnippet } = params;
+
+  const uniform = parsed.structuralConstraints?.uniformPerMuscleExerciseCount;
+  if (uniform != null && uniform > 0) return null;
+
+  const split = resolveProgrammeSplitDefinition(parsed, ctx);
+  if (!split.days.length) return null;
+
+  const review = reviewSplit(split);
+  const reviewNote =
+    review.warnings.length > 0 ? ` Split review: ${review.warnings.join(" ")}` : "";
+
+  const daysOut: AssistantStructuredProgramme["days"] = [];
+
+  for (let i = 0; i < split.days.length; i++) {
+    const d = split.days[i];
+    const sessionHint = inferSessionTypeHintFromDay(d);
+    const dayMessage = `${ctx.message.slice(0, 2400)}\n\n[Programme week — day ${i + 1}: "${d.dayLabel}"; target muscles: ${d.targetMuscles.join(", ")}]\nProduce one complete training session for this day only. Align with the user's goals, equipment, and the weekly split context.`;
+
+    const gen = await generateAssistantSingleSessionWorkout({
+      apiKey: llmApiKey,
+      userMessage: dayMessage,
+      sessionTypeHint: sessionHint,
+      equipmentAvailable: ctx.equipmentAvailable,
+      exclusions: ctx.injuriesOrExclusions,
+      requestedExerciseIds: ctx.requestedExerciseIds,
+      recoveryMode: ctx.recoveryMode,
+      goal: ctx.goal,
+      coachContextSnippet,
+    });
+
+    if (!gen.built) {
+      console.warn("[programme-unified-llm-day-failed]", { dayIndex: i, issues: gen.issues });
+      return null;
+    }
+
+    const dayValidity = validateDayStructure({
+      dayLabel: d.dayLabel,
+      targetMuscles: d.targetMuscles,
+      exercises: gen.built.exercises.map((ex) => ({
+        exerciseName: ex.exerciseName,
+        exerciseId: ex.exerciseId,
+      })),
+    });
+    const dayValidityNote =
+      dayValidity.issues.length > 0
+        ? ` Day validity: ${dayValidity.issues.slice(0, 1).join(" ")}`
+        : dayValidity.warnings.length > 0
+          ? ` Day validity: ${dayValidity.warnings.slice(0, 1).join(" ")}`
+          : "";
+
+    daysOut.push(mapLlmBuiltToDayCard(gen.built, d, i, dayValidityNote));
+  }
+
+  const splitIssues = detectUnrealisticSplit({
+    programmeTitle: split.title,
+    programmeGoal: "",
+    notes: "",
+    days: daysOut,
+  });
+
+  const debugRequestId = ctx.debugRequestId?.trim() || randomUUID();
+  const debugBuiltAt = new Date().toISOString();
+  console.log("[programme-unified-llm-hit]", {
+    debugSource: "new_programme_pipeline_v1",
+    debugRequestId,
+    debugBuiltAt,
+    programmeTitle: split.title,
+    dayCount: daysOut.length,
+  });
+
+  return {
+    programmeTitle: split.title,
+    programmeGoal:
+      "Each day is built with the same coach session model as single-session workouts in this app (exercise selection, order, and rationale); sets/reps/RIR/rest follow app prescriptions.",
+    notes: `DEBUG: generated by assistant_unified_path (per-day session planner). Unified session planner (per day).${reviewNote}${
+      splitIssues.length ? ` Split validity: ${splitIssues.slice(0, 2).join(" ")}` : ""
+    }`.trim(),
+    debugProgrammeGenerator: "assistant_unified_path",
+    debugSource: "new_programme_pipeline_v1",
+    debugRequestId,
+    debugBuiltAt,
+    days: daysOut,
+  };
+}

@@ -2,6 +2,8 @@ export type AssistantThreadMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** LLM coach intro shown above structured workout/programme cards in the UI. */
+  coachReview?: string;
   workout?: {
     sessionTitle: string;
     sessionGoal: string;
@@ -141,10 +143,13 @@ function normalizeThreadMessage(m: unknown): AssistantThreadMessage | null {
   if (r.role !== "user" && r.role !== "assistant") return null;
   if (typeof r.content !== "string") return null;
   const id = typeof r.id === "string" && r.id.trim() ? r.id : `m_${Math.random().toString(16).slice(2)}`;
+  const coachReview =
+    typeof r.coachReview === "string" && r.coachReview.trim() ? safeTrimContent(r.coachReview) : undefined;
   return {
     id,
     role: r.role,
     content: safeTrimContent(r.content),
+    ...(coachReview ? { coachReview } : {}),
     ...(r.workout && typeof r.workout === "object"
       ? {
           workout: r.workout as AssistantThreadMessage["workout"],
@@ -244,6 +249,7 @@ export function appendToThread(params: {
   threadId: string;
   role: "user" | "assistant";
   content: string;
+  coachReview?: string;
   workout?: AssistantThreadMessage["workout"];
   programme?: AssistantThreadMessage["programme"];
 }): AssistantThread {
@@ -258,6 +264,9 @@ export function appendToThread(params: {
           id: `m_${Math.random().toString(16).slice(2)}`,
           role: params.role,
           content: safeTrimContent(params.content),
+          ...(params.coachReview?.trim()
+            ? { coachReview: safeTrimContent(params.coachReview) }
+            : {}),
           ...(params.workout ? { workout: params.workout } : {}),
           ...(params.programme ? { programme: params.programme } : {}),
           createdAt: now,
@@ -283,6 +292,9 @@ export function appendToThread(params: {
     id: `m_${Math.random().toString(16).slice(2)}`,
     role: params.role,
     content: safeTrimContent(params.content),
+    ...(params.coachReview?.trim()
+      ? { coachReview: safeTrimContent(params.coachReview) }
+      : {}),
     ...(params.workout ? { workout: params.workout } : {}),
     ...(params.programme ? { programme: params.programme } : {}),
     createdAt: now,

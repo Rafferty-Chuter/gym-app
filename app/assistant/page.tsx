@@ -55,12 +55,16 @@ type StructuredWorkout = {
     rationale?: string;
   }>;
   note: string;
+  /** Server-set proof of which generator produced this card. */
+  debugGenerator?: string;
+  debugTrace?: string;
 };
 
 type StructuredProgramme = {
   programmeTitle: string;
   programmeGoal: string;
   notes: string;
+  debugProgrammeGenerator?: string;
   debugSource?: string;
   debugRequestId?: string;
   debugBuiltAt?: string;
@@ -68,6 +72,7 @@ type StructuredProgramme = {
     dayLabel: string;
     sessionType: string;
     purposeSummary: string;
+    debugDayGenerator?: string;
     targetMuscles?: string[];
     exercises: Array<{
       slotLabel: string;
@@ -84,6 +89,7 @@ type StructuredProgramme = {
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  coachReview?: string;
   workout?: StructuredWorkout;
   programme?: StructuredProgramme;
 };
@@ -110,6 +116,15 @@ function AssistantMessageBody({ content }: { content: string }) {
 function AssistantWorkoutCard({ workout }: { workout: StructuredWorkout }) {
   return (
     <div className="space-y-3">
+      {workout.debugGenerator ? (
+        <div
+          className="rounded-lg border border-amber-500/50 bg-amber-950/40 px-2 py-1.5 font-mono text-[11px] text-amber-100/95 whitespace-pre-wrap break-all"
+          data-testid="workout-debug-generator"
+        >
+          debugGenerator={workout.debugGenerator}
+          {workout.debugTrace ? `\ndebugTrace=${workout.debugTrace}` : ""}
+        </div>
+      ) : null}
       <div className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2">
         <p className="text-sm font-semibold text-blue-100">{workout.sessionTitle}</p>
         <p className="text-xs text-blue-100/80 mt-0.5">{workout.sessionGoal}</p>
@@ -176,6 +191,11 @@ function AssistantProgrammeCard({ programme }: { programme: StructuredProgramme 
   }
   return (
     <div className="space-y-3">
+      {programme.debugProgrammeGenerator ? (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-950/40 px-2 py-1.5 font-mono text-[11px] text-amber-100/95">
+          debugProgrammeGenerator={programme.debugProgrammeGenerator}
+        </div>
+      ) : null}
       <div className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2">
         <p className="text-sm font-semibold text-blue-100">{programme.programmeTitle}</p>
         <p className="text-xs text-blue-100/80 mt-0.5">{programme.programmeGoal}</p>
@@ -184,6 +204,11 @@ function AssistantProgrammeCard({ programme }: { programme: StructuredProgramme 
         {programme.days.map((day) => (
           <div key={day.dayLabel} className="rounded-xl border border-white/10 bg-zinc-900/70 px-3 py-3">
             <p className="text-sm font-semibold text-zinc-100">{day.dayLabel}</p>
+            {day.debugDayGenerator ? (
+              <p className="text-[10px] font-mono text-amber-200/90 mt-0.5">
+                debugDayGenerator={day.debugDayGenerator}
+              </p>
+            ) : null}
             {day.targetMuscles && day.targetMuscles.length > 0 ? (
               <p className="text-xs text-zinc-500 mt-0.5">Targets: {day.targetMuscles.join(", ")}</p>
             ) : null}
@@ -255,6 +280,7 @@ export default function AssistantPage() {
         thread.messages.map((m) => ({
           role: m.role,
           content: m.content,
+          coachReview: m.coachReview,
           workout: m.workout,
           programme: m.programme,
         }))
@@ -334,6 +360,7 @@ export default function AssistantPage() {
         loaded.thread.messages.map((m) => ({
           role: m.role,
           content: m.content,
+          coachReview: m.coachReview,
           workout: m.workout,
           programme: m.programme,
         }))
@@ -351,6 +378,7 @@ export default function AssistantPage() {
       nextThread.messages.map((m) => ({
         role: m.role,
         content: m.content,
+        coachReview: m.coachReview,
         workout: m.workout,
         programme: m.programme,
       }))
@@ -363,7 +391,13 @@ export default function AssistantPage() {
 
     const threadMessagesForRequest = nextThread.messages
       .slice(-30)
-      .map((m) => ({ role: m.role, content: m.content, workout: m.workout, programme: m.programme }));
+      .map((m) => ({
+        role: m.role,
+        content: m.content,
+        coachReview: m.coachReview,
+        workout: m.workout,
+        programme: m.programme,
+      }));
 
     // Use a short rolling window for model continuity.
     const recentTurnsForRequest: RecentConversationTurn[] = buildRecentConversationMemory(
@@ -682,10 +716,21 @@ export default function AssistantPage() {
         } catch (e) {
           console.log("[memory-debug] memory update failed", e);
         }
+        const coachReviewFromApi =
+          typeof data.coachReview === "string" && data.coachReview.trim()
+            ? data.coachReview.trim()
+            : undefined;
+        if (data.structuredWorkout && typeof data.structuredWorkout === "object") {
+          console.log(
+            "[ASSISTANT_UI_RENDERED_WORKOUT_OBJECT]",
+            JSON.stringify(data.structuredWorkout, null, 2)
+          );
+        }
         const nextThreadAfterAssistant = appendToThread({
           threadId: localThreadId!,
           role: "assistant",
           content: data.reply,
+          ...(coachReviewFromApi ? { coachReview: coachReviewFromApi } : {}),
           workout:
             data.structuredWorkout && typeof data.structuredWorkout === "object"
               ? (data.structuredWorkout as StructuredWorkout)
@@ -702,6 +747,7 @@ export default function AssistantPage() {
           nextThreadAfterAssistant.messages.map((m) => ({
             role: m.role,
             content: m.content,
+            coachReview: m.coachReview,
             workout: m.workout,
             programme: m.programme,
           }))
@@ -718,6 +764,7 @@ export default function AssistantPage() {
           nextThreadAfterAssistant.messages.map((m) => ({
             role: m.role,
             content: m.content,
+            coachReview: m.coachReview,
             workout: m.workout,
             programme: m.programme,
           }))
@@ -736,6 +783,7 @@ export default function AssistantPage() {
           nextThreadAfterAssistant.messages.map((m) => ({
             role: m.role,
             content: m.content,
+            coachReview: m.coachReview,
             workout: m.workout,
             programme: m.programme,
           }))
@@ -853,9 +901,19 @@ export default function AssistantPage() {
                   >
                     {m.role === "assistant" ? (
                       m.programme ? (
-                        <AssistantProgrammeCard programme={m.programme} />
+                        <div className="space-y-4">
+                          {m.coachReview?.trim() ? (
+                            <AssistantMessageBody content={m.coachReview} />
+                          ) : null}
+                          <AssistantProgrammeCard programme={m.programme} />
+                        </div>
                       ) : m.workout ? (
-                        <AssistantWorkoutCard workout={m.workout} />
+                        <div className="space-y-4">
+                          {m.coachReview?.trim() ? (
+                            <AssistantMessageBody content={m.coachReview} />
+                          ) : null}
+                          <AssistantWorkoutCard workout={m.workout} />
+                        </div>
                       ) : (
                         <AssistantMessageBody content={m.content} />
                       )

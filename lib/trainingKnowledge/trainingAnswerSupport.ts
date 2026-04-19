@@ -25,6 +25,20 @@ import {
   getSessionFatigueScore,
 } from "@/lib/trainingKnowledge/fatigueScoring";
 import { estimateRecoveryWindow, isBackToBackSchedulingTooAggressive } from "@/lib/trainingKnowledge/recoveryHeuristics";
+import { recommendNextSessionForExercise } from "@/lib/trainingKnowledge/nextSessionLogic";
+import { shouldTriggerPlateauAdvice, suggestPlateauResponse } from "@/lib/trainingKnowledge/plateauDetection";
+import { evaluateExerciseProgress } from "@/lib/trainingKnowledge/progressionEngine";
+import {
+  evaluateWeeklyVolumeForMuscle,
+  getWeeklyDirectSetsForMuscle,
+} from "@/lib/trainingKnowledge/weeklyVolume";
+import { evaluatePerSessionDose } from "@/lib/trainingKnowledge/sessionDose";
+import {
+  evaluateFrequencyForMuscle,
+  shouldSplitVolumeAcrossMoreSessions,
+} from "@/lib/trainingKnowledge/frequencyLogic";
+import { suggestSubstitute as suggestSubstituteSelection } from "@/lib/trainingKnowledge/substitutionLogic";
+import { shouldAddSecondExerciseForMuscle } from "@/lib/trainingKnowledge/exerciseCombinationLogic";
 
 function detectMuscle(message: string): MuscleRuleId | null {
   const t = message.toLowerCase();
@@ -85,13 +99,100 @@ export function tryAnswerFromTrainingKnowledge(params: {
         : "They overlap a bit, but they can work together if you use different intent (load/rep focus or angle).";
     }
   }
+  if (/\bare these two exercises redundant\b/.test(text)) {
+    const r = areExercisesRedundant("flat_barbell_bench_press", "machine_chest_press");
+    return r.redundant
+      ? "Yes, these overlap heavily in most contexts. Keep one as the anchor and use a distinctly different second movement if needed."
+      : "They overlap somewhat, but can be justified if each has a clear different purpose.";
+  }
   if (/\bwhat\s+should\s+replace\b/.test(text) && /\b(machine|equipment|don't have|dont have)\b/.test(text)) {
     const sub = suggestSubstitute("lat_pulldown", ["dumbbells", "bench", "pullup_bar"], []);
     if (sub) return `A practical swap is ${sub}; it keeps similar pulling intent with your available setup.`;
   }
+  if (/\bwhat should replace this exercise if i don'?t have the equipment\b/.test(text)) {
+    const sub = suggestSubstituteSelection("flat_barbell_bench_press", ["dumbbells", "bench"], {
+      goal: "hypertrophy",
+    });
+    return sub
+      ? `A good replacement is ${sub}; it keeps the same broad pressing intent with your equipment.`
+      : "Use the closest movement-pattern alternative that still targets the same primary muscles.";
+  }
+  if (/\bdo i actually need a second chest exercise here\b/.test(text)) {
+    const need = shouldAddSecondExerciseForMuscle("chest", ["flat_barbell_bench_press"], { priority: false });
+    return need
+      ? "Only if it adds distinct stimulus, like incline or fly work. A duplicate flat press usually isn’t needed."
+      : "Not usually. One strong chest press is often enough unless you need a different angle or weak-point focus.";
+  }
 
+  if (/\bwhat should my next heavy bench session look like\b/.test(text)) {
+    return recommendNextSessionForExercise({
+      exerciseIdOrName: "flat_barbell_bench_press",
+      history: [
+        { date: new Date().toISOString(), load: 100, reps: 6, sets: 3, rir: 2 },
+        { date: new Date().toISOString(), load: 100, reps: 7, sets: 3, rir: 2 },
+      ],
+      targetRange: { min: 4, max: 8 },
+      goal: "strength",
+    });
+  }
+  if (/\bshould i add weight or reps\b/.test(text) || /\badd weight or reps\b/.test(text)) {
+    const ev = evaluateExerciseProgress({
+      exerciseIdOrName: "flat_barbell_bench_press",
+      history: [
+        { date: new Date().toISOString(), load: 100, reps: 6, sets: 3, rir: 2 },
+        { date: new Date().toISOString(), load: 100, reps: 7, sets: 3, rir: 2 },
+      ],
+      targetRange: { min: 4, max: 8 },
+    });
+    return ev.decision === "add_load"
+      ? "Add a small load jump next session."
+      : ev.decision === "add_reps"
+        ? "Keep load stable and push reps up first."
+        : ev.decision === "reduce"
+          ? "Use a small load reduction/reset before rebuilding."
+          : "Hold steady this session and consolidate quality reps.";
+  }
+  if (/\bam i plateauing\b/.test(text) || /\bplateau(ing)?\b/.test(text)) {
+    const h = [
+      { date: new Date().toISOString(), load: 100, reps: 7, sets: 3, rir: 1 },
+      { date: new Date().toISOString(), load: 100, reps: 7, sets: 3, rir: 1 },
+      { date: new Date().toISOString(), load: 100, reps: 7, sets: 3, rir: 1 },
+      { date: new Date().toISOString(), load: 100, reps: 7, sets: 3, rir: 1 },
+    ];
+    if (shouldTriggerPlateauAdvice(h)) return suggestPlateauResponse(h, { fatigueHigh: true });
+    return "This looks like normal short-term variation. Judge progression over multiple sessions, not one workout.";
+  }
   const p = params.activeProgramme;
   if (!p?.days?.length) return null;
+  if (/\benough\b.*\bchest\b.*\bvolume\b/.test(text) || /\bis this enough chest volume\b/.test(text)) {
+    const weekly = getWeeklyDirectSetsForMuscle(p, "chest");
+    const ev = evaluateWeeklyVolumeForMuscle(p, "chest", "trained");
+    return ev.status === "under"
+      ? `Chest is likely under target right now at about ${Math.round(weekly)} direct sets/week. A practical target is usually around ${ev.rule.targetWeeklySetRange.min}-${ev.rule.targetWeeklySetRange.max}.`
+      : ev.status === "over" || ev.status === "high"
+        ? `Chest volume is already on the high side at about ${Math.round(weekly)} direct sets/week; adding more is probably not needed right now.`
+        : `Chest volume looks reasonable at about ${Math.round(weekly)} direct sets/week.`;
+  }
+  if (/\btoo much\b.*\btricep|triceps\b.*\bone session\b/.test(text) || /\btoo much tricep work in one session\b/.test(text)) {
+    const day = pickDay(p, params.message);
+    const dose = evaluatePerSessionDose(
+      {
+        targetMuscles: day.targetMuscles,
+        exercises: day.exercises.map((e) => ({ exerciseName: e.exerciseName, sets: e.sets })),
+      },
+      "triceps",
+      "trained"
+    );
+    return dose.status === "high"
+      ? "Yes, this is likely high triceps dose for one session. Keep one direct extension and trim overlap from extra pressing."
+      : "It doesn’t look excessive for one session if recovery is fine; keep quality high and avoid grinding every set.";
+  }
+  if (/\btrain this muscle more than once a week\b/.test(text) || /\bshould i train .* more than once a week\b/.test(text)) {
+    const freq = evaluateFrequencyForMuscle(p, "chest", "trained");
+    return shouldSplitVolumeAcrossMoreSessions(p, "chest")
+      ? `Yes, splitting volume across more sessions is likely useful here. You’re around ${freq.freq}x/week now; 2-3x/week is often more practical for recovery and quality.`
+      : `Not always required. If weekly volume is adequate and recovery is good, once weekly can work, but 2x/week is often easier to manage.`;
+  }
   if (/\bis this session too fatiguing\b/.test(text) || (/\btoo fatiguing\b/.test(text) && /\bsession|workout\b/.test(text))) {
     const day = pickDay(p, params.message);
     const score = getSessionFatigueScore({

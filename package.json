@@ -9,7 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "next": "16.1.6",
+    "@anthropic-ai/sdk": "^0.90.0",
+    "next": "^16.2.4",
     "openai": "^6.31.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"

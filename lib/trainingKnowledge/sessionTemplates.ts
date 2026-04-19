@@ -156,14 +156,15 @@ export const DAY_TYPE_RULES: Record<DayType, DayTypeRule> = {
 export function inferDayTypeFromTargets(targetMuscles: string[]): DayType {
   const set = new Set(targetMuscles.map((x) => x.toLowerCase()));
   if (set.has("chest") && set.has("back")) return "chest_back";
-  if (set.has("shoulders") && (set.has("biceps") || set.has("triceps"))) return "shoulders_arms";
   if (set.has("chest") && set.has("back") && set.has("quads")) return "full_body";
   if (set.has("chest") && set.has("back") && set.has("biceps") && set.has("triceps")) return "upper";
+  // Push/pull before shoulders_arms: push days always have shoulders+triceps and would wrongly match arms-day rules.
+  if (set.has("chest") && set.has("shoulders") && set.has("triceps")) return "push";
+  if (set.has("back") && set.has("biceps")) return "pull";
   if (set.has("quads") || set.has("hamstrings") || set.has("glutes") || set.has("calves")) {
     if (set.size <= 4 && !set.has("chest") && !set.has("back")) return "lower";
   }
-  if (set.has("chest") && set.has("shoulders") && set.has("triceps")) return "push";
-  if (set.has("back") && set.has("biceps")) return "pull";
+  if (set.has("shoulders") && (set.has("biceps") || set.has("triceps"))) return "shoulders_arms";
   if (set.has("quads") && set.has("hamstrings")) return "legs";
   return "custom_day";
 }

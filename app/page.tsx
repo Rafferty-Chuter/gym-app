@@ -48,7 +48,7 @@ function ProfileModal({
       onClick={onClose}
     >
       <div
-        className="rounded-2xl border border-teal-950/50 bg-zinc-900 p-6 w-full max-w-sm shadow-xl"
+        className="rounded-2xl border border-teal-800/25 bg-gradient-to-br from-zinc-900 to-zinc-900/90 p-6 w-full max-w-sm shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9),0_1px_0_0_rgba(255,255,255,0.03)_inset]"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="profile-modal-title" className="text-lg font-bold text-white mb-4">
@@ -232,9 +232,9 @@ export default function Home() {
   }
 
   const coachCardClass =
-    "rounded-2xl border border-indigo-700/40 bg-gradient-to-br from-indigo-900/38 via-zinc-900/95 to-violet-900/28 p-6 shadow-[0_18px_42px_-16px_rgba(17,24,39,0.8),0_0_0_1px_rgba(99,102,241,0.14)]";
+    "rounded-2xl border border-teal-800/35 bg-gradient-to-br from-teal-950/40 via-zinc-900/95 to-teal-900/18 p-6 shadow-[0_18px_42px_-16px_rgba(0,0,0,0.85),0_1px_0_0_rgba(255,255,255,0.025)_inset]";
 
-  const sectionCardClass = "rounded-2xl border border-zinc-800/80 bg-zinc-900/92 p-5";
+  const sectionCardClass = "rounded-2xl border border-teal-900/20 bg-gradient-to-br from-zinc-900/95 to-zinc-900/85 p-5";
 
   const ctaLabel = hasMounted && hasActive ? "Resume Workout" : "Start Workout";
 
@@ -338,27 +338,27 @@ export default function Home() {
 
         <section className={`${coachCardClass} mb-7`}>
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-indigo-200/70">Coach Insight</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-teal-300/60">Coach Insight</p>
           </div>
           <div className="mt-3 space-y-3">
-            <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/40 px-4 py-3">
+            <div className="rounded-xl border border-teal-500/18 bg-teal-950/30 px-4 py-3">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-indigo-200/80">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-300/65">
                   This week
                 </span>
-                <span className="text-sm font-semibold tabular-nums tracking-tight text-indigo-50">
+                <span className="text-sm font-semibold tabular-nums tracking-tight text-teal-50">
                   {weekPrimaryStats}
                 </span>
               </div>
               {weekConfidenceHint ? (
-                <p className="mt-2 text-xs leading-snug text-indigo-200/75">{weekConfidenceHint}</p>
+                <p className="mt-2 text-xs leading-snug text-teal-200/65">{weekConfidenceHint}</p>
               ) : null}
             </div>
-            <div className="rounded-xl border border-indigo-600/30 bg-indigo-950/24 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-indigo-200/75">Focus</p>
-              <p className="mt-1 text-xl font-extrabold tracking-tight text-indigo-50">{homeStory.focusText}</p>
-              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.1em] text-indigo-200/75">Next move</p>
-              <p className="mt-1 text-sm text-indigo-100/90 leading-snug">{homeStory.nextMove}</p>
+            <div className="rounded-xl border border-teal-600/20 bg-teal-950/18 p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-teal-300/65">Focus</p>
+              <p className="mt-1 text-xl font-extrabold tracking-tight text-white">{homeStory.focusText}</p>
+              <p className="mt-4 text-xs font-bold uppercase tracking-[0.1em] text-teal-300/65">Next move</p>
+              <p className="mt-1 text-sm text-teal-100/85 leading-snug">{homeStory.nextMove}</p>
               <div
                 className={
                   hasActive ? "mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap" : "mt-4 grid grid-cols-2 gap-2"
@@ -368,8 +368,8 @@ export default function Home() {
                   href={workouts.length === 0 ? "/coach" : "/coach/review"}
                   className={
                     hasActive
-                      ? "rounded-xl border border-indigo-800/45 bg-zinc-950/80 px-3 py-2 text-center text-xs font-semibold text-indigo-200/75 transition hover:border-indigo-600/40 hover:bg-indigo-950/20 hover:text-indigo-100"
-                      : "rounded-xl border border-indigo-300/35 bg-gradient-to-br from-indigo-400 via-indigo-500 to-violet-600 px-3 py-2 text-center text-sm font-bold text-white shadow-[0_6px_20px_-10px_rgba(129,140,248,0.7)] transition hover:brightness-105 active:translate-y-[1px]"
+                      ? "rounded-xl border border-teal-800/40 bg-zinc-950/80 px-3 py-2 text-center text-xs font-semibold text-teal-200/70 transition hover:border-teal-600/40 hover:bg-teal-950/20 hover:text-teal-100"
+                      : "rounded-xl border border-teal-400/30 bg-gradient-to-br from-teal-500 via-teal-600 to-teal-700 px-3 py-2 text-center text-sm font-bold text-white shadow-[0_6px_20px_-10px_rgba(20,184,166,0.65)] transition hover:brightness-105 active:translate-y-[1px]"
                   }
                 >
                   {workouts.length === 0 ? "Open Coach" : "Coach review"}
@@ -378,8 +378,8 @@ export default function Home() {
                   href="/assistant"
                   className={
                     hasActive
-                      ? "rounded-xl border border-indigo-800/45 bg-zinc-950/80 px-3 py-2 text-center text-xs font-semibold text-indigo-200/75 transition hover:border-indigo-600/40 hover:bg-indigo-950/20 hover:text-indigo-100"
-                      : "rounded-xl border border-indigo-700/35 bg-zinc-900/72 px-3 py-2 text-center text-sm font-semibold text-indigo-100/90 transition hover:bg-indigo-900/22 hover:border-indigo-500/35"
+                      ? "rounded-xl border border-teal-800/40 bg-zinc-950/80 px-3 py-2 text-center text-xs font-semibold text-teal-200/70 transition hover:border-teal-600/40 hover:bg-teal-950/20 hover:text-teal-100"
+                      : "rounded-xl border border-teal-700/28 bg-zinc-900/70 px-3 py-2 text-center text-sm font-semibold text-teal-100/85 transition hover:bg-teal-950/22 hover:border-teal-500/35"
                   }
                 >
                   Ask the Coach
@@ -395,8 +395,8 @@ export default function Home() {
           aria-label="Open workout history"
         >
           <div className="flex items-start justify-between gap-3">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/95">Recent activity</p>
-            <span className="shrink-0 text-xs font-semibold text-teal-300/90">View history →</span>
+            <p className="label-section">Recent activity</p>
+            <span className="shrink-0 text-xs font-semibold text-teal-400/80 transition-colors hover:text-teal-300">View history →</span>
           </div>
           {lastWorkout ? (
             <div className="mt-4">

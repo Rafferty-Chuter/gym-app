@@ -7,6 +7,9 @@ export type BuilderStructuralIntent = {
   chestEmphasis?: boolean;
   tricepsEmphasis?: boolean;
   sideDeltEmphasis?: boolean;
+  balancedCoverage?: boolean;
+  /** User asked for a “full” / classic complete day — enforce richer template checks. */
+  fullPushPullLegCoverage?: boolean;
   reduceFatigue?: boolean;
 };
 
@@ -31,6 +34,22 @@ export function parseBuilderStructuralIntent(message: string): BuilderStructural
   }
   if (/\b(side\s+delts?|lateral\s+raises?|more\s+side\s+delt)\b/.test(t)) {
     out.sideDeltEmphasis = true;
+  }
+  if (
+    /\bbalanced\b/.test(t) ||
+    /\beven\s+coverage\b/.test(t) ||
+    /\bbalance(d)?\s+(chest|shoulders?|triceps?|back|biceps?|legs?)\b/.test(t)
+  ) {
+    out.balancedCoverage = true;
+  }
+  if (
+    /\b(complete|full)\s+(push|pull|leg|upper|lower)\b/.test(t) ||
+    /\b(push|pull|leg)\s+day\s+with\s+everything\b/.test(t) ||
+    /\b(hit|cover)\s+(all|everything)\b.*\b(chest|back|shoulders?|triceps?|biceps?|legs?)\b/.test(t) ||
+    /\bclassic\s+(push|pull|leg)\b/.test(t) ||
+    /\bmaximal\s+(push|pull)\b/.test(t)
+  ) {
+    out.fullPushPullLegCoverage = true;
   }
   if (
     /\breduc(e|ing)\s+fatigue\b/.test(t) ||
