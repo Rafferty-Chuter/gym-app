@@ -1,0 +1,948 @@
+"use client";
+
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
+import { useParams, useRouter, notFound } from "next/navigation";
+import {
+  getWorkoutHistory,
+  getWorkoutsFromLast7Days,
+  getVolumeByMuscleGroup,
+  getExerciseInsights,
+  getMuscleGroupForExercise,
+  type RecentPerformance,
+  type ExerciseInsights,
+} from "@/lib/trainingAnalysis";
+import { getUniqueExerciseNames } from "@/lib/trainingMetrics";
+import { useUnit } from "@/lib/unit-preference";
+import { useTrainingFocus } from "@/lib/trainingFocus";
+import { useExperienceLevel } from "@/lib/experienceLevel";
+import { usePriorityGoal } from "@/lib/priorityGoal";
+import {
+  buildCoachStructuredAnalysis,
+  EMPTY_COACH_STRUCTURED_ANALYSIS,
+  type CoachStructuredAnalysis,
+} from "@/lib/coachStructuredAnalysis";
+import { countCompletedLoggedSets } from "@/lib/completedSets";
+
+type SignalKey = "plateau" | "volume" | "progress";
+type SignalState = "good" | "watch" | "attention" | "unknown";
+
+const STATE_COLOR: Record<
+  SignalState,
+  {
+    stroke: string;
+    iconBg: string;
+    iconBorder: string;
+    statusText: string;
+    statusBg: string;
+    statusBorder: string;
+    chartLine: string;
+    chartFill: string;
+  }
+> = {
+  good: {
+    stroke: "#00e5b0",
+    iconBg: "rgba(0,229,176,0.10)",
+    iconBorder: "rgba(0,229,176,0.30)",
+    statusText: "#00e5b0",
+    statusBg: "rgba(0,229,176,0.10)",
+    statusBorder: "rgba(0,229,176,0.30)",
+    chartLine: "#00e5b0",
+    chartFill: "rgba(0,229,176,0.10)",
+  },
+  watch: {
+    stroke: "#fbbf24",
+    iconBg: "rgba(251,191,36,0.10)",
+    iconBorder: "rgba(251,191,36,0.32)",
+    statusText: "#fbbf24",
+    statusBg: "rgba(251,191,36,0.10)",
+    statusBorder: "rgba(251,191,36,0.32)",
+    chartLine: "#fbbf24",
+    chartFill: "rgba(251,191,36,0.10)",
+  },
+  attention: {
+    stroke: "#fb7185",
+    iconBg: "rgba(251,113,133,0.10)",
+    iconBorder: "rgba(251,113,133,0.32)",
+    statusText: "#fb7185",
+    statusBg: "rgba(251,113,133,0.10)",
+    statusBorder: "rgba(251,113,133,0.32)",
+    chartLine: "#fb7185",
+    chartFill: "rgba(251,113,133,0.10)",
+  },
+  unknown: {
+    stroke: "rgba(140,200,196,0.50)",
+    iconBg: "rgba(140,200,196,0.06)",
+    iconBorder: "rgba(140,200,196,0.18)",
+    statusText: "rgba(140,200,196,0.65)",
+    statusBg: "rgba(140,200,196,0.05)",
+    statusBorder: "rgba(140,200,196,0.16)",
+    chartLine: "rgba(140,200,196,0.50)",
+    chartFill: "rgba(140,200,196,0.06)",
+  },
+};
+
+const SUBSCRIBE_NOOP = () => () => {};
+function useIsHydrated(): boolean {
+  return useSyncExternalStore(
+    SUBSCRIBE_NOOP,
+    () => true,
+    () => false
+  );
+}
+
+function PlateauIcon({ color }: { color: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[22px] w-[22px]"
+      aria-hidden
+    >
+      <path d="M3 18 L8 11 L16 11 L21 18" />
+    </svg>
+  );
+}
+
+function VolumeIcon({ color }: { color: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[22px] w-[22px]"
+      aria-hidden
+    >
+      <line x1="6" y1="19" x2="6" y2="14" />
+      <line x1="12" y1="19" x2="12" y2="9" />
+      <line x1="18" y1="19" x2="18" y2="11" />
+    </svg>
+  );
+}
+
+function ProgressIcon({ color }: { color: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[22px] w-[22px]"
+      aria-hidden
+    >
+      <path d="M3 17 L9 11 L13 14 L21 6" />
+      <polyline points="15 6 21 6 21 12" />
+    </svg>
+  );
+}
+
+const ICONS: Record<SignalKey, React.ComponentType<{ color: string }>> = {
+  plateau: PlateauIcon,
+  volume: VolumeIcon,
+  progress: ProgressIcon,
+};
+
+const LABEL: Record<SignalKey, string> = {
+  plateau: "Plateau",
+  volume: "Volume",
+  progress: "Progress",
+};
+
+type DetailContent = {
+  state: SignalState;
+  status: string;
+  explanation: string;
+  prompt: string;
+  chart: React.ReactNode;
+};
+
+function pickMostTrackedExercise(
+  workouts: ReturnType<typeof getWorkoutHistory>,
+  preferred: string[] = []
+): { name: string; insights: ExerciseInsights } | null {
+  const names = getUniqueExerciseNames(workouts);
+  if (names.length === 0) return null;
+  const ordered = [
+    ...preferred.filter((p) => names.some((n) => n.toLowerCase().includes(p.toLowerCase()))),
+    ...names,
+  ];
+  let best: { name: string; insights: ExerciseInsights } | null = null;
+  for (const candidate of ordered) {
+    const matched = names.find((n) => n.toLowerCase().includes(candidate.toLowerCase())) ?? candidate;
+    const insights = getExerciseInsights(workouts, matched, { maxSessions: 8 });
+    if (insights.sessionsTracked > 0) {
+      if (!best || insights.sessionsTracked > best.insights.sessionsTracked) {
+        best = { name: matched, insights };
+      }
+    }
+    if (best && best.insights.sessionsTracked >= 5) break;
+  }
+  return best;
+}
+
+function formatDateLabel(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
+function LineChart({
+  performances,
+  state,
+  unit,
+}: {
+  performances: RecentPerformance[];
+  state: SignalState;
+  unit: "kg" | "lb";
+}) {
+  const c = STATE_COLOR[state];
+  const W = 360;
+  const H = 200;
+  const padding = { l: 38, r: 16, t: 16, b: 30 };
+  const innerW = W - padding.l - padding.r;
+  const innerH = H - padding.t - padding.b;
+
+  if (performances.length === 0) {
+    return (
+      <div
+        className="rounded-2xl flex items-center justify-center"
+        style={{
+          background: "rgba(255,255,255,0.018)",
+          border: "1px solid rgba(255,255,255,0.05)",
+          height: H,
+        }}
+      >
+        <p className="text-app-tertiary text-sm">No data to chart yet.</p>
+      </div>
+    );
+  }
+
+  const weights = performances.map((p) => p.weight);
+  const minW = Math.min(...weights);
+  const maxW = Math.max(...weights);
+  const range = Math.max(1, maxW - minW);
+  const yPad = range * 0.2;
+  const yMin = Math.max(0, minW - yPad);
+  const yMax = maxW + yPad;
+  const yRange = Math.max(1, yMax - yMin);
+
+  const points = performances.map((p, i) => {
+    const x =
+      padding.l +
+      (performances.length === 1 ? innerW / 2 : (i / (performances.length - 1)) * innerW);
+    const y = padding.t + innerH - ((p.weight - yMin) / yRange) * innerH;
+    return { x, y, ...p };
+  });
+
+  const lineD = points.map((pt, i) => (i === 0 ? "M" : "L") + ` ${pt.x} ${pt.y}`).join(" ");
+  const areaD =
+    `M ${points[0].x} ${padding.t + innerH} ` +
+    points.map((pt) => `L ${pt.x} ${pt.y}`).join(" ") +
+    ` L ${points[points.length - 1].x} ${padding.t + innerH} Z`;
+
+  const yTicks = 3;
+  const tickValues = Array.from({ length: yTicks }, (_, i) => yMin + (yRange * i) / (yTicks - 1));
+
+  return (
+    <div
+      className="rounded-2xl px-3 py-3 sm:px-4 sm:py-4"
+      style={{
+        background: "rgba(255,255,255,0.018)",
+        border: "1px solid rgba(255,255,255,0.05)",
+      }}
+    >
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-auto"
+        role="img"
+        aria-label={`Weight in ${unit} across ${performances.length} sessions`}
+      >
+        {tickValues.map((v, i) => {
+          const y = padding.t + innerH - ((v - yMin) / yRange) * innerH;
+          return (
+            <g key={i}>
+              <line
+                x1={padding.l}
+                x2={W - padding.r}
+                y1={y}
+                y2={y}
+                stroke="rgba(255,255,255,0.05)"
+                strokeWidth="1"
+              />
+              <text
+                x={padding.l - 8}
+                y={y + 3.5}
+                fontSize="10"
+                fill="rgba(140,200,196,0.55)"
+                textAnchor="end"
+              >
+                {Math.round(v)}
+              </text>
+            </g>
+          );
+        })}
+
+        <path d={areaD} fill={c.chartFill} />
+        <path d={lineD} stroke={c.chartLine} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+
+        {points.map((pt, i) => (
+          <circle key={i} cx={pt.x} cy={pt.y} r="3.5" fill={c.chartLine} />
+        ))}
+
+        {points.length > 0 && (
+          <>
+            <text
+              x={points[0].x}
+              y={H - 10}
+              fontSize="10"
+              fill="rgba(140,200,196,0.55)"
+              textAnchor="start"
+            >
+              {formatDateLabel(points[0].completedAt)}
+            </text>
+            {points.length > 1 && (
+              <text
+                x={points[points.length - 1].x}
+                y={H - 10}
+                fontSize="10"
+                fill="rgba(140,200,196,0.55)"
+                textAnchor="end"
+              >
+                {formatDateLabel(points[points.length - 1].completedAt)}
+              </text>
+            )}
+          </>
+        )}
+      </svg>
+      <p className="mt-2 text-[11px] font-medium text-app-tertiary text-center">
+        Weight ({unit}) × session
+      </p>
+    </div>
+  );
+}
+
+const VOLUME_GROUP_ORDER = ["chest", "back", "shoulders", "arms", "legs"] as const;
+type MuscleGroup = (typeof VOLUME_GROUP_ORDER)[number];
+
+type ProgressionState = "good" | "poor" | "unclear";
+type VolumeStatus = "low" | "on-track" | "warning" | "excessive";
+
+const MUSCLE_RANGES: Record<MuscleGroup, { min: number; max: number }> = {
+  chest: { min: 10, max: 20 },
+  back: { min: 12, max: 22 },
+  shoulders: { min: 8, max: 18 },
+  arms: { min: 12, max: 22 },
+  legs: { min: 12, max: 24 },
+};
+
+const VOLUME_STATUS_TO_STATE: Record<VolumeStatus, SignalState> = {
+  low: "attention",
+  "on-track": "good",
+  warning: "watch",
+  excessive: "attention",
+};
+
+const VOLUME_STATUS_LABEL: Record<VolumeStatus, string> = {
+  low: "Low",
+  "on-track": "On track",
+  warning: "Warning",
+  excessive: "Excessive",
+};
+
+function getProgressionByMuscle(
+  coach: CoachStructuredAnalysis
+): Record<MuscleGroup, ProgressionState> {
+  const out: Record<MuscleGroup, ProgressionState> = {
+    chest: "unclear",
+    back: "unclear",
+    shoulders: "unclear",
+    arms: "unclear",
+    legs: "unclear",
+  };
+
+  const setState = (g: string | undefined | null, state: ProgressionState) => {
+    if (!g) return;
+    const key = g.toLowerCase() as MuscleGroup;
+    if (!(key in out)) return;
+    if (state === "poor") {
+      out[key] = "poor";
+    } else if (state === "good" && out[key] !== "poor") {
+      out[key] = "good";
+    }
+  };
+
+  if (coach.keyFocusType === "plateau" || coach.keyFocusType === "declining") {
+    if (coach.keyFocusExercise) {
+      setState(getMuscleGroupForExercise(coach.keyFocusExercise), "poor");
+    }
+    if (coach.keyFocusGroups) {
+      for (const g of coach.keyFocusGroups) setState(g, "poor");
+    }
+  }
+
+  if (coach.keyFocusType === "progressing" && coach.keyFocusExercise) {
+    setState(getMuscleGroupForExercise(coach.keyFocusExercise), "good");
+  }
+
+  for (const text of coach.whatsGoingWell) {
+    const cleaned = text.replace(/^\s*Early signal:\s*/i, "").trim();
+    const match = cleaned.match(
+      /^([A-Za-z][A-Za-z\s\-()'./]+?)\s+(?:is\s+)?(?:progressing|improving)\b/i
+    );
+    if (match) {
+      const exName = match[1].trim();
+      setState(getMuscleGroupForExercise(exName), "good");
+    }
+  }
+
+  return out;
+}
+
+function classifyMuscleVolume(
+  group: MuscleGroup,
+  sets: number,
+  progression: ProgressionState
+): VolumeStatus {
+  const range = MUSCLE_RANGES[group];
+  if (sets < range.min) return "low";
+  if (sets <= range.max) return "on-track";
+  if (progression === "good") return "warning";
+  return "excessive";
+}
+
+type VolumeBarRow = {
+  group: MuscleGroup;
+  sets: number;
+  status: VolumeStatus;
+  progression: ProgressionState;
+};
+
+function BarChart({ rows }: { rows: VolumeBarRow[] }) {
+  const total = rows.reduce((sum, r) => sum + r.sets, 0);
+  if (total === 0) {
+    return (
+      <div
+        className="rounded-2xl flex items-center justify-center"
+        style={{
+          background: "rgba(255,255,255,0.018)",
+          border: "1px solid rgba(255,255,255,0.05)",
+          height: 200,
+        }}
+      >
+        <p className="text-app-tertiary text-sm">No sets logged this week.</p>
+      </div>
+    );
+  }
+  const maxSets = Math.max(...rows.map((r) => r.sets), 12);
+  return (
+    <div
+      className="rounded-2xl px-4 py-4"
+      style={{
+        background: "rgba(255,255,255,0.018)",
+        border: "1px solid rgba(255,255,255,0.05)",
+      }}
+    >
+      <ul className="space-y-3">
+        {rows.map((r) => {
+          const c = STATE_COLOR[VOLUME_STATUS_TO_STATE[r.status]];
+          const widthPct = Math.max(2, (r.sets / maxSets) * 100);
+          return (
+            <li key={r.group} className="flex items-center gap-3">
+              <span className="w-16 text-[12px] font-semibold uppercase tracking-wide text-app-secondary">
+                {r.group}
+              </span>
+              <div
+                className="flex-1 h-2.5 rounded-full overflow-hidden"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${widthPct}%`,
+                    background: c.chartLine,
+                  }}
+                />
+              </div>
+              <div className="flex flex-col items-end w-[72px]">
+                <span
+                  className="text-[12px] font-bold tabular-nums leading-tight"
+                  style={{ color: c.statusText }}
+                >
+                  {r.sets} set{r.sets === 1 ? "" : "s"}
+                </span>
+                <span
+                  className="text-[10px] font-semibold tracking-wide leading-tight"
+                  style={{ color: c.statusText }}
+                >
+                  {VOLUME_STATUS_LABEL[r.status]}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5 justify-center border-t border-white/[0.05] pt-3">
+        {(["low", "on-track", "warning", "excessive"] as const).map((s) => {
+          const c = STATE_COLOR[VOLUME_STATUS_TO_STATE[s]];
+          return (
+            <span
+              key={s}
+              className="inline-flex items-center gap-1.5 text-[10px] font-medium text-app-tertiary"
+            >
+              <span
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ background: c.chartLine }}
+              />
+              {VOLUME_STATUS_LABEL[s]}
+            </span>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-[10px] font-medium text-app-tertiary text-center">
+        Above-range bars are amber when the muscle is progressing, rose when it is stalling.
+      </p>
+    </div>
+  );
+}
+
+function buildPlateauContent(
+  coach: CoachStructuredAnalysis,
+  workouts: ReturnType<typeof getWorkoutHistory>,
+  unit: "kg" | "lb"
+): DetailContent {
+  if (workouts.length === 0) {
+    return {
+      state: "unknown",
+      status: "No data yet",
+      explanation:
+        "The plateau indicator watches your tracked lifts for sessions where weight and reps stop moving. Log a few workouts and a trend will appear here.",
+      prompt: "How does the plateau indicator decide a lift has stalled?",
+      chart: <LineChart performances={[]} state="unknown" unit={unit} />,
+    };
+  }
+
+  const isAttention =
+    coach.keyFocusType === "plateau" || coach.keyFocusType === "declining";
+  const isDeclining = coach.keyFocusType === "declining";
+  const focusExerciseName = coach.keyFocusExercise;
+
+  const exerciseChoice = focusExerciseName
+    ? {
+        name: focusExerciseName,
+        insights: getExerciseInsights(workouts, focusExerciseName, { maxSessions: 8 }),
+      }
+    : pickMostTrackedExercise(workouts, ["bench", "squat", "deadlift"]);
+
+  const performances = exerciseChoice?.insights.recentPerformances ?? [];
+  const exerciseLabel = exerciseChoice?.name ?? "your tracked lift";
+
+  if (isAttention) {
+    return {
+      state: "attention",
+      status: "Detected",
+      explanation: `${exerciseLabel} ${
+        isDeclining ? "is trending down" : "hasn't moved"
+      } across your last ${performances.length || "few"} session${
+        performances.length === 1 ? "" : "s"
+      }. The chart shows the working weight per session, so you can see the flat or falling line for yourself.`,
+      prompt: `My plateau indicator is flagged on ${exerciseLabel}. Walk me through what's happening and what to change next session.`,
+      chart: <LineChart performances={performances} state="attention" unit={unit} />,
+    };
+  }
+
+  if (workouts.length < 3) {
+    return {
+      state: "unknown",
+      status: "Early read",
+      explanation: `Only ${workouts.length} session${
+        workouts.length === 1 ? "" : "s"
+      } logged so far. The chart below tracks ${exerciseLabel}; a few more sessions and the plateau read becomes meaningful.`,
+      prompt: "I've only got a couple of sessions logged. How many do you need before plateau detection is reliable?",
+      chart: <LineChart performances={performances} state="unknown" unit={unit} />,
+    };
+  }
+
+  return {
+    state: "good",
+    status: "Clear",
+    explanation: `No stalls in your tracked lifts right now. The chart shows ${exerciseLabel}, your most-tracked compound; the line should keep climbing or holding for the indicator to stay clear.`,
+    prompt: "Plateau indicator is clear. Walk me through which of my lifts you're watching and what would tip it into a plateau read.",
+    chart: <LineChart performances={performances} state="good" unit={unit} />,
+  };
+}
+
+function buildVolumeContent(
+  coach: CoachStructuredAnalysis,
+  workouts: ReturnType<typeof getWorkoutHistory>
+): DetailContent {
+  const weeklyWorkouts = getWorkoutsFromLast7Days(workouts);
+  const weeklyVolume = getVolumeByMuscleGroup(weeklyWorkouts);
+  const totalSets = weeklyWorkouts.reduce(
+    (sum, w) =>
+      sum + (w.exercises?.reduce((s, ex) => s + countCompletedLoggedSets(ex.sets), 0) ?? 0),
+    0
+  );
+
+  const progressionByMuscle = getProgressionByMuscle(coach);
+  const rows: VolumeBarRow[] = VOLUME_GROUP_ORDER.map((g) => {
+    const sets = weeklyVolume[g] ?? 0;
+    return {
+      group: g,
+      sets,
+      progression: progressionByMuscle[g],
+      status: classifyMuscleVolume(g, sets, progressionByMuscle[g]),
+    };
+  });
+
+  if (workouts.length === 0) {
+    return {
+      state: "unknown",
+      status: "No data yet",
+      explanation:
+        "The volume indicator reads weekly sets per muscle group from your logged sessions. Log sets and the breakdown will appear below.",
+      prompt: "Once I start logging, what does the weekly volume indicator track?",
+      chart: <BarChart rows={rows} />,
+    };
+  }
+
+  const lowEntries = coach.volumeBalance.filter((v) =>
+    /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary)
+  );
+
+  const lowRows = rows.filter((r) => r.status === "low" && r.sets > 0);
+  const excessiveRows = rows.filter((r) => r.status === "excessive");
+  const warningRows = rows.filter((r) => r.status === "warning");
+
+  if (excessiveRows.length > 0) {
+    const groups = excessiveRows.map((r) => r.group).join(" and ");
+    return {
+      state: "attention",
+      status: "Excessive",
+      explanation: `${groups[0].toUpperCase()}${groups.slice(1)} weekly volume is above the productive range while progress is stalling or unclear. High volume only pays off when it shows up in the lifts; here it isn't.`,
+      prompt: `My ${groups} volume is above range and progress is stalling. Walk me through what to drop.`,
+      chart: <BarChart rows={rows} />,
+    };
+  }
+
+  const isLowAttention =
+    coach.keyFocusType === "low-volume" || lowEntries.length > 0 || lowRows.length > 0;
+
+  if (isLowAttention) {
+    const explanation =
+      lowEntries.length > 0
+        ? lowEntries[0].summary
+        : lowRows.length > 0
+          ? `${lowRows.map((r) => r.group).join(" and ")} weekly volume is below the productive range for hypertrophy. The breakdown below shows where you are.`
+          : "Weekly volume is running low on at least one muscle group. The breakdown below shows where you are.";
+    const lowGroupsText =
+      lowEntries.length > 0
+        ? lowEntries.map((v) => v.label.toLowerCase()).join(" and ")
+        : lowRows.length > 0
+          ? lowRows.map((r) => r.group).join(" and ")
+          : "the flagged muscle group";
+    return {
+      state: "attention",
+      status: "Running low",
+      explanation,
+      prompt: `Weekly volume looks light on ${lowGroupsText}. Walk me through where I'm short and what to add this week.`,
+      chart: <BarChart rows={rows} />,
+    };
+  }
+
+  if (warningRows.length > 0) {
+    const groups = warningRows.map((r) => r.group).join(" and ");
+    return {
+      state: "watch",
+      status: "Worth a look",
+      explanation: `${groups[0].toUpperCase()}${groups.slice(1)} volume is above the productive range, but the lifts are still moving. Worth watching for fatigue, not yet a problem.`,
+      prompt: `My ${groups} volume is above range but lifts are still progressing. Should I keep pushing or back off?`,
+      chart: <BarChart rows={rows} />,
+    };
+  }
+
+  if (coach.volumeBalance.length > 0) {
+    return {
+      state: "watch",
+      status: "Worth a look",
+      explanation: coach.volumeBalance[0].summary,
+      prompt: "There are volume balance notes on my training this week. Walk me through them.",
+      chart: <BarChart rows={rows} />,
+    };
+  }
+
+  if (workouts.length < 3) {
+    return {
+      state: "unknown",
+      status: "Early read",
+      explanation: `Only ${workouts.length} session${
+        workouts.length === 1 ? "" : "s"
+      } logged. The breakdown below is what's there so far.`,
+      prompt: "I've only got a few sessions in. What can you tell me about my volume so far?",
+      chart: <BarChart rows={rows} />,
+    };
+  }
+
+  return {
+    state: "good",
+    status: "On track",
+    explanation:
+      totalSets > 0
+        ? `${totalSets} sets across ${weeklyWorkouts.length} session${
+            weeklyWorkouts.length === 1 ? "" : "s"
+          } this week, every muscle group inside its productive range. The breakdown is below.`
+        : "Volume looks balanced across the muscle groups you train.",
+    prompt: "My weekly volume looks balanced. Show me the by-muscle breakdown for this week.",
+    chart: <BarChart rows={rows} />,
+  };
+}
+
+function buildProgressContent(
+  coach: CoachStructuredAnalysis,
+  workouts: ReturnType<typeof getWorkoutHistory>,
+  unit: "kg" | "lb"
+): DetailContent {
+  if (workouts.length === 0) {
+    return {
+      state: "unknown",
+      status: "No data yet",
+      explanation:
+        "The progress indicator reads which lifts are moving forward in weight and reps over the last several sessions. Log a workout and a trend will appear here.",
+      prompt: "Once I start logging, how does the progress indicator track which lifts are moving?",
+      chart: <LineChart performances={[]} state="unknown" unit={unit} />,
+    };
+  }
+
+  if (workouts.length < 3) {
+    const choice = pickMostTrackedExercise(workouts, ["bench", "squat", "deadlift"]);
+    return {
+      state: "unknown",
+      status: "Early read",
+      explanation: `Only ${workouts.length} session${
+        workouts.length === 1 ? "" : "s"
+      } logged. The chart shows ${choice?.name ?? "your tracked lift"}; a few more sessions and the trend reads cleanly.`,
+      prompt:
+        "I've only logged a couple of sessions. How many do you need before progress becomes readable?",
+      chart: <LineChart performances={choice?.insights.recentPerformances ?? []} state="unknown" unit={unit} />,
+    };
+  }
+
+  const isGood =
+    coach.whatsGoingWell.length > 0 || coach.keyFocusType === "progressing";
+
+  const focusExerciseName = isGood ? coach.keyFocusExercise : undefined;
+  const choice = focusExerciseName
+    ? {
+        name: focusExerciseName,
+        insights: getExerciseInsights(workouts, focusExerciseName, { maxSessions: 8 }),
+      }
+    : pickMostTrackedExercise(workouts, ["bench", "squat", "deadlift"]);
+
+  const performances = choice?.insights.recentPerformances ?? [];
+  const exerciseLabel = choice?.name ?? "your tracked lift";
+
+  if (isGood) {
+    const explanation =
+      coach.whatsGoingWell[0] ??
+      `${exerciseLabel} is moving forward across your last ${performances.length || "few"} sessions.`;
+    return {
+      state: "good",
+      status: "Improving",
+      explanation,
+      prompt:
+        "Progress is showing on my training. Walk me through which lifts are moving and how much.",
+      chart: <LineChart performances={performances} state="good" unit={unit} />,
+    };
+  }
+
+  return {
+    state: "watch",
+    status: "Quiet",
+    explanation: `Nothing improving clearly in the last few sessions. The chart shows ${exerciseLabel}; a flat trend here is what's holding the indicator quiet.`,
+    prompt: "Progress isn't showing clearly yet. What would help me get clearer progress signals?",
+    chart: <LineChart performances={performances} state="watch" unit={unit} />,
+  };
+}
+
+export default function SignalDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const rawKey = params?.key;
+  const key = (Array.isArray(rawKey) ? rawKey[0] : rawKey) as SignalKey | undefined;
+
+  const { unit } = useUnit();
+  const { focus } = useTrainingFocus();
+  const { experienceLevel } = useExperienceLevel();
+  const { goal } = usePriorityGoal();
+  const [workouts, setWorkouts] = useState<ReturnType<typeof getWorkoutHistory>>([]);
+  const hasMounted = useIsHydrated();
+
+  useEffect(() => {
+    function load() {
+      setWorkouts(getWorkoutHistory());
+    }
+    load();
+    window.addEventListener("workoutHistoryChanged", load);
+    return () => window.removeEventListener("workoutHistoryChanged", load);
+  }, []);
+
+  const coachAnalysis = useMemo(() => {
+    if (workouts.length === 0) return EMPTY_COACH_STRUCTURED_ANALYSIS;
+    return buildCoachStructuredAnalysis(workouts, {
+      focus,
+      experienceLevel,
+      goal,
+      unit,
+    });
+  }, [workouts, focus, experienceLevel, goal, unit]);
+
+  if (key !== "plateau" && key !== "volume" && key !== "progress") {
+    notFound();
+  }
+
+  const content: DetailContent = useMemo(() => {
+    if (key === "plateau") return buildPlateauContent(coachAnalysis, workouts, unit);
+    if (key === "volume") return buildVolumeContent(coachAnalysis, workouts);
+    return buildProgressContent(coachAnalysis, workouts, unit);
+  }, [key, coachAnalysis, workouts, unit]);
+
+  const c = STATE_COLOR[content.state];
+  const Icon = ICONS[key];
+
+  function openAssistant() {
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem("assistantQuickPrompt", content.prompt);
+        sessionStorage.setItem("assistantAutoSend", "1");
+      } catch {
+        router.push(`/assistant?q=${encodeURIComponent(content.prompt)}`);
+        return;
+      }
+    }
+    router.push("/assistant");
+  }
+
+  return (
+    <main className="min-h-screen bg-zinc-950 text-white relative pb-28">
+      <div
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_85%_35%_at_50%_-5%,rgba(0,229,176,0.06),transparent_55%)]"
+        aria-hidden
+      />
+      <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
+        <div className="pt-6 pb-1">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-app-secondary hover:text-white transition"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-[14px] w-[14px]"
+              aria-hidden
+            >
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            <span>Home</span>
+          </Link>
+        </div>
+
+        <header className="pt-5 pb-6">
+          <div className="flex items-center gap-3">
+            <span
+              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl"
+              style={{
+                background: c.iconBg,
+                border: `1px solid ${c.iconBorder}`,
+              }}
+              aria-hidden
+            >
+              <Icon color={c.stroke} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-home-tertiary">
+                Signal
+              </p>
+              <h1 className="text-[26px] font-black tracking-tight text-white leading-tight">
+                {LABEL[key]}
+              </h1>
+            </div>
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold tracking-wide"
+              style={{
+                background: c.statusBg,
+                border: `1px solid ${c.statusBorder}`,
+                color: c.statusText,
+              }}
+            >
+              {content.status}
+            </span>
+          </div>
+        </header>
+
+        {hasMounted ? content.chart : (
+          <div
+            className="rounded-2xl"
+            style={{
+              background: "rgba(255,255,255,0.018)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              height: 200,
+            }}
+          />
+        )}
+
+        <section className="pt-6">
+          <p className="label-section mb-2">What this means</p>
+          <p
+            className="text-[16px] font-semibold leading-snug text-white"
+            style={{ textWrap: "pretty" }}
+          >
+            {content.explanation}
+          </p>
+        </section>
+
+        <section className="pt-8">
+          <button
+            type="button"
+            onClick={openAssistant}
+            className="flex items-center justify-center gap-2 w-full rounded-2xl py-4 text-[15px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
+            style={{
+              background: "rgba(0,229,176,0.12)",
+              border: "1px solid rgba(0,229,176,0.35)",
+              color: "#7ff2cf",
+            }}
+          >
+            <span>Ask the assistant about this</span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-[14px] w-[14px]"
+              aria-hidden
+            >
+              <path d="M5 12h14" />
+              <path d="M13 6l6 6-6 6" />
+            </svg>
+          </button>
+        </section>
+      </div>
+    </main>
+  );
+}
