@@ -202,10 +202,14 @@ function LineChart({
   performances,
   state,
   unit,
+  valueKey = "weight",
+  caption,
 }: {
   performances: RecentPerformance[];
   state: SignalState;
   unit: "kg" | "lb";
+  valueKey?: "weight" | "e1rm";
+  caption?: string;
 }) {
   const c = STATE_COLOR[state];
   const W = 360;
@@ -229,9 +233,10 @@ function LineChart({
     );
   }
 
-  const weights = performances.map((p) => p.weight);
-  const minW = Math.min(...weights);
-  const maxW = Math.max(...weights);
+  const valueOf = (p: RecentPerformance) => (valueKey === "e1rm" ? p.e1rm : p.weight);
+  const values = performances.map(valueOf);
+  const minW = Math.min(...values);
+  const maxW = Math.max(...values);
   const range = Math.max(1, maxW - minW);
   const yPad = range * 0.2;
   const yMin = Math.max(0, minW - yPad);
@@ -242,7 +247,7 @@ function LineChart({
     const x =
       padding.l +
       (performances.length === 1 ? innerW / 2 : (i / (performances.length - 1)) * innerW);
-    const y = padding.t + innerH - ((p.weight - yMin) / yRange) * innerH;
+    const y = padding.t + innerH - ((valueOf(p) - yMin) / yRange) * innerH;
     return { x, y, ...p };
   });
 
@@ -327,7 +332,7 @@ function LineChart({
         )}
       </svg>
       <p className="mt-2 text-[11px] font-medium text-app-tertiary text-center">
-        Weight ({unit}) × session
+        {caption ?? `${valueKey === "e1rm" ? "Estimated 1RM" : "Weight"} (${unit}) × session`}
       </p>
     </div>
   );
@@ -708,71 +713,398 @@ function buildVolumeContent(
   };
 }
 
-function buildProgressContent(
+type ExerciseTrendKind = "progressing" | "flat" | "declining" | "insufficient";
+
+type ExerciseListItem = {
+  name: string;
+  frequency: number;
+  trend: ExerciseTrendKind;
+  trendChangePct: number | null;
+  performances: RecentPerformance[];
+  chartPerformances: RecentPerformance[];
+};
+
+const TREND_DAYS_FOR_CLASSIFICATION = 42;
+const TREND_DAYS_FOR_CHART = 56;
+const PROGRESSION_THRESHOLD = 0.025;
+
+function classifyExerciseTrend(performances: RecentPerformance[]): {
+  trend: ExerciseTrendKind;
+  trendChangePct: number | null;
+} {
+  if (performances.length < 3) return { trend: "insufficient", trendChangePct: null };
+  const first = performances[0].e1rm;
+  const last = performances[performances.length - 1].e1rm;
+  if (first <= 0) return { trend: "insufficient", trendChangePct: null };
+  const ratio = last / first;
+  const changePct = (ratio - 1) * 100;
+  if (ratio >= 1 + PROGRESSION_THRESHOLD) return { trend: "progressing", trendChangePct: changePct };
+  if (ratio <= 1 - PROGRESSION_THRESHOLD) return { trend: "declining", trendChangePct: changePct };
+  return { trend: "flat", trendChangePct: changePct };
+}
+
+function buildExerciseList(
+  workouts: ReturnType<typeof getWorkoutHistory>
+): ExerciseListItem[] {
+  const names = getUniqueExerciseNames(workouts);
+  const now = Date.now();
+  const trendCutoff = now - TREND_DAYS_FOR_CLASSIFICATION * 24 * 3600 * 1000;
+  const chartCutoff = now - TREND_DAYS_FOR_CHART * 24 * 3600 * 1000;
+
+  const items: ExerciseListItem[] = [];
+  for (const name of names) {
+    let frequency = 0;
+    for (const w of workouts) {
+      if ((w.exercises ?? []).some((ex) => ex.name === name)) frequency++;
+    }
+    if (frequency === 0) continue;
+
+    const insights = getExerciseInsights(workouts, name, { maxSessions: 16 });
+    const trendPerfs = insights.recentPerformances.filter(
+      (p) => new Date(p.completedAt).getTime() >= trendCutoff
+    );
+    const chartPerfs = insights.recentPerformances.filter(
+      (p) => new Date(p.completedAt).getTime() >= chartCutoff
+    );
+    const { trend, trendChangePct } = classifyExerciseTrend(trendPerfs);
+
+    items.push({
+      name,
+      frequency,
+      trend,
+      trendChangePct,
+      performances: trendPerfs,
+      chartPerformances: chartPerfs,
+    });
+  }
+
+  items.sort((a, b) => {
+    if (b.frequency !== a.frequency) return b.frequency - a.frequency;
+    return a.name.localeCompare(b.name);
+  });
+  return items;
+}
+
+const EXERCISE_TREND_STATE: Record<ExerciseTrendKind, SignalState> = {
+  progressing: "good",
+  flat: "watch",
+  declining: "attention",
+  insufficient: "unknown",
+};
+
+const EXERCISE_TREND_LABEL: Record<ExerciseTrendKind, string> = {
+  progressing: "Progressing",
+  flat: "Flat",
+  declining: "Declining",
+  insufficient: "Early",
+};
+
+function TrendArrowIcon({ trend, color }: { trend: ExerciseTrendKind; color: string }) {
+  if (trend === "progressing") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]" aria-hidden>
+        <path d="M5 17l7-7 4 4 4-4" />
+        <polyline points="15 10 20 10 20 15" />
+      </svg>
+    );
+  }
+  if (trend === "declining") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]" aria-hidden>
+        <path d="M5 7l7 7 4-4 4 4" />
+        <polyline points="15 14 20 14 20 9" />
+      </svg>
+    );
+  }
+  if (trend === "flat") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]" aria-hidden>
+        <line x1="5" y1="12" x2="19" y2="12" />
+        <polyline points="16 8 20 12 16 16" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]" aria-hidden>
+      <line x1="6" y1="12" x2="18" y2="12" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[16px] w-[16px]" aria-hidden>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
+  );
+}
+
+function getProgressPageHeader(
   coach: CoachStructuredAnalysis,
-  workouts: ReturnType<typeof getWorkoutHistory>,
-  unit: "kg" | "lb"
-): DetailContent {
-  if (workouts.length === 0) {
-    return {
-      state: "unknown",
-      status: "No data yet",
-      explanation:
-        "The progress indicator reads which lifts are moving forward in weight and reps over the last several sessions. Log a workout and a trend will appear here.",
-      prompt: "Once I start logging, how does the progress indicator track which lifts are moving?",
-      chart: <LineChart performances={[]} state="unknown" unit={unit} />,
-    };
+  workouts: ReturnType<typeof getWorkoutHistory>
+): { state: SignalState; status: string } {
+  if (workouts.length === 0) return { state: "unknown", status: "No data yet" };
+  if (workouts.length < 3) return { state: "unknown", status: "Early read" };
+  if (coach.keyFocusType === "declining") return { state: "attention", status: "Declining" };
+  if (coach.whatsGoingWell.length > 0 || coach.keyFocusType === "progressing") {
+    return { state: "good", status: "Improving" };
+  }
+  return { state: "watch", status: "Flat" };
+}
+
+function ProgressDetailView({
+  workouts,
+  unit,
+  onAskAssistant,
+}: {
+  workouts: ReturnType<typeof getWorkoutHistory>;
+  unit: "kg" | "lb";
+  onAskAssistant: (prompt: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [userSelection, setUserSelection] = useState<string | null>(null);
+
+  const exerciseList = useMemo(() => buildExerciseList(workouts), [workouts]);
+
+  const selected: string | null = useMemo(() => {
+    if (exerciseList.length === 0) return null;
+    if (userSelection && exerciseList.some((e) => e.name === userSelection)) {
+      return userSelection;
+    }
+    return exerciseList[0].name;
+  }, [exerciseList, userSelection]);
+
+  const selectedItem = useMemo(
+    () => exerciseList.find((e) => e.name === selected) ?? null,
+    [exerciseList, selected]
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return exerciseList;
+    return exerciseList.filter((e) => e.name.toLowerCase().includes(q));
+  }, [exerciseList, search]);
+
+  const cold = workouts.length < 3 || exerciseList.length === 0;
+
+  function handleAsk() {
+    if (!selectedItem) {
+      onAskAssistant(
+        "I'd like to talk about my progress trends. Where should we start?"
+      );
+      return;
+    }
+    const trendPhrase =
+      selectedItem.trend === "progressing"
+        ? `is progressing${
+            selectedItem.trendChangePct !== null
+              ? ` (estimated 1RM up about ${Math.abs(selectedItem.trendChangePct).toFixed(1)}%)`
+              : ""
+          }`
+        : selectedItem.trend === "declining"
+          ? `is declining${
+              selectedItem.trendChangePct !== null
+                ? ` (estimated 1RM down about ${Math.abs(selectedItem.trendChangePct).toFixed(1)}%)`
+                : ""
+            }`
+          : selectedItem.trend === "flat"
+            ? "is flat — estimated 1RM has barely moved"
+            : "doesn't have enough recent data to read";
+    const window =
+      selectedItem.trend === "insufficient"
+        ? `${selectedItem.frequency} session${selectedItem.frequency === 1 ? "" : "s"} logged total`
+        : `over my last ${TREND_DAYS_FOR_CLASSIFICATION / 7}-week trend window`;
+    onAskAssistant(
+      `${selectedItem.name} ${trendPhrase} ${window}. Walk me through what's happening with this lift and what to do next session.`
+    );
   }
 
-  if (workouts.length < 3) {
-    const choice = pickMostTrackedExercise(workouts, ["bench", "squat", "deadlift"]);
-    return {
-      state: "unknown",
-      status: "Early read",
-      explanation: `Only ${workouts.length} session${
-        workouts.length === 1 ? "" : "s"
-      } logged. The chart shows ${choice?.name ?? "your tracked lift"}; a few more sessions and the trend reads cleanly.`,
-      prompt:
-        "I've only logged a couple of sessions. How many do you need before progress becomes readable?",
-      chart: <LineChart performances={choice?.insights.recentPerformances ?? []} state="unknown" unit={unit} />,
-    };
+  if (cold) {
+    return (
+      <>
+        <section className="pt-2">
+          <div
+            className="rounded-2xl flex items-center justify-center text-center px-6"
+            style={{
+              background: "rgba(255,255,255,0.018)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              minHeight: 220,
+            }}
+          >
+            <p className="text-app-secondary text-[15px] font-semibold leading-snug max-w-[280px]">
+              Log a few sessions to see your progress trends. Each lift gets its own read once you have at least three sessions for it.
+            </p>
+          </div>
+        </section>
+        <section className="pt-6">
+          <button
+            type="button"
+            onClick={handleAsk}
+            className="flex items-center justify-center gap-2 w-full rounded-2xl py-4 text-[15px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
+            style={{
+              background: "rgba(0,229,176,0.12)",
+              border: "1px solid rgba(0,229,176,0.35)",
+              color: "#7ff2cf",
+            }}
+          >
+            <span>Ask the assistant about this</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]" aria-hidden>
+              <path d="M5 12h14" />
+              <path d="M13 6l6 6-6 6" />
+            </svg>
+          </button>
+        </section>
+      </>
+    );
   }
 
-  const isGood =
-    coach.whatsGoingWell.length > 0 || coach.keyFocusType === "progressing";
+  const selectedState = selectedItem
+    ? EXERCISE_TREND_STATE[selectedItem.trend]
+    : "unknown";
 
-  const focusExerciseName = isGood ? coach.keyFocusExercise : undefined;
-  const choice = focusExerciseName
-    ? {
-        name: focusExerciseName,
-        insights: getExerciseInsights(workouts, focusExerciseName, { maxSessions: 8 }),
-      }
-    : pickMostTrackedExercise(workouts, ["bench", "squat", "deadlift"]);
+  return (
+    <>
+      <section className="pt-1">
+        <label className="relative block">
+          <span className="sr-only">Search exercises</span>
+          <span
+            className="absolute inset-y-0 left-3 flex items-center text-home-tertiary pointer-events-none"
+            aria-hidden
+          >
+            <SearchIcon />
+          </span>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search exercises..."
+            className="input-app w-full pl-9 pr-3 py-3 text-[14px] font-medium"
+          />
+        </label>
+      </section>
 
-  const performances = choice?.insights.recentPerformances ?? [];
-  const exerciseLabel = choice?.name ?? "your tracked lift";
+      <section
+        className="pt-3"
+        aria-labelledby="exercise-list-heading"
+      >
+        <h2 id="exercise-list-heading" className="sr-only">
+          Exercises
+        </h2>
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{
+            background: "rgba(255,255,255,0.018)",
+            border: "1px solid rgba(255,255,255,0.05)",
+            maxHeight: 256,
+            overflowY: "auto",
+          }}
+        >
+          {filtered.length === 0 ? (
+            <p className="px-4 py-8 text-center text-[13px] text-app-tertiary">
+              No exercises match &ldquo;{search.trim()}&rdquo;.
+            </p>
+          ) : (
+            <ul className="divide-y divide-white/[0.05]">
+              {filtered.map((item) => {
+                const isSelected = item.name === selected;
+                const trendState = EXERCISE_TREND_STATE[item.trend];
+                const tc = STATE_COLOR[trendState];
+                return (
+                  <li key={item.name}>
+                    <button
+                      type="button"
+                      onClick={() => setUserSelection(item.name)}
+                      aria-pressed={isSelected}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-white/[0.025] focus-visible:outline-none focus-visible:bg-white/[0.035]"
+                      style={
+                        isSelected
+                          ? { background: "rgba(0,229,176,0.06)" }
+                          : undefined
+                      }
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="text-[14px] font-semibold tracking-tight leading-tight truncate"
+                          style={{
+                            color: isSelected
+                              ? "rgba(255,255,255,0.96)"
+                              : "rgba(240,250,248,0.92)",
+                          }}
+                        >
+                          {item.name}
+                        </p>
+                        <p className="mt-0.5 text-[11px] font-medium text-home-tertiary">
+                          {item.frequency} session{item.frequency === 1 ? "" : "s"} logged
+                        </p>
+                      </div>
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide shrink-0"
+                        style={{
+                          background: tc.statusBg,
+                          border: `1px solid ${tc.statusBorder}`,
+                          color: tc.statusText,
+                        }}
+                      >
+                        <TrendArrowIcon trend={item.trend} color={tc.statusText} />
+                        {EXERCISE_TREND_LABEL[item.trend]}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
 
-  if (isGood) {
-    const explanation =
-      coach.whatsGoingWell[0] ??
-      `${exerciseLabel} is moving forward across your last ${performances.length || "few"} sessions.`;
-    return {
-      state: "good",
-      status: "Improving",
-      explanation,
-      prompt:
-        "Progress is showing on my training. Walk me through which lifts are moving and how much.",
-      chart: <LineChart performances={performances} state="good" unit={unit} />,
-    };
-  }
+      {selectedItem && (
+        <section className="pt-5" aria-labelledby="selected-chart-heading">
+          <div className="flex items-baseline justify-between mb-2">
+            <h3
+              id="selected-chart-heading"
+              className="text-[13px] font-bold tracking-tight text-white truncate"
+            >
+              {selectedItem.name}
+            </h3>
+            <span className="text-[11px] font-medium text-home-tertiary shrink-0 ml-2">
+              Last 8 weeks
+            </span>
+          </div>
+          <LineChart
+            performances={selectedItem.chartPerformances}
+            state={selectedState}
+            unit={unit}
+            valueKey="e1rm"
+            caption={`Estimated 1RM (${unit}) per session`}
+          />
+        </section>
+      )}
 
-  return {
-    state: "watch",
-    status: "Quiet",
-    explanation: `Nothing improving clearly in the last few sessions. The chart shows ${exerciseLabel}; a flat trend here is what's holding the indicator quiet.`,
-    prompt: "Progress isn't showing clearly yet. What would help me get clearer progress signals?",
-    chart: <LineChart performances={performances} state="watch" unit={unit} />,
-  };
+      <section className="pt-6">
+        <button
+          type="button"
+          onClick={handleAsk}
+          className="flex items-center justify-center gap-2 w-full rounded-2xl py-4 text-[15px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
+          style={{
+            background: "rgba(0,229,176,0.12)",
+            border: "1px solid rgba(0,229,176,0.35)",
+            color: "#7ff2cf",
+          }}
+        >
+          <span>
+            {selectedItem
+              ? `Ask the assistant about ${selectedItem.name}`
+              : "Ask the assistant about this"}
+          </span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]" aria-hidden>
+            <path d="M5 12h14" />
+            <path d="M13 6l6 6-6 6" />
+          </svg>
+        </button>
+      </section>
+    </>
+  );
 }
 
 export default function SignalDetailPage() {
@@ -811,26 +1143,44 @@ export default function SignalDetailPage() {
     notFound();
   }
 
-  const content: DetailContent = useMemo(() => {
-    if (key === "plateau") return buildPlateauContent(coachAnalysis, workouts, unit);
-    if (key === "volume") return buildVolumeContent(coachAnalysis, workouts);
-    return buildProgressContent(coachAnalysis, workouts, unit);
-  }, [key, coachAnalysis, workouts, unit]);
+  const isProgress = key === "progress";
 
-  const c = STATE_COLOR[content.state];
+  const staticContent: DetailContent | null = useMemo(() => {
+    if (isProgress) return null;
+    if (key === "plateau") return buildPlateauContent(coachAnalysis, workouts, unit);
+    return buildVolumeContent(coachAnalysis, workouts);
+  }, [isProgress, key, coachAnalysis, workouts, unit]);
+
+  const progressHeader = useMemo(
+    () => (isProgress ? getProgressPageHeader(coachAnalysis, workouts) : null),
+    [isProgress, coachAnalysis, workouts]
+  );
+
+  const headerState: SignalState = isProgress
+    ? progressHeader!.state
+    : staticContent!.state;
+  const headerStatus: string = isProgress
+    ? progressHeader!.status
+    : staticContent!.status;
+
+  const c = STATE_COLOR[headerState];
   const Icon = ICONS[key];
 
-  function openAssistant() {
+  function openAssistantWithPrompt(prompt: string) {
     if (typeof window !== "undefined") {
       try {
-        sessionStorage.setItem("assistantQuickPrompt", content.prompt);
+        sessionStorage.setItem("assistantQuickPrompt", prompt);
         sessionStorage.setItem("assistantAutoSend", "1");
       } catch {
-        router.push(`/assistant?q=${encodeURIComponent(content.prompt)}`);
+        router.push(`/assistant?q=${encodeURIComponent(prompt)}`);
         return;
       }
     }
     router.push("/assistant");
+  }
+
+  function openAssistant() {
+    if (staticContent) openAssistantWithPrompt(staticContent.prompt);
   }
 
   return (
@@ -861,7 +1211,7 @@ export default function SignalDetailPage() {
           </Link>
         </div>
 
-        <header className="pt-5 pb-6">
+        <header className="pt-5 pb-5">
           <div className="flex items-center gap-3">
             <span
               className="inline-flex h-12 w-12 items-center justify-center rounded-2xl"
@@ -889,59 +1239,80 @@ export default function SignalDetailPage() {
                 color: c.statusText,
               }}
             >
-              {content.status}
+              {headerStatus}
             </span>
           </div>
         </header>
 
-        {hasMounted ? content.chart : (
-          <div
-            className="rounded-2xl"
-            style={{
-              background: "rgba(255,255,255,0.018)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              height: 200,
-            }}
-          />
+        {isProgress ? (
+          hasMounted ? (
+            <ProgressDetailView
+              workouts={workouts}
+              unit={unit}
+              onAskAssistant={openAssistantWithPrompt}
+            />
+          ) : (
+            <div
+              className="rounded-2xl"
+              style={{
+                background: "rgba(255,255,255,0.018)",
+                border: "1px solid rgba(255,255,255,0.05)",
+                height: 320,
+              }}
+            />
+          )
+        ) : (
+          <>
+            {hasMounted ? staticContent!.chart : (
+              <div
+                className="rounded-2xl"
+                style={{
+                  background: "rgba(255,255,255,0.018)",
+                  border: "1px solid rgba(255,255,255,0.05)",
+                  height: 200,
+                }}
+              />
+            )}
+
+            <section className="pt-6">
+              <p className="label-section mb-2">What this means</p>
+              <p
+                className="text-[16px] font-semibold leading-snug text-white"
+                style={{ textWrap: "pretty" }}
+              >
+                {staticContent!.explanation}
+              </p>
+            </section>
+
+            <section className="pt-8">
+              <button
+                type="button"
+                onClick={openAssistant}
+                className="flex items-center justify-center gap-2 w-full rounded-2xl py-4 text-[15px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
+                style={{
+                  background: "rgba(0,229,176,0.12)",
+                  border: "1px solid rgba(0,229,176,0.35)",
+                  color: "#7ff2cf",
+                }}
+              >
+                <span>Ask the assistant about this</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-[14px] w-[14px]"
+                  aria-hidden
+                >
+                  <path d="M5 12h14" />
+                  <path d="M13 6l6 6-6 6" />
+                </svg>
+              </button>
+            </section>
+          </>
         )}
-
-        <section className="pt-6">
-          <p className="label-section mb-2">What this means</p>
-          <p
-            className="text-[16px] font-semibold leading-snug text-white"
-            style={{ textWrap: "pretty" }}
-          >
-            {content.explanation}
-          </p>
-        </section>
-
-        <section className="pt-8">
-          <button
-            type="button"
-            onClick={openAssistant}
-            className="flex items-center justify-center gap-2 w-full rounded-2xl py-4 text-[15px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
-            style={{
-              background: "rgba(0,229,176,0.12)",
-              border: "1px solid rgba(0,229,176,0.35)",
-              color: "#7ff2cf",
-            }}
-          >
-            <span>Ask the assistant about this</span>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-[14px] w-[14px]"
-              aria-hidden
-            >
-              <path d="M5 12h14" />
-              <path d="M13 6l6 6-6 6" />
-            </svg>
-          </button>
-        </section>
       </div>
     </main>
   );
