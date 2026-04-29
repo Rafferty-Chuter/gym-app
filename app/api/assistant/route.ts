@@ -93,6 +93,32 @@ import {
   extractRecentAssistantWorkoutsFromThread,
   formatAssistantBuiltWorkoutsForPrompt,
 } from "@/lib/assistantThreadWorkouts";
+import {
+  buildCoachStructuredAnalysis,
+  EMPTY_COACH_STRUCTURED_ANALYSIS,
+  type CoachStructuredAnalysis,
+} from "@/lib/coachStructuredAnalysis";
+import type { TrainingFocus } from "@/lib/trainingFocus";
+import type { ExperienceLevel } from "@/lib/experienceLevel";
+import type { PriorityGoal } from "@/lib/priorityGoal";
+
+const TRAINING_FOCUS_VALUES = [
+  "Hypertrophy",
+  "Powerlifting",
+  "General Strength",
+  "General Fitness",
+] as const satisfies readonly TrainingFocus[];
+const EXPERIENCE_LEVEL_VALUES = ["Beginner", "Intermediate", "Advanced"] as const satisfies readonly ExperienceLevel[];
+const PRIORITY_GOAL_VALUES = [
+  "Increase Bench Press",
+  "Increase Squat",
+  "Increase Deadlift",
+  "Build Chest",
+  "Build Back",
+  "Build Overall Muscle",
+  "Improve Overall Strength",
+] as const satisfies readonly PriorityGoal[];
+import type { StoredWorkout } from "@/lib/trainingAnalysis";
 /** Dev/proof: log full chain for this exact probe message. */
 const PUSH_DAY_HYPERTROPHY_PROBE =
   /build\s+me\s+a\s+push\s+day\s+for\s+hypertrophy\s+with\s+balanced\s+chest,?\s*shoulder\s+and\s+tricep\s+coverage/i;
@@ -1227,8 +1253,26 @@ function buildLoggedTrainingPreamble(params: {
   coachingContext: unknown;
 }): string {
   if (!params.hasWorkoutData) {
-    return `=== LOGGED TRAINING STATUS ===
-No completed workouts were included in the summary (0 sessions / 0 sets). It is appropriate to ask what their training looks like or encourage them to log sessions in the app.`;
+    return `=== LOGGED TRAINING STATUS — COLD START (NO DATA) ===
+The user has 0 completed workouts logged in this app. The whole value of this Coach is personalised guidance from logged training; with no data, you cannot personalise.
+
+HARD RULES FOR COLD-START REPLIES:
+- Do NOT produce a comprehensive multi-day programme, full split, weekly schedule, or detailed prescription on this turn. That output looks polished but is generic and indistinguishable from any chatbot — it actively undersells what this app does.
+- Do NOT invent assumed history, prior 1RMs, training age, or current routine.
+- Do NOT pad the reply with generic principles ("progressive overload matters", "eat enough protein") as if that were a real answer.
+
+WHAT TO DO INSTEAD — pick whichever fits the question better:
+
+Option A — ask 2–3 targeted questions first (preferred for programming/plan questions):
+- Ask only what you genuinely need to personalise: e.g. current routine or split, training age / experience, primary goal (size, strength, body comp), days per week available, equipment / gym access, any injuries or limits.
+- Keep it short and conversational — not a form. Two or three questions, not six.
+- Tell them why you are asking in one short line ("once you tell me X and Y I can give you a programme that actually fits, instead of a generic one").
+
+Option B — give a deliberately minimal direct answer + flag what's missing (preferred for narrow factual / "what is X" questions):
+- Answer the specific question briefly using general evidence-based principles, clearly framed as general — not personalised.
+- Then in one short line, name what would let you personalise: "once you log a few sessions, or tell me your current routine and goal, I can tailor this to you specifically."
+
+Either way: invite them to log a session or share their current routine so the Coach can switch on. The first impression should make clear that this Coach gets sharper with data, not that it produces generic plans on demand.`;
   }
 
   const ctx = params.coachingContext as Partial<CoachingContext> | null | undefined;
@@ -1424,6 +1468,66 @@ GLOBAL REPLY DISCIPLINE (all questions):
 - Calibrate confidence: thin logs → one short line on what you cannot know.
 `.trim();
 
+const EVIDENCE_QUALITY_BLOCK = `
+EVIDENCE QUALITY (mandatory whenever you cite training science):
+
+Rep ranges & hypertrophy (correct the common myth):
+- Do NOT say "low reps are for strength, high reps are for hypertrophy" or any variant of that framing. It is outdated.
+- Hypertrophy is largely rep-range agnostic across roughly 5–30+ reps when sets are taken close to failure (Schoenfeld 2017 meta-analysis and subsequent work). Effort proximity to failure and weekly volume are the dominant drivers, not the specific rep number.
+- Strength expression IS more rep-range specific — heavier loads at lower reps transfer better to 1RM. So "heavier reps for max strength" is fair; "lighter reps don't build muscle" is not.
+- If the user asks about rep choice for size, frame it as: pick a range you can take close to failure with good execution; 6–12 is a practical default for time-efficiency, not because it grows more muscle than 15–20.
+
+Contested vs settled claims:
+- Treat the following as settled: progressive overload matters, proximity to failure matters for hypertrophy, weekly volume has a dose-response (with diminishing returns), recovery between hard sessions for the same muscle.
+- Treat the following as contested / nuanced — flag the uncertainty rather than asserting confidently: optimal frequency per muscle, exact "junk volume" thresholds, whether deloads are universally needed, "anabolic window" timing, exact protein g/kg sweet spot, optimal rest between sets for hypertrophy, machines vs free weights for growth.
+- When you reference a study or principle, prefer "evidence suggests…", "the strongest current evidence…", or "this is contested — one common view is…" over flat declarative claims.
+
+Indirect / synergist volume from compound lifts:
+- Acknowledge that compound presses contribute real triceps stimulus, squats load glutes, rows work biceps, and so on — synergist contribution is real and worth naming.
+- Do NOT pin a specific multiplier or weekly count. Phrasings like "each bench set ≈ 0.5 triceps sets", "your pressing gives you 6 indirect triceps sets per week", or any "X% counts" rule are not measured numbers — they vary with grip, leverage, range of motion, depth, proximity to failure, and individual recruitment, none of which the log captures.
+- Stay qualitative: "partial contribution", "counts for some stimulus but not 1-for-1", "fuzzy to quantify". When the user asks for a number, say plainly that it can't be measured precisely from logs, and recommend planning direct work as if the indirect contribution might be smaller than they assume.
+- This rule is narrow: it applies to synergist / indirect volume from compound lifts. Do NOT use it to refuse straightforward numeric answers about logged volumes, prescribed sets, rest times, or rep ranges that have evidence-based ranges.
+
+Failure modes to avoid:
+- Repeating bro-science as fact (rep-range myth above is the most common one).
+- Inventing specific percentages, study citations, or numerical claims that were not in the payload.
+- Confidently asserting things that are genuinely contested in the literature.
+`.trim();
+
+const VOLUME_RESEARCH_CONTEXT_BLOCK = `
+VOLUME RESEARCH CONTEXT (use only when diagnosing a stall — never to correct training that is working):
+
+Two non-negotiable rules:
+
+1. Progression overrides. If USER CONTEXT shows the user is progressing (whatsGoingWell entries present, keyFocusType is "progressing", or the logged data shows stable-to-improving trends), do NOT surface volume thresholds, set ranges, or research citations. The correct response is to affirm what's working and answer the question they actually asked. Research thresholds are a diagnostic tool, not a prescription to impose on someone whose training is producing results.
+
+2. Read the room. Calibrate citation depth to the experienceLevel in USER CONTEXT:
+- Beginner: practical recommendations only. No study names, no meta-analyses, no MV/MEV/MRV jargon. "Roughly 10-15 hard sets a week is a sensible starting point" is enough.
+- Intermediate: cite the research basis briefly when diagnosing a stall or correcting a misconception. One name + one sentence, not a literature review.
+- Advanced: bring the nuance when relevant — population caveats, why study averages may underestimate their ceiling, what their progression history says about individual response.
+
+Studies (use only as background — do not introduce these unprompted in routine answers):
+
+- Schoenfeld et al. 2017 (meta-analysis): dose-response between weekly sets and hypertrophy. 10+ sets per muscle group per week produced superior growth vs 5-9 sets and <5 sets, with diminishing returns above ~10. Most subjects were intermediate; advanced lifters likely have a higher ceiling.
+- Krieger 2010, 2017 (meta-analyses): trained individuals consistently required more volume than untrained for equivalent adaptation. Supports raising thresholds as training age increases.
+- Radaelli et al. 2015: in trained men, 5 sets per exercise was superior to 3 or 1 set for hypertrophy. Supports the volume-response extending further in trained populations.
+- Barbalho et al. 2019/2020: very high volumes (32 sets/week) produced inferior results to moderate volumes (16 sets/week) in trained subjects, suggesting a ceiling. Methodology has been questioned — treat as directional, not definitive.
+- Key population caveat: most studies used subjects with 1-3 years of training. Truly advanced natural lifters (5+ years) likely have a higher MRV than the study averages suggest. When in doubt, trust the individual's progression data over population averages.
+
+When to cite:
+- The user is not progressing and volume may be the cause.
+- The user explicitly asks why, or what the science says.
+- Correcting a misconception that's shaping their decision.
+- The answer contradicts what the user appears to expect.
+
+When NOT to cite:
+- The user is progressing on this lift or muscle (rule 1 above).
+- A clean practical answer fits the question — no diagnostic gap to fill.
+- Citation would interrupt or pad a direct answer.
+
+This block is reference, not a script. Do not turn a question about whether to add a chest day into a literature review. Do not lead with study names. The two rules at the top of this block override any urge to demonstrate research fluency.
+`.trim();
+
 /** Applied last — writing quality and scan layout; does not override evidence or routing rules above. */
 const FINAL_RESPONSE_POLISH_BLOCK = `
 FINAL RESPONSE POLISH (apply before you finish — user-visible text only):
@@ -1457,7 +1561,18 @@ Question-type fit (default shapes — tighten further if the task above says oth
  * Stable system prompt — never changes between requests, so it always hits the
  * prompt cache after the first call. Contains all static instruction blocks.
  */
+const USER_CONTEXT_USAGE_BLOCK = `
+- A separate system message labelled "USER CONTEXT" accompanies most requests. It is built deterministically by the same pipeline that powers the Coach screen, from the user's logged workouts and current focus, experience level, priority goal, and units.
+- When the user asks about THEIR training (their progress, their plateau, their weekly volume, their next session, their specific lifts), ground answers in USER CONTEXT. Use the listed facts to reason from; do not restate it verbatim, and do not contradict its numbers or signals unless logged data elsewhere in the request explicitly supports a different read.
+- When the user asks general training questions that aren't about themselves (rep ranges, exercise selection theory, evidence questions), default to the existing rules below — evidence quality, hedging, calibration. USER CONTEXT is supplementary, not a substitute, in that case.
+- When USER CONTEXT reports zero logged workouts, follow the cold-start rules already in this prompt: do not fabricate personalised data, do not produce a polished programme as if you had history; ask 1–2 targeted personalisation questions before going further.
+`.trim();
+
 const STATIC_COACH_SYSTEM_PROMPT = `You are an expert AI strength and hypertrophy coach embedded in a training app. Answer based strictly on the user's logged workout data, coaching context, and evidence-based training principles provided in each request. Never fabricate training data, studies, statistics, or coaching claims not present in the request payload.
+
+---
+USER CONTEXT INTEGRATION:
+${USER_CONTEXT_USAGE_BLOCK}
 
 ---
 TRUST & CALIBRATION:
@@ -1468,10 +1583,127 @@ INFERENCE & CERTAINTY:
 ${INFERENCE_CERTAINTY_BLOCK}
 
 ---
+${EVIDENCE_QUALITY_BLOCK}
+
+---
+${VOLUME_RESEARCH_CONTEXT_BLOCK}
+
+---
 ${GLOBAL_REPLY_DISCIPLINE_BLOCK}
 
 ---
 ${FINAL_RESPONSE_POLISH_BLOCK}`.trim();
+
+function coerceTrainingFocus(s: string | undefined): TrainingFocus {
+  return (TRAINING_FOCUS_VALUES as readonly string[]).includes(s ?? "")
+    ? (s as TrainingFocus)
+    : "Hypertrophy";
+}
+function coerceExperienceLevel(s: string | undefined): ExperienceLevel {
+  return (EXPERIENCE_LEVEL_VALUES as readonly string[]).includes(s ?? "")
+    ? (s as ExperienceLevel)
+    : "Intermediate";
+}
+function coercePriorityGoal(s: string | undefined): PriorityGoal {
+  return (PRIORITY_GOAL_VALUES as readonly string[]).includes(s ?? "")
+    ? (s as PriorityGoal)
+    : "Improve Overall Strength";
+}
+function coerceUnit(s: string | undefined): "kg" | "lb" {
+  return s === "lb" ? "lb" : "kg";
+}
+
+function formatUserContextBlock(
+  workouts: StoredWorkout[],
+  profile: {
+    trainingFocus?: string;
+    experienceLevel?: string;
+    priorityGoal?: string;
+    unit?: string;
+  },
+  recentExercises: string[]
+): string {
+  const focus = coerceTrainingFocus(profile.trainingFocus);
+  const experienceLevel = coerceExperienceLevel(profile.experienceLevel);
+  const goal = coercePriorityGoal(profile.priorityGoal);
+  const unit = coerceUnit(profile.unit);
+
+  let analysis: CoachStructuredAnalysis;
+  try {
+    analysis = buildCoachStructuredAnalysis(workouts, { focus, experienceLevel, goal, unit });
+  } catch {
+    analysis = { ...EMPTY_COACH_STRUCTURED_ANALYSIS };
+  }
+
+  const lines: string[] = [];
+  lines.push(
+    "USER CONTEXT (deterministic; same pipeline as the Coach screen). Use as facts about THIS user; do not restate verbatim."
+  );
+  lines.push("");
+  lines.push("Profile:");
+  lines.push(`- Training focus: ${focus}`);
+  lines.push(`- Experience level: ${experienceLevel}`);
+  lines.push(`- Priority goal: ${goal}`);
+  lines.push(`- Units: ${unit}`);
+  lines.push(`- Logged workouts available: ${workouts.length}`);
+  lines.push("");
+
+  if (workouts.length === 0) {
+    lines.push(
+      "Status: No workouts logged yet. Treat as cold-start: do not invent personalised data, weights, or trends."
+    );
+    return lines.join("\n").trim();
+  }
+
+  lines.push("Key focus signal:");
+  if (analysis.keyFocus) {
+    lines.push(`- ${analysis.keyFocus}`);
+    lines.push(`- Type: ${analysis.keyFocusType}`);
+    if (analysis.keyFocusExercise) lines.push(`- Exercise: ${analysis.keyFocusExercise}`);
+    if (analysis.keyFocusGroups?.length)
+      lines.push(`- Muscle groups: ${analysis.keyFocusGroups.join(", ")}`);
+  } else {
+    lines.push("- No single dominant signal; current data is balanced or sparse.");
+  }
+  lines.push("");
+
+  if (analysis.nextSessionAdjustmentPlan) {
+    const plan = analysis.nextSessionAdjustmentPlan;
+    lines.push("Next-session adjustment plan:");
+    lines.push(`- Title: ${plan.title}`);
+    if (plan.rationale) lines.push(`- Rationale: ${plan.rationale}`);
+    for (const adj of plan.adjustments.slice(0, 4)) {
+      lines.push(`- ${adj.target}: ${adj.instruction} (${adj.duration})`);
+    }
+    lines.push("");
+  }
+
+  if (analysis.whatsGoingWell.length) {
+    lines.push("What's going well:");
+    for (const w of analysis.whatsGoingWell) lines.push(`- ${w}`);
+    lines.push("");
+  }
+
+  if (analysis.volumeBalance.length) {
+    lines.push("Weekly volume / balance:");
+    for (const v of analysis.volumeBalance) lines.push(`- ${v.label}: ${v.summary}`);
+    lines.push("");
+  }
+
+  if (analysis.actionableSuggestions.length) {
+    lines.push("Actionable suggestions (already prioritised by the deterministic pipeline):");
+    for (const s of analysis.actionableSuggestions.slice(0, 5)) lines.push(`- ${s}`);
+    lines.push("");
+  }
+
+  if (recentExercises.length) {
+    lines.push(
+      `Recent exercises (latest logged): ${recentExercises.slice(0, 12).join(", ")}.`
+    );
+  }
+
+  return lines.join("\n").trim();
+}
 
 async function getAssistantReply(
   loggedDataPreamble: string,
@@ -2675,6 +2907,17 @@ ${benchEstimateBlock}`.trim();
 
   const userContent = `${loggedDataPreamble.trim()}\n\n${builtSessionsSection}${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}`;
 
+  const userContextBlock = formatUserContextBlock(
+    coachingContext?.recentWorkouts ?? [],
+    {
+      trainingFocus: profile.trainingFocus,
+      experienceLevel: profile.experienceLevel,
+      priorityGoal: profile.priorityGoal,
+      unit: profile.unit,
+    },
+    trainingSummary.recentExercises ?? []
+  );
+
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2048,
@@ -2683,6 +2926,10 @@ ${benchEstimateBlock}`.trim();
         type: "text",
         text: STATIC_COACH_SYSTEM_PROMPT,
         cache_control: { type: "ephemeral" },
+      },
+      {
+        type: "text",
+        text: userContextBlock,
       },
     ],
     messages: [{ role: "user", content: userContent }],
@@ -3565,8 +3812,30 @@ export async function POST(request: NextRequest) {
         programmeModificationFlow ||
         questionKind === "multi_day_programme_construction");
 
+    /**
+     * Cold-start gate: if the user has zero logged workouts, do NOT run the
+     * deterministic programme builder. The pipeline can't construct a
+     * meaningful programme without history and tends to fail muscle-coverage
+     * validation. Fall through to the Coach LLM reply path, which uses the
+     * cold-start preamble in buildLoggedTrainingPreamble to ask 2-3 targeted
+     * personalisation questions instead.
+     *
+     * Programme MODIFICATION is exempt — if there's already an active
+     * programme to modify, the user clearly has context the pipeline can use.
+     */
+    const noLoggedData = (trainingSummary?.totalWorkouts ?? 0) === 0;
+    const coldStartBlocksProgrammeBuild =
+      noLoggedData && !pipelineWantsProgrammeModify && !programmeModificationFlow;
+    if (coldStartBlocksProgrammeBuild && (pipelineWantsProgrammeBuild || legacyEnterStructuredProgrammePath)) {
+      console.log("[programme-cold-start-block]", {
+        reason: "User has 0 logged workouts; routing programme-build request to Coach LLM reply path.",
+        message: trimmedMessage.slice(0, 120),
+      });
+    }
+
     const enterStructuredProgrammePath =
       !skipStructuredForPipelineCompareOrExplain &&
+      !coldStartBlocksProgrammeBuild &&
       (pipelineWantsProgrammeModify ||
         pipelineWantsProgrammeBuild ||
         legacyEnterStructuredProgrammePath);
@@ -4581,9 +4850,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Final response-mode guard: construction asks must not fall back to prose-only chat.
+    // Cold-start exemption: if the user has zero logged data, skip this stub
+    // and let the Coach LLM path handle it via the cold-start preamble.
     if (
       explicitConstructionAsk &&
-      !userExplicitlyBlocksStructuredWorkoutGeneration(trimmedMessage)
+      !userExplicitlyBlocksStructuredWorkoutGeneration(trimmedMessage) &&
+      !coldStartBlocksProgrammeBuild
     ) {
       if (strictConstructionMode === "programme_build") {
         return NextResponse.json({

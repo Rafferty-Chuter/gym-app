@@ -7,6 +7,7 @@ import {
   detectExerciseSignals,
   detectVolumeSignals,
   detectFrequencySignals,
+  getProgressionByMuscleGroup,
   scoreTrainingSignals,
   buildSignalInteractions,
   type TrainingInteraction,
@@ -711,6 +712,13 @@ export function buildCoachStructuredAnalysis(
   const minDeclineExposures = 3;
   const minNegativeStepsForDecline = 2;
 
+  // Per `Decisions/2026-04-29-volume-rules.md`: progression analysis runs first
+  // so the volume detector can suppress / soften warnings on muscles whose lifts
+  // are still moving. Per-muscle progression is derived from the same
+  // per-exercise insights window the orchestrator otherwise uses (maxSessions: 5).
+  const progressionByMuscle = getProgressionByMuscleGroup(allWorkouts);
+  console.log("[coach structured analysis] progressionByMuscle", progressionByMuscle);
+
   const rawSignals = [
     ...detectExerciseSignals(allWorkouts, {
       maxSessions: 5,
@@ -719,7 +727,7 @@ export function buildCoachStructuredAnalysis(
       minDeclineExposures,
       minNegativeStepsForDecline,
     }),
-    ...detectVolumeSignals(allWorkouts),
+    ...detectVolumeSignals(allWorkouts, progressionByMuscle),
     ...detectFrequencySignals(allWorkouts),
   ];
   const scoredSignals = scoreTrainingSignals(rawSignals, focus, userProfile);

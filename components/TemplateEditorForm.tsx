@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ExercisePicker, { type ExercisePickerValue } from "@/components/ExercisePicker";
 import CreateExerciseModal from "@/components/CreateExerciseModal";
+import { SortableList, DragHandle } from "@/components/SortableList";
 import { getExerciseByName } from "@/lib/exerciseLibrary";
 import {
   USER_EXERCISE_LIBRARY_EVENT,
@@ -19,10 +20,19 @@ type Props = {
   initialTemplate?: WorkoutTemplate;
 };
 
+let syntheticIdCounter = 0;
+function newSyntheticExerciseId(): string {
+  syntheticIdCounter += 1;
+  return `__tpl_ex_${Date.now().toString(36)}_${syntheticIdCounter}`;
+}
+
 export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
   const router = useRouter();
   const [templateName, setTemplateName] = useState(initialTemplate?.name ?? "");
   const [exercises, setExercises] = useState<TemplateExercise[]>(initialTemplate?.exercises ?? []);
+  const [exerciseIds, setExerciseIds] = useState<string[]>(() =>
+    (initialTemplate?.exercises ?? []).map(() => newSyntheticExerciseId())
+  );
   const [exerciseInput, setExerciseInput] = useState("");
   const [exerciseSetsInput, setExerciseSetsInput] = useState(3);
   const [restSecInput, setRestSecInput] = useState("90");
@@ -31,6 +41,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
   const [replaceExerciseIndex, setReplaceExerciseIndex] = useState<number | null>(null);
   const [replaceExerciseInput, setReplaceExerciseInput] = useState("");
   const [userLibraryRevision, setUserLibraryRevision] = useState(0);
+  const [reorderMode, setReorderMode] = useState(false);
 
   const canSave = useMemo(() => templateName.trim().length > 0 && exercises.length > 0, [templateName, exercises.length]);
 
@@ -59,6 +70,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
         restSec,
       },
     ]);
+    setExerciseIds((prev) => [...prev, newSyntheticExerciseId()]);
     setExerciseInput("");
     setExerciseSetsInput(3);
     setRestSecInput("90");
@@ -121,20 +133,32 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
     setUserLibraryRevision((r) => r + 1);
   }
 
-  function moveExercise(index: number, direction: "up" | "down") {
-    setExercises((prev) => {
-      const next = [...prev];
-      const target = direction === "up" ? index - 1 : index + 1;
-      if (target < 0 || target >= next.length) return prev;
-      const tmp = next[index];
-      next[index] = next[target];
-      next[target] = tmp;
-      return next;
+  function reorderExercisesByIds(nextIds: string[]) {
+    setExerciseIds((prevIds) => {
+      setExercises((prevExercises) => {
+        const idToEx = new Map<string, TemplateExercise>();
+        prevIds.forEach((id, i) => {
+          const ex = prevExercises[i];
+          if (ex) idToEx.set(id, ex);
+        });
+        const reordered: TemplateExercise[] = [];
+        for (const id of nextIds) {
+          const ex = idToEx.get(id);
+          if (ex) reordered.push(ex);
+        }
+        // Defensive: append any items that weren't in nextIds
+        for (let i = 0; i < prevExercises.length; i++) {
+          if (!nextIds.includes(prevIds[i])) reordered.push(prevExercises[i]);
+        }
+        return reordered;
+      });
+      return nextIds;
     });
   }
 
   function removeExercise(index: number) {
     setExercises((prev) => prev.filter((_, i) => i !== index));
+    setExerciseIds((prev) => prev.filter((_, i) => i !== index));
   }
 
   function updateExercise(index: number, patch: Partial<TemplateExercise>) {
@@ -176,13 +200,55 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
         </section>
 
         <section className="card-app mb-4">
-          <h2 className="label-section mb-2">Exercises in Template</h2>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h2 className="label-section mb-0">Exercises in Template</h2>
+            {exercises.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setReorderMode((m) => !m)}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition ${
+                  reorderMode
+                    ? "border-teal-500/45 bg-teal-500/15 text-teal-100"
+                    : "border-teal-900/45 bg-zinc-800/40 text-teal-100/85 hover:text-white hover:bg-zinc-700/45"
+                }`}
+              >
+                {reorderMode ? "Done" : "Reorder"}
+              </button>
+            )}
+          </div>
           {exercises.length === 0 ? (
             <p className="text-sm text-app-secondary">No exercises yet. Add one below.</p>
+          ) : reorderMode ? (
+            <SortableList
+              ids={exerciseIds}
+              onReorder={(next) => reorderExercisesByIds(next as string[])}
+              className="space-y-2"
+              renderItem={(id, handle) => {
+                const i = exerciseIds.indexOf(id);
+                const ex = exercises[i];
+                if (!ex) return null;
+                return (
+                  <div className="flex items-center gap-3 rounded-xl border border-teal-900/45 bg-zinc-900/85 px-3 py-3">
+                    <DragHandle
+                      attributes={handle.attributes}
+                      listeners={handle.listeners}
+                      isDragging={handle.isDragging}
+                      ariaLabel={`Drag ${ex.name} to reorder`}
+                    />
+                    <p className="flex-1 min-w-0 truncate text-[14px] font-semibold text-white">
+                      {ex.name}
+                    </p>
+                    <span className="shrink-0 text-[11px] text-app-meta tabular-nums">
+                      {ex.targetSets} set{ex.targetSets === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                );
+              }}
+            />
           ) : (
             <ul className="space-y-2">
               {exercises.map((ex, i) => (
-                <li key={`${ex.name}-${i}`} className="rounded-xl border border-teal-900/35 bg-zinc-900/70 p-3">
+                <li key={exerciseIds[i] ?? `${ex.name}-${i}`} className="rounded-xl border border-teal-900/35 bg-zinc-900/70 p-3">
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-white leading-snug line-clamp-2">{ex.name}</p>
@@ -233,28 +299,6 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
                             className="rounded-lg border border-teal-900/40 bg-zinc-800/40 px-2 py-1 text-xs text-teal-100/85 hover:text-white hover:bg-teal-700/45 transition"
                           >
                             Replace
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveExercise(i, "up")}
-                            className="h-8 w-8 rounded-lg border border-teal-900/40 bg-zinc-800/40 text-teal-200/80 hover:text-white hover:bg-teal-700/45 transition flex items-center justify-center"
-                            aria-label="Move exercise up"
-                          >
-                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                              <path d="M12 19V5" />
-                              <path d="M5 12l7-7 7 7" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveExercise(i, "down")}
-                            className="h-8 w-8 rounded-lg border border-teal-900/40 bg-zinc-800/40 text-teal-200/80 hover:text-white hover:bg-teal-700/45 transition flex items-center justify-center"
-                            aria-label="Move exercise down"
-                          >
-                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                              <path d="M12 5v14" />
-                              <path d="M19 12l-7 7-7-7" />
-                            </svg>
                           </button>
                           <button
                             type="button"

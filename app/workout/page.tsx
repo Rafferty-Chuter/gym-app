@@ -5,7 +5,6 @@ import {
   useLayoutEffect,
   useRef,
   useMemo,
-  type KeyboardEvent,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,6 +29,7 @@ import {
 } from "@/lib/exerciseLibrary";
 import ExercisePicker, { type ExercisePickerValue } from "@/components/ExercisePicker";
 import CreateExerciseModal from "@/components/CreateExerciseModal";
+import { SortableList, DragHandle } from "@/components/SortableList";
 import {
   USER_EXERCISE_LIBRARY_EVENT,
   userRecordToExercise,
@@ -409,32 +409,6 @@ function sanitizeRirInput(raw: string): string {
   return d;
 }
 
-function isWeightDecimalKey(key: string, currentHasDot: boolean): boolean {
-  if (key.length !== 1) return false;
-  if (key >= "0" && key <= "9") return true;
-  if ((key === "." || key === ",") && !currentHasDot) return true;
-  return false;
-}
-
-function isNavigationOrShortcutKey(e: KeyboardEvent<HTMLElement>): boolean {
-  return (
-    e.key === "Backspace" ||
-    e.key === "Delete" ||
-    e.key === "Tab" ||
-    e.key === "Enter" ||
-    e.key === "Escape" ||
-    e.key === "ArrowLeft" ||
-    e.key === "ArrowRight" ||
-    e.key === "ArrowUp" ||
-    e.key === "ArrowDown" ||
-    e.key === "Home" ||
-    e.key === "End" ||
-    e.metaKey ||
-    e.ctrlKey ||
-    e.altKey
-  );
-}
-
 export default function WorkoutPage() {
   const router = useRouter();
   const { addWorkout } = useWorkoutStore();
@@ -453,6 +427,7 @@ export default function WorkoutPage() {
   const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
   const [restAdjustExerciseId, setRestAdjustExerciseId] = useState<number | null>(null);
   const [exerciseMenuOpenId, setExerciseMenuOpenId] = useState<number | null>(null);
+  const [reorderMode, setReorderMode] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [lastPerformance, setLastPerformance] = useState<
@@ -1100,17 +1075,13 @@ export default function WorkoutPage() {
     setCreateExerciseOpen(true);
   }
 
-  function moveExercise(exerciseId: number, direction: "up" | "down") {
+  function reorderExercisesByIds(nextIds: number[]) {
     setExercises((prev) => {
-      const index = prev.findIndex((e) => e.id === exerciseId);
-      if (index < 0) return prev;
-      const target = direction === "up" ? index - 1 : index + 1;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      const tmp = next[index];
-      next[index] = next[target];
-      next[target] = tmp;
-      return next;
+      const byId = new Map(prev.map((e) => [e.id, e] as const));
+      const reordered = nextIds.map((id) => byId.get(id)).filter((e): e is typeof prev[number] => Boolean(e));
+      // Append any exercises not in nextIds (shouldn't happen, but defensive)
+      for (const e of prev) if (!nextIds.includes(e.id)) reordered.push(e);
+      return reordered;
     });
   }
 
@@ -1361,7 +1332,7 @@ export default function WorkoutPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white pb-8">
+    <main className="min-h-screen bg-zinc-950 text-white pb-32">
       {/* subtle depth on large screens */}
       <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-zinc-900/10 via-transparent to-transparent" />
 
@@ -1463,6 +1434,46 @@ export default function WorkoutPage() {
               </div>
             </div>
           </div>
+        ) : reorderMode ? (
+          <>
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-teal-700/40 bg-teal-950/35 px-3 py-2">
+              <p className="text-[12px] font-semibold text-teal-100/95">
+                Reorder exercises — drag to rearrange.
+              </p>
+              <button
+                type="button"
+                onClick={() => setReorderMode(false)}
+                className="shrink-0 rounded-lg border border-teal-500/45 bg-teal-500/15 px-3 py-1.5 text-[12px] font-bold text-teal-100 hover:bg-teal-500/25 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+            <SortableList
+              ids={exercises.map((e) => e.id)}
+              onReorder={(nextIds) => reorderExercisesByIds(nextIds as number[])}
+              className="space-y-2"
+              renderItem={(id, handle) => {
+                const exercise = exercises.find((e) => e.id === id);
+                if (!exercise) return null;
+                return (
+                  <div className="flex items-center gap-3 rounded-xl border border-teal-700/45 bg-zinc-900/85 px-3 py-3">
+                    <DragHandle
+                      attributes={handle.attributes}
+                      listeners={handle.listeners}
+                      isDragging={handle.isDragging}
+                      ariaLabel={`Drag ${exercise.name} to reorder`}
+                    />
+                    <p className="flex-1 min-w-0 truncate text-[14px] font-semibold text-white">
+                      {exercise.name}
+                    </p>
+                    <span className="shrink-0 text-[11px] text-app-meta tabular-nums">
+                      {exercise.sets.length} set{exercise.sets.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                );
+              }}
+            />
+          </>
         ) : (
           <>
             <section className="space-y-2 sm:space-y-2.5">
@@ -1528,21 +1539,11 @@ export default function WorkoutPage() {
                               type="button"
                               className="w-full px-3 py-2 text-left text-[11px] text-teal-100/90 hover:bg-zinc-700/45 transition"
                               onClick={() => {
-                                moveExercise(exercise.id, "up");
+                                setReorderMode(true);
                                 setExerciseMenuOpenId(null);
                               }}
                             >
-                              Move up
-                            </button>
-                            <button
-                              type="button"
-                              className="w-full px-3 py-2 text-left text-[11px] text-teal-100/90 hover:bg-zinc-700/45 transition"
-                              onClick={() => {
-                                moveExercise(exercise.id, "down");
-                                setExerciseMenuOpenId(null);
-                              }}
-                            >
-                              Move down
+                              Reorder exercises
                             </button>
                             <button
                               type="button"
@@ -1706,12 +1707,7 @@ export default function WorkoutPage() {
                                                     const next = setInputRefs.current[repsKey];
                                                     next?.focus();
                                                     next?.select?.();
-                                                    return;
                                                   }
-                                                  if (isNavigationOrShortcutKey(e)) return;
-                                                  const cur = (e.target as HTMLInputElement).value;
-                                                  if (isWeightDecimalKey(e.key, cur.includes("."))) return;
-                                                  e.preventDefault();
                                                 }}
                                                 aria-label={`Set ${index + 1} weight (${unit}), numbers and decimal only`}
                                                 className={`${logInputInner} pl-2 pr-1`}
@@ -1753,11 +1749,7 @@ export default function WorkoutPage() {
                                                     const next = setInputRefs.current[rirKey];
                                                     next?.focus();
                                                     next?.select?.();
-                                                    return;
                                                   }
-                                                  if (isNavigationOrShortcutKey(e)) return;
-                                                  if (e.key >= "0" && e.key <= "9") return;
-                                                  e.preventDefault();
                                                 }}
                                                 aria-label={`Set ${index + 1} reps, whole numbers only`}
                                                 className={`${logInputInner} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
@@ -1804,11 +1796,7 @@ export default function WorkoutPage() {
                                                   const nw = setInputRefs.current[nextWeightKey];
                                                   nw?.focus();
                                                   nw?.select?.();
-                                                  return;
                                                 }
-                                                if (isNavigationOrShortcutKey(e)) return;
-                                                if (e.key >= "0" && e.key <= "5") return;
-                                                e.preventDefault();
                                               }}
                                               aria-label={`Set ${index + 1} RIR 0–5, optional`}
                                               className="h-8 sm:h-9 min-h-0 w-full rounded-lg border border-teal-700/35 bg-zinc-800/40 px-1 text-center text-[11px] tabular-nums text-zinc-50 placeholder:text-teal-200/35 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] focus:outline-none focus:ring-1 focus:ring-teal-400/40 focus:border-teal-500/45 disabled:opacity-55 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"

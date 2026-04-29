@@ -114,7 +114,7 @@ function ProfileModal({
 type IndicatorState = "good" | "watch" | "attention" | "unknown";
 
 type Indicator = {
-  key: "plateau" | "volume" | "progression";
+  key: "plateau" | "volume" | "progress";
   label: string;
   state: IndicatorState;
   status: string;
@@ -224,7 +224,7 @@ function ProgressIcon({ color }: { color: string }) {
 const INDICATOR_ICON: Record<Indicator["key"], React.ComponentType<{ color: string }>> = {
   plateau: PlateauIcon,
   volume: VolumeIcon,
-  progression: ProgressIcon,
+  progress: ProgressIcon,
 };
 
 function trimToOneLine(text: string, maxLen: number): string {
@@ -360,7 +360,7 @@ function buildIndicators(
   let progression: Indicator;
   if (cold) {
     progression = {
-      key: "progression",
+      key: "progress",
       label: "Progress",
       state: "unknown",
       status: "No data yet",
@@ -370,7 +370,7 @@ function buildIndicators(
     };
   } else if (earlyRead) {
     progression = {
-      key: "progression",
+      key: "progress",
       label: "Progress",
       state: "unknown",
       status: "Early read",
@@ -380,7 +380,7 @@ function buildIndicators(
     };
   } else if (coach.whatsGoingWell.length > 0) {
     progression = {
-      key: "progression",
+      key: "progress",
       label: "Progress",
       state: "good",
       status: "Improving",
@@ -390,7 +390,7 @@ function buildIndicators(
     };
   } else if (coach.keyFocusType === "progressing") {
     progression = {
-      key: "progression",
+      key: "progress",
       label: "Progress",
       state: "good",
       status: "Improving",
@@ -400,7 +400,7 @@ function buildIndicators(
     };
   } else {
     progression = {
-      key: "progression",
+      key: "progress",
       label: "Progress",
       state: "watch",
       status: "Quiet",

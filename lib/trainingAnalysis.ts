@@ -12,6 +12,7 @@ import {
   getWorkoutsFromLast7Days,
   getVolumeByMuscleGroup,
   getMuscleGroupForExercise,
+  getMuscleGroupForLoggedExercise,
   getBestSet,
   estimateE1RM,
   getUniqueExerciseNames,
@@ -1138,20 +1139,221 @@ export function detectExerciseSignals(
   return out;
 }
 
-export function detectVolumeSignals(workouts: StoredWorkout[]): TrainingSignal[] {
+/**
+ * Per-muscle progression read used by the rules engine.
+ * good     = at least one exercise in this muscle is progressing
+ * stalling = no exercise progressing AND at least one plateau/declining
+ * unclear  = neither (insufficient data, or only stable signals)
+ *
+ * unclear is treated like stalling for the purpose of suppressing volume
+ * warnings — only an explicit "good" suppresses a warning.
+ */
+export type MuscleProgression = "good" | "stalling" | "unclear";
+
+const VOLUME_MUSCLE_GROUPS = ["chest", "back", "legs", "shoulders", "arms"] as const;
+type VolumeMuscleGroup = (typeof VOLUME_MUSCLE_GROUPS)[number];
+
+export type WeeklyVolumeContext = {
+  /** All completed sets (reps > 0) for this muscle in the last 7 days. */
+  totalSets: number;
+  /** Subset of completed sets with RIR <= 2. */
+  hardSets: number;
+  /** Subset of completed sets that have a numeric RIR logged at all. */
+  setsWithRir: number;
+  /** True when at least one set this week had RIR logged. */
+  rirLogged: boolean;
+};
+
+function emptyVolumeContextRecord(): Record<VolumeMuscleGroup, WeeklyVolumeContext> {
+  return {
+    chest: { totalSets: 0, hardSets: 0, setsWithRir: 0, rirLogged: false },
+    back: { totalSets: 0, hardSets: 0, setsWithRir: 0, rirLogged: false },
+    legs: { totalSets: 0, hardSets: 0, setsWithRir: 0, rirLogged: false },
+    shoulders: { totalSets: 0, hardSets: 0, setsWithRir: 0, rirLogged: false },
+    arms: { totalSets: 0, hardSets: 0, setsWithRir: 0, rirLogged: false },
+  };
+}
+
+/**
+ * Total sets, hard sets (RIR<=2) and RIR-logged set counts per muscle group,
+ * across the supplied workouts. Caller filters to the relevant week window.
+ */
+export function getVolumeContextByMuscleGroup(
+  workouts: StoredWorkout[]
+): Record<VolumeMuscleGroup, WeeklyVolumeContext> {
+  const ctx = emptyVolumeContextRecord();
+  for (const workout of workouts ?? []) {
+    for (const ex of workout.exercises ?? []) {
+      const group = getMuscleGroupForLoggedExercise(ex);
+      if (!group || !(group in ctx)) continue;
+      const completed = getCompletedLoggedSets(ex.sets ?? []);
+      const bucket = ctx[group as VolumeMuscleGroup];
+      for (const s of completed) {
+        bucket.totalSets++;
+        if (typeof s.rir === "number" && Number.isFinite(s.rir)) {
+          bucket.setsWithRir++;
+          bucket.rirLogged = true;
+          if (s.rir <= 2) bucket.hardSets++;
+        }
+      }
+    }
+  }
+  return ctx;
+}
+
+/**
+ * Per-muscle progression derived from per-exercise trends.
+ * Uses the same maxSessions window as the orchestrator (5).
+ */
+export function getProgressionByMuscleGroup(
+  workouts: StoredWorkout[]
+): Record<VolumeMuscleGroup, MuscleProgression> {
+  const counts: Record<VolumeMuscleGroup, { progressing: number; stalling: number }> = {
+    chest: { progressing: 0, stalling: 0 },
+    back: { progressing: 0, stalling: 0 },
+    legs: { progressing: 0, stalling: 0 },
+    shoulders: { progressing: 0, stalling: 0 },
+    arms: { progressing: 0, stalling: 0 },
+  };
+
+  const names = getUniqueExerciseNames(workouts ?? []);
+  for (const name of names) {
+    const insights = getExerciseInsights(workouts ?? [], name, { maxSessions: 5 });
+    if (insights.trend === "insufficient_data") continue;
+    const group = getMuscleGroupForExercise(name);
+    if (!group || !(group in counts)) continue;
+    const key = group as VolumeMuscleGroup;
+    if (insights.trend === "progressing") counts[key].progressing++;
+    else if (insights.trend === "plateau" || insights.trend === "declining") counts[key].stalling++;
+  }
+
+  const out: Record<VolumeMuscleGroup, MuscleProgression> = {
+    chest: "unclear",
+    back: "unclear",
+    legs: "unclear",
+    shoulders: "unclear",
+    arms: "unclear",
+  };
+  for (const g of VOLUME_MUSCLE_GROUPS) {
+    if (counts[g].progressing > 0) out[g] = "good";
+    else if (counts[g].stalling > 0) out[g] = "stalling";
+  }
+  return out;
+}
+
+/**
+ * Volume signal detection — progression-aware, RIR-aware.
+ *
+ * Per `Decisions/2026-04-29-volume-rules.md`:
+ *
+ *   if RIR logged for the muscle (any set this week):
+ *     hardSets = sets where RIR <= 2
+ *     hardSets >= 12        -> Warning   (regardless of progression)
+ *     hardSets <  6         -> Low
+ *     6 <= hardSets <= 12   -> Good      (no signal)
+ *
+ *   if RIR not logged:
+ *     totalSets > 16  + progression good     -> "high-soft" (neutral status, softer copy)
+ *     totalSets > 16  + progression stalling -> Warning
+ *     6 <= totalSets <= 16                   -> Good (no signal)
+ *     totalSets <  6  + progression good     -> Fine (no signal)
+ *     totalSets <  6  + progression stalling -> Low
+ *
+ * unclear progression is treated like stalling (cautious — fire the flag if
+ * progression isn't visible). The rules engine never emits an "Excessive"
+ * status; Warning is the ceiling.
+ *
+ * Volume and Progress indicators must not contradict — the matrix above is
+ * the contradiction guard. The only path that fires Warning while
+ * progression is good is the RIR-logged hardSets>=12 case, which is
+ * explicitly "regardless of progression" because RIR-logged data is
+ * trustworthy enough to assert real fatigue.
+ */
+export function detectVolumeSignals(
+  workouts: StoredWorkout[],
+  progressionByMuscle?: Record<string, MuscleProgression>
+): TrainingSignal[] {
   const recentWorkouts = getWorkoutsFromLast7Days(workouts ?? []);
-  const weeklyVolume = getVolumeByMuscleGroup(recentWorkouts);
+  const ctxByMuscle = getVolumeContextByMuscleGroup(recentWorkouts);
   const weeksWithData = getRecentWeekBuckets(workouts ?? [], 2);
   const volumeConfidence: 1 | 2 | 3 | 4 | 5 = weeksWithData >= 2 ? 4 : 2;
   const volumeConfidenceLevel = confidenceLevelFromScore(volumeConfidence);
-  const groups = ["chest", "back", "legs", "shoulders", "arms"] as const;
   const out: TrainingSignal[] = [];
 
-  for (const group of groups) {
-    const sets = weeklyVolume[group] ?? 0;
-    if (sets <= 0) continue;
+  for (const group of VOLUME_MUSCLE_GROUPS) {
+    const ctx = ctxByMuscle[group];
+    if (!ctx || ctx.totalSets <= 0) continue;
+    const prog: MuscleProgression =
+      (progressionByMuscle?.[group] as MuscleProgression | undefined) ?? "unclear";
+    const groupTitle = `${group[0].toUpperCase()}${group.slice(1)}`;
 
-    if (sets < 8) {
+    type Kind = "low" | "warning" | "high-soft";
+    let kind: Kind | null = null;
+    let evidenceTags: string[] = [];
+
+    if (ctx.rirLogged) {
+      const hs = ctx.hardSets;
+      if (hs >= 12) {
+        kind = "warning";
+        evidenceTags = [
+          `hardSets=${hs}`,
+          `totalSets=${ctx.totalSets}`,
+          `setsWithRir=${ctx.setsWithRir}`,
+          `thresholdHigh>=12`,
+          `rirLogged=true`,
+          `progression=${prog}`,
+        ];
+      } else if (hs < 6) {
+        kind = "low";
+        evidenceTags = [
+          `hardSets=${hs}`,
+          `totalSets=${ctx.totalSets}`,
+          `setsWithRir=${ctx.setsWithRir}`,
+          `thresholdLow<6`,
+          `rirLogged=true`,
+          `progression=${prog}`,
+        ];
+      }
+      // 6 <= hs <= 11 → Good, no signal
+    } else {
+      const sets = ctx.totalSets;
+      if (sets > 16) {
+        if (prog === "good") {
+          kind = "high-soft";
+          evidenceTags = [
+            `weeklySets=${sets}`,
+            `thresholdHigh>16`,
+            `rirLogged=false`,
+            `progression=good`,
+          ];
+        } else {
+          kind = "warning";
+          evidenceTags = [
+            `weeklySets=${sets}`,
+            `thresholdHigh>16`,
+            `rirLogged=false`,
+            `progression=${prog}`,
+          ];
+        }
+      } else if (sets < 6) {
+        if (prog === "good") {
+          // Fine — no signal
+        } else {
+          kind = "low";
+          evidenceTags = [
+            `weeklySets=${sets}`,
+            `thresholdLow<6`,
+            `rirLogged=false`,
+            `progression=${prog}`,
+          ];
+        }
+      }
+      // 6 <= sets <= 16 → Good, no signal
+    }
+
+    if (kind === null) continue;
+
+    if (kind === "low") {
       out.push({
         id: `volume-low-${group}`,
         category: "volume",
@@ -1162,37 +1364,56 @@ export function detectVolumeSignals(workouts: StoredWorkout[]): TrainingSignal[]
         goalRelevanceClass: "general",
         goalRelevance: 3,
         priorityScore: 0,
-        title: `${group[0].toUpperCase()}${group.slice(1)} volume is low`,
-        explanation:
-          weeksWithData >= 2
-            ? `${group[0].toUpperCase()}${group.slice(1)} weekly volume is lower than we’d want for balanced training.`
-            : `${group[0].toUpperCase()}${group.slice(1)} work is light this week so far. With only a short window of data, we’ll firm this up as you log more.`,
+        title: `${groupTitle} volume is low`,
+        explanation: ctx.rirLogged
+          ? `Hard sets for ${group} are below 6 this week (${ctx.hardSets} of ${ctx.totalSets} logged sets at RIR ≤ 2) — likely not enough stimulus.`
+          : weeksWithData >= 2
+            ? `${groupTitle} weekly volume is lower than we'd want for balanced training.`
+            : `${groupTitle} work is light this week so far. With only a short window of data, we'll firm this up as you log more.`,
         target: { muscleGroup: group },
-        evidence: [`weeklySets=${sets}`, `thresholdLow<8`, `window=last7days`, `weeksWithData=${weeksWithData}`],
+        evidence: [...evidenceTags, `window=last7days`, `weeksWithData=${weeksWithData}`],
         recommendationIds: [`fix-${group}-volume-low`],
       });
-      continue;
-    }
-
-    if (sets > 20) {
+    } else if (kind === "warning") {
       out.push({
         id: `volume-high-${group}`,
         category: "volume",
         status: "warning",
-        severity: 2,
-        confidence: weeksWithData >= 2 ? 3 : 2,
-        confidenceLevel: weeksWithData >= 2 ? "medium" : "low",
+        severity: ctx.rirLogged ? 3 : 2,
+        confidence: ctx.rirLogged ? volumeConfidence : weeksWithData >= 2 ? 3 : 2,
+        confidenceLevel: ctx.rirLogged
+          ? volumeConfidenceLevel
+          : weeksWithData >= 2
+            ? "medium"
+            : "low",
         goalRelevanceClass: "general",
         goalRelevance: 3,
         priorityScore: 0,
-        title: `${group[0].toUpperCase()}${group.slice(1)} volume is high`,
-        explanation:
-          weeksWithData >= 2
-            ? `${group[0].toUpperCase()}${group.slice(1)} weekly volume is quite high — watch recovery and joint comfort.`
-            : `${group[0].toUpperCase()}${group.slice(1)} volume looks high for the week so far. Log a bit more history and we can judge this with more confidence.`,
+        title: `${groupTitle} volume is high`,
+        explanation: ctx.rirLogged
+          ? `${ctx.hardSets} hard sets for ${group} this week (RIR ≤ 2). That's a lot of fatigue — watch recovery.`
+          : `${ctx.totalSets} sets for ${group} this week and progress isn't moving. If most of these are hard sets, this may be too much.`,
         target: { muscleGroup: group },
-        evidence: [`weeklySets=${sets}`, `thresholdHigh>20`, `window=last7days`, `weeksWithData=${weeksWithData}`],
+        evidence: [...evidenceTags, `window=last7days`, `weeksWithData=${weeksWithData}`],
         recommendationIds: [`fix-${group}-volume-high`],
+      });
+    } else {
+      // high-soft: high volume but lifts moving — note, not warning
+      out.push({
+        id: `volume-high-${group}`,
+        category: "volume",
+        status: "neutral",
+        severity: 1,
+        confidence: weeksWithData >= 2 ? 3 : 2,
+        confidenceLevel: weeksWithData >= 2 ? "medium" : "low",
+        goalRelevanceClass: "general",
+        goalRelevance: 2,
+        priorityScore: 0,
+        title: `${groupTitle} volume is high`,
+        explanation: `${ctx.totalSets} sets for ${group} this week — on the higher side, but ${group} lifts are still progressing, so this is fine for now.`,
+        target: { muscleGroup: group },
+        evidence: [...evidenceTags, `window=last7days`, `weeksWithData=${weeksWithData}`],
+        recommendationIds: [],
       });
     }
   }

@@ -43,6 +43,7 @@ type WorkoutStore = {
   workouts: CompletedWorkout[];
   addWorkout: (workout: Omit<CompletedWorkout, "id">) => void;
   removeWorkoutAtIndex: (index: number) => void;
+  replaceWorkoutAtIndex: (index: number, patch: Partial<Omit<CompletedWorkout, "id">>) => void;
 };
 
 const WorkoutContext = createContext<WorkoutStore | undefined>(undefined);
@@ -124,8 +125,37 @@ export function WorkoutStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const replaceWorkoutAtIndex = useCallback(
+    (index: number, patch: Partial<Omit<CompletedWorkout, "id">>) => {
+      const stored = loadFromStorage();
+      if (index < 0 || index >= stored.length) return;
+      const current = stored[index];
+      const merged: CompletedWorkout = {
+        ...current,
+        ...patch,
+      };
+      merged.totalExercises = merged.exercises?.length ?? 0;
+      merged.totalSets =
+        merged.exercises?.reduce(
+          (sum, ex) => sum + countCompletedLoggedSets(ex.sets),
+          0
+        ) ?? 0;
+      const next = stored.map((w, i) => (i === index ? merged : w));
+      saveToStorage(next);
+      setWorkouts(next);
+      try {
+        window.dispatchEvent(new CustomEvent("workoutHistoryChanged"));
+      } catch {
+        /* ignore */
+      }
+    },
+    []
+  );
+
   return (
-    <WorkoutContext.Provider value={{ workouts, addWorkout, removeWorkoutAtIndex }}>
+    <WorkoutContext.Provider
+      value={{ workouts, addWorkout, removeWorkoutAtIndex, replaceWorkoutAtIndex }}
+    >
       {children}
     </WorkoutContext.Provider>
   );
