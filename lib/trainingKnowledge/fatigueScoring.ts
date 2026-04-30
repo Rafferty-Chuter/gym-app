@@ -1,5 +1,5 @@
 import type { AssistantStructuredProgramme } from "@/lib/programmePipeline/types";
-import type { BuiltWorkout } from "@/lib/workoutBuilder";
+import type { BuiltWorkout } from "@/lib/workoutTypes";
 import { getExerciseByIdOrName } from "@/lib/exerciseMetadataLibrary";
 import {
   EXERCISE_FATIGUE_RULES,

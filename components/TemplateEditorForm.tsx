@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ExercisePicker, { type ExercisePickerValue } from "@/components/ExercisePicker";
@@ -52,6 +52,37 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
     window.addEventListener(USER_EXERCISE_LIBRARY_EVENT, bump);
     return () => window.removeEventListener(USER_EXERCISE_LIBRARY_EVENT, bump);
   }, []);
+
+  /**
+   * Auto-persist edits to an existing template (drag-reorder, add, remove,
+   * field changes) so the user doesn't have to remember to click "Save".
+   * Mirrors the active-workout draft pattern in app/workout/page.tsx.
+   *
+   * Edit-mode only — in create mode the template doesn't exist yet, so
+   * persisting on every keystroke would orphan empty templates if the user
+   * navigates away without finishing.
+   *
+   * Why: drag-reorder previously updated UI state but never wrote to
+   * localStorage; templates appeared reordered until refresh, then snapped
+   * back. Auto-persisting on the source of truth fixes that whole class of
+   * "I edited but forgot to save" bug.
+   */
+  const editingTemplateId = mode === "edit" ? initialTemplate?.id : undefined;
+  const initialAutoPersistRef = useRef(true);
+  useEffect(() => {
+    if (initialAutoPersistRef.current) {
+      initialAutoPersistRef.current = false;
+      return;
+    }
+    if (!editingTemplateId) return;
+    const trimmedName = templateName.trim();
+    if (!trimmedName || exercises.length === 0) return;
+    upsertTemplate({
+      id: editingTemplateId,
+      name: trimmedName,
+      exercises: [...exercises],
+    });
+  }, [exercises, templateName, editingTemplateId]);
 
   function openCreateExerciseFlow(seedName: string) {
     setCreateExerciseSeedName(seedName.trim());

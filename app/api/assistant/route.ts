@@ -37,21 +37,20 @@ import {
 import { buildAssistantEvidenceScopeBlock } from "@/lib/assistantAnswerScope";
 import type { BenchContextSummary } from "@/lib/benchContext";
 import type { Bench1RMEstimate } from "@/lib/bench1rm";
-import {
-  type BuiltWorkout,
-  type WorkoutBuilderGoal,
-  type RecoveryMode,
-} from "@/lib/workoutBuilder";
+import type {
+  BuiltWorkout,
+  WorkoutBuilderGoal,
+  RecoveryMode,
+} from "@/lib/workoutTypes";
 import { formatIntRange } from "@/lib/formatPrescriptionDisplay";
 import { isProgrammeModificationIntent, summarizeActiveProgrammeForLog } from "@/lib/assistantProgrammeFlow";
 import { parseSplitFromMessage } from "@/lib/splitParser";
-import { scoreDayForExercise } from "@/lib/muscleDayBuilder";
+import { scoreDayForExercise } from "@/lib/scoreDayForExercise";
 import type { SessionType } from "@/lib/sessionTemplates";
 import { getExerciseByIdOrName, type ExerciseMetadata } from "@/lib/exerciseMetadataLibrary";
 import { parseRequestedExerciseConstraints } from "@/lib/parseRequestedExerciseConstraints";
 import type { SplitDefinition } from "@/lib/splitDefinition";
 import {
-  buildProgramme,
   buildProgrammeWithUnifiedSessionPlanner,
   classifyProgrammeIntent,
   composeModificationUserMessage,
@@ -71,6 +70,7 @@ import {
 import { extractProgrammeStructureLLM } from "@/lib/extractProgrammeStructureLLM";
 import { buildProgrammeFromLLMPlan } from "@/lib/buildProgrammeFromLLMPlan";
 import { generateAssistantSingleSessionWorkout } from "@/lib/assistantSingleSessionGeneration";
+import { parseTargetedMuscleRuleIdsFromMessage } from "@/lib/muscleCoverageBriefForLLM";
 import { generateCoachRoutineReviewLLM } from "@/lib/explainRoutineCoachLLM";
 import { isGenericSessionBuildRequest } from "@/lib/sessionExerciseCountPolicy";
 import {
@@ -930,44 +930,6 @@ function detectCustomProgrammeDays(message: string): CustomProgrammeDay[] {
   return sorted.slice(0, 6);
 }
 
-/**
- * @deprecated Internal name kept for minimal route churn — delegates to `buildProgramme` (muscle groupings only; legacy toDay paths removed).
- */
-function buildStructuredProgramme(
-  params: {
-    message: string;
-    priorityGoal?: string;
-    recoveryMode: RecoveryMode;
-    equipmentAvailable: string[];
-    injuriesOrExclusions?: string[];
-    recentExerciseIds?: string[];
-    preferredExercises?: string[];
-    requestedExerciseIds?: string[];
-    programmeModification?: boolean;
-    activeProgramme?: NonNullable<AssistantResponse["structuredProgramme"]> | null;
-    forcedSplitDefinition?: SplitDefinition;
-    debugRequestId: string;
-  },
-  parsedProgrammeRequest: ParsedProgrammeRequest
-): NonNullable<AssistantResponse["structuredProgramme"]> | null {
-  const goal = inferWorkoutBuilderGoal(params.message, params.priorityGoal);
-  return buildProgramme(parsedProgrammeRequest, {
-    message: params.message,
-    priorityGoal: params.priorityGoal,
-    goal,
-    recoveryMode: params.recoveryMode,
-    equipmentAvailable: params.equipmentAvailable,
-    injuriesOrExclusions: params.injuriesOrExclusions ?? [],
-    recentExerciseIds: params.recentExerciseIds ?? [],
-    preferredExercises: params.preferredExercises ?? [],
-    requestedExerciseIds: params.requestedExerciseIds ?? [],
-    forcedSplitDefinition: params.forcedSplitDefinition ?? null,
-    programmeModification: params.programmeModification ?? false,
-    activeProgramme: params.activeProgramme ?? null,
-    debugRequestId: params.debugRequestId,
-  });
-}
-
 function isPipelineActiveProgrammeState(x: unknown): x is PipelineActiveProgrammeState {
   if (!x || typeof x !== "object") return false;
   const o = x as Record<string, unknown>;
@@ -1538,6 +1500,73 @@ When NOT to cite:
 This block is reference, not a script. Do not turn a question about whether to add a chest day into a literature review. Do not lead with study names. The two rules at the top of this block override any urge to demonstrate research fluency.
 `.trim();
 
+const SESSION_CONSTRUCTION_BLOCK = `
+SESSION CONSTRUCTION (apply when the user asks you to build a workout, day, split, or program):
+
+Before listing any exercises, run this checklist. Do not skip steps. The model that built this answer is also the model grading it.
+
+META: Where the answer materially depends on user context AND the evidence is genuinely uncertain, ASK before prescribing. A coach that asks the right diagnostic question reads as expert. A coach that picks a default and explains it reads as a textbook.
+
+If USER CONTEXT already has the answer (experienceLevel, focus, goal, recent training), use it — don't ask the user to repeat what's already in the payload.
+
+1. MOVEMENT COVERAGE — every session must cover the muscle groups the user expects for that day. Defaults:
+- Leg day: knee-dominant + hip-dominant (hinge) + direct glute + calf. Two quad compounds with no hinge is incomplete.
+- Push day: horizontal press + vertical press + at least one accessory targeting whichever of chest / front delt / triceps is under-covered by the compounds.
+- Pull day: horizontal row + vertical pull + accessory for rear delt and biceps.
+- Upper day: at least one of each from push and pull patterns.
+- Lower day: same as leg day.
+- Full body: a press, a pull, a hinge, a knee-dominant lift, plus optional accessory.
+If something is missing for the day's coverage, INCLUDE it in the prescription. Never offer it as a follow-up clarifier ("want me to add Romanian deadlifts?"). That pattern is a tell that the program shipped incomplete.
+
+2. EXERCISE SELECTION — when variant choice meaningfully changes stimulus, consider the variant biased toward loading the muscle at long length. Evidence suggests a modest hypertrophy advantage for long-muscle-length loading when other variables are equated — modest, not enormous, not a requirement. Use as a tiebreaker, not a mandate. If you make the call, say *why* in one short clause.
+- Hamstrings: if biasing for stretch, consider seated leg curl over lying leg curl (hamstring is biarticular; seated position adds hip flexion, deeper stretch).
+- Quads: if biasing for stretch, consider hack squat or Bulgarian split squat at deep ROM, or leg press with full ROM.
+- Biceps: if biasing for stretch, consider incline DB curl or behind-body cable curl (long head loaded at long length).
+- Triceps: if biasing for stretch, consider overhead extension or rope-assisted variants (long head stretch).
+- Calves: if biasing for stretch, consider standing or leg-press calf raise with full stretch at the bottom.
+- Glutes: if biasing for stretch, consider deficit RDL, hip thrust, or split squat with forward lean.
+- Back / lats: if biasing for stretch, consider full-hang lat pulldown or chest-supported row at full reach.
+- Chest: if biasing for stretch, consider incline DB press, deep dip, or stretch-position fly.
+Don't just name a variant — say *why* in one clause when stretch-bias is the reason for the call.
+
+3. PRESCRIPTION — every exercise needs sets × reps × proximity-to-failure. The specifics depend on context.
+
+What's settled:
+- Sets must be taken close to failure (RIR 0–3) for hypertrophy stimulus to register. Outside RIR 0–3, returns drop sharply.
+- For strength expression (1RM transfer), heavier loads at lower reps transfer better. NOT the same outcome as muscle growth.
+
+What's contested (label this — don't paper over it):
+- Within RIR 0–3, the optimum is not well established. Strongest current read (Refalo 2023 meta): closer to failure produces modestly more hypertrophy; small effect, high individual variance.
+- 5 reps to failure vs 15 reps to failure at equated volume produces roughly equivalent hypertrophy in most meta-analyses (Schoenfeld 2017, Lasevicius 2018). Rep range is largely a practicality question for size, not an optimum.
+- Programming compounds at higher RIR than isolation is a recovery / safety heuristic, not a measured-stimulus claim.
+
+How to prescribe:
+- State rep ranges and RIR ranges, not single numbers. Label as a practical default, not an evidence-backed optimum.
+- Ask before prescribing where the answer materially changes:
+  - "Is this your only [muscle] day this week, or one of two?" (frequency × per-session intensity tradeoff)
+  - "Do you respond better to heavier lower-rep work, lighter higher-rep work, or haven't noticed?" (individual response history beats population average)
+  - "How fresh do you want to feel after this session?" (fatigue tolerance)
+  - For new exercises: "Confident in the technique on this one, or is it new to you?" (technique confidence affects safe RIR)
+- When USER CONTEXT shows what's already working, default to that. Don't override a working prescription with a different default.
+
+4. VOLUME CALIBRATION — count per-muscle, not per-session.
+- Don't say "16 sets is solid for legs" as if legs were one muscle. Quads, hamstrings, glutes, calves are separate.
+- When stating volume context, give per-muscle weekly numbers, not session totals.
+- Rough working range for trained intermediates (state with appropriate hedging): ~10–20 hard sets per muscle per week, individual response varies, progression overrides the range.
+
+5. SEQUENCING RATIONALE — give one short reason per ordering choice. Defaults:
+- Compounds-first: stability + max-effort window before fatigue accumulates.
+- Isolation-first / pre-exhaust: only when the user's limiter is a synergist or grip failing before the target muscle, and say so.
+Don't justify ordering with "because it's already in your logs" — that's user-experience grounding, not training logic. Both can coexist; training logic comes first.
+
+6. SELF-CHECK BEFORE SHIPPING — before you finalize the prescription, re-read it against rules 1–5. If you find yourself thinking "they could also do X" — and X is genuinely missing for the day's coverage — INCLUDE X. Only offer something as a follow-up clarifier if it is genuinely optional (a second variant, a different equipment context, a more advanced technique they didn't ask for). Diagnostic questions about prescription specifics (rule 3 — RIR / rep-range / frequency) are NOT covered by this rule; those are about prescription, not coverage, and should still be asked when context calls for it.
+
+When NOT to deploy this block:
+- The user asked a Q&A question ("why X?", "is X better than Y?"), not a build request. Use evidence-quality rules instead.
+- The user explicitly asked for a single exercise recommendation, not a program.
+- USER CONTEXT shows the user's current program is working and they're asking for a marginal tweak — don't reconstruct the whole session uninvited.
+`.trim();
+
 /** Applied last — writing quality and scan layout; does not override evidence or routing rules above. */
 const FINAL_RESPONSE_POLISH_BLOCK = `
 FINAL RESPONSE POLISH (apply before you finish — user-visible text only):
@@ -1609,6 +1638,9 @@ ${EVIDENCE_QUALITY_BLOCK}
 
 ---
 ${VOLUME_RESEARCH_CONTEXT_BLOCK}
+
+---
+${SESSION_CONSTRUCTION_BLOCK}
 
 ---
 ${GLOBAL_REPLY_DISCIPLINE_BLOCK}
@@ -1757,7 +1789,9 @@ async function getAssistantReply(
   priorAssistantTurnContent: string | null | undefined,
   explicitAnchor: ExplicitEvidenceAnchor | null,
   /** Full detail of assistant-built sessions from thread (not chat truncation). */
-  builtWorkoutsFromThreadBlock: string
+  builtWorkoutsFromThreadBlock: string,
+  /** When set, streams the model's reply by invoking onDelta for each text delta. */
+  onDelta?: (delta: string) => void
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -2928,7 +2962,11 @@ ${benchEstimateBlock}`.trim();
     ? `${builtWorkoutsFromThreadBlock.trim()}\n\n---\n`
     : "";
 
-  const userContent = `${loggedDataPreamble.trim()}\n\n${builtSessionsSection}${conversationSubjectBlock}\n\n${input.trim()}\n\n${memoryContextBlock}`;
+  // Split the user turn into a stable prefix and a volatile suffix so prompt
+  // caching can reuse the prefix across rapid back-to-back turns. The two
+  // blocks concatenate to exactly the original userContent — no semantic change.
+  const userStablePrefix = `${loggedDataPreamble.trim()}\n\n${builtSessionsSection}${conversationSubjectBlock}\n\n`;
+  const userVolatileSuffix = `${input.trim()}\n\n${memoryContextBlock}`;
 
   const userContextBlock = formatUserContextBlock(
     coachingContext?.recentWorkouts ?? [],
@@ -2943,6 +2981,10 @@ ${benchEstimateBlock}`.trim();
 
   const userMemoryBlock = formatMemoryBlock(userMemory);
 
+  // Two cache breakpoints in `system`:
+  //   1. End of STATIC_COACH_SYSTEM_PROMPT — fallback hit when profile/memory change.
+  //   2. End of last system block — fresh entry covering profile + memory too.
+  // Combined with the user-message breakpoint below, that's 3 of the 4 allowed.
   const systemBlocks: Array<{
     type: "text";
     text: string;
@@ -2961,13 +3003,63 @@ ${benchEstimateBlock}`.trim();
   if (userMemoryBlock) {
     systemBlocks.push({ type: "text", text: userMemoryBlock });
   }
+  systemBlocks[systemBlocks.length - 1].cache_control = { type: "ephemeral" };
+
+  const userMessageContent: Array<{
+    type: "text";
+    text: string;
+    cache_control?: { type: "ephemeral" };
+  }> = [
+    {
+      type: "text",
+      text: userStablePrefix,
+      cache_control: { type: "ephemeral" },
+    },
+    {
+      type: "text",
+      text: userVolatileSuffix,
+    },
+  ];
+
+  const logCacheUsage = (
+    usage: { cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null; input_tokens?: number | null; output_tokens?: number | null } | undefined,
+    streamed: boolean
+  ) => {
+    if (!usage) return;
+    console.log("[assistant-cache]", {
+      streamed,
+      cache_read_input_tokens: usage.cache_read_input_tokens ?? 0,
+      cache_creation_input_tokens: usage.cache_creation_input_tokens ?? 0,
+      input_tokens: usage.input_tokens ?? 0,
+      output_tokens: usage.output_tokens ?? 0,
+    });
+  };
+
+  if (onDelta) {
+    const stream = anthropic.messages.stream({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      system: systemBlocks,
+      messages: [{ role: "user", content: userMessageContent }],
+    });
+    stream.on("text", (delta) => {
+      if (delta) onDelta(delta);
+    });
+    const finalMessage = await stream.finalMessage();
+    logCacheUsage(finalMessage.usage, true);
+    const textBlock = finalMessage.content.find((b) => b.type === "text");
+    const reply = textBlock?.type === "text" ? textBlock.text.trim() : "";
+    if (!reply) throw new Error("Empty response from model");
+    return reply;
+  }
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2048,
     system: systemBlocks,
-    messages: [{ role: "user", content: userContent }],
+    messages: [{ role: "user", content: userMessageContent }],
   });
+  logCacheUsage(response.usage, false);
 
   const textBlock = response.content.find((b) => b.type === "text");
   const reply = textBlock?.type === "text" ? textBlock.text.trim() : "";
@@ -3543,7 +3635,115 @@ function tryBuildDeterministicRoutineVolumeReply(params: {
   return `From the routine I just gave you, estimated weekly direct set volume is:\n${lines}`;
 }
 
+/**
+ * Streaming response contract (when client sends `Accept: text/event-stream`):
+ *   event: delta   data: { "text": "<chunk>" }     // zero or more
+ *   event: done    data: <full AssistantResponse>  // exactly one, terminal
+ *   event: error   data: { "error": "<message>" } // alternative terminal
+ *
+ * Without that Accept header, the route returns the same `AssistantResponse`
+ * payload as a single JSON body. The eval harness relies on this fallback —
+ * keep the JSON shape unchanged.
+ */
+function clientWantsStream(request: NextRequest): boolean {
+  const accept = request.headers.get("accept") ?? "";
+  return accept.includes("text/event-stream");
+}
+
+const SSE_HEADERS: HeadersInit = {
+  "Content-Type": "text/event-stream; charset=utf-8",
+  "Cache-Control": "no-cache, no-transform",
+  Connection: "keep-alive",
+  "X-Accel-Buffering": "no",
+};
+
+function encodeSSE(event: string, data: unknown): Uint8Array {
+  return new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+/**
+ * Strips internal debug telemetry from any payload before it leaves the server.
+ * Server-side console logs still record these fields; only the wire payload is
+ * scrubbed so they cannot leak into the chat UI or any other consumer.
+ *
+ * `debugSource` is preserved because the client uses it as a dev-only sanity
+ * gate (programme cards refuse to render unless it equals the expected value).
+ */
+function sanitizeAssistantResponseForClient(payload: AssistantResponse): AssistantResponse {
+  const next: AssistantResponse = { ...payload };
+  if (next.structuredWorkout) {
+    const sw = { ...next.structuredWorkout };
+    delete (sw as { debugGenerator?: unknown }).debugGenerator;
+    delete (sw as { debugTrace?: unknown }).debugTrace;
+    next.structuredWorkout = sw;
+  }
+  if (next.structuredProgramme) {
+    const sp = { ...next.structuredProgramme };
+    delete (sp as { debugRequestId?: unknown }).debugRequestId;
+    delete (sp as { debugBuiltAt?: unknown }).debugBuiltAt;
+    delete (sp as { debugProgrammeGenerator?: unknown }).debugProgrammeGenerator;
+    sp.days = sp.days?.map((d) => {
+      const cleaned = { ...d };
+      delete (cleaned as { debugDayGenerator?: unknown }).debugDayGenerator;
+      return cleaned;
+    });
+    next.structuredProgramme = sp;
+  }
+  return next;
+}
+
+/**
+ * Wraps a fully-computed deterministic payload as a single-burst SSE response so
+ * the chat UI can use one consumption path for both deterministic and LLM replies.
+ */
+function respond(payload: AssistantResponse, stream: boolean): Response {
+  const clean = sanitizeAssistantResponseForClient(payload);
+  if (!stream) {
+    return NextResponse.json(clean);
+  }
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (typeof clean.reply === "string" && clean.reply.length > 0) {
+        controller.enqueue(encodeSSE("delta", { text: clean.reply }));
+      }
+      controller.enqueue(encodeSSE("done", clean));
+      controller.close();
+    },
+  });
+  return new Response(body, { headers: SSE_HEADERS });
+}
+
+/**
+ * Drives the LLM streaming path. `compute` receives an `onDelta` it must invoke
+ * for each text chunk; it returns the final assembled reply, which the helper
+ * forwards on the terminal `done` event together with any extra fields.
+ */
+function respondLLMStream(
+  compute: (onDelta: (text: string) => void) => Promise<string>,
+  extra: Omit<AssistantResponse, "reply"> = {}
+): Response {
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        const reply = await compute((delta) => {
+          if (delta) controller.enqueue(encodeSSE("delta", { text: delta }));
+        });
+        const final: AssistantResponse = { reply, ...extra };
+        controller.enqueue(encodeSSE("done", final));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Assistant streaming failed.";
+        console.error("Assistant route streaming error:", err);
+        controller.enqueue(encodeSSE("error", { error: message }));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(body, { headers: SSE_HEADERS });
+}
+
 export async function POST(request: NextRequest) {
+  const wantsStream = clientWantsStream(request);
   try {
     const requestStartedAt = Date.now();
     const body = (await request.json()) as AssistantBody;
@@ -3773,7 +3973,7 @@ export async function POST(request: NextRequest) {
           })
         : null);
     if (deterministicByKind) {
-      return NextResponse.json({ reply: deterministicByKind } satisfies AssistantResponse);
+      return respond({ reply: deterministicByKind } satisfies AssistantResponse, wantsStream);
     }
     const parsed = parseContextFromMessage(trimmedMessage);
     const resolvedEquipment = resolveEquipmentForBuilder({
@@ -4004,14 +4204,11 @@ export async function POST(request: NextRequest) {
       flow: programmeLikeRequested ? "programme" : "non-programme",
       cannedTemplateBypassed: true,
     });
-    const enterSingleSessionStructuredBuild =
-      !enterStructuredProgrammePath &&
-      shouldEmitStructuredSingleSessionWorkout({
-        message: trimmedMessage,
-        questionKind,
-        explicitLexicalConstructionAsk,
-        strictConstructionMode,
-      });
+    // Structured single-session workout cards have been removed from the UI;
+    // these requests now fall through to the conversational reply path so the
+    // assistant answers in chat instead of building a workout card.
+    const enterSingleSessionStructuredBuild = false;
+    void shouldEmitStructuredSingleSessionWorkout; // keep import live for future re-enable
     if (enterSingleSessionStructuredBuild) {
       const sessionTypeInferred = inferSessionTypeFromContext({
         message: trimmedMessage,
@@ -4035,7 +4232,10 @@ export async function POST(request: NextRequest) {
       const mergedRequestedIdsForLlm = Array.from(
         new Set([...requestedExerciseIds, ...preferredResolvedIds])
       );
-      const singleSessionApiKey = process.env.OPENAI_API_KEY?.trim();
+      // Planner now runs on Anthropic Sonnet 4.6 via tool_use (see
+      // planSingleSessionWorkoutLLM). Coach-routine review still uses OpenAI.
+      const singleSessionApiKey = process.env.ANTHROPIC_API_KEY?.trim();
+      const userTargetedMuscleRuleIds = parseTargetedMuscleRuleIdsFromMessage(trimmedMessage);
       const coachPlanAttempt = singleSessionApiKey
         ? await generateAssistantSingleSessionWorkout({
             apiKey: singleSessionApiKey,
@@ -4047,14 +4247,15 @@ export async function POST(request: NextRequest) {
             recoveryMode: recoveryModeSingle,
             goal: baseGoal,
             coachContextSnippet: coachPlanContextSnippet,
+            userTargetedMuscleRuleIds,
           })
         : null;
       const builtSession = coachPlanAttempt?.built ?? null;
       if (!singleSessionApiKey) {
-        return NextResponse.json({
+        return respond({
           reply:
-            "I couldn't build this session with the coach-planning pipeline because the OpenAI API key is missing on the server.",
-        } satisfies AssistantResponse);
+            "I couldn't build this session because the ANTHROPIC_API_KEY is missing on the server.",
+        } satisfies AssistantResponse, wantsStream);
       }
       if (!builtSession?.exercises.length) {
         if (coachPlanAttempt?.issues?.length) {
@@ -4068,52 +4269,21 @@ export async function POST(request: NextRequest) {
         }
         const fallbackStructured = {
           sessionTitle: `${sessionTypeInferred.replace("_", " ")} workout`,
-          sessionGoal: "LLM coach-plan validation failed",
+          sessionGoal: "Could not build the session from current constraints",
           purposeSummary: "Could not produce a valid coach-planned session from current constraints.",
           exercises: [],
-          note: "DEBUG: generated by error_fallback_no_built_workout. Try relaxing constraints (equipment or exclusions) and retry.",
-          debugGenerator: "error_fallback_no_built_workout",
-          debugTrace: "assistant route enterSingleSessionStructuredBuild — generateAssistantSingleSessionWorkout returned no built session",
+          note: "Try relaxing equipment or exclusions and retry.",
         };
-        return NextResponse.json({
+        return respond({
           reply:
             "I couldn't satisfy this session request through the coach-planning pipeline. Try relaxing equipment/exclusions or rephrase the request.",
           structuredWorkout: fallbackStructured,
-        } satisfies AssistantResponse);
+        } satisfies AssistantResponse, wantsStream);
       }
       const built: BuiltWorkout = builtSession;
       const baseWorkoutReply = renderBuiltWorkoutReply(built);
-      let workoutCoachReview: string | undefined;
-      const reviewApiKey = process.env.OPENAI_API_KEY?.trim();
-      if (reviewApiKey) {
-        workoutCoachReview =
-          (await generateCoachRoutineReviewLLM({
-            apiKey: reviewApiKey,
-            userMessage: trimmedMessage,
-            coachContextSnippet: buildCoachContextSnippetForReview({
-              trainingFocus,
-              experienceLevel,
-              priorityGoal,
-              unit,
-              weeklyVolumeByMuscle: trainingInsights?.weeklyVolume ?? trainingSummary.weeklyVolume ?? undefined,
-              recentExercises: trainingSummary.recentExercises ?? undefined,
-            }),
-            kind: "single_workout",
-            verbosity: "compact",
-            workout: {
-              sessionType: built.sessionType,
-              purposeSummary: built.purposeSummary,
-              exercises: built.exercises.map((e) => ({
-                slotLabel: e.slotLabel,
-                exerciseName: e.exerciseName,
-              })),
-              ...(built.weeklyFrequency ? { weeklyFrequency: built.weeklyFrequency } : {}),
-            },
-          })) ?? undefined;
-      }
-      // Workout card always first; brief coach note appended when present.
-      const workoutReply = workoutCoachReview
-        ? `${baseWorkoutReply}\n\n${workoutCoachReview}`
+      const workoutReply = built.pairingNote
+        ? `${baseWorkoutReply}\n\n${built.pairingNote}`
         : baseWorkoutReply;
       const structuredWorkoutFinal = coachPlanAttempt!.structuredWorkout!;
       if (PUSH_DAY_HYPERTROPHY_PROBE.test(trimmedMessage)) {
@@ -4143,11 +4313,11 @@ export async function POST(request: NextRequest) {
           JSON.stringify(structuredWorkoutFinal, null, 2)
         );
       }
-      return NextResponse.json({
+      return respond({
         reply: workoutReply,
-        ...(workoutCoachReview ? { coachReview: workoutCoachReview } : {}),
+        ...(built.pairingNote ? { coachReview: built.pairingNote } : {}),
         structuredWorkout: structuredWorkoutFinal,
-      } satisfies AssistantResponse);
+      } satisfies AssistantResponse, wantsStream);
     }
     if (enterStructuredProgrammePath) {
       const programmeDebugRequestId = randomUUID();
@@ -4189,8 +4359,7 @@ export async function POST(request: NextRequest) {
         },
       });
       const builderStartedAt = Date.now();
-      console.log("[dynamic-builder-called]", {
-        function: "buildStructuredProgramme",
+      console.log("[programme-build-started]", {
         splitTypeDetected,
         startedAtMs: builderStartedAt,
         elapsedMsFromReceive: builderStartedAt - requestStartedAt,
@@ -4205,9 +4374,6 @@ export async function POST(request: NextRequest) {
       let programme: NonNullable<AssistantResponse["structuredProgramme"]> | null = null;
       let llmProgrammeBuilt = false;
       const programmeLlmApiKey = process.env.OPENAI_API_KEY?.trim();
-      const uniformPerMuscleQuota =
-        progParsed.structuralConstraints?.uniformPerMuscleExerciseCount != null &&
-        progParsed.structuralConstraints.uniformPerMuscleExerciseCount > 0;
       const programmeCoachSnippet = buildCoachContextSnippetForReview({
         trainingFocus,
         experienceLevel,
@@ -4229,7 +4395,7 @@ export async function POST(request: NextRequest) {
         forcedSplitDefinition: forcedSplitDefinition ?? null,
         debugRequestId: programmeDebugRequestId,
       };
-      if (programmeLlmApiKey && !uniformPerMuscleQuota) {
+      if (programmeLlmApiKey) {
         programme = await buildProgrammeWithUnifiedSessionPlanner({
           parsed: progParsed,
           ctx: programmeBuilderCtx,
@@ -4298,52 +4464,25 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-      if (!programme) {
-        programme = buildStructuredProgramme(
-        {
-          message: programmeBuildUserMessage,
-          priorityGoal: priorityGoal ?? undefined,
-          recoveryMode: recoveryModeForStructured,
-          equipmentAvailable: resolvedEquipment,
-          injuriesOrExclusions: progExclusions,
-          recentExerciseIds: recentExerciseIdsFromContext,
-          preferredExercises: progMergedPreferred,
-          requestedExerciseIds: progRequestedIds,
-          programmeModification: programmeModificationUnified,
-          activeProgramme: mergedStructuredProgramme,
-          forcedSplitDefinition,
-          debugRequestId: programmeDebugRequestId,
-        },
-        progParsed
-        );
-      }
       const excludedIdsForValidation = progParsed.excludedExercises ?? [];
-      if (programme && excludedIdsForValidation.length > 0) {
+      if (programme && excludedIdsForValidation.length > 0 && programmeLlmApiKey) {
         const violations = findExcludedExercisesPresentInProgramme(programme, excludedIdsForValidation);
         if (violations.length > 0) {
           const strongerExcl = [
             ...new Set([...progExclusions, ...exclusionStringsForExerciseIds(violations)]),
           ];
-          const repaired = buildStructuredProgramme(
-            {
+          const repaired = await buildProgrammeWithUnifiedSessionPlanner({
+            parsed: progParsed,
+            ctx: {
+              ...programmeBuilderCtx,
               message: `${programmeBuildUserMessage} Do not include these exercises under any circumstance: ${violations.join(", ")}.`,
-              priorityGoal: priorityGoal ?? undefined,
-              recoveryMode: recoveryModeForStructured,
-              equipmentAvailable: resolvedEquipment,
               injuriesOrExclusions: strongerExcl,
-              recentExerciseIds: recentExerciseIdsFromContext,
-              preferredExercises: progMergedPreferred,
-              requestedExerciseIds: progRequestedIds,
-              programmeModification: programmeModificationUnified,
-              activeProgramme: mergedStructuredProgramme,
-              forcedSplitDefinition,
-              debugRequestId: programmeDebugRequestId,
             },
-            progParsed
-          );
+            llmApiKey: programmeLlmApiKey,
+            coachContextSnippet: programmeCoachSnippet,
+          });
           if (repaired) {
             programme = repaired;
-            llmProgrammeBuilt = false;
             console.log("[programme-excluded-repair]", {
               programmeDebugRequestId,
               violations,
@@ -4357,8 +4496,7 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-      console.log("[dynamic-builder-finished]", {
-        function: "buildStructuredProgramme_or_hybrid_v2",
+      console.log("[programme-build-finished]", {
         returnedProgramme: Boolean(programme),
         llmProgrammeBuilt,
         durationMs: Date.now() - builderStartedAt,
@@ -4368,7 +4506,7 @@ export async function POST(request: NextRequest) {
         const preValidation = requestedExercisePresentInProgramme(programme, progRequestedIds);
         const needsHardRebuildPass = constraintHardStructured && preValidation.missingIds.length > 0;
         let rebuiltProgramme: NonNullable<AssistantResponse["structuredProgramme"]> | null = null;
-        if (needsHardRebuildPass) {
+        if (needsHardRebuildPass && programmeLlmApiKey) {
           console.log("[programme-request-validation]", {
             requestedExerciseIds: progRequestedIds,
             finalExercisesPresent: preValidation.presentIds,
@@ -4376,23 +4514,16 @@ export async function POST(request: NextRequest) {
             rebuildTriggered: true,
             reason: "Hard requested exercises missing after first build pass.",
           });
-          rebuiltProgramme = buildStructuredProgramme(
-            {
+          rebuiltProgramme = await buildProgrammeWithUnifiedSessionPlanner({
+            parsed: progParsed,
+            ctx: {
+              ...programmeBuilderCtx,
               message: `${programmeBuildUserMessage} must include ${progRequestedIds.join(" ")}`,
-              priorityGoal: priorityGoal ?? undefined,
-              recoveryMode: recoveryModeForStructured,
-              equipmentAvailable: resolvedEquipment,
-              injuriesOrExclusions: progExclusions,
-              recentExerciseIds: recentExerciseIdsFromContext,
               preferredExercises: progRequestedIds,
-              requestedExerciseIds: progRequestedIds,
-              programmeModification: programmeModificationUnified,
-              activeProgramme: mergedStructuredProgramme,
-              forcedSplitDefinition,
-              debugRequestId: programmeDebugRequestId,
             },
-            progParsed
-          );
+            llmApiKey: programmeLlmApiKey,
+            coachContextSnippet: programmeCoachSnippet,
+          });
         }
         const preEnforcementProgramme = rebuiltProgramme ?? programme;
         const preEnforcementValidation = requestedExercisePresentInProgramme(
@@ -4416,29 +4547,21 @@ export async function POST(request: NextRequest) {
           progRequestedIds,
           constraintHardStructured
         );
-        if (!pipelineValidation1.ok && !programmeModificationUnified) {
+        if (!pipelineValidation1.ok && !programmeModificationUnified && programmeLlmApiKey) {
           console.log("[programme-request-validation]", {
             pass: 1,
             fallback: "rebuilding_once",
             issues: pipelineValidation1.allIssues,
           });
-          const retry = buildStructuredProgramme(
-            {
+          const retry = await buildProgrammeWithUnifiedSessionPlanner({
+            parsed: progParsed,
+            ctx: {
+              ...programmeBuilderCtx,
               message: `${programmeBuildUserMessage} [auto-fix: ${pipelineValidation1.allIssues.join("; ")}]`,
-              priorityGoal: priorityGoal ?? undefined,
-              recoveryMode: recoveryModeForStructured,
-              equipmentAvailable: resolvedEquipment,
-              injuriesOrExclusions: progExclusions,
-              recentExerciseIds: recentExerciseIdsFromContext,
-              preferredExercises: progMergedPreferred,
-              requestedExerciseIds: progRequestedIds,
-              programmeModification: programmeModificationUnified,
-              activeProgramme: mergedStructuredProgramme,
-              forcedSplitDefinition,
-              debugRequestId: programmeDebugRequestId,
             },
-            progParsed
-          );
+            llmApiKey: programmeLlmApiKey,
+            coachContextSnippet: programmeCoachSnippet,
+          });
           if (retry) {
             structuredProgramme = constraintHardStructured
               ? enforceRequestedExercisesInProgramme(
@@ -4460,21 +4583,21 @@ export async function POST(request: NextRequest) {
                 ok: false,
                 issues: pipelineValidation2.allIssues,
               });
-              return NextResponse.json({
+              return respond({
                 reply: `I could not satisfy this programme request reliably: ${pipelineValidation2.allIssues.join(
                   "; "
                 )}. Try narrowing equipment, split, or requested exercises.`,
                 programmeConstraintFailure: constraintHardStructured,
-              } satisfies AssistantResponse);
+              } satisfies AssistantResponse, wantsStream);
             }
           } else {
             console.log("[programmePipeline] validation rebuild returned null; aborting structured response");
-            return NextResponse.json({
+            return respond({
               reply: `I could not satisfy this programme request after validation: ${pipelineValidation1.allIssues.join(
                 "; "
               )}.`,
               programmeConstraintFailure: constraintHardStructured,
-            } satisfies AssistantResponse);
+            } satisfies AssistantResponse, wantsStream);
           }
         }
 
@@ -4591,10 +4714,10 @@ export async function POST(request: NextRequest) {
             process.env.NODE_ENV === "development"
               ? "DEV: Requested exercise constraint failed — programme card withheld.\n\n"
               : "";
-          return NextResponse.json({
+          return respond({
             reply: `${devBanner}This routine could not be finalized because these requested exercises are still missing from the programme: ${missingNames}. Check server logs for [programme-request-trace] and [programme-constraint-failure].`,
             programmeConstraintFailure: true,
-          } satisfies AssistantResponse);
+          } satisfies AssistantResponse, wantsStream);
         }
         const excludedStillPresent = findExcludedExercisesPresentInProgramme(
           structuredProgramme,
@@ -4609,10 +4732,10 @@ export async function POST(request: NextRequest) {
             excludedStillPresent,
             avoidNames,
           });
-          return NextResponse.json({
+          return respond({
             reply: `This routine still includes exercises you asked to avoid: ${avoidNames}. Try rephrasing or narrowing the request.`,
             programmeConstraintFailure: true,
-          } satisfies AssistantResponse);
+          } satisfies AssistantResponse, wantsStream);
         }
 
         const activeState = buildPipelineActiveProgrammeState(
@@ -4657,27 +4780,27 @@ export async function POST(request: NextRequest) {
         const programmeReply = programmeCoachReview
           ? `${programmeCoachReview}\n\n${baseProgrammeReply}`
           : baseProgrammeReply;
-        return NextResponse.json({
+        return respond({
           reply: programmeReply,
           ...(programmeCoachReview ? { coachReview: programmeCoachReview } : {}),
           structuredProgramme,
           activeProgrammeState: activeState,
-        } satisfies AssistantResponse);
+        } satisfies AssistantResponse, wantsStream);
       }
-      console.log("[template-fallback-hit]", {
+      console.log("[programme-build-empty]", {
         path: "assistant_route_structured_path_empty_programme",
-        reason: "buildStructuredProgramme returned null",
+        reason: "unified_llm_planner_returned_null",
       });
-      console.error("[old-programme-path-hit]", {
-        path: "template_fallback",
-        reason: "buildStructuredProgramme_returned_null",
+      console.error("[programme-build-failed]", {
+        path: "unified_llm_only",
+        reason: "unified_llm_planner_returned_null",
         programmeDebugRequestId,
       });
       if (process.env.NODE_ENV === "development") {
-        return NextResponse.json({
+        return respond({
           reply:
             "DEV BLOCKED: Programme builder returned null; template fallback is disabled. See server logs for [old-programme-path-hit] and [programme-build-path-entered].",
-        } satisfies AssistantResponse);
+        } satisfies AssistantResponse, wantsStream);
       }
       const fallbackProgramme: NonNullable<AssistantResponse["structuredProgramme"]> = {
         programmeTitle: "Programme builder unavailable",
@@ -4700,7 +4823,7 @@ export async function POST(request: NextRequest) {
         debugSource: fallbackProgramme.debugSource ?? "unknown",
         dayCount: fallbackProgramme.days.length,
       });
-      return NextResponse.json({
+      return respond({
         reply: "I couldn't generate a full programme from current constraints.",
         structuredProgramme: fallbackProgramme,
         activeProgrammeState: buildPipelineActiveProgrammeState(
@@ -4708,7 +4831,7 @@ export async function POST(request: NextRequest) {
           progParsed,
           clientActiveProgramme
         ),
-      } satisfies AssistantResponse);
+      } satisfies AssistantResponse, wantsStream);
     }
     const priorAssistantTurnContent =
       questionKind === "prior_answer_correction"
@@ -4903,7 +5026,7 @@ export async function POST(request: NextRequest) {
       !coldStartBlocksProgrammeBuild
     ) {
       if (strictConstructionMode === "programme_build") {
-        return NextResponse.json({
+        return respond({
           reply:
             "I couldn't return a prose answer for this request because it requires structured programme output. Please retry with split and equipment details if generation fails.",
           structuredProgramme: {
@@ -4914,11 +5037,11 @@ export async function POST(request: NextRequest) {
             debugSource: "template_fallback",
             days: [],
           },
-        } satisfies AssistantResponse);
+        } satisfies AssistantResponse, wantsStream);
       }
     }
 
-    const reply = await getAssistantReply(
+    const llmArgs = [
       loggedDataPreamble,
       trimmedMessage,
       intent,
@@ -4955,9 +5078,16 @@ export async function POST(request: NextRequest) {
       evidenceCards,
       priorAssistantTurnContent,
       explicitAnchor,
-      builtWorkoutsPromptBlock
-    );
+      builtWorkoutsPromptBlock,
+    ] as const;
 
+    if (wantsStream) {
+      return respondLLMStream((onDelta) =>
+        getAssistantReply(...llmArgs, onDelta)
+      );
+    }
+
+    const reply = await getAssistantReply(...llmArgs);
     return NextResponse.json({ reply } satisfies AssistantResponse);
   } catch (err) {
     console.error("Assistant route error:", err);

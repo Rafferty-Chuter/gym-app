@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { formatIntRange } from "@/lib/formatPrescriptionDisplay";
-import { scoreDayForExercise } from "@/lib/muscleDayBuilder";
+import { scoreDayForExercise } from "@/lib/scoreDayForExercise";
 import { getPrescriptionForExercise } from "@/lib/prescriptionDefaults";
 import { getExerciseById } from "@/lib/exerciseMetadataLibrary";
 import type { AssistantStructuredProgramme } from "@/lib/programmePipeline/types";

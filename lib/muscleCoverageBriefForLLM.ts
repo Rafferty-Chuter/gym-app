@@ -345,6 +345,98 @@ const SESSION_MUSCLE_SCOPE: Record<string, MuscleScope[]> = {
 };
 
 // ---------------------------------------------------------------------------
+// User-targeted-muscle scope (overrides hardcoded session scope)
+// ---------------------------------------------------------------------------
+// When the user explicitly names muscles (e.g. "chest and biceps day"), we
+// build the brief from those muscles directly instead of forcing the static
+// SESSION_MUSCLE_SCOPE for the inferred sessionType — which otherwise drags
+// in extras (e.g. triceps on a "chest" session) the user did not ask for.
+
+const DEFAULT_PATTERNS_BY_MUSCLE: Record<MuscleRuleId, string[]> = {
+  chest: ["horizontal_press", "incline_press", "fly/isolation"],
+  lats_upper_back: ["vertical_pull", "horizontal_pull"],
+  delts: ["vertical_press", "lateral_raise", "rear_delt"],
+  biceps: ["supinated_curl", "neutral_hammer_curl"],
+  triceps: ["overhead_extension", "pushdown"],
+  quads: ["squat_or_press", "knee_extension"],
+  hamstrings: ["hip_hinge", "knee_curl"],
+  glutes: ["hip_thrust_bridge", "squat_lunge_hinge"],
+  calves: ["standing_calf_raise", "seated_calf_raise"],
+  abs_core: [],
+};
+
+const MULTI_MUSCLE_TOKEN_TO_RULE_IDS: Record<string, MuscleRuleId[]> = {
+  arms: ["biceps", "triceps"],
+  legs: ["quads", "hamstrings", "glutes", "calves"],
+  "leg day": ["quads", "hamstrings", "glutes", "calves"],
+  "lower body": ["quads", "hamstrings", "glutes", "calves"],
+};
+
+const MUSCLE_REGEX_TO_RULE_IDS: Array<{ regex: RegExp; ids: MuscleRuleId[] }> = [
+  { regex: /\b(chest|pecs?)\b/i, ids: ["chest"] },
+  { regex: /\b(lats?|upper\s+back|traps?|rhomboids?)\b/i, ids: ["lats_upper_back"] },
+  // "back" handled separately below to avoid matching "lower back" / "back off".
+  { regex: /\b(shoulders?|delts?)\b/i, ids: ["delts"] },
+  { regex: /\b(biceps?|bis)\b/i, ids: ["biceps"] },
+  { regex: /\b(triceps?|tris)\b/i, ids: ["triceps"] },
+  { regex: /\bquads?\b/i, ids: ["quads"] },
+  { regex: /\b(hamstrings?|hams?)\b/i, ids: ["hamstrings"] },
+  { regex: /\bglutes?\b/i, ids: ["glutes"] },
+  { regex: /\bcalves|\bcalf\b/i, ids: ["calves"] },
+  { regex: /\b(abs|core|mid\s+section)\b/i, ids: ["abs_core"] },
+];
+
+const SESSION_SPLIT_KEYWORDS = /\b(push|pull|upper(?!\s+back)|lower(?!\s+back)|full[\s-_]?body|ppl)\b/i;
+
+/**
+ * Parse user-named muscles out of the request text. Returns canonical
+ * MuscleRuleIds suitable for buildMuscleCoverageBriefForLLM.
+ *
+ * Returns an empty array when:
+ *  - the message names a multi-muscle split (push / pull / upper / lower / full body)
+ *  - no muscle keywords are detected
+ * In those cases the caller should fall back to SESSION_MUSCLE_SCOPE.
+ */
+export function parseTargetedMuscleRuleIdsFromMessage(message: string): MuscleRuleId[] {
+  if (!message) return [];
+  const text = message.trim();
+  if (!text) return [];
+  if (SESSION_SPLIT_KEYWORDS.test(text)) return [];
+
+  const ids = new Set<MuscleRuleId>();
+  const lowered = text.toLowerCase();
+
+  for (const [token, ruleIds] of Object.entries(MULTI_MUSCLE_TOKEN_TO_RULE_IDS)) {
+    const re = new RegExp(`\\b${token.replace(/\s+/g, "\\s+")}\\b`, "i");
+    if (re.test(lowered)) ruleIds.forEach((id) => ids.add(id));
+  }
+
+  for (const { regex, ids: ruleIds } of MUSCLE_REGEX_TO_RULE_IDS) {
+    if (regex.test(text)) ruleIds.forEach((id) => ids.add(id));
+  }
+
+  // "back" — only when not preceded by "lower " (which usually means lower-back pain context).
+  if (/\bback\b/i.test(text) && !/\blower\s+back\b/i.test(text)) {
+    ids.add("lats_upper_back");
+  }
+
+  return [...ids];
+}
+
+function scopeFromTargetedMuscles(ruleIds: MuscleRuleId[]): MuscleScope[] {
+  const seen = new Set<MuscleRuleId>();
+  const out: MuscleScope[] = [];
+  for (const id of ruleIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const patterns = DEFAULT_PATTERNS_BY_MUSCLE[id];
+    if (!patterns || patterns.length === 0) continue;
+    out.push({ muscleId: id, contextPatterns: patterns });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Catalog match resolution
 // ---------------------------------------------------------------------------
 
@@ -365,11 +457,21 @@ function resolvePatternMatches(
 // Public builder
 // ---------------------------------------------------------------------------
 
-export function buildMuscleCoverageBriefForLLM(sessionType: SessionType): string {
+export function buildMuscleCoverageBriefForLLM(
+  sessionType: SessionType,
+  userTargetedRuleIds?: MuscleRuleId[]
+): string {
+  const userScope =
+    userTargetedRuleIds && userTargetedRuleIds.length > 0
+      ? scopeFromTargetedMuscles(userTargetedRuleIds)
+      : [];
+
   const scope =
-    sessionType === "lower"
-      ? SESSION_MUSCLE_SCOPE["legs"]
-      : SESSION_MUSCLE_SCOPE[sessionType] ?? [];
+    userScope.length > 0
+      ? userScope
+      : sessionType === "lower"
+        ? SESSION_MUSCLE_SCOPE["legs"]
+        : SESSION_MUSCLE_SCOPE[sessionType] ?? [];
 
   if (scope.length === 0) return "";
 

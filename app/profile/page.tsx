@@ -208,6 +208,12 @@ export default function ProfilePage() {
           >
             Data Tools
           </Link>
+          <Link
+            href="/profile/import"
+            className="mt-3 flex w-full items-center justify-center rounded-xl border border-teal-500/40 bg-teal-950/40 px-4 py-3 text-sm font-bold text-teal-100 hover:bg-teal-900/50 hover:border-teal-400/50 transition-colors"
+          >
+            Import CSV (Hevy / Strong)
+          </Link>
         </section>
       </div>
     </main>

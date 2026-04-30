@@ -29,6 +29,7 @@ export default function CoachPage() {
   });
   const [analysis, setAnalysis] = useState<CoachStructuredAnalysis>(EMPTY_ANALYSIS);
   const [coachPrompt, setCoachPrompt] = useState("");
+  const [expandedInsight, setExpandedInsight] = useState<number | null>(null);
 
   useEffect(() => {
     function refresh() {
@@ -66,36 +67,85 @@ export default function CoachPage() {
   const summaryPositive =
     analysis.whatsGoingWell[0] ??
     (stats.totalWorkouts >= 3
-      ? `You’ve got ${stats.totalWorkouts} sessions in the log — enough to see real patterns.`
-      : "We’re still painting the picture. A few more logged sessions and this section gets much more useful.");
+      ? `You've got ${stats.totalWorkouts} sessions in the log — enough to see real patterns.`
+      : "We're still painting the picture. A few more logged sessions and this section gets much more useful.");
   const summaryWatch =
     analysis.volumeBalance[0]?.summary ??
     analysis.actionableSuggestions[0] ??
     (stats.totalWorkouts === 0
-      ? "Log a workout and I’ll call out what stands out in how you’re training."
-      : "Your training mix is still taking shape — keep logging and I’ll keep this sharper.");
+      ? "Log a workout and I'll call out what stands out in how you're training."
+      : "Your training mix is still taking shape — keep logging and I'll keep this sharper.");
   const summaryNext =
     analysis.nextSessionAdjustmentPlan?.title ??
     analysis.actionableSuggestions[0] ??
     (stats.totalWorkouts < 3
       ? "Log another session or two, then open your full review for a stronger next step."
-      : "Finish your next solid session, then check the full review for the adjustment I’d make.");
+      : "Finish your next solid session, then check the full review for the adjustment I'd make.");
+
+  const insights = [
+    {
+      tag: hasPositiveLine ? "What's working" : "Training snapshot",
+      tagColor: hasPositiveLine ? "#6ee7b7" : "rgba(140,200,196,0.60)",
+      tagBg: hasPositiveLine ? "rgba(52,211,153,0.08)" : "rgba(255,255,255,0.04)",
+      tagBorder: hasPositiveLine ? "rgba(52,211,153,0.20)" : "rgba(255,255,255,0.08)",
+      text: summaryPositive,
+    },
+    {
+      tag: "Worth watching",
+      tagColor: "#fbbf24",
+      tagBg: "rgba(251,191,36,0.07)",
+      tagBorder: "rgba(251,191,36,0.18)",
+      text: summaryWatch,
+    },
+    {
+      tag: "Next focus",
+      tagColor: "#00e5b0",
+      tagBg: "rgba(0,229,176,0.07)",
+      tagBorder: "rgba(0,229,176,0.18)",
+      text: summaryNext,
+    },
+  ];
+
+  const quickPrompts = [
+    {
+      label: "Highest-impact weekly change",
+      prompt: "What is the single highest-impact adjustment I should make this week, given my current data confidence?",
+    },
+    {
+      label: "Plan next 2 sessions",
+      prompt: "Build my next 2 sessions from this coach review and explain progression targets.",
+    },
+    {
+      label: "Why this matters now",
+      prompt: "Explain why this recommendation matters for my stated goal and current training state.",
+    },
+  ];
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
+    <main className="min-h-screen bg-zinc-950 text-white pb-28">
       <div className="max-w-2xl mx-auto">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-3xl font-bold text-white">Coach</h1>
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center rounded-full border border-teal-900/40 bg-zinc-900/70 p-0.5">
+
+        {/* ── Header ──────────────────────────────── */}
+        <div className="px-6 pt-6 pb-0 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="label-section mb-1" style={{ color: "rgba(0,229,176,0.65)" }}>
+              Training intelligence
+            </p>
+            <h1 className="text-3xl font-black tracking-tight text-white">Your Coach</h1>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div
+              className="inline-flex items-center rounded-lg border border-white/8 bg-zinc-900/70 p-0.5"
+              role="group"
+            >
               {(["kg", "lb"] as const).map((u) => (
                 <button
                   key={u}
                   type="button"
                   onClick={() => setUnit(u)}
-                  className={`min-w-[2.25rem] rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                  className={`min-w-[2.25rem] rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
                     unit === u
-                      ? "bg-teal-500/25 text-teal-100 shadow-sm shadow-teal-950/30"
+                      ? "bg-[color:var(--color-accent)]/15 text-[color:var(--color-accent)]"
                       : "text-app-tertiary hover:text-app-secondary"
                   }`}
                 >
@@ -103,95 +153,118 @@ export default function CoachPage() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-medium text-app-tertiary">Goal</span>
               <select
                 value={goal}
                 onChange={(e) => setGoal(e.target.value as PriorityGoal)}
-                className="rounded-lg border border-teal-900/40 bg-zinc-900/70 px-2.5 py-1.5 text-[11px] font-medium text-white focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+                className="rounded-lg border border-white/8 bg-zinc-900/70 px-2 py-1.5 text-[11px] font-medium text-white focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent)]/40"
                 aria-label="Priority goal"
               >
                 {PRIORITY_GOAL_OPTIONS.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
+                  <option key={g} value={g}>{g}</option>
                 ))}
               </select>
             </div>
           </div>
         </div>
 
-        <section className="card-app mb-5 border-indigo-900/35 bg-gradient-to-br from-indigo-950/30 via-zinc-900/92 to-violet-950/20">
-          <h2 className="label-section mb-3 text-indigo-200/75">Recent Training Review</h2>
-          <div className="space-y-3">
-            <div
-              className={`rounded-xl px-3 py-2.5 ${
-                hasPositiveLine
-                  ? "border border-emerald-900/30 bg-emerald-950/15"
-                  : "border border-zinc-700/60 bg-zinc-900/45"
-              }`}
-            >
-              <p
-                className={`text-[11px] font-semibold uppercase tracking-[0.1em] ${
-                  hasPositiveLine ? "text-emerald-200/75" : "text-zinc-400/85"
-                }`}
-              >
-                {hasPositiveLine ? "What’s working" : "Training snapshot"}
-              </p>
-              <p className="mt-1 text-sm text-app-secondary leading-relaxed">{summaryPositive}</p>
-            </div>
-            <div className="rounded-xl border border-amber-900/35 bg-amber-950/15 px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200/75">Worth watching</p>
-              <p className="mt-1 text-sm text-app-secondary leading-relaxed">{summaryWatch}</p>
-            </div>
-            <div className="rounded-xl border border-teal-900/35 bg-zinc-900/65 px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-teal-200/75">Next focus</p>
-              <p className="mt-1 text-sm text-app-secondary leading-relaxed">{summaryNext}</p>
-            </div>
-          </div>
-          <div className="mt-4 border-t border-indigo-800/30 pt-4">
-            <Link
-              href="/coach/review"
-              className="flex w-full items-center justify-center rounded-lg border border-violet-500/35 bg-indigo-950/40 py-2.5 text-center text-sm font-semibold text-violet-100 shadow-sm shadow-black/25 transition hover:border-violet-400/45 hover:bg-indigo-900/45 active:translate-y-[0.5px]"
-            >
-              Open Full Review
-            </Link>
-            <p className="mt-2 text-center text-[11px] text-app-meta leading-snug">
-              Detailed breakdown, evidence, and next steps on one screen.
-            </p>
-          </div>
+        {/* ── Current assessment ───────────────────── */}
+        <section className="px-6 py-7 border-b border-white/5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] mb-3" style={{ color: "rgba(0,229,176,0.60)" }}>
+            Current assessment
+          </p>
+          <p className="text-xl font-black tracking-tight leading-snug text-white" style={{ textWrap: "pretty" }}>
+            {stats.totalWorkouts === 0
+              ? "Log your first session."
+              : stats.totalWorkouts < 3
+              ? "Building your picture."
+              : "Strong week — watch the gaps."}
+          </p>
+          <p className="mt-2.5 text-[15px] text-app-secondary leading-relaxed" style={{ textWrap: "pretty" }}>
+            {stats.totalWorkouts === 0
+              ? "Start a workout and I'll build a real assessment from your training data."
+              : summaryPositive}
+          </p>
         </section>
 
-        <section className="mt-2 rounded-2xl border border-teal-300/35 bg-gradient-to-br from-teal-500/18 via-zinc-900/94 to-cyan-500/12 p-5 shadow-[0_18px_44px_-14px_rgba(20,184,166,0.35)] sm:p-6">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-teal-200/75">Assistant</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-white">Ask the Coach</h2>
-          <p className="mt-1 text-sm text-app-secondary">
-            Get direct, tailored coaching from your current training data and goals.
+        {/* ── Insight rows ────────────────────────── */}
+        <section>
+          {insights.map((ins, i) => (
+            <div key={i} className="border-b border-white/5">
+              <button
+                type="button"
+                onClick={() => setExpandedInsight(expandedInsight === i ? null : i)}
+                className="w-full flex items-start justify-between gap-3 px-6 py-5 text-left"
+              >
+                <div className="flex-1">
+                  <span
+                    className="inline-block text-[10px] font-bold uppercase tracking-[0.12em] rounded-md px-2 py-0.5 mb-2.5"
+                    style={{ color: ins.tagColor, background: ins.tagBg, border: `1px solid ${ins.tagBorder}` }}
+                  >
+                    {ins.tag}
+                  </span>
+                  <p className={`text-sm leading-relaxed transition-colors ${expandedInsight === i ? "text-white" : "text-app-secondary"}`}>
+                    {ins.text}
+                  </p>
+                </div>
+                <svg
+                  className="h-4 w-4 mt-1 shrink-0 text-app-tertiary transition-transform duration-150"
+                  style={{ transform: expandedInsight === i ? "rotate(90deg)" : "none" }}
+                  fill="none" stroke="currentColor" strokeWidth="1.75"
+                  strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"
+                >
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+              {expandedInsight === i && (
+                <div className="px-6 pb-5">
+                  <p className="text-xs text-app-tertiary leading-relaxed">
+                    Based on your logged sessions, training focus, and experience level. Open the full review for the evidence breakdown and specific targets.
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
+
+        {/* ── Full review CTA ─────────────────────── */}
+        <div className="px-6 py-5 border-b border-white/5">
+          <Link
+            href="/coach/review"
+            className="flex w-full items-center justify-center rounded-xl py-3.5 text-sm font-bold transition-all hover:brightness-105 active:translate-y-[0.5px]"
+            style={{
+              color: "#00e5b0",
+              background: "rgba(0,229,176,0.08)",
+              border: "1px solid rgba(0,229,176,0.22)",
+            }}
+          >
+            Open full training review →
+          </Link>
+          <p className="mt-2 text-center text-[11px] text-app-meta">
+            Detailed breakdown, evidence, and progression targets.
           </p>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => askCoach("What is the single highest-impact adjustment I should make this week, given my current data confidence?")}
-              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
-            >
-              Highest-impact weekly change
-            </button>
-            <button
-              type="button"
-              onClick={() => askCoach("Build my next 2 sessions from this coach review and explain progression targets.")}
-              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
-            >
-              Plan next 2 sessions
-            </button>
-            <button
-              type="button"
-              onClick={() => askCoach("Explain why this recommendation matters for my stated goal and current training state.")}
-              className="rounded-xl border border-teal-900/35 bg-zinc-900/70 px-3 py-2 text-xs font-semibold text-app-secondary text-left transition hover:text-white hover:border-teal-500/30"
-            >
-              Why this matters now
-            </button>
+        </div>
+
+        {/* ── Ask the Coach ────────────────────────── */}
+        <section className="px-6 pt-6 pb-2">
+          <p className="text-sm font-bold text-white mb-4">Ask a question</p>
+
+          <div className="flex flex-col gap-2 mb-4">
+            {quickPrompts.map((q) => (
+              <button
+                key={q.label}
+                type="button"
+                onClick={() => askCoach(q.prompt)}
+                className="rounded-xl px-4 py-3 text-sm font-medium text-app-secondary text-left transition hover:text-white"
+                style={{ background: "#0e1420", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
+                {q.label}
+              </button>
+            ))}
           </div>
-          <div className="mt-3 flex gap-2">
+
+          <div className="flex gap-2">
             <input
               type="text"
               value={coachPrompt}
@@ -202,18 +275,24 @@ export default function CoachPage() {
                   askCoach(coachPrompt);
                 }
               }}
-              placeholder="Ask a specific coaching question..."
+              placeholder="Ask anything about your training…"
               className="input-app flex-1 px-3 py-3 text-sm"
             />
             <button
               type="button"
               onClick={() => askCoach(coachPrompt)}
-              className="rounded-xl bg-gradient-to-br from-teal-400 via-teal-500 to-cyan-500 px-5 py-3 text-sm font-bold text-zinc-950 shadow-[0_8px_24px_-12px_rgba(20,184,166,0.6)] transition hover:brightness-105 active:translate-y-[1px]"
+              className="rounded-xl px-5 py-3 text-sm font-black transition-all hover:brightness-107 active:translate-y-[1px]"
+              style={{
+                background: "#00e5b0",
+                color: "#001a13",
+                boxShadow: "0 4px 0 rgba(0,80,45,0.45), 0 8px 24px -8px rgba(0,229,176,0.55)",
+              }}
             >
-              Ask Coach
+              Ask
             </button>
           </div>
         </section>
+
       </div>
     </main>
   );

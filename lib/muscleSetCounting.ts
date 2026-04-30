@@ -1,5 +1,5 @@
 import type { AssistantStructuredProgramme, AssistantStructuredProgrammeDebugSource } from "@/lib/programmePipeline/types";
-import type { BuiltWorkout } from "@/lib/workoutBuilder";
+import type { BuiltWorkout } from "@/lib/workoutTypes";
 import { EXERCISE_METADATA_LIBRARY, getExerciseByIdOrName } from "@/lib/exerciseMetadataLibrary";
 import type { MuscleGroupId } from "@/lib/muscleGroupRules";
 import { mapExerciseToMuscleStimulus, mapTargetTokenToMuscleGroup } from "@/lib/muscleGroupMapper";

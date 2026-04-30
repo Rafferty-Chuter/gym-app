@@ -55,17 +55,11 @@ export default function ActiveWorkoutResumeBar() {
     }
   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    function onChanged() {
-      refresh();
-    }
-    function onStorage(e: StorageEvent) {
-      if (e.key === "activeWorkout") refresh();
-    }
+    function onChanged() { refresh(); }
+    function onStorage(e: StorageEvent) { if (e.key === "activeWorkout") refresh(); }
     window.addEventListener(ACTIVE_WORKOUT_CHANGED_EVENT, onChanged);
     window.addEventListener("storage", onStorage);
     window.addEventListener("focus", refresh);
@@ -91,43 +85,35 @@ export default function ActiveWorkoutResumeBar() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 z-30 flex justify-center px-2"
-      style={{
-        bottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))",
-      }}
+      className="pointer-events-none fixed inset-x-0 z-30 flex justify-center px-3"
+      style={{ bottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))" }}
     >
       <Link
         href="/workout"
         aria-label={`Resume workout: ${title}, ${formatElapsed(elapsedSec)} elapsed`}
-        className="pointer-events-auto flex w-full max-w-3xl items-center gap-1.5 rounded-md border border-teal-800/50 bg-zinc-950/85 px-2 py-1 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset] backdrop-blur-sm transition hover:border-teal-600/40 hover:bg-zinc-900/90 active:opacity-95"
+        className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-xl px-3 py-2.5 backdrop-blur-sm transition"
+        style={{
+          background: "rgba(14,20,32,0.95)",
+          border: "1px solid rgba(0,229,176,0.28)",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.50)",
+        }}
       >
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[color:var(--color-accent)]/12 text-[color:var(--color-accent)]">
-          <svg
-            className="h-3 w-3"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            viewBox="0 0 24 24"
-            aria-hidden
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
+        <div
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: "rgba(0,229,176,0.12)", color: "#00e5b0" }}
+        >
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
         </div>
-        <div className="min-w-0 flex-1 flex items-center gap-1.5">
-          <span className="truncate text-[11px] font-medium leading-tight text-zinc-200">{title}</span>
-          <span className="shrink-0 text-[10px] font-medium tabular-nums text-teal-200/60">
+        <div className="min-w-0 flex-1 flex items-center gap-2">
+          <span className="truncate text-[13px] font-semibold text-white">{title}</span>
+          <span className="shrink-0 text-[12px] font-medium tabular-nums" style={{ color: "rgba(0,229,176,0.65)" }}>
             {formatElapsed(elapsedSec)}
           </span>
         </div>
+        <span className="shrink-0 text-xs font-semibold" style={{ color: "#00e5b0" }}>Resume →</span>
       </Link>
     </div>
   );

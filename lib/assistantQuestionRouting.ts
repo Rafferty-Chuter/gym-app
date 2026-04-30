@@ -248,6 +248,24 @@ export function classifyAssistantQuestionKind(
     (/\b(i want|i'?d like|i need|can i (get|have))\b/.test(t) &&
       /\b(push|pull|leg|legs|upper|lower|chest|back|shoulder|shoulders|arms?|full.?body)\s+(day|session|workout)\b/.test(t));
   if (!blockStructuredWorkout && workoutBuildCue) {
+    // The workoutBuildCue treats "i want a [muscle] day" as single-session, but
+    // a prompt that lists multiple muscle-days (e.g. "chest and back day, arm
+    // and shoulders day, leg day") or pairs a day reference with a multi-day
+    // schedule cue is a programme request, not a single session. Re-route here
+    // so the route's programme path can handle it.
+    const sessionDayMentions = (
+      t.match(
+        /\b(legs?|push|pull|chest|back|shoulders?|arms?|upper|lower|full[\s-]?body)\s+(day|session|workout)\b/g
+      ) ?? []
+    ).length;
+    const multiDayConstructionSignal =
+      sessionDayMentions >= 2 ||
+      hasCustomMultiDayCue ||
+      /\b\d+\s*[- ]?(day|days)\b/.test(t) ||
+      /\b(push pull legs|ppl|upper lower)\b/.test(t);
+    if (multiDayConstructionSignal) {
+      return "multi_day_programme_construction";
+    }
     return "single_session_construction";
   }
 
@@ -276,8 +294,18 @@ export function classifyAssistantQuestionKind(
     return "exact_factual_recall";
   }
 
+  // Plateau coaching questions take priority over 1RM projection even when 1RM appears as context
   if (
-    /\b(1rm|one rep max|one-rep max|e1rm|estimated 1rm)\b/.test(t) ||
+    /\bplateau(ed)?\b/.test(t) &&
+    /\b(what should i|how should i|how do i|what can i|break through|fix this|address this)\b/.test(t)
+  ) {
+    return "coaching_recommendation";
+  }
+
+  if (
+    (/\b(1rm|one rep max|one-rep max|e1rm|estimated 1rm)\b/.test(t) &&
+      !/\bplateau(ed)?\b/.test(t) &&
+      !/\bnot progressing\b/.test(t)) ||
     (/\bwhen (could|can|should) i\b/.test(t) && /\b(kg|lb|kgs|lbs|attempt|hit|lift)\b/.test(t)) ||
     /\bworking sets\b.*\b(look|should|need to)\b/.test(t) ||
     (/\b(bench|bench press|pb)\b/.test(t) &&
@@ -308,8 +336,8 @@ export function classifyAssistantQuestionKind(
     /\bwhat'?s lagging\b/.test(t) ||
     /\bwhat is lagging\b/.test(t) ||
     /\bhow should i (structure|approach|set up|program|adjust|fix|improve|change|modify)\b/.test(t) ||
-    (/\b(plateau|stuck|stalled|breaking a plateau|break.*plateau|plateau.*break)\b/.test(t) &&
-      /\b(bench|squat|deadlift|row|press|overhead|ohp|pull|curl|lift|programming)\b/.test(t))
+    (/\bplateau(ed)?\b/.test(t) || /\b(stuck|stalled|not progressing|break.*through)\b/.test(t)) &&
+      /\b(bench|squat|deadlift|row|press|overhead|ohp|pull|curl|lift|programming|dumbbell|barbell)\b/.test(t)
   ) {
     return "coaching_recommendation";
   }

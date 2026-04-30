@@ -1,160 +1,60 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { getWorkoutHistory } from "@/lib/trainingAnalysis";
 import { useUnit } from "@/lib/unit-preference";
-
-const WORKOUT_HISTORY_KEY = "workoutHistory";
-
-type StoredWorkout = {
-  completedAt: string;
-  exercises: {
-    exerciseId?: string;
-    name: string;
-    sets: { weight: string; reps: string; notes?: string }[];
-  }[];
-};
-
-function getWorkoutHistory(): StoredWorkout[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function getUniqueExerciseNames(workouts: StoredWorkout[]): string[] {
-  const seen = new Set<string>();
-  const names: string[] = [];
-  for (const workout of workouts) {
-    for (const ex of workout.exercises ?? []) {
-      const name = ex.name?.trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      names.push(name);
-    }
-  }
-  return names.sort((a, b) => a.localeCompare(b));
-}
-
-function getAllSetsForExercise(
-  workouts: StoredWorkout[],
-  exerciseName: string
-): { weight: string; reps: string; notes?: string }[] {
-  const normalized = exerciseName.trim().toLowerCase();
-  const sorted = [...workouts].sort(
-    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  );
-  const sets: { weight: string; reps: string; notes?: string }[] = [];
-  for (const workout of sorted) {
-    const exercise = workout.exercises?.find(
-      (ex) => ex.name?.trim().toLowerCase() === normalized
-    );
-    if (exercise?.sets?.length) {
-      for (const set of exercise.sets) {
-        if (set?.weight != null && set?.reps != null)
-          sets.push({ weight: String(set.weight), reps: String(set.reps), notes: (set as { notes?: string }).notes });
-      }
-    }
-  }
-  return sets;
-}
+import { LiftProgressionSection } from "@/components/LiftProgressionSection";
 
 export default function ProgressPage() {
   const { unit } = useUnit();
-  const [workouts, setWorkouts] = useState<StoredWorkout[]>([]);
-  const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
+  const [workouts, setWorkouts] = useState<ReturnType<typeof getWorkoutHistory>>([]);
 
   useEffect(() => {
-    function apply() {
+    function load() {
       setWorkouts(getWorkoutHistory());
     }
-    apply();
-    window.addEventListener("workoutHistoryChanged", apply);
-    return () => window.removeEventListener("workoutHistoryChanged", apply);
+    load();
+    window.addEventListener("workoutHistoryChanged", load);
+    return () => window.removeEventListener("workoutHistoryChanged", load);
   }, []);
 
-  const exerciseNames = getUniqueExerciseNames(workouts);
-  const selectedSets =
-    selectedExercise != null
-      ? getAllSetsForExercise(workouts, selectedExercise)
-      : [];
-
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
-      <div className="max-w-2xl mx-auto">
-        <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Link href="/" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
-            ← Home
+    <main className="min-h-screen bg-zinc-950 text-white relative pb-28">
+      <div
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_90%_45%_at_50%_-8%,rgba(45,212,191,0.07),transparent_58%)]"
+        aria-hidden
+      />
+      <div className="relative mx-auto max-w-3xl px-6 py-8">
+        <header className="mb-8 flex items-center gap-4">
+          <Link
+            href="/"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-teal-900/30 bg-zinc-900/70 text-zinc-400 transition hover:border-teal-700/40 hover:text-white active:scale-95"
+            aria-label="Back to home"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
           </Link>
-          <h1 className="text-3xl font-bold text-white">Progress</h1>
-        </div>
-
-        {exerciseNames.length === 0 ? (
-          <p className="text-app-secondary">
-            No exercises in history yet. Complete workouts to see progress here.
-          </p>
-        ) : (
-          <div className="flex flex-col sm:flex-row gap-6">
-            <section className="flex-1">
-              <h2 className="label-section mb-3">Exercises</h2>
-              <ul className="space-y-1.5">
-                {exerciseNames.map((name) => (
-                  <li key={name}>
-                    <button
-                      onClick={() =>
-                        setSelectedExercise((prev) => (prev === name ? null : name))
-                      }
-                      className={`w-full text-left px-4 py-2.5 rounded-xl transition border ${
-                        selectedExercise === name
-                          ? "bg-teal-500/25 text-teal-100 border-teal-500/40"
-                          : "border-teal-950/40 bg-gradient-to-b from-zinc-900/95 to-teal-950/20 text-app-secondary hover:text-white hover:border-teal-500/25"
-                      }`}
-                    >
-                      {name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="flex-1 min-w-0">
-              {selectedExercise == null ? (
-                <p className="text-app-secondary text-sm">
-                  Select an exercise to view all logged sets.
-                </p>
-              ) : (
-                <div className="card-app">
-                  <h2 className="text-lg font-bold text-white mb-3">{selectedExercise}</h2>
-                  {selectedSets.length === 0 ? (
-                    <p className="text-app-secondary text-sm">
-                      No sets logged for this exercise yet.
-                    </p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {selectedSets.map((set, index) => (
-                        <li
-                          key={index}
-                          className="text-app-secondary py-2 border-b border-teal-900/30 last:border-0 text-sm"
-                        >
-                          {set.weight}{unit} × {set.reps}
-                          {set.notes?.trim() && (
-                            <p className="text-app-meta text-xs mt-0.5">{set.notes.trim()}</p>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </section>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-white">Lift Progression</h1>
+            <p className="text-sm text-zinc-500 mt-0.5">Track your strength over time</p>
           </div>
+        </header>
+
+        {workouts.length === 0 ? (
+          <div className="rounded-2xl border border-teal-900/20 bg-zinc-900/60 px-6 py-10 text-center">
+            <p className="text-zinc-400 text-sm">No workouts logged yet.</p>
+            <p className="text-zinc-600 text-xs mt-1">Complete a session to see your progression charts.</p>
+            <Link
+              href="/workout/start"
+              className="mt-5 inline-block rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-500 active:scale-95"
+            >
+              Start a workout
+            </Link>
+          </div>
+        ) : (
+          <LiftProgressionSection workouts={workouts} unit={unit} />
         )}
       </div>
     </main>

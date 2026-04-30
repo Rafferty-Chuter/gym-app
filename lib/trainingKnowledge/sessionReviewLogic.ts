@@ -1,4 +1,4 @@
-import type { BuiltWorkout } from "@/lib/workoutBuilder";
+import type { BuiltWorkout } from "@/lib/workoutTypes";
 import { getExerciseByIdOrName } from "@/lib/exerciseMetadataLibrary";
 import {
   detectOverstackedMuscles,

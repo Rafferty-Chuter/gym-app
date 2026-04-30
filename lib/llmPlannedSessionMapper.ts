@@ -14,16 +14,17 @@ import { validateExerciseCombination } from "@/lib/trainingKnowledge/sessionCove
 import { buildSessionFatigueReview, applyLowFatigueAdjustments } from "@/lib/trainingKnowledge/sessionFatigueReview";
 import { getProgressionRulesForExercise } from "@/lib/trainingKnowledge/progressionEngine";
 import type { SessionType } from "@/lib/sessionTemplates";
-import {
-  type BuiltWorkout,
-  type WorkoutBuilderGoal,
-  type RecoveryMode,
-  type WeeklyFrequencyRecommendation,
-} from "@/lib/workoutBuilder";
+import type {
+  BuiltWorkout,
+  WorkoutBuilderGoal,
+  RecoveryMode,
+  WeeklyFrequencyRecommendation,
+} from "@/lib/workoutTypes";
 import {
   planSingleSessionWorkoutLLM,
   type PlannedSingleSessionLLMOutput,
 } from "@/lib/planSingleSessionWorkoutLLM";
+import type { MuscleRuleId } from "@/lib/trainingKnowledge/muscleRules";
 import { resolveSessionExerciseCountPolicy } from "@/lib/sessionExerciseCountPolicy";
 
 function n(s: string): string {
@@ -237,6 +238,7 @@ export function builtWorkoutFromPlannedSession(params: {
     notes,
     warnings: [],
     weeklyFrequency,
+    ...(params.plan.pairingNote ? { pairingNote: params.plan.pairingNote } : {}),
   };
 
   if (params.recoveryMode === "low_fatigue") {
@@ -282,6 +284,7 @@ export async function tryBuildSingleSessionWithLLMCoachPlan(params: {
   recoveryMode: RecoveryMode;
   goal: WorkoutBuilderGoal;
   coachContextSnippet: string;
+  userTargetedMuscleRuleIds?: MuscleRuleId[];
 }): Promise<{ built: BuiltWorkout | null; issues: string[] }> {
   const builderGoalLabel = params.goal.replace(/_/g, " ");
   const recoveryLowFatigue = params.recoveryMode === "low_fatigue";
@@ -303,6 +306,7 @@ export async function tryBuildSingleSessionWithLLMCoachPlan(params: {
       recoveryLowFatigue,
       builderGoalLabel,
       coachContextSnippet: params.coachContextSnippet,
+      userTargetedMuscleRuleIds: params.userTargetedMuscleRuleIds,
       retryIssues,
     });
 
@@ -356,45 +360,6 @@ export async function tryBuildSingleSessionWithLLMCoachPlan(params: {
     built.notes.unshift(
       "Your saved equipment list is narrow compared to this plan; some movements may need gear you do not have — swap for the closest option you can run safely."
     );
-  }
-
-  const intent = params.userMessage ? parseBuilderStructuralIntent(params.userMessage) : undefined;
-  let quality = validateBuiltDayQuality(built, intent);
-  const shouldRetryForQuality =
-    !quality.ok &&
-    quality.warnings.length > 0;
-  if (shouldRetryForQuality) {
-    issues.push(...quality.warnings.slice(0, 6));
-    const retryPlan = await attemptPlan(quality.warnings.slice(0, 8));
-    if (retryPlan) {
-      const r1 = enforceRequestedExercises(retryPlan, params.requestedExerciseIds, maxExercises);
-      const { filtered: rFiltered, usedEquipmentBypass: rBypass } = filterPlanWithEquipmentFallback(
-        r1,
-        params.equipmentAvailable,
-        params.exclusions,
-        issues,
-        minExercises,
-        maxExercises
-      );
-      if (rFiltered) {
-        built = builtWorkoutFromPlannedSession({
-          plan: rFiltered,
-          goal: params.goal,
-          recoveryMode: params.recoveryMode,
-          userMessage: params.userMessage,
-        });
-        if (rBypass) {
-          built.notes.unshift(
-            "Your saved equipment list is narrow compared to this plan; some movements may need gear you do not have — swap for the closest option you can run safely."
-          );
-        }
-        quality = validateBuiltDayQuality(built, intent);
-      } else {
-        issues.push("retry_filtered_below_minimum_after_constraints");
-      }
-    } else {
-      issues.push("retry_plan_empty_or_invalid");
-    }
   }
 
   if (built.exercises.length < minExercises) {

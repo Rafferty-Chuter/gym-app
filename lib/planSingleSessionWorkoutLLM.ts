@@ -1,9 +1,13 @@
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { exerciseIdWhitelist, getExerciseCatalogForLLM } from "@/lib/exerciseCatalogForLLM";
 import { resolveSessionExerciseCountPolicy } from "@/lib/sessionExerciseCountPolicy";
 import { buildHypertrophyEvidencePromptBlock } from "@/lib/hypertrophyEvidenceV1";
 import { buildMuscleCoverageBriefForLLM } from "@/lib/muscleCoverageBriefForLLM";
+import type { MuscleRuleId } from "@/lib/trainingKnowledge/muscleRules";
 import type { SessionType } from "@/lib/sessionTemplates";
+
+const PLANNER_MODEL = "claude-sonnet-4-6";
+const PLANNER_TOOL_NAME = "submit_planned_session";
 
 const SESSION_TYPES: SessionType[] = [
   "chest",
@@ -35,6 +39,12 @@ export type PlannedSingleSessionLLMOutput = {
   purposeSummary: string;
   exercises: PlannedSessionExercise[];
   weeklyFrequency?: PlannedWeeklyFrequency;
+  /**
+   * One sentence about the requested muscle combination if there's something
+   * genuinely worth surfacing (e.g. heavy pre-fatigue overlap, unusual
+   * pairing). Empty string when nothing is worth saying. Always builds.
+   */
+  pairingNote?: string;
 };
 
 /** Parsed from model JSON, logged server-side only — not stored on the workout card. */
@@ -189,6 +199,18 @@ function sanitize(
       ? raw.purposeSummary.trim().slice(0, 120)
       : `${sessionType.replace("_", " ")} session tailored to the request.`;
 
+  // Pairing note: take the first sentence (period/newline boundary), cap at
+  // 200 chars. Empty / missing → undefined (no note shown to user).
+  const pairingNote = (() => {
+    const rawNote = (raw as { pairingNote?: unknown }).pairingNote;
+    if (typeof rawNote !== "string") return undefined;
+    const trimmed = rawNote.trim();
+    if (!trimmed) return undefined;
+    const firstSentence = trimmed.split(/(?<=[.!?])\s|\n/)[0]?.trim();
+    if (!firstSentence) return undefined;
+    return firstSentence.slice(0, 200);
+  })();
+
   const weeklyFrequency: PlannedWeeklyFrequency | undefined = (() => {
     const wf = (raw as any).weeklyFrequency;
     if (!wf || typeof wf !== "object") return undefined;
@@ -200,7 +222,13 @@ function sanitize(
     return { timesPerWeek: times, restDaysBetween: rest, rationale: rationale ?? "" };
   })();
 
-  return { sessionType, purposeSummary, exercises: deduped, weeklyFrequency };
+  return {
+    sessionType,
+    purposeSummary,
+    exercises: deduped,
+    weeklyFrequency,
+    ...(pairingNote ? { pairingNote } : {}),
+  };
 }
 
 export async function planSingleSessionWorkoutLLM(params: {
@@ -213,9 +241,9 @@ export async function planSingleSessionWorkoutLLM(params: {
   recoveryLowFatigue: boolean;
   builderGoalLabel: string;
   coachContextSnippet: string;
+  userTargetedMuscleRuleIds?: MuscleRuleId[];
   retryIssues?: string[];
 }): Promise<PlannedSingleSessionLLMOutput | null> {
-  const openai = new OpenAI({ apiKey: params.apiKey });
   const catalog = getExerciseCatalogForLLM();
   const validIds = exerciseIdWhitelist();
   const countPolicy = resolveSessionExerciseCountPolicy({
@@ -235,7 +263,7 @@ export async function planSingleSessionWorkoutLLM(params: {
   // Data-driven muscle-head coverage brief — generated from MUSCLE_RULES + catalog.
   // Adapts automatically to session type; no hardcoded push/pull/legs template prose.
   const patternCoverageBlock =
-    "\n\n" + buildMuscleCoverageBriefForLLM(params.sessionTypeHint) +
+    "\n\n" + buildMuscleCoverageBriefForLLM(params.sessionTypeHint, params.userTargetedMuscleRuleIds) +
     `
 
 Evidence-driven planning instructions (complete before committing to exercise IDs):
@@ -260,7 +288,11 @@ Rules:
 
 Output: weeklyFrequency: { "timesPerWeek": number, "restDaysBetween": number, "rationale": "one sentence tying frequency to recovery + weekly volume target" }`;
 
-  const system = `You are an elite strength coach in a training app. The user asked for ONE workout session.
+  const hypertrophyEvidence = buildHypertrophyEvidencePromptBlock();
+
+  // System block 1: large, fully static across calls — cached.
+  // Schema, output rules, hypertrophy framework, full exercise catalog.
+  const systemStatic = `You are an elite strength coach in a training app. The user asked for ONE workout session.
 
 You MUST output a single JSON object only — no markdown, no prose outside JSON.
 
@@ -268,6 +300,7 @@ Schema:
 {
   "sessionType": ${JSON.stringify(SESSION_TYPES)},
   "purposeSummary": string (max ~12 words; user-facing; no long preamble),
+  "pairingNote": string (one sentence — flag something genuinely worth surfacing about the requested muscle combination, OR empty string if nothing notable. Always build the session regardless. Examples worth flagging: heavy pressing pre-fatigues triceps; chest+biceps and chest+back are fine and don't need a note. Never warn just to warn.),
   "weeklyFrequency": {
     "timesPerWeek": number (1–4),
     "restDaysBetween": number (minimum rest days between repeats),
@@ -298,46 +331,172 @@ Schema:
   ]
 }
 
+OUTPUT BREVITY (important — speeds responses without hurting decisions):
+- plannerDebug strings: keep each ≤ 8 words. The value is committing to a choice, not long prose.
+- minimumMovesRationale: one short sentence, not a paragraph.
+- finalStopReason: ≤ 12 words.
+- rationaleLine on exercises: optional; ≤ 10 words when present.
+
 Hard rules:
-- Use ONLY "exerciseId" values from the CATALOG JSON below. Never invent ids.
-- Prefer sessionType "${params.sessionTypeHint}" unless the user clearly asked for a different single session.
-- Include ${requested.length > 0 ? `these requested exercise ids (unless impossible with equipment): ${JSON.stringify(requested)}` : "no mandatory exercise ids beyond what fits the user request."}
+- Use ONLY "exerciseId" values from the CATALOG below. Never invent ids.
 - Respect EQUIPMENT; avoid gear the lifter does not list.
 - Avoid movements conflicting with exclusions / injuries.
-- ${params.recoveryLowFatigue ? "Recovery / low-fatigue: fewer redundant compounds, machine/cable-friendly when sensible." : "Normal training density is fine."}
-- ${countPolicy.promptLine}
 - Order: heavier compounds before lighter accessories when appropriate.
-- slotLabel and rationaleLine: commit to exactly one catalog exercise; no slash-combined names.${patternCoverageBlock}${frequencyBlock}${issuesBlock}`;
+- slotLabel and rationaleLine: commit to exactly one catalog exercise; no slash-combined names.
 
-  const hypertrophyEvidence = buildHypertrophyEvidencePromptBlock();
+HYPERTROPHY & PROGRAMMING FRAMEWORK (apply when selecting exercises, volume, and patterns):
+${hypertrophyEvidence}
+
+CATALOG (id + name — exerciseId MUST be one of these ids):
+${JSON.stringify(catalog)}`;
+
+  // System block 2: small, varies per call — NOT cached.
+  // Session-type hint, recovery mode, count policy, requested ids, retry issues.
+  const systemDynamic = `Session-specific configuration:
+- Prefer sessionType "${params.sessionTypeHint}" unless the user clearly asked for a different single session.
+- Requested exercise ids: ${requested.length > 0 ? `include these unless impossible with equipment: ${JSON.stringify(requested)}` : "none mandatory beyond what fits the user request."}
+- ${params.recoveryLowFatigue ? "Recovery / low-fatigue: fewer redundant compounds, machine/cable-friendly when sensible." : "Normal training density is fine."}
+- ${countPolicy.promptLine}${patternCoverageBlock}${frequencyBlock}
+
+SELF-REVIEW (do this before outputting):
+Before outputting this session, review it against your knowledge of how each requested muscle group should be trained optimally. Is anything important missing or underdeveloped? If yes, fix it first.${issuesBlock}`;
+
   const user = `USER REQUEST:\n${params.userMessage.trim().slice(0, 3200)}
 
 COACH CONTEXT (training history and profile — use this to personalise selection, avoid recently over-trained muscles, and match volume targets):\n${params.coachContextSnippet.trim().slice(0, 1200)}
-
-HYPERTROPHY & PROGRAMMING FRAMEWORK (apply when selecting exercises, volume, and patterns):\n${hypertrophyEvidence}
 
 INFERRED GOAL / STYLE: ${params.builderGoalLabel}
 
 EQUIPMENT (strings the lifter has):\n${JSON.stringify(params.equipmentAvailable.slice(0, 40))}
 
-EXCLUSION / INJURY KEYWORDS (avoid loading these patterns):\n${JSON.stringify(excludedIdsHint.slice(0, 24))}
+EXCLUSION / INJURY KEYWORDS (avoid loading these patterns):\n${JSON.stringify(excludedIdsHint.slice(0, 24))}`;
 
-CATALOG (id + name — exerciseId MUST be one of these ids):\n${JSON.stringify(catalog)}`;
+  // Tool schema for Anthropic structured output. Forces Sonnet to emit fields
+  // that match what `sanitize()` expects, removing the "stringify-then-parse-JSON"
+  // failure mode that gpt-4.1-mini occasionally hit.
+  const tool: Anthropic.Messages.Tool = {
+    name: PLANNER_TOOL_NAME,
+    description:
+      "Submit the planned single-session workout in the required schema. Call this exactly once with the final plan after self-review.",
+    input_schema: {
+      type: "object",
+      required: ["sessionType", "purposeSummary", "exercises"],
+      properties: {
+        sessionType: {
+          type: "string",
+          enum: SESSION_TYPES as unknown as string[],
+        },
+        purposeSummary: {
+          type: "string",
+          description: "Max ~12 words; user-facing; no long preamble.",
+        },
+        pairingNote: {
+          type: "string",
+          description:
+            "One sentence flagging something genuinely worth surfacing about the requested muscle combination, OR empty string if nothing notable. Always build the session regardless. Example worth flagging: heavy pressing pre-fatigues triceps. Chest+biceps and chest+back generally do not need a note. Never warn just to warn.",
+        },
+        weeklyFrequency: {
+          type: "object",
+          required: ["timesPerWeek", "restDaysBetween", "rationale"],
+          properties: {
+            timesPerWeek: { type: "number" },
+            restDaysBetween: { type: "number" },
+            rationale: { type: "string" },
+          },
+        },
+        plannerDebug: {
+          type: "object",
+          properties: {
+            workoutGoal: { type: "string" },
+            minimumMovesRationale: { type: "string" },
+            perExercise: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  order: { type: "number" },
+                  exerciseId: { type: "string" },
+                  addedBecause: { type: "string" },
+                  coverageAfterThisPick: { type: "string" },
+                  stopConsidered: { type: "boolean" },
+                  wouldNextMoveBeMostlyRedundant: { type: "string" },
+                  decidedToStopOrContinue: { type: "string" },
+                },
+              },
+            },
+            finalStopReason: { type: "string" },
+          },
+        },
+        exercises: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["exerciseId", "slotLabel"],
+            properties: {
+              exerciseId: { type: "string" },
+              slotLabel: {
+                type: "string",
+                description:
+                  "Short UI label; ONE movement only — never use '/', ' or ', or combined exercise names; use the catalog name style.",
+              },
+              rationaleLine: {
+                type: "string",
+                description: "Optional, max one short sentence.",
+              },
+            },
+          },
+        },
+      },
+    },
+  };
 
   try {
-    const res = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      response_format: { type: "json_object" },
+    const anthropic = new Anthropic({ apiKey: params.apiKey });
+    const startedAt = Date.now();
+    // Two system blocks: stable (cached) + dynamic. Streaming avoids
+    // HTTP timeouts on long structured outputs and gives a `usage` object
+    // with cache_read/creation tokens so we can verify cache hits.
+    const stream = anthropic.messages.stream({
+      model: PLANNER_MODEL,
+      max_tokens: 3000,
       temperature: 0.4,
-      max_completion_tokens: 3000,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
+      system: [
+        {
+          type: "text",
+          text: systemStatic,
+          cache_control: { type: "ephemeral" },
+        },
+        {
+          type: "text",
+          text: systemDynamic,
+        },
       ],
+      tools: [tool],
+      tool_choice: { type: "tool", name: PLANNER_TOOL_NAME },
+      messages: [{ role: "user", content: user }],
     });
-    const txt = res.choices[0]?.message?.content?.trim();
-    if (!txt) return null;
-    const parsed = JSON.parse(txt) as PlannedSingleSessionLLMOutput & {
+    const res = await stream.finalMessage();
+    const elapsedMs = Date.now() - startedAt;
+    console.log("[planSingleSessionWorkoutLLM] timing", {
+      elapsedMs,
+      sessionType: params.sessionTypeHint,
+      stopReason: res.stop_reason,
+      input_tokens: res.usage?.input_tokens ?? 0,
+      output_tokens: res.usage?.output_tokens ?? 0,
+      cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? 0,
+      cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? 0,
+    });
+    const toolUse = res.content.find(
+      (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use" && b.name === PLANNER_TOOL_NAME
+    );
+    if (!toolUse) {
+      console.warn("[planSingleSessionWorkoutLLM] no tool_use in response", {
+        stopReason: res.stop_reason,
+        contentTypes: res.content.map((b) => b.type),
+      });
+      return null;
+    }
+    const parsed = toolUse.input as PlannedSingleSessionLLMOutput & {
       plannerDebug?: PlannerDebugPayload;
     };
     const plannerDebug = parsed.plannerDebug;

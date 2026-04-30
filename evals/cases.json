@@ -1,0 +1,234 @@
+{
+  "cases": [
+    {
+      "id": "cold-start-programme-request",
+      "description": "User with zero logged data asks for a multi-day programme. Should refuse to produce a polished generic plan.",
+      "body": {
+        "message": "Build me a 6-day push/pull/legs programme to break my bench plateau.",
+        "trainingSummary": {
+          "totalWorkouts": 0,
+          "totalExercises": 0,
+          "totalSets": 0,
+          "weeklyVolume": {},
+          "recentExercises": []
+        }
+      },
+      "rubric": "PASS if the reply does NOT produce a full multi-day programme (no day-by-day exercise lists). PASS if it asks 2-3 targeted personalisation questions OR gives a deliberately minimal answer that explicitly flags what's missing for personalisation. FAIL if it outputs a polished generic programme, day splits, or detailed prescription as if it knew the user's context. FAIL if structuredProgramme is non-null."
+    },
+    {
+      "id": "cold-start-factual-rep-range",
+      "description": "User with zero data asks the rep-range question that commonly triggers the outdated myth.",
+      "body": {
+        "message": "Should I do low reps for strength and high reps for hypertrophy?",
+        "trainingSummary": {
+          "totalWorkouts": 0,
+          "totalExercises": 0,
+          "totalSets": 0,
+          "weeklyVolume": {},
+          "recentExercises": []
+        }
+      },
+      "rubric": "PASS if the reply explicitly corrects the myth: hypertrophy is largely rep-range agnostic across roughly 5-30 reps when sets approach failure. PASS may also note that strength expression IS more rep-range specific. FAIL if it repeats the framing 'low reps for strength, high reps for hypertrophy' as a general truth without correction. FAIL if it states confidently that lower reps grow more muscle."
+    },
+    {
+      "id": "cold-start-narrow-question",
+      "description": "Narrow factual question with no logged data — should answer briefly, flag what would let it personalise, not produce a programme.",
+      "body": {
+        "message": "What's a good rest time between sets?",
+        "trainingSummary": {
+          "totalWorkouts": 0,
+          "totalExercises": 0,
+          "totalSets": 0,
+          "weeklyVolume": {},
+          "recentExercises": []
+        }
+      },
+      "rubric": "PASS if the reply gives a short direct answer with appropriate hedging (e.g. 2-3 min for compounds, 1-2 min for isolations, with caveats about contested optimal ranges). PASS if it briefly notes what would let it personalise. FAIL if it produces a full programme or extended generic essay. FAIL if it asserts a single specific number as universally optimal without flagging the uncertainty."
+    },
+    {
+      "id": "rep-range-myth-logged-data",
+      "description": "User WITH workout history asks the rep-range question. Tests that evidence-quality block fires in a logged-data context, not just cold-start.",
+      "body": {
+        "message": "I've been doing 8-12 reps for everything. Should I switch to 4-6 reps if I want to focus on building muscle, or stick with higher reps for size?",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Barbell Bench Press", "Lat Pulldown", "Back Squat", "Overhead Press", "Romanian Deadlift"]
+        }
+      },
+      "rubric": "PASS if the reply explicitly corrects the framing: hypertrophy is largely rep-range agnostic across roughly 5-30 reps when sets approach failure, and rep-range matters more for strength expression (1RM) than for size. PASS if it tells the user 4-6 reps is fine for size if effort is high, but is not better for size than 8-12. FAIL if it says or implies 'lower reps build muscle better', 'you need heavy/low reps for hypertrophy', or parrots the strength-vs-hypertrophy rep split as a general truth without correction."
+    },
+    {
+      "id": "emg-as-primary-justification",
+      "description": "User asks for a triceps exercise recommendation. Coach must not center EMG amplitude as the primary or sole justification — it's a contested hypertrophy proxy.",
+      "body": {
+        "message": "What's the best triceps exercise for muscle growth, and why?",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Barbell Bench Press", "Tricep Pushdown", "Overhead Press", "Skull Crusher", "Close-Grip Bench"]
+        }
+      },
+      "rubric": "PASS if the reply justifies its exercise choice primarily via mechanical tension, long-muscle-length / stretch position (especially for triceps long head — overhead extensions / skull crushers), or proximity to failure / volume framing. PASS if EMG is mentioned only as a weak supporting signal with caveats, or not at all. FAIL if EMG amplitude or 'muscle activation studies' is the primary or sole justification. FAIL if it asserts 'X has the highest EMG so it's best for growth' as fact without flagging that EMG is contested as a hypertrophy proxy."
+    },
+    {
+      "id": "volume-target-stated-as-fact",
+      "description": "User asks how many sets per week for chest. Coach must hedge for individual variation rather than stating a number/range as a hard requirement.",
+      "body": {
+        "message": "How many sets per week should I be doing for chest?",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Barbell Bench Press", "Incline Dumbbell Press", "Cable Fly", "Lat Pulldown", "Back Squat"]
+        }
+      },
+      "rubric": "PASS if the reply gives a practical range (e.g. roughly 10-20 sets/week) AND hedges meaningfully: dose-response varies by recovery, training age, proximity to failure, and individual response. PASS if it explicitly says 'individual variation' or equivalent, or treats the range as a starting point rather than a target. PASS if it cites the user's current 14 sets/week chest volume as context. FAIL if it states a single specific number ('you need 16 sets') as fact. FAIL if it asserts a range with no individual-variation hedge or treats it as a fixed prescription."
+    },
+    {
+      "id": "indirect-volume-quantification",
+      "description": "User asks how much triceps work pressing gives them. Coach must NOT state precise per-set 'added triceps' multipliers — indirect volume is real but not precisely measurable.",
+      "body": {
+        "message": "I'm doing bench press and overhead press twice a week each. How much triceps volume does that actually give me — should I count those as triceps sets too?",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Barbell Bench Press", "Overhead Press", "Tricep Pushdown", "Skull Crusher"]
+        }
+      },
+      "rubric": "PASS if the reply acknowledges that indirect / synergist work contributes real triceps stimulus, but flags that quantifying it precisely is fuzzy (depends on rep proximity to failure, exercise grip/leverage, individual recruitment). PASS if it suggests counting compound presses as a partial fraction at most, with appropriate uncertainty. FAIL if it states a precise multiplier or count as fact (e.g. 'each bench set adds 0.5 triceps sets', 'your pressing gives you 6 extra triceps sets per week'). FAIL if it tells the user to count pressing-as-triceps with a specific number as if it were measured."
+    },
+    {
+      "id": "tradeoff-surfacing-on-substitution",
+      "description": "User proposes removing a key compound from their programme. Coach must surface the specific tradeoff and what would be lost, not just agree.",
+      "body": {
+        "message": "I'm going to drop deadlifts from my routine — they're too taxing. I'll just do more leg curls and back extensions instead. Sound good?",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "hamstrings": 6, "lower_back": 8 },
+          "recentExercises": ["Barbell Bench Press", "Conventional Deadlift", "Back Squat", "Lat Pulldown", "Leg Curl"]
+        }
+      },
+      "rubric": "PASS if the reply surfaces a specific tradeoff: deadlifts train the posterior chain (hamstrings, glutes, erectors) and full-body coordination / heavy-load systemic stimulus that leg curls + back extensions only partially replace. PASS if it suggests a closer hinge substitute (e.g. Romanian deadlift, hip thrust, trap bar deadlift) as a way to keep most of the stimulus with less fatigue. FAIL if the reply simply agrees ('yep, leg curls and back extensions will cover it'). FAIL if it claims leg curls + back extensions are a complete equivalent. FAIL if it does not flag what's being lost."
+    },
+    {
+      "id": "targeted-chest-biceps-no-triceps",
+      "description": "User explicitly asks for a chest AND biceps session. The structured workout must respect the named muscles only — no triceps exercises slipped in via legacy SESSION_MUSCLE_SCOPE.chest defaults.",
+      "body": {
+        "message": "Build me a chest and biceps day",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Barbell Bench Press", "Incline Dumbbell Press", "Cable Fly", "Barbell Curl", "Hammer Curl", "Lat Pulldown"]
+        }
+      },
+      "rubric": "PASS if the reply (and any structured workout exercise list rendered in the reply text) contains ONLY chest and biceps movements. Acceptable chest patterns: bench press / incline press / dip / fly / cable crossover / chest press. Acceptable biceps patterns: curl variations (barbell, dumbbell, hammer, preacher, incline, cable). FAIL if any explicitly triceps-dominant exercise appears: triceps pushdown, overhead triceps extension, skull crusher, kickback, French press, close-grip bench press, triceps dip (a chest-dip is OK if framed as chest). FAIL if the reply pads the session with shoulder pressing, rows, or leg work. FAIL if structuredWorkout is non-null but contains a triceps exercise."
+    },
+    {
+      "id": "build-leg-day-posterior-chain",
+      "description": "Build a leg day. The original failure case from the 2026-04-30 grading: posterior chain coverage is the test.",
+      "body": {
+        "message": "build me a leg day",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Hack Squat", "Leg Press", "Leg Curl", "Leg Extension", "Hip Adductor", "Calf Raise"]
+        },
+        "trainingFocus": "Hypertrophy",
+        "experienceLevel": "Intermediate",
+        "unit": "kg",
+        "priorityGoal": "Hypertrophy"
+      },
+      "rubric": "PASS if the reply names AT LEAST ONE hip-hinge / hip-extension exercise (Romanian deadlift, deadlift variant, good morning, hip thrust, glute bridge, or back extension) IN THE PRESCRIBED EXERCISE LIST itself — not as a follow-up suggestion. PASS if direct glute work is present (hip thrust, glute bridge, RDL, or split squat with forward lean explicitly framed as glute-biased). FAIL if the prescribed list is two quad compounds (squat / hack squat / leg press) plus knee-flexion isolation (leg curl / leg extension) only, with no hip-hinge / hip-extension exercise in the list. FAIL if the model offers the hinge as an optional follow-up clarifier (e.g. 'want me to add Romanian deadlifts?') instead of including it."
+    },
+    {
+      "id": "build-push-day-coverage",
+      "description": "Build a push day — coverage test for horizontal press + vertical press + at least one accessory.",
+      "body": {
+        "message": "build me a push day",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Barbell Bench Press", "Incline Dumbbell Press", "Overhead Press", "Lateral Raise", "Tricep Pushdown"]
+        },
+        "trainingFocus": "Hypertrophy",
+        "experienceLevel": "Intermediate",
+        "unit": "kg",
+        "priorityGoal": "Hypertrophy"
+      },
+      "rubric": "PASS if the prescribed exercise list contains AT LEAST ONE horizontal press (bench press, incline / decline press, dumbbell press, machine chest press, dip, or fly) AND AT LEAST ONE vertical press (overhead press, military press, dumbbell shoulder press, machine shoulder press, or Arnold press) AND AT LEAST ONE accessory targeting whichever of chest / front delt / triceps is under-covered (e.g. tricep pushdown, overhead extension, lateral raise, fly). FAIL if the list is missing either a horizontal press OR a vertical press. FAIL if there are NO accessory isolation exercises at all (only compounds). FAIL if the assistant offers any of these as a clarifier ('want me to add overhead press?') instead of including it."
+    },
+    {
+      "id": "prescription-includes-rir",
+      "description": "Any build prompt — every prescribed exercise must include RIR or proximity-to-failure cue, not just sets × reps.",
+      "body": {
+        "message": "build me an upper body workout",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Barbell Bench Press", "Lat Pulldown", "Overhead Press", "Barbell Row", "Lateral Raise"]
+        },
+        "trainingFocus": "Hypertrophy",
+        "experienceLevel": "Intermediate",
+        "unit": "kg",
+        "priorityGoal": "Hypertrophy"
+      },
+      "rubric": "PASS if the reply prescribes a workout AND every prescribed exercise line includes a proximity-to-failure cue: an explicit RIR (e.g. 'RIR 1-3', 'RIR 0-2'), 'close to failure', 'leave 1-3 reps in the tank', 'stop short of failure by N reps', or equivalent effort-calibration language. The cue may be stated once per exercise or applied as a global rule that explicitly covers all prescribed exercises (e.g. 'all sets at RIR 1-3'). PASS if the reply also asks one or two diagnostic questions about prescription specifics (frequency, individual response, freshness) per the meta-rule — that is acceptable alongside a complete prescription. FAIL if any prescribed exercise has only sets × reps with no RIR or proximity-to-failure cue applied to it. FAIL if the reply produces a workout but defers RIR specification entirely to the user without any default cue."
+    },
+    {
+      "id": "rep-range-hypertrophy-qna",
+      "description": "Q&A self-gating: rep-range question must NOT trigger session construction. Should label uncertainty per the meta-rule.",
+      "body": {
+        "message": "what rep range should i use for hypertrophy",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Barbell Bench Press", "Lat Pulldown", "Back Squat", "Romanian Deadlift", "Overhead Press"]
+        },
+        "trainingFocus": "Hypertrophy",
+        "experienceLevel": "Intermediate",
+        "unit": "kg",
+        "priorityGoal": "Hypertrophy"
+      },
+      "rubric": "PASS if the reply is Q&A-shaped: a direct answer about rep ranges, no prescribed exercise list, no sets × reps prescription for specific lifts. PASS if it explicitly labels the uncertainty per the meta-rule — e.g. 'rep range is largely a practicality question for size when sets are taken close to failure', 'roughly 5-30 reps work when effort is high', or equivalent rep-range agnosticism with hedging. FAIL if the reply produces an exercise list (e.g. 'try bench press 4×8, OHP 3×10...'). FAIL if it asserts a single specific rep range as universally optimal for hypertrophy ('do 8-12 for size') without flagging that the underlying evidence does not pin one. FAIL if structuredWorkout is non-null."
+    },
+    {
+      "id": "creatine-qna",
+      "description": "Q&A self-gating: supplement question must NOT trigger session construction.",
+      "body": {
+        "message": "is creatine worth taking",
+        "trainingSummary": {
+          "totalWorkouts": 32,
+          "totalExercises": 18,
+          "totalSets": 412,
+          "weeklyVolume": { "chest": 14, "back": 16, "legs": 12, "shoulders": 8, "arms": 10 },
+          "recentExercises": ["Barbell Bench Press", "Back Squat", "Lat Pulldown", "Overhead Press"]
+        },
+        "trainingFocus": "Hypertrophy",
+        "experienceLevel": "Intermediate",
+        "unit": "kg",
+        "priorityGoal": "Hypertrophy"
+      },
+      "rubric": "PASS if the reply gives a Q&A-shaped answer about creatine: yes/no/conditional with brief reasoning. PASS regardless of which way the recommendation goes — the test is on shape, not stance. FAIL if the reply produces a workout, an exercise list, or any sets × reps prescription. FAIL if structuredWorkout is non-null. FAIL if it pivots to building a programme."
+    }
+  ]
+}

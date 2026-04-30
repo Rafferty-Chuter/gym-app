@@ -118,6 +118,122 @@ export function getMuscleGroupForLoggedExercise(exercise: {
   return getMuscleGroupForExercise(exercise.name);
 }
 
+export const DETAILED_MUSCLE_GROUPS = [
+  "chest",
+  "back",
+  "quads",
+  "glutes",
+  "hamstrings",
+  "calves",
+  "biceps",
+  "triceps",
+  "shoulders",
+  "abs",
+  "traps",
+  "rear-delts",
+] as const;
+
+export type DetailedMuscleGroup = (typeof DETAILED_MUSCLE_GROUPS)[number];
+
+export const DEFAULT_DETAILED_MUSCLE_GROUPS: DetailedMuscleGroup[] = [
+  "chest",
+  "back",
+  "quads",
+  "glutes",
+  "hamstrings",
+  "calves",
+  "biceps",
+  "triceps",
+  "shoulders",
+];
+
+export const OPTIONAL_DETAILED_MUSCLE_GROUPS: DetailedMuscleGroup[] = [
+  "abs",
+  "traps",
+  "rear-delts",
+];
+
+type DetailedClassifierOptions = {
+  enabledOptional?: ReadonlySet<DetailedMuscleGroup>;
+};
+
+function classifyDetailedTag(
+  tag: string,
+  options: DetailedClassifierOptions
+): DetailedMuscleGroup | null {
+  const t = tag.trim().toLowerCase();
+  const enabled = options.enabledOptional;
+  if (t.includes("chest")) return "chest";
+  if (t === "lats" || t === "upper back" || t === "back") return "back";
+  if (t === "rear delts") return enabled?.has("rear-delts") ? "rear-delts" : "shoulders";
+  if (t === "shoulders" || t === "front delts" || t === "side delts") return "shoulders";
+  if (t === "biceps" || t === "brachialis") return "biceps";
+  if (t === "triceps") return "triceps";
+  if (t === "quads") return "quads";
+  if (t === "glutes") return "glutes";
+  if (t === "hamstrings") return "hamstrings";
+  if (t === "calves") return "calves";
+  if (t === "abs" || t === "core" || t === "hip flexors")
+    return enabled?.has("abs") ? "abs" : null;
+  if (t === "upper traps") return enabled?.has("traps") ? "traps" : "back";
+  return null;
+}
+
+function classifyDetailedFromName(
+  name: string,
+  options: DetailedClassifierOptions
+): DetailedMuscleGroup | null {
+  const n = name.trim().toLowerCase();
+  if (n.includes("calf")) return "calves";
+  if (n.includes("leg curl") || n.includes("rdl") || n.includes("good morning"))
+    return "hamstrings";
+  if (n.includes("hip thrust") || n.includes("glute bridge")) return "glutes";
+  if (n.includes("leg extension") || n.includes("hack squat")) return "quads";
+  if (n.includes("squat") || n.includes("leg press") || n.includes("lunge"))
+    return "quads";
+  if (n.includes("tricep") || n.includes("pushdown") || n.includes("skullcrusher") || n.includes("jm press"))
+    return "triceps";
+  if (n.includes("curl")) return "biceps";
+  if (n.includes("lateral raise") || n.includes("shoulder press") || n.includes("overhead press"))
+    return "shoulders";
+  if (n.includes("rear delt") || n.includes("reverse fly"))
+    return options.enabledOptional?.has("rear-delts") ? "rear-delts" : "shoulders";
+  if (n.includes("shrug")) return options.enabledOptional?.has("traps") ? "traps" : "back";
+  if (n.includes("bench") || n.includes("incline") || n.includes("chest press") || n.includes("fly"))
+    return "chest";
+  if (
+    n.includes("row") ||
+    n.includes("pulldown") ||
+    n.includes("pull up") ||
+    n.includes("pull-up") ||
+    n.includes("pullup") ||
+    n.includes("lat") ||
+    n.includes("deadlift")
+  )
+    return "back";
+  if (n.includes("plank") || n.includes("crunch") || n.includes("sit up") || n.includes("sit-up"))
+    return options.enabledOptional?.has("abs") ? "abs" : null;
+  return null;
+}
+
+export function getDetailedMuscleGroupsForLoggedExercise(
+  exercise: { exerciseId?: string; name: string },
+  options: DetailedClassifierOptions = {}
+): DetailedMuscleGroup[] {
+  const meta = resolveLoggedExerciseMeta(exercise);
+  if (meta && meta.primaryMuscles.length > 0) {
+    const buckets = new Set<DetailedMuscleGroup>();
+    for (const m of meta.primaryMuscles) {
+      const b = classifyDetailedTag(m, options);
+      if (b) buckets.add(b);
+    }
+    if (buckets.size > 0) return [...buckets];
+  }
+  const sourceName = meta?.name ?? exercise.name;
+  const fallback = classifyDetailedFromName(sourceName, options);
+  return fallback ? [fallback] : [];
+}
+
 export function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string, number> {
   const counts: Record<string, number> = {
     chest: 0,

@@ -104,6 +104,47 @@ type ChatMessage = {
 const ASSISTANT_PROGRAMME_PIPELINE_V1 = "new_programme_pipeline_v1" as const;
 
 /**
+ * Parses an SSE stream from /api/assistant. Each yielded object is one event
+ * with its decoded JSON payload. Events without parseable data are skipped.
+ */
+async function* parseSSEStream(
+  body: ReadableStream<Uint8Array>
+): AsyncGenerator<{ event: string; data: unknown }> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+      let sep = buf.indexOf("\n\n");
+      while (sep !== -1) {
+        const block = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        let event = "message";
+        const dataLines: string[] = [];
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+        }
+        const dataStr = dataLines.join("\n");
+        if (dataStr) {
+          try {
+            yield { event, data: JSON.parse(dataStr) };
+          } catch {
+            // ignore malformed event
+          }
+        }
+        sep = buf.indexOf("\n\n");
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/**
  * Renders assistant prose with proper markdown — line breaks, bold, italic,
  * lists, code spans, headings — using Tailwind class overrides per element.
  * Typography: regular weight, 1.65 line-height, slightly looser tracking,
@@ -360,15 +401,6 @@ function buildEmptyStateContent(
 function AssistantWorkoutCard({ workout }: { workout: StructuredWorkout }) {
   return (
     <div className="space-y-3">
-      {workout.debugGenerator ? (
-        <div
-          className="rounded-lg border border-amber-500/50 bg-amber-950/40 px-2 py-1.5 font-mono text-[11px] text-amber-100/95 whitespace-pre-wrap break-all"
-          data-testid="workout-debug-generator"
-        >
-          debugGenerator={workout.debugGenerator}
-          {workout.debugTrace ? `\ndebugTrace=${workout.debugTrace}` : ""}
-        </div>
-      ) : null}
       <div className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2">
         <p className="text-sm font-semibold text-blue-100">{workout.sessionTitle}</p>
         <p className="text-xs text-blue-100/80 mt-0.5">{workout.sessionGoal}</p>
@@ -435,11 +467,6 @@ function AssistantProgrammeCard({ programme }: { programme: StructuredProgramme 
   }
   return (
     <div className="space-y-3">
-      {programme.debugProgrammeGenerator ? (
-        <div className="rounded-lg border border-amber-500/50 bg-amber-950/40 px-2 py-1.5 font-mono text-[11px] text-amber-100/95">
-          debugProgrammeGenerator={programme.debugProgrammeGenerator}
-        </div>
-      ) : null}
       <div className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2">
         <p className="text-sm font-semibold text-blue-100">{programme.programmeTitle}</p>
         <p className="text-xs text-blue-100/80 mt-0.5">{programme.programmeGoal}</p>
@@ -448,11 +475,6 @@ function AssistantProgrammeCard({ programme }: { programme: StructuredProgramme 
         {programme.days.map((day) => (
           <div key={day.dayLabel} className="rounded-xl border border-white/10 bg-zinc-900/70 px-3 py-3">
             <p className="text-sm font-semibold text-zinc-100">{day.dayLabel}</p>
-            {day.debugDayGenerator ? (
-              <p className="text-[10px] font-mono text-amber-200/90 mt-0.5">
-                debugDayGenerator={day.debugDayGenerator}
-              </p>
-            ) : null}
             {day.targetMuscles && day.targetMuscles.length > 0 ? (
               <p className="text-xs text-zinc-500 mt-0.5">Targets: {day.targetMuscles.join(", ")}</p>
             ) : null}
@@ -491,6 +513,8 @@ function AssistantPageInner() {
     if (q) setInput(decodeURIComponent(q));
   }, [searchParams]);
   const [isLoading, setIsLoading] = useState(false);
+  /** True from send until the first streaming token lands; drives the typing dots. */
+  const [isAwaitingFirstToken, setIsAwaitingFirstToken] = useState(false);
   const [useAssistantMemory, setUseAssistantMemory] = useState(false);
   const listEndRef = useRef<HTMLDivElement>(null);
   const activeExerciseTopicRef = useRef<string | null>(null);
@@ -682,6 +706,7 @@ function AssistantPageInner() {
     );
 
     setIsLoading(true);
+    setIsAwaitingFirstToken(true);
 
     try {
       const assistantMemory = useAssistantMemory ? getSelectiveAssistantMemory() : undefined;
@@ -890,7 +915,10 @@ function AssistantPageInner() {
 
       const res = await fetch("/api/assistant", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
         body: JSON.stringify({
           message: text,
           thread_id: localThreadId!,
@@ -926,7 +954,62 @@ function AssistantPageInner() {
         }),
       });
 
-      const data = await res.json();
+      type AssistantStreamPayload = {
+        reply?: string;
+        coachReview?: string;
+        structuredWorkout?: unknown;
+        structuredProgramme?: unknown;
+        activeProgrammeState?: unknown;
+        programmeConstraintFailure?: boolean;
+        error?: string;
+      };
+      let data: AssistantStreamPayload = {};
+      let streamErrorMessage: string | null = null;
+
+      const isStream = res.body && (res.headers.get("content-type") ?? "").includes("text/event-stream");
+      if (res.ok && isStream) {
+        let streamingText = "";
+        let firstDeltaSeen = false;
+        for await (const ev of parseSSEStream(res.body!)) {
+          if (ev.event === "delta" && ev.data && typeof (ev.data as { text?: unknown }).text === "string") {
+            const delta = (ev.data as { text: string }).text;
+            streamingText += delta;
+            if (!firstDeltaSeen) {
+              firstDeltaSeen = true;
+              setIsAwaitingFirstToken(false);
+              setMessages((prev) => [
+                ...prev,
+                { role: "assistant", content: streamingText },
+              ]);
+            } else {
+              setMessages((prev) => {
+                if (prev.length === 0) return prev;
+                const last = prev[prev.length - 1];
+                if (last.role !== "assistant") return prev;
+                const next = prev.slice(0, -1);
+                next.push({ ...last, content: streamingText });
+                return next;
+              });
+            }
+          } else if (ev.event === "done") {
+            data = (ev.data as AssistantStreamPayload) ?? {};
+            if (typeof data.reply !== "string" || data.reply.length === 0) {
+              data.reply = streamingText;
+            }
+          } else if (ev.event === "error") {
+            const errPayload = ev.data as { error?: string } | null;
+            streamErrorMessage = errPayload?.error ?? "Streaming failed.";
+          }
+        }
+      } else {
+        // Server responded as JSON (e.g., validation error or non-stream client).
+        data = (await res.json()) as AssistantStreamPayload;
+      }
+
+      if (streamErrorMessage) {
+        throw new Error(streamErrorMessage);
+      }
+
       if (res.ok && typeof data.reply === "string") {
         if (data.programmeConstraintFailure === true) {
           activeProgrammeStateRef.current = null;
@@ -1074,6 +1157,7 @@ function AssistantPageInner() {
       }
     } finally {
       setIsLoading(false);
+      setIsAwaitingFirstToken(false);
     }
   }
 
@@ -1341,13 +1425,6 @@ function AssistantPageInner() {
                           ) : null}
                           <AssistantProgrammeCard programme={m.programme} />
                         </div>
-                      ) : m.workout ? (
-                        <div className="space-y-4">
-                          {m.coachReview?.trim() ? (
-                            <AssistantMessageBody content={m.coachReview} />
-                          ) : null}
-                          <AssistantWorkoutCard workout={m.workout} />
-                        </div>
                       ) : (
                         <AssistantMessageBody content={m.content} />
                       )}
@@ -1356,9 +1433,11 @@ function AssistantPageInner() {
                 </li>
               ))}
             </ul>
-            {isLoading && (
+            {isAwaitingFirstToken && (
               /* Typing indicator: three mint dots, anchored to the assistant rail
-                 so it sits where the next assistant message will appear. */
+                 so it sits where the next assistant message will appear.
+                 Visible from send until the first streaming token arrives — once
+                 streaming starts the assistant bubble takes over. */
               <div
                 className="mt-5 inline-flex items-center gap-1.5 pl-4 border-l-2"
                 style={{ borderColor: "rgba(0,229,176,0.30)" }}

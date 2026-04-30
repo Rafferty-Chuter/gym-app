@@ -1,0 +1,208 @@
+{
+  "runAt": "2026-04-30T16:56:00.640Z",
+  "summary": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0
+  },
+  "scorerModel": "claude-sonnet-4-6",
+  "coachUrl": "http://localhost:3000/api/assistant",
+  "cases": [
+    {
+      "id": "cold-start-programme-request",
+      "description": "User with zero logged data asks for a multi-day programme. Should refuse to produce a polished generic plan.",
+      "question": "Build me a 6-day push/pull/legs programme to break my bench plateau.",
+      "durationMs": 8863,
+      "coach": {
+        "ok": true,
+        "reply": "To build you a programme that actually targets your bench plateau, I need a couple of things first — otherwise I'm just handing you a generic template that any app could spit out.\n\nTwo quick questions:\n\n1. **Where's the plateau at?** Are you stalling on a specific weight you can't get past, or is it more that reps and load have just stopped moving for a few weeks? And roughly what are you currently benching for your main working sets?\n\n2. **What does your training look like right now?** How many days a week, and are you already running any kind of push/pull/legs structure — or is this a fresh start?\n\nOnce I know those two things, I can build the 6-day PPL around your actual bench numbers and structure the push days specifically to attack the stall — whether that's a frequency, volume, or intensity issue.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply does not produce any day-by-day programme or exercise lists, and instead asks exactly 2 targeted personalisation questions (current plateau specifics and existing training structure). structuredProgramme was not returned, satisfying all rubric conditions."
+    },
+    {
+      "id": "cold-start-factual-rep-range",
+      "description": "User with zero data asks the rep-range question that commonly triggers the outdated myth.",
+      "question": "Should I do low reps for strength and high reps for hypertrophy?",
+      "durationMs": 13320,
+      "coach": {
+        "ok": true,
+        "reply": "The short answer: no, that's an outdated split. Hypertrophy works across a wide rep range — roughly 5 to 30+ reps — as long as sets are taken close to failure. Rep range is mostly a practicality choice, not a growth switch.\n\n**Reps:** 6–12 is a solid default for both strength and size — it's time-efficient and easy to push hard. But sets of 3–5 or 15–20 taken close to failure build muscle too. Where rep range genuinely matters is *strength expression* — heavier, lower-rep work transfers better to your 1RM, so if strength is the priority, keep your main compounds in the 3–6 range.\n\n**Split:** Since you're training 4 days a week with a strength focus, an upper/lower split works well — two upper days and two lower days, with compounds leading each session.\n\n**RIR:** Keep main compounds (squat, deadlift, bench, row) at around 1–3 RIR. Accessories and isolations can go closer to 0–1 RIR. This lets you push hard where it counts without accumulating too much fatigue on the lifts that matter most.\n\n**Progression:** Add load or reps each week on your main lifts. When you hit the top of your rep range for all sets, move the weight up slightly — even 1–2.5 kg. That's the driver, not the rep number itself.\n\nOnce you log a few sessions, I can give you more specific guidance based on how your actual numbers are moving.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply explicitly corrects the myth by stating hypertrophy works across a wide rep range (5 to 30+ reps) as long as sets are taken close to failure, directly contradicting the low/high rep split framing. It also correctly distinguishes that strength expression (1RM transfer) is more rep-range specific, satisfying the rubric's allowance for noting that distinction."
+    },
+    {
+      "id": "cold-start-narrow-question",
+      "description": "Narrow factual question with no logged data — should answer briefly, flag what would let it personalise, not produce a programme.",
+      "question": "What's a good rest time between sets?",
+      "durationMs": 11803,
+      "coach": {
+        "ok": true,
+        "reply": "Rest time between sets is one of those things that depends on what you're training for, but here's the practical breakdown:\n\n**For compound lifts** (squats, deadlifts, bench, rows): 2–4 minutes is a solid default. These moves are taxing on your central nervous system and require fuller recovery to maintain output set to set.\n\n**For isolation work** (curls, lateral raises, tricep extensions): 60–90 seconds is usually enough. The local fatigue is more manageable, and shorter rests keep the session moving.\n\n**For hypertrophy specifically:** the evidence suggests rest length matters less than once thought — as long as you're recovering enough to take the next set close to failure, you're fine. Cutting rest so short that your reps crater meaningfully from set to set is when it starts hurting your stimulus.\n\n**For strength / heavier loading:** lean toward the longer end (3–5 minutes on heavy compound sets). More rest = better CNS recovery = better force output on each set.\n\nA good practical rule: rest until you feel ready to perform the next set well, not just until a timer goes off.\n\n---\n\nOnce you've logged a few sessions, I can give you more specific guidance based on how your sets are actually trending. Worth starting there.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply gives direct, appropriately hedged rest time ranges (2–4 min compounds, 60–90 sec isolations, 3–5 min heavy strength) without asserting a single universal number, and briefly notes it can personalise once session data is available. It does not produce a full programme or extended generic essay."
+    },
+    {
+      "id": "rep-range-myth-logged-data",
+      "description": "User WITH workout history asks the rep-range question. Tests that evidence-quality block fires in a logged-data context, not just cold-start.",
+      "question": "I've been doing 8-12 reps for everything. Should I switch to 4-6 reps if I want to focus on building muscle, or stick with higher reps for size?",
+      "durationMs": 8541,
+      "coach": {
+        "ok": true,
+        "reply": "Stick with 8–12 — it's working fine for building muscle, and switching to 4–6 isn't necessary for size.\n\nHypertrophy responds to a wide rep range (roughly 5–30+ reps) as long as sets are taken close to failure. The real driver is effort, not the specific rep number. Lower reps (4–6) do transfer better to max-strength expression, but that doesn't mean they build more muscle than what you're already doing.\n\nIf your priority is overall strength *and* size, one practical option is keeping 8–12 as your main range and occasionally running a heavier block (5–6 reps) on your big compounds — bench, squat, deadlift — to build strength expression on top of your hypertrophy work. But if you're happy progressing in the 8–12 range, there's no need to change.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply explicitly states hypertrophy responds to a wide rep range (roughly 5–30+ reps) as long as sets are taken close to failure, and correctly frames lower reps as better for 'max-strength expression' rather than muscle building — directly satisfying the rubric's requirement to correct the framing and clarify that 4–6 is not better for size than 8–12."
+    },
+    {
+      "id": "emg-as-primary-justification",
+      "description": "User asks for a triceps exercise recommendation. Coach must not center EMG amplitude as the primary or sole justification — it's a contested hypertrophy proxy.",
+      "question": "What's the best triceps exercise for muscle growth, and why?",
+      "durationMs": 10782,
+      "coach": {
+        "ok": true,
+        "reply": "The overhead triceps extension — specifically a cable or dumbbell variation done overhead — has the strongest case for hypertrophy right now.\n\nThe main reason is muscle length. The triceps long head crosses the shoulder joint, so when your arm is overhead, the long head is stretched at a longer muscle length. Current evidence suggests loading a muscle in a lengthened position produces a modest but consistent hypertrophy advantage compared to shortened-position alternatives like pushdowns. Tricep pushdowns are effective, but they work the triceps in a more shortened position.\n\nFor practical options: cable overhead extension or EZ-bar/dumbbell skull crushers with the arms angled slightly back (to get some long-head stretch) tend to show up as solid choices. Pushdowns are still worth keeping — they're easy to load progressively and complement overhead work well — but if you're picking one for pure growth stimulus, overhead wins on current evidence.\n\nWorth noting: you've got tricep pushdowns, skull crushers, and close-grip bench already in your logs, so you have a decent base. Adding or prioritising an overhead extension would round that out nicely.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply justifies the exercise choice primarily via mechanical tension and long-muscle-length principles (the long head being loaded in a lengthened/stretched position overhead), which directly matches the rubric's PASS criteria. EMG is not mentioned at all, fully avoiding the FAIL condition."
+    },
+    {
+      "id": "volume-target-stated-as-fact",
+      "description": "User asks how many sets per week for chest. Coach must hedge for individual variation rather than stating a number/range as a hard requirement.",
+      "question": "How many sets per week should I be doing for chest?",
+      "durationMs": 7707,
+      "coach": {
+        "ok": true,
+        "reply": "Roughly 10–20 hard sets per week is a solid working range for chest at an intermediate level.\n\nMost people find a sweet spot somewhere in the 12–16 range — enough stimulus to drive growth without accumulating so much fatigue that quality drops. Evidence suggests a clear dose-response up to around that zone, with diminishing returns beyond it.\n\nA practical starting point: 3–4 direct chest sets per session across 3–4 sessions a week. Once you've logged a few weeks, progression (or lack of it) will tell you more than any average.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply gives a practical range of 10–20 sets/week and explicitly treats it as a starting point ('A practical starting point') rather than a fixed prescription, with the note that 'progression (or lack of it) will tell you more than any average' serving as an individual-variation hedge. It does not state a single number as fact or prescribe a fixed target."
+    },
+    {
+      "id": "indirect-volume-quantification",
+      "description": "User asks how much triceps work pressing gives them. Coach must NOT state precise per-set 'added triceps' multipliers — indirect volume is real but not precisely measurable.",
+      "question": "I'm doing bench press and overhead press twice a week each. How much triceps volume does that actually give me — should I count those as triceps sets too?",
+      "durationMs": 11982,
+      "coach": {
+        "ok": true,
+        "reply": "The honest answer: pressing sets do give your triceps real stimulus, but it's not possible to put an exact number on it. Grip width, how deep you go, how close to failure each set is, and individual recruitment patterns all affect how much triceps work is actually happening — none of that is captured in a log.\n\nWhat you can say qualitatively: two bench sessions and two OHP sessions per week is meaningful indirect triceps work. Your triceps are getting loaded, particularly on OHP where the long head gets a reasonable stretch at the top of the range.\n\nPractically though, treat that indirect contribution as a partial stimulus, not full sets. Your logs show 10 direct arm sets in the last 7 days, which likely includes your pushdowns and skull crushers — that's a solid foundation. A reasonable working assumption is to plan your direct triceps work (pushdowns, overhead extensions) as if the pressing gives you *some* but not full coverage, and aim for around 8–12 total hard direct sets per week on top of it. You're already in that range.\n\nOne thing worth noting: your overhead press already loads the long head reasonably well, but if you want to make sure that's covered, an overhead extension (cable or dumbbell) complements your pushdowns nicely — long head gets more stretch in that position than a standard pushdown.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply explicitly acknowledges that pressing gives 'real stimulus' but states 'it's not possible to put an exact number on it,' citing grip width, proximity to failure, and individual recruitment as sources of fuzziness. It recommends treating indirect contribution as 'a partial stimulus, not full sets' without assigning any specific multiplier or count, satisfying the rubric's requirements."
+    },
+    {
+      "id": "tradeoff-surfacing-on-substitution",
+      "description": "User proposes removing a key compound from their programme. Coach must surface the specific tradeoff and what would be lost, not just agree.",
+      "question": "I'm going to drop deadlifts from my routine — they're too taxing. I'll just do more leg curls and back extensions instead. Sound good?",
+      "durationMs": 13293,
+      "coach": {
+        "ok": true,
+        "reply": "Dropping deadlifts is fine — but the replacement you're describing leaves a real gap, so it's worth a quick look before you commit.\n\nLeg curls and back extensions aren't a clean swap for deadlifts. Here's why that matters:\n\n- **Leg curls** isolate the hamstrings well — probably better than deadlifts for pure hamstring hypertrophy, honestly. That part of the trade works.\n- **Back extensions** load the spinal erectors and glutes at a lower intensity, which is fine as accessory work, but they don't replicate the heavy hip-hinge stimulus deadlifts provide for the posterior chain as a system.\n- What goes missing is the **loaded hip hinge under significant load** — that's a pattern that trains glutes, hamstrings, and spinal erectors together in a way neither isolation exercise replicates, and it's a major driver of overall posterior chain strength.\n\nIf the issue is recovery cost, a Romanian deadlift (RDL) or trap bar deadlift is worth considering as a middle ground — significantly less taxing than conventional deadlifts, still a true hip hinge, and actually better for hamstring stretch stimulus than back extensions. Many intermediate lifters find RDLs far more manageable without feeling like they've gutted the pattern.\n\nIf you're committed to removing all hinge variations entirely, lean into the leg curls (seated curls especially, for the stretch position), but be aware your posterior chain strength development will likely slow compared to keeping some hinge in the mix.\n\nWhat's driving the fatigue — is it the load, the volume, or just how wiped conventional deadlifts leave you for the rest of the week? That might point to a better fix.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply clearly surfaces the specific tradeoff — that leg curls and back extensions don't replicate the 'loaded hip hinge under significant load' that trains the posterior chain as a system — and explicitly suggests Romanian deadlifts and trap bar deadlifts as lower-fatigue hinge alternatives, satisfying both core rubric requirements."
+    },
+    {
+      "id": "targeted-chest-biceps-no-triceps",
+      "description": "User explicitly asks for a chest AND biceps session. The structured workout must respect the named muscles only — no triceps exercises slipped in via legacy SESSION_MUSCLE_SCOPE.chest defaults.",
+      "question": "Build me a chest and biceps day",
+      "durationMs": 12483,
+      "coach": {
+        "ok": true,
+        "reply": "Here's a solid chest and biceps day built around your logged exercises and hypertrophy focus.\n\n**Chest**\n\n- Barbell Bench Press — 4 sets × 6–8 reps, RIR 1–2. Compounds first while you're freshest; lower-rep range here gives you a strength stimulus that transfers well to your overall strength goal.\n- Incline Dumbbell Press — 3 sets × 8–12 reps, RIR 1–2. Hits the upper chest and loads the pec at a longer muscle length than flat pressing — useful for full chest development.\n- Cable Fly — 3 sets × 12–15 reps, RIR 0–1. Stretch-biased isolation at the end; cables keep tension through the full range, especially at the stretched position. Push these close to failure.\n\n**Biceps**\n\n- Barbell Curl — 3 sets × 8–12 reps, RIR 1–2. You've already logged this one, so it's a natural anchor. Great for loading the biceps with heavier-ish weight.\n- Incline Dumbbell Curl — 3 sets × 10–15 reps, RIR 0–1. The incline position loads the long head of the bicep at a longer muscle length compared to a standard standing curl — worth including as a second movement for that reason. You've logged hammer curls too, so you could swap this for those if you prefer the neutral grip.\n\n**Quick notes:**\n- Keep rest 90–120 seconds on the big compounds, 60–90 seconds on isolations.\n- The cable fly and incline curl should feel genuinely hard — that's where a lot of the hypertrophy stimulus comes from for smaller muscles.\n- This gives you roughly 10 hard chest sets and 6 biceps sets in the session, which sits in a sensible range for a single day without overdoing it.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "All exercises listed are exclusively chest movements (Barbell Bench Press, Incline Dumbbell Press, Cable Fly) and biceps movements (Barbell Curl, Incline Dumbbell Curl), with no triceps-dominant exercises, shoulder pressing, rows, or leg work present. The reply fully complies with the rubric's acceptable movement patterns."
+    },
+    {
+      "id": "build-leg-day-posterior-chain",
+      "description": "Build a leg day. The original failure case from the 2026-04-30 grading: posterior chain coverage is the test.",
+      "question": "build me a leg day",
+      "durationMs": 15798,
+      "coach": {
+        "ok": true,
+        "reply": "Here's a solid hypertrophy leg day built around your recent exercise history:\n\n**Squat / Knee-Dominant**\n- Hack Squat — 4 × 8–12, RIR 1–2 (deep ROM, quad stretch at the bottom)\n- Leg Press — 3 × 10–15, RIR 1–2 (full ROM; good volume accumulator after the hack squat)\n\n**Hip-Dominant / Hamstrings**\n- Romanian Deadlift — 3 × 8–12, RIR 1–2 (hip hinge to load the hamstrings at long length — more stretch stimulus than leg curl alone)\n- Leg Curl (seated if available) — 3 × 10–15, RIR 0–1 (seated keeps the hamstring under tension at a longer length vs lying)\n\n**Glutes**\n- Hip Thrust or Bulgarian Split Squat — 3 × 10–12, RIR 1–2 (direct glute loading; split squats also add unilateral quad work if you want more quad volume)\n\n**Isolation / Accessories**\n- Leg Extension — 3 × 12–15, RIR 0–1 (direct quad isolation, good finisher)\n- Hip Adductor — 2 × 15–20, RIR 0–1 (already in your log — keep it as a low-fatigue finisher)\n- Calf Raise — 3 × 12–15, RIR 0–1 (full stretch at the bottom for better stimulus)\n\n---\n\nA few notes on the structure:\n\nCompounds go first while you're freshest. The RDL is placed before leg curl because it's a heavier loaded pattern — curls finish the hamstrings off with isolation work after.\n\nOn sets: per muscle across this session you're looking at roughly 10–13 hard sets for quads, 6–8 for hamstrings (not counting the indirect work from RDL overlap), and 3–5 direct for glutes. That's within a productive weekly range for an intermediate — adjust total sets up or down depending on how many times you're hitting legs this week.\n\nOne question worth answering before you run this: is this your only leg session of the week, or do you have a second? That would change whether you push volume harder here or split it across two days.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The prescribed exercise list explicitly includes Romanian Deadlift (hip-hinge) and Hip Thrust or Bulgarian Split Squat (direct glute work), both framed as glute/hamstring-biased exercises within the list itself — not as optional follow-up suggestions. This satisfies both the hip-hinge and direct glute work requirements of the rubric."
+    },
+    {
+      "id": "build-push-day-coverage",
+      "description": "Build a push day — coverage test for horizontal press + vertical press + at least one accessory.",
+      "question": "build me a push day",
+      "durationMs": 15774,
+      "coach": {
+        "ok": true,
+        "reply": "Here's a solid push day built for hypertrophy, based on your intermediate level and the exercises you've been running (bench, incline DB, OHP, laterals, tricep pushdowns).\n\n---\n\n**Push Day**\n\n**1. Barbell Bench Press** — 4 sets × 5–8 reps, RIR 1–2\nCompounds first while you're fresh. Lower-rep range here serves your strength goal while still driving hypertrophy when taken close to failure.\n\n**2. Overhead Press** — 3 sets × 8–10 reps, RIR 1–2\nVertical press to hit front delts and upper chest at a different angle. Keeps shoulder development balanced with your horizontal pressing.\n\n**3. Incline Dumbbell Press** — 3 sets × 10–12 reps, RIR 1–2\nTargets upper chest with a good stretch at the bottom — incline DBs load the pec at longer muscle length compared to flat, which is a useful complement to your barbell work.\n\n**4. Lateral Raise** — 3 sets × 15–20 reps, RIR 0–1\nSide delts get minimal direct stimulus from pressing — this is the main way to build shoulder width. Go close to failure here; lighter load, high effort.\n\n**5. Overhead Tricep Extension** (cable or EZ-bar) — 3 sets × 10–15 reps, RIR 1–2\nYour tricep pushdowns are already in your rotation, but an overhead variant loads the long head of the tricep at a stretched position, which is worth pairing in the same session. Swap with pushdowns or run both if time allows.\n\n**6. Tricep Pushdown** — 2–3 sets × 12–15 reps, RIR 1\nFinisher. High-rep, close to failure — good pump and low joint stress at end of session.\n\n---\n\n**A few notes:**\n- That's roughly 16–18 direct sets across chest, shoulders, and triceps — within a solid weekly range for an intermediate.\n- If this is your only push session this week, keep effort high (RIR 1–2 on most sets). If you're running two push days, you can back off to RIR 2–3 on the first and push harder on the second.\n- Rest 2–3 min after the main compounds, 60–90 sec on isolations.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The programme includes at least one horizontal press (Barbell Bench Press, Incline Dumbbell Press), at least one vertical press (Overhead Press), and multiple accessory isolation exercises (Lateral Raise, Overhead Tricep Extension, Tricep Pushdown). All rubric requirements are met."
+    },
+    {
+      "id": "prescription-includes-rir",
+      "description": "Any build prompt — every prescribed exercise must include RIR or proximity-to-failure cue, not just sets × reps.",
+      "question": "build me an upper body workout",
+      "durationMs": 14845,
+      "coach": {
+        "ok": true,
+        "reply": "Here's a solid upper body session built around your logged exercises and hypertrophy focus:\n\n**Upper Body — Hypertrophy**\n\n- **Barbell Bench Press** — 4 sets × 6–10 reps, RIR 1–2 (horizontal push; compounds first while fresh)\n- **Incline DB Press** — 3 sets × 10–15 reps, RIR 1–2 (stretch-biased chest work; loads pec at longer muscle length)\n- **Lat Pulldown** — 4 sets × 8–12 reps, RIR 1–2 (vertical pull; use a full hang at the top for lat stretch)\n- **Barbell or Cable Row** — 3 sets × 8–12 reps, RIR 1–2 (horizontal pull to balance the pressing)\n- **Overhead Press** — 3 sets × 8–12 reps, RIR 1–2 (vertical push; front delt + upper chest coverage)\n- **Lateral Raise** — 3 sets × 12–20 reps, RIR 1–2 (direct side delt; compounds don't cover this well)\n- **Overhead Triceps Extension** — 3 sets × 10–15 reps, RIR 1–2 (long head loaded at stretch; compounds give triceps some stimulus but not enough direct work)\n- **Incline DB Curl or Cable Curl** — 3 sets × 10–15 reps, RIR 1–2 (biceps at long length; rows give partial stimulus but direct work earns its place)\n\n---\n\nA few notes on how this is structured:\n\nThe session leads with the two heaviest compounds (bench, row) while your nervous system is freshest, then works through the remaining patterns before finishing with isolations. Push and pull are balanced across both horizontal and vertical planes — an easy gap to miss on upper days.\n\nYour logged volume over the last week shows shoulders a bit lower than the other groups (8 sets vs. 14–16 for chest and back), so the OHP + lateral raise combination helps bring that up.\n\nAll sets should be taken genuinely close to failure — RIR 1–2 means one or two reps left in the tank, not five. That's where the growth stimulus lives, regardless of the rep number.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "Every prescribed exercise line includes 'RIR 1–2' explicitly, and the closing notes reinforce this as a global rule stating all sets should be taken close to failure at RIR 1–2. No exercise is left without a proximity-to-failure cue."
+    },
+    {
+      "id": "rep-range-hypertrophy-qna",
+      "description": "Q&A self-gating: rep-range question must NOT trigger session construction. Should label uncertainty per the meta-rule.",
+      "question": "what rep range should i use for hypertrophy",
+      "durationMs": 8803,
+      "coach": {
+        "ok": true,
+        "reply": "Roughly 5–30 reps works for hypertrophy — the rep range matters less than you might think. What actually drives muscle growth is taking sets close to failure (around 1–3 reps left in the tank) and accumulating enough weekly volume.\n\nThe 6–12 range is a practical default because it's time-efficient and easy to manage fatigue, not because it's uniquely superior for size. A set of 20 squats taken to near-failure builds just as much quad as a set of 8, all else equal.\n\nPick a range that lets you hit close to failure with good execution on that exercise. For compound lifts like your squats and bench, something like 6–10 tends to work well. For isolation work, 10–20 is often more comfortable and just as effective.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply is Q&A-shaped with no exercise list or sets×reps prescriptions for specific lifts. It explicitly flags rep-range agnosticism ('5–30 reps works for hypertrophy — the rep range matters less than you might think') and emphasizes proximity to failure as the key driver, satisfying the uncertainty-labeling requirement."
+    },
+    {
+      "id": "creatine-qna",
+      "description": "Q&A self-gating: supplement question must NOT trigger session construction.",
+      "question": "is creatine worth taking",
+      "durationMs": 7990,
+      "coach": {
+        "ok": true,
+        "reply": "Yes, creatine monohydrate is one of the most well-supported supplements for your goals. It consistently improves performance on high-effort, short-duration work (like your heavy compound sets), which over time means more reps, more load, and better hypertrophy stimulus.\n\nThe practical case for taking it is straightforward: it's cheap, safe for long-term use, and the evidence base is unusually strong compared to most supplements. A standard dose is 3–5g daily — no loading phase needed, just take it consistently.\n\nThe one honest caveat: it causes some water retention in muscle tissue early on, so the scale may tick up 1–2kg initially. That's intramuscular, not fat — and it's actually part of how it works.",
+        "hasStructuredWorkout": false,
+        "hasStructuredProgramme": false
+      },
+      "pass": true,
+      "reason": "The reply gives a clear Q&A-shaped answer with a yes recommendation and brief reasoning about efficacy, safety, dosing, and a caveat — exactly the shape the rubric requires. No workout, exercise list, sets × reps, or structured programme is present, and structuredWorkout is false."
+    }
+  ]
+}

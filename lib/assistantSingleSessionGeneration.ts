@@ -4,15 +4,13 @@
  * All UI structured single-session workouts MUST come from here (via the API route).
  * Exercise selection, ordering, and coaching rationale lines: LLM planner (`planSingleSessionWorkoutLLM`).
  * Sets / reps / RIR / rest: app prescriptions (`getPrescriptionForExercise` in `llmPlannedSessionMapper`).
- *
- * Do not add a parallel assistant path that calls `buildWorkout` / `muscleDayBuilder` for the same use case.
  */
 
-import type { RecoveryMode, WorkoutBuilderGoal } from "@/lib/workoutBuilder";
+import type { RecoveryMode, WorkoutBuilderGoal, BuiltWorkout } from "@/lib/workoutTypes";
 import type { SessionType } from "@/lib/sessionTemplates";
+import type { MuscleRuleId } from "@/lib/trainingKnowledge/muscleRules";
 import { builtWorkoutToStructuredWorkout, type AssistantStructuredWorkoutV1 } from "@/lib/assistantStructuredWorkoutContract";
 import { tryBuildSingleSessionWithLLMCoachPlan } from "@/lib/llmPlannedSessionMapper";
-import type { BuiltWorkout } from "@/lib/workoutBuilder";
 
 export type GenerateAssistantSingleSessionParams = {
   apiKey: string;
@@ -24,6 +22,7 @@ export type GenerateAssistantSingleSessionParams = {
   recoveryMode: RecoveryMode;
   goal: WorkoutBuilderGoal;
   coachContextSnippet: string;
+  userTargetedMuscleRuleIds?: MuscleRuleId[];
 };
 
 export type GenerateAssistantSingleSessionResult =
@@ -50,6 +49,7 @@ export async function generateAssistantSingleSessionWorkout(
     recoveryMode: params.recoveryMode,
     goal: params.goal,
     coachContextSnippet: params.coachContextSnippet,
+    userTargetedMuscleRuleIds: params.userTargetedMuscleRuleIds,
   });
   if (!built || built.exercises.length === 0) {
     return { built: null, structuredWorkout: null, issues };

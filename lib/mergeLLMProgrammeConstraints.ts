@@ -19,7 +19,7 @@ export type MergedProgrammeBuildState = {
   llm: ProgrammeConstraintsLLMOutput;
 };
 
-/** Build builder exclusion strings so workoutBuilder excludedByUser matches id + display name + tag hits. */
+/** Build exclusion strings (id + display name + tag hits) for the LLM planner's exclusion list. */
 export function exclusionStringsForExerciseIds(ids: string[]): string[] {
   const out: string[] = [];
   for (const id of ids) {

@@ -1,9 +1,6 @@
 /**
  * Multi-day programme using the same single-session coach planner for each day
  * (`generateAssistantSingleSessionWorkout` → LLM exercise selection + app prescriptions).
- *
- * Use when a uniform per-muscle exercise quota is not required; otherwise fall back to
- * `buildProgramme` (deterministic muscle-target / quota builders).
  */
 
 import { randomUUID } from "crypto";
@@ -13,12 +10,12 @@ import { generateAssistantSingleSessionWorkout } from "@/lib/assistantSingleSess
 import { validateDayStructure } from "@/lib/trainingKnowledge/dayValidity";
 import { detectUnrealisticSplit } from "@/lib/trainingKnowledge/splitValidation";
 import { reviewSplit } from "@/lib/splitReview";
-import type { BuiltWorkout } from "@/lib/workoutBuilder";
+import type { BuiltWorkout } from "@/lib/workoutTypes";
 import type { SplitDayDef } from "@/lib/splitDefinition";
 import {
   resolveProgrammeSplitDefinition,
   type BuildProgrammeUserContext,
-} from "./buildProgramme";
+} from "./resolveProgrammeSplit";
 import type { AssistantStructuredProgramme, ParsedProgrammeRequest } from "./types";
 
 function mapLlmBuiltToDayCard(
