@@ -646,6 +646,18 @@ export default function Home() {
     router.push("/assistant");
   }
 
+  function openAssistantClean() {
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem("assistantQuickPrompt");
+        sessionStorage.removeItem("assistantAutoSend");
+      } catch {
+        /* ignore */
+      }
+    }
+    router.push("/assistant");
+  }
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white relative pb-28">
       <div
@@ -813,7 +825,8 @@ export default function Home() {
 
             <button
               type="button"
-              onClick={() => openAssistantWith(insight.prompt)}
+              onClick={openAssistantClean}
+              aria-label="Open assistant with no preloaded message"
               className="mt-3.5 flex items-center justify-center gap-2 w-full rounded-2xl py-3 text-[14px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
               style={{
                 background: "rgba(0,229,176,0.12)",

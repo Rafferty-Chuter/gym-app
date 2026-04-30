@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getTrainingSummary } from "@/utils/trainingSummary";
 import {
@@ -28,6 +29,9 @@ import {
   getSelectiveAssistantMemory,
   applySelectiveMemoryUpdates,
   setSelectiveAssistantMemory,
+  loadMemory,
+  saveMemory,
+  type ExtractedMemoryFact,
   type RecentConversationTurn,
 } from "@/lib/assistantMemory";
 import {
@@ -234,13 +238,18 @@ function AssistantProgrammeCard({ programme }: { programme: StructuredProgramme 
   );
 }
 
-export default function AssistantPage() {
+function AssistantPageInner() {
   const { unit } = useUnit();
   const { focus } = useTrainingFocus();
   const { experienceLevel } = useExperienceLevel();
   const { goal } = usePriorityGoal();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) setInput(decodeURIComponent(q));
+  }, [searchParams]);
   const [isLoading, setIsLoading] = useState(false);
   const [useAssistantMemory, setUseAssistantMemory] = useState(false);
   const listEndRef = useRef<HTMLDivElement>(null);
@@ -621,6 +630,7 @@ export default function AssistantPage() {
           exactThreadLoaded: localExactThreadLoaded,
           threadMessages: threadMessagesForRequest,
           assistantMemory,
+          userMemory: loadMemory(),
           recentConversationMemory: recentTurns,
           trainingSummary: {
             totalWorkouts: summary.totalWorkouts,
@@ -800,15 +810,104 @@ export default function AssistantPage() {
     }
   }
 
-  function handleNewChat() {
+  /**
+   * Posts the current conversation (`msgs`) to /api/assistant/extract-memory
+   * and merges any returned facts into the persistent USER MEMORY store.
+   * No-op when the conversation is empty. Best-effort: errors are swallowed so
+   * a failed extraction never blocks New Chat or daily auto-trigger.
+   */
+  async function extractAndSaveMemoryFromMessages(
+    msgs: Array<{ role: "user" | "assistant"; content: string }>
+  ): Promise<void> {
+    const conversation = msgs
+      .filter((m) => typeof m.content === "string" && m.content.trim().length > 0)
+      .map((m) => ({ role: m.role, content: m.content }));
+    if (conversation.length === 0) return;
+    try {
+      const res = await fetch("/api/assistant/extract-memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation }),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { facts?: ExtractedMemoryFact[] };
+      if (data && Array.isArray(data.facts) && data.facts.length > 0) {
+        saveMemory(data.facts);
+        if (process.env.NODE_ENV === "development") {
+          console.log("[memory-extraction] saved", data.facts.length, "facts");
+        }
+      }
+    } catch (e) {
+      console.log("[memory-extraction] failed", e);
+    }
+  }
+
+  // Daily auto-trigger: on first open of a new day with a non-empty thread
+  // already in storage, distil the previous conversation into USER MEMORY and
+  // start fresh. Idempotent within a day via localStorage["assistantLastChatDate"].
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const todayKey = new Date().toISOString().slice(0, 10);
+    let lastDate: string | null = null;
+    try {
+      lastDate = window.localStorage.getItem("assistantLastChatDate");
+    } catch {
+      /* ignore */
+    }
+    if (lastDate === todayKey) return;
+
+    // Read the persisted thread directly so this fires before message state hydrates.
+    let staleMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+    try {
+      const loaded = loadActiveThread();
+      staleMessages = loaded.thread.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+    } catch {
+      /* no thread yet */
+    }
+
+    const hasContent = staleMessages.some(
+      (m) => typeof m.content === "string" && m.content.trim().length > 0
+    );
+
+    if (hasContent) {
+      void extractAndSaveMemoryFromMessages(staleMessages).then(() => {
+        const result = createNewChatThread();
+        activeExerciseTopicRef.current = null;
+        activeProgrammeStateRef.current = null;
+        threadRef.current = result.thread;
+        setActiveThreadId(result.threadId);
+        setExactThreadLoaded(result.exactThreadLoaded);
+        setMessages([]);
+      });
+    }
+
+    try {
+      window.localStorage.setItem("assistantLastChatDate", todayKey);
+    } catch {
+      /* ignore */
+    }
+    // Run once per mount; relying on stable function refs is fine here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleNewChat() {
     if (isLoading) return;
     if (
       messages.length > 0 &&
       !window.confirm(
-        "Start a new chat? This screen clears for testing. Your previous thread stays in storage on this device (not deleted). Workout data and assistant memory are unchanged."
+        "Start a new chat? Anything important from this conversation will be saved to memory. The chat itself clears."
       )
     ) {
       return;
+    }
+    if (messages.length > 0) {
+      // Extract before the chat is cleared from state.
+      await extractAndSaveMemoryFromMessages(
+        messages.map((m) => ({ role: m.role, content: m.content }))
+      );
     }
     const result = createNewChatThread();
     // Hard reset short-term assistant conversation state for this tab/thread.
@@ -819,6 +918,14 @@ export default function AssistantPage() {
     setExactThreadLoaded(result.exactThreadLoaded);
     setInput("");
     setMessages([]);
+    try {
+      window.localStorage.setItem(
+        "assistantLastChatDate",
+        new Date().toISOString().slice(0, 10)
+      );
+    } catch {
+      /* ignore */
+    }
     if (process.env.NODE_ENV === "development") {
       console.log("[thread-debug] New Chat (UI)", {
         threadId: result.threadId,
@@ -969,5 +1076,13 @@ export default function AssistantPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function AssistantPage() {
+  return (
+    <Suspense fallback={null}>
+      <AssistantPageInner />
+    </Suspense>
   );
 }

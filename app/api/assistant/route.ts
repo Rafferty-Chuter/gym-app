@@ -6,8 +6,12 @@ import {
   type AssistantMode,
 } from "@/lib/assistantMode";
 import type { UserProfile } from "@/lib/userProfile";
-import type { AssistantSelectiveMemoryV1, RecentConversationTurn } from "@/lib/assistantMemory";
-import { buildSelectiveMemoryBlock } from "@/lib/assistantMemory";
+import type {
+  AssistantSelectiveMemoryV1,
+  ExtractedMemoryFact,
+  RecentConversationTurn,
+} from "@/lib/assistantMemory";
+import { buildSelectiveMemoryBlock, formatMemoryBlock } from "@/lib/assistantMemory";
 import { buildInferredTrainingProfile } from "@/lib/inferredTrainingProfile";
 import type { CoachingContext } from "@/lib/coachingContext";
 import { countCompletedLoggedSets } from "@/lib/completedSets";
@@ -236,6 +240,12 @@ export type AssistantBody = {
   coachingContext?: CoachingContext;
   /** Selective long-term coaching preferences learned from chats (client-owned). */
   assistantMemory?: AssistantSelectiveMemoryV1;
+  /**
+   * USER MEMORY — flat list of facts extracted from previous conversations
+   * by /api/assistant/extract-memory and persisted in localStorage["assistantMemory"].
+   * Surfaced to the model as a third system content block when present.
+   */
+  userMemory?: ExtractedMemoryFact[];
   /** Rolling window of recent chat turns for thread continuity (client-owned). */
   recentConversationMemory?: RecentConversationTurn[];
   /** Client-owned conversation subject locking: exercise topic to anchor follow-ups. */
@@ -1568,11 +1578,23 @@ const USER_CONTEXT_USAGE_BLOCK = `
 - When USER CONTEXT reports zero logged workouts, follow the cold-start rules already in this prompt: do not fabricate personalised data, do not produce a polished programme as if you had history; ask 1–2 targeted personalisation questions before going further.
 `.trim();
 
+const USER_MEMORY_USAGE_BLOCK = `
+- A separate system message labelled "USER MEMORY" may accompany requests when there are facts extracted from previous conversations with this user. The block is omitted when memory is empty (a fresh user, or no prior conversation has been distilled yet).
+- Use these facts to personalise responses. They reflect the user's stated training preferences, goals, past findings (injuries, things they liked, things that worked), and self-reported facts the rules engine cannot see. Treat them as the user's voice from earlier sessions, not as the coach's own knowledge.
+- Do NOT repeat memory entries back to the user verbatim ("based on your memory, you train 4 days a week"). Do NOT acknowledge that memory exists ("I remember you mentioned..."). Let memory silently inform tone, recommendations, and what to ask vs. assume.
+- USER MEMORY does not override USER CONTEXT or logged data. If memory says "wants to bring up bench" and USER CONTEXT shows bench is now their strongest lift, the live data wins; the memory is simply outdated. When facts conflict, prefer the more recent USER CONTEXT or logged data over the memory entry.
+- Do not invent memory facts. If USER MEMORY is absent, this is either a fresh user or the start of their first chat — answer accordingly without pretending to know history.
+`.trim();
+
 const STATIC_COACH_SYSTEM_PROMPT = `You are an expert AI strength and hypertrophy coach embedded in a training app. Answer based strictly on the user's logged workout data, coaching context, and evidence-based training principles provided in each request. Never fabricate training data, studies, statistics, or coaching claims not present in the request payload.
 
 ---
 USER CONTEXT INTEGRATION:
 ${USER_CONTEXT_USAGE_BLOCK}
+
+---
+USER MEMORY INTEGRATION:
+${USER_MEMORY_USAGE_BLOCK}
 
 ---
 TRUST & CALIBRATION:
@@ -1716,6 +1738,7 @@ async function getAssistantReply(
   trainingSummary: AssistantBody["trainingSummary"],
   profile: { trainingFocus?: string; experienceLevel?: string; unit?: string; priorityGoal?: string },
   userProfile: UserProfile | undefined,
+  userMemory: ExtractedMemoryFact[],
   assistantMemory: AssistantSelectiveMemoryV1 | undefined,
   recentConversationMemory: RecentConversationTurn[] | undefined,
   exactThreadLoaded: boolean | undefined,
@@ -2918,20 +2941,31 @@ ${benchEstimateBlock}`.trim();
     trainingSummary.recentExercises ?? []
   );
 
+  const userMemoryBlock = formatMemoryBlock(userMemory);
+
+  const systemBlocks: Array<{
+    type: "text";
+    text: string;
+    cache_control?: { type: "ephemeral" };
+  }> = [
+    {
+      type: "text",
+      text: STATIC_COACH_SYSTEM_PROMPT,
+      cache_control: { type: "ephemeral" },
+    },
+    {
+      type: "text",
+      text: userContextBlock,
+    },
+  ];
+  if (userMemoryBlock) {
+    systemBlocks.push({ type: "text", text: userMemoryBlock });
+  }
+
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2048,
-    system: [
-      {
-        type: "text",
-        text: STATIC_COACH_SYSTEM_PROMPT,
-        cache_control: { type: "ephemeral" },
-      },
-      {
-        type: "text",
-        text: userContextBlock,
-      },
-    ],
+    system: systemBlocks,
     messages: [{ role: "user", content: userContent }],
   });
 
@@ -3529,6 +3563,7 @@ export async function POST(request: NextRequest) {
       userProfile,
       coachingContext,
       assistantMemory,
+      userMemory: rawUserMemory,
       recentConversationMemory,
       thread_id,
       threadMessages,
@@ -3544,6 +3579,16 @@ export async function POST(request: NextRequest) {
     const templatesSummary =
       typeof rawTemplatesSummary === "string" ? rawTemplatesSummary : undefined;
     const templateDataAvailable = Boolean(templatesSummary?.trim());
+
+    const userMemory: ExtractedMemoryFact[] = Array.isArray(rawUserMemory)
+      ? (rawUserMemory as unknown[]).filter(
+          (f): f is ExtractedMemoryFact =>
+            !!f &&
+            typeof f === "object" &&
+            typeof (f as ExtractedMemoryFact).fact === "string" &&
+            typeof (f as ExtractedMemoryFact).category === "string"
+        )
+      : [];
 
     const coachStructuredOutput = isCoachStructuredOutput(rawCoach) ? rawCoach : undefined;
     const coachEvidenceCards =
@@ -4892,6 +4937,7 @@ export async function POST(request: NextRequest) {
       },
       { trainingFocus, experienceLevel, unit, priorityGoal },
       userProfile,
+      userMemory,
       assistantMemory,
       recentConversationMemory,
       exactThreadLoaded,

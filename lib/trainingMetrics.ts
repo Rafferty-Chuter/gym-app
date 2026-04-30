@@ -200,7 +200,7 @@ export function getExerciseMetrics(
   exerciseName: string,
   options?: { maxSessions?: number }
 ): ExerciseMetrics {
-  const maxSessions = Math.min(Math.max(options?.maxSessions ?? 5, 1), 12);
+  const maxSessions = Math.min(Math.max(options?.maxSessions ?? 5, 1), 24);
   const label = exerciseName.trim() || "Exercise";
   const key = exerciseKey(exerciseName);
 

@@ -369,3 +369,135 @@ export function applySelectiveMemoryUpdates(params: {
   return next;
 }
 
+// ── Conversation-extracted memory (per Decisions/2026-04-30-assistant-memory-system.md) ──
+// Distinct from AssistantSelectiveMemoryV1 above. This is the lightweight flat-list
+// memory the new extraction pipeline produces — facts pulled out of a finished
+// conversation by Claude on "new chat" / daily auto-trigger and merged into a
+// per-user store. Surfaced to future conversations via formatMemoryBlock() as a
+// USER MEMORY system block.
+
+export type ExtractedFactCategory = "preferences" | "goals" | "findings" | "facts";
+
+export type ExtractedMemoryFact = {
+  category: ExtractedFactCategory;
+  fact: string;
+  /** ISO datetime the fact was extracted. Used for ordering and cap-trimming. */
+  timestamp: string;
+};
+
+export const EXTRACTED_MEMORY_STORAGE_KEY = "assistantMemory";
+const EXTRACTED_MEMORY_MAX_FACTS = 60;
+const EXTRACTED_MEMORY_VALID_CATEGORIES: ReadonlySet<ExtractedFactCategory> = new Set([
+  "preferences",
+  "goals",
+  "findings",
+  "facts",
+]);
+
+function isValidExtractedFact(value: unknown): value is ExtractedMemoryFact {
+  if (!value || typeof value !== "object") return false;
+  const f = value as Partial<ExtractedMemoryFact>;
+  return (
+    typeof f.fact === "string" &&
+    f.fact.trim().length > 0 &&
+    typeof f.category === "string" &&
+    EXTRACTED_MEMORY_VALID_CATEGORIES.has(f.category as ExtractedFactCategory) &&
+    typeof f.timestamp === "string"
+  );
+}
+
+function normalizeFactKey(fact: string): string {
+  return fact.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Reads the extracted memory from localStorage. Server-safe (returns []). */
+export function loadMemory(): ExtractedMemoryFact[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(EXTRACTED_MEMORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { facts?: unknown }).facts)) {
+      return [];
+    }
+    return (parsed as { facts: unknown[] }).facts.filter(isValidExtractedFact);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Merges new facts with the existing store. Dedupes by (category + normalised
+ * fact text); newer timestamp wins. Caps at EXTRACTED_MEMORY_MAX_FACTS, keeping
+ * the most recent. Returns the merged store.
+ */
+export function saveMemory(newFacts: ExtractedMemoryFact[]): ExtractedMemoryFact[] {
+  if (typeof window === "undefined") return [];
+  const existing = loadMemory();
+  const byKey = new Map<string, ExtractedMemoryFact>();
+  const consider = (f: ExtractedMemoryFact) => {
+    const key = `${f.category}::${normalizeFactKey(f.fact)}`;
+    const prev = byKey.get(key);
+    if (
+      !prev ||
+      new Date(f.timestamp).getTime() > new Date(prev.timestamp).getTime()
+    ) {
+      byKey.set(key, f);
+    }
+  };
+  for (const f of existing) consider(f);
+  for (const f of newFacts) {
+    if (!isValidExtractedFact(f)) continue;
+    consider({ ...f, fact: f.fact.trim() });
+  }
+  const merged = Array.from(byKey.values())
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, EXTRACTED_MEMORY_MAX_FACTS);
+  try {
+    window.localStorage.setItem(
+      EXTRACTED_MEMORY_STORAGE_KEY,
+      JSON.stringify({ facts: merged })
+    );
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+  return merged;
+}
+
+/** Wipes the extracted memory store. Used by reset / dev tools. */
+export function clearMemory(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(EXTRACTED_MEMORY_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+const EXTRACTED_CATEGORY_LABEL: Record<ExtractedFactCategory, string> = {
+  preferences: "Training preferences",
+  goals: "Stated goals & priorities",
+  facts: "User-stated facts (not in logged data)",
+  findings: "Notable findings from previous conversations",
+};
+
+/**
+ * Renders the extracted memory as the USER MEMORY system block content.
+ * Returns "" when there are no facts so the caller can omit the block.
+ */
+export function formatMemoryBlock(facts?: ExtractedMemoryFact[]): string {
+  const list = (facts ?? loadMemory()).filter(isValidExtractedFact);
+  if (list.length === 0) return "";
+  const order: ExtractedFactCategory[] = ["preferences", "goals", "facts", "findings"];
+  const lines: string[] = [
+    "USER MEMORY (facts extracted from previous conversations with this user; treat as background, do not repeat verbatim):",
+  ];
+  for (const cat of order) {
+    const subset = list.filter((f) => f.category === cat);
+    if (subset.length === 0) continue;
+    lines.push("");
+    lines.push(`${EXTRACTED_CATEGORY_LABEL[cat]}:`);
+    for (const f of subset) lines.push(`- ${f.fact}`);
+  }
+  return lines.join("\n").trim();
+}

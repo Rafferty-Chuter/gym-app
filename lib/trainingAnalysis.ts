@@ -306,7 +306,7 @@ export function getExerciseInsights(
   exerciseName: string,
   options?: { maxSessions?: number }
 ): ExerciseInsights {
-  const maxSessions = Math.min(Math.max(options?.maxSessions ?? DEFAULT_MAX_SESSIONS, 1), 12);
+  const maxSessions = Math.min(Math.max(options?.maxSessions ?? DEFAULT_MAX_SESSIONS, 1), 24);
   const rirFields = computeExerciseRIRFields(workouts, exerciseName, maxSessions);
   const metrics = getExerciseMetrics(workouts, exerciseName, options);
   const {
