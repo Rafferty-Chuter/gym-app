@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { getTrainingSummary } from "@/utils/trainingSummary";
 import {
   getWorkoutHistory,
@@ -19,6 +21,7 @@ import { usePriorityGoal } from "@/lib/priorityGoal";
 import {
   buildCoachStructuredAnalysis,
   collectReferencedEvidenceCardIds,
+  EMPTY_COACH_STRUCTURED_ANALYSIS,
 } from "@/lib/coachStructuredAnalysis";
 import { getEvidenceCardsForReferencedIds } from "@/lib/evidenceMapping";
 import { getStoredUserProfile } from "@/lib/userProfile";
@@ -100,21 +103,258 @@ type ChatMessage = {
 
 const ASSISTANT_PROGRAMME_PIPELINE_V1 = "new_programme_pipeline_v1" as const;
 
-/** Split assistant text on blank lines so paragraphs and sections breathe in the UI. */
+/**
+ * Renders assistant prose with proper markdown — line breaks, bold, italic,
+ * lists, code spans, headings — using Tailwind class overrides per element.
+ * Typography: regular weight, 1.65 line-height, slightly looser tracking,
+ * humanistic warmth (no font-medium body).
+ */
 function AssistantMessageBody({ content }: { content: string }) {
-  const blocks = content.trim().split(/\n{2,}/);
   return (
-    <div className="space-y-3.5">
-      {blocks.map((block, i) => (
-        <div
-          key={i}
-          className="whitespace-pre-wrap break-words text-[15px] sm:text-base leading-[1.65] text-zinc-100/95"
-        >
-          {block}
-        </div>
-      ))}
+    <div className="text-[15px] sm:text-base font-normal leading-[1.65] tracking-[0.005em] text-zinc-100/95 break-words">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children, ...props }) => (
+            <p className="[&:not(:first-child)]:mt-3" {...props}>
+              {children}
+            </p>
+          ),
+          ul: ({ children, ...props }) => (
+            <ul className="my-3 space-y-1.5 pl-5 list-disc marker:text-app-tertiary" {...props}>
+              {children}
+            </ul>
+          ),
+          ol: ({ children, ...props }) => (
+            <ol className="my-3 space-y-1.5 pl-5 list-decimal marker:text-app-tertiary" {...props}>
+              {children}
+            </ol>
+          ),
+          li: ({ children, ...props }) => (
+            <li className="pl-1 leading-[1.55]" {...props}>
+              {children}
+            </li>
+          ),
+          strong: ({ children, ...props }) => (
+            <strong className="font-semibold text-white" {...props}>
+              {children}
+            </strong>
+          ),
+          em: ({ children, ...props }) => (
+            <em className="italic text-zinc-100" {...props}>
+              {children}
+            </em>
+          ),
+          a: ({ href, children, ...props }) => (
+            <a
+              href={href}
+              className="underline decoration-[color:var(--color-accent)]/40 underline-offset-2 hover:text-[color:var(--color-accent)]"
+              target="_blank"
+              rel="noreferrer"
+              {...props}
+            >
+              {children}
+            </a>
+          ),
+          code: ({ children, ...props }) => (
+            <code
+              className="rounded px-1 py-0.5 bg-white/[0.06] text-[13px] font-mono text-zinc-100"
+              {...props}
+            >
+              {children}
+            </code>
+          ),
+          h1: ({ children, ...props }) => (
+            <p
+              className="text-[16px] sm:text-[17px] font-semibold text-white mt-4 mb-1"
+              {...props}
+            >
+              {children}
+            </p>
+          ),
+          h2: ({ children, ...props }) => (
+            <p
+              className="text-[15px] sm:text-base font-semibold text-white mt-4 mb-1"
+              {...props}
+            >
+              {children}
+            </p>
+          ),
+          h3: ({ children, ...props }) => (
+            <p className="text-[15px] font-semibold text-zinc-100 mt-3 mb-1" {...props}>
+              {children}
+            </p>
+          ),
+          hr: (props) => <hr className="my-4 border-white/[0.06]" {...props} />,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
+}
+
+function NewChatIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.85"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[18px] w-[18px]"
+      aria-hidden
+    >
+      <path d="M21 11.5a8.38 8.38 0 0 1-9.9 8.4l-5.6 1.1 1.1-5.6A8.5 8.5 0 1 1 21 11.5Z" />
+      <line x1="12" y1="9" x2="12" y2="15" />
+      <line x1="9" y1="12" x2="15" y2="12" />
+    </svg>
+  );
+}
+
+function SendArrowIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[16px] w-[16px]"
+      aria-hidden
+    >
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </svg>
+  );
+}
+
+type EmptyStateContent = {
+  opening: string;
+  chips: { label: string; prompt: string }[];
+};
+
+function buildEmptyStateContent(
+  coach: import("@/lib/coachStructuredAnalysis").CoachStructuredAnalysis,
+  hasData: boolean
+): EmptyStateContent {
+  if (!hasData) {
+    return {
+      opening:
+        "I don't have any logged sessions for you yet. Once you start a workout I'll be able to read your training and answer with context. Until then, ask me anything general about programming, recovery, or how the app works.",
+      chips: [
+        {
+          label: "What can you do once I have data?",
+          prompt:
+            "What kinds of questions can you answer once I have logged a few workouts?",
+        },
+        {
+          label: "How should I structure my first week?",
+          prompt:
+            "How should I structure my first week of training so you have something useful to read?",
+        },
+        { label: "How does logging work?", prompt: "Walk me through how logging works in this app." },
+      ],
+    };
+  }
+
+  const ex = coach.keyFocusExercise;
+  const opening =
+    coach.keyFocus ??
+    "Your training is moving cleanly right now. Ask me anything about your last sessions.";
+
+  switch (coach.keyFocusType) {
+    case "plateau":
+      return {
+        opening,
+        chips: [
+          {
+            label: ex ? `Why is ${ex} stalling?` : "Why is this stalling?",
+            prompt: ex
+              ? `Why is ${ex} stalling, and what should I change?`
+              : "Walk me through what's stalling and what to change.",
+          },
+          {
+            label: "Show me the data",
+            prompt: "Show me the specific sets and trend behind the stall you flagged.",
+          },
+          {
+            label: "What should I do next session?",
+            prompt: "Give me a concrete change for next session.",
+          },
+        ],
+      };
+    case "declining":
+      return {
+        opening,
+        chips: [
+          {
+            label: ex ? `Why is ${ex} dropping?` : "Why is this dropping?",
+            prompt: ex
+              ? `Why is ${ex} declining, and what should I do about it?`
+              : "Walk me through what's declining and what to do.",
+          },
+          {
+            label: "Should I deload?",
+            prompt: "Based on what you're seeing in my data, do I need a deload?",
+          },
+          {
+            label: "What should I do next session?",
+            prompt: "Give me a concrete change for next session.",
+          },
+        ],
+      };
+    case "low-volume":
+      return {
+        opening,
+        chips: [
+          { label: "Where am I short?", prompt: "Where exactly is my weekly volume low?" },
+          {
+            label: "What should I add this week?",
+            prompt: "What should I add this week to fix the volume gap?",
+          },
+          {
+            label: "Show me the breakdown",
+            prompt: "Show me my weekly volume by muscle group.",
+          },
+        ],
+      };
+    case "progressing":
+      return {
+        opening,
+        chips: [
+          { label: "What's working?", prompt: "Tell me what's working in my training right now." },
+          {
+            label: "How do I keep this momentum?",
+            prompt: "How do I keep this momentum going?",
+          },
+          {
+            label: "What should I focus on next?",
+            prompt: "What should I focus on next?",
+          },
+        ],
+      };
+    default:
+      return {
+        opening,
+        chips: [
+          {
+            label: "Read my last week",
+            prompt: "Read my last 7 days of training and tell me what stands out.",
+          },
+          {
+            label: "What's progressing?",
+            prompt: "Which lifts are progressing and which look stagnant?",
+          },
+          {
+            label: "Show my volume",
+            prompt: "Show me my weekly volume by muscle group.",
+          },
+        ],
+      };
+  }
 }
 
 function AssistantWorkoutCard({ workout }: { workout: StructuredWorkout }) {
@@ -258,12 +498,39 @@ function AssistantPageInner() {
   const [exactThreadLoaded, setExactThreadLoaded] = useState(false);
   const threadRef = useRef<AssistantThread | null>(null);
   const activeProgrammeStateRef = useRef<PipelineActiveProgrammeState | null>(null);
-  const starterPrompts = [
-    "How is my training looking this week?",
-    "Am I doing enough chest volume?",
-    "What should I improve next session?",
-    "Am I neglecting any muscle groups?",
-  ] as const;
+  // Coach analysis for the empty-state opening + chip prompts (same source as the
+  // home assistant card insight). Recomputes when workouts, focus, experience,
+  // goal, or unit change. Empty-state-only — once the user starts a chat the
+  // payload computes a fresh analysis per request via getAssistantReply.
+  const [emptyStateWorkouts, setEmptyStateWorkouts] = useState<
+    ReturnType<typeof getWorkoutHistory>
+  >([]);
+  useEffect(() => {
+    setEmptyStateWorkouts(getWorkoutHistory());
+    function onChange() {
+      setEmptyStateWorkouts(getWorkoutHistory());
+    }
+    window.addEventListener("workoutHistoryChanged", onChange);
+    return () => window.removeEventListener("workoutHistoryChanged", onChange);
+  }, []);
+  const emptyStateAnalysis = useMemo(() => {
+    if (emptyStateWorkouts.length === 0) return EMPTY_COACH_STRUCTURED_ANALYSIS;
+    try {
+      return buildCoachStructuredAnalysis(emptyStateWorkouts, {
+        focus,
+        experienceLevel,
+        goal,
+        unit,
+      });
+    } catch {
+      return EMPTY_COACH_STRUCTURED_ANALYSIS;
+    }
+  }, [emptyStateWorkouts, focus, experienceLevel, goal, unit]);
+  const emptyState = useMemo(
+    () =>
+      buildEmptyStateContent(emptyStateAnalysis, emptyStateWorkouts.length > 0),
+    [emptyStateAnalysis, emptyStateWorkouts.length]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -936,78 +1203,138 @@ function AssistantPageInner() {
     }
   }
 
+  const isEmpty = messages.length === 0;
+  const sendDisabled = isLoading || !input.trim();
+
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28 flex flex-col">
+    <main className="min-h-screen bg-zinc-950 text-white relative pb-28 flex flex-col">
+      {/* Top warmth — mirrors the home screen radial glow for surface continuity. */}
       <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_85%_42%_at_50%_-12%,rgba(59,130,246,0.30),transparent_56%)]"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_85%_38%_at_50%_-6%,rgba(0,229,176,0.10),transparent_58%)]"
         aria-hidden
       />
+      {/* Subtle bottom anchor so the empty state never feels marooned in flat dark. */}
       <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_70%_30%_at_50%_100%,rgba(56,189,248,0.12),transparent_62%)]"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_70%_28%_at_50%_108%,rgba(0,229,176,0.045),transparent_60%)]"
         aria-hidden
       />
-      <div className="max-w-3xl mx-auto w-full flex flex-col flex-1 min-h-0 px-1 sm:px-0">
-        <Link
-          href="/coach"
-          className="text-app-secondary hover:text-white transition-colors text-sm mb-4 inline-block font-medium"
-        >
-          ← Back to Coach
-        </Link>
-        <section className="mb-4 rounded-2xl border border-blue-500/30 bg-gradient-to-br from-blue-500/20 via-indigo-500/12 to-zinc-900/85 p-4 shadow-[0_16px_40px_-18px_rgba(59,130,246,0.5)]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <h1 className="text-3xl font-extrabold tracking-tight text-blue-50 mb-1">Assistant</h1>
-              <p className="text-blue-100/80 text-sm">
-                Ask anything about your training. Your coach responds using your logged sessions and current goals.
+      <div className="relative mx-auto w-full max-w-2xl flex flex-col flex-1 min-h-0 px-5 sm:px-6">
+        <header className="flex items-center justify-between gap-3 pt-4 pb-2">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-app-secondary hover:text-white transition-colors"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-[14px] w-[14px]"
+              aria-hidden
+            >
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            <span>Home</span>
+          </Link>
+          <button
+            type="button"
+            onClick={handleNewChat}
+            disabled={isLoading}
+            aria-label="New chat"
+            title="New chat"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-app-secondary hover:text-white hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <NewChatIcon />
+          </button>
+        </header>
+
+        {isEmpty ? (
+          <section
+            className="flex-1 flex flex-col justify-center pb-4"
+            aria-label="Assistant intro"
+          >
+            {/* Pulsing presence orb — the assistant signalling it's alive and listening. */}
+            <span
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full mb-5 animate-assistant-presence"
+              style={{
+                background:
+                  "radial-gradient(circle at 35% 30%, rgba(0,229,176,0.55) 0%, rgba(0,229,176,0.20) 55%, rgba(0,229,176,0.06) 100%)",
+              }}
+              aria-hidden
+            />
+
+            {/* Opening message — sits above a soft mint glow for ambient warmth. */}
+            <div className="relative">
+              <div
+                className="pointer-events-none absolute -inset-x-6 -top-4 -bottom-6 rounded-[40%] opacity-90"
+                style={{
+                  background:
+                    "radial-gradient(ellipse 70% 65% at 50% 50%, rgba(0,229,176,0.10) 0%, rgba(0,229,176,0.04) 38%, transparent 72%)",
+                  filter: "blur(2px)",
+                }}
+                aria-hidden
+              />
+              <p
+                className="relative text-[22px] sm:text-[24px] font-medium leading-[1.40] tracking-[-0.01em] text-white"
+                style={{ textWrap: "pretty" }}
+              >
+                {emptyState.opening}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleNewChat}
-              disabled={isLoading}
-              className="shrink-0 self-start rounded-xl border border-blue-400/35 bg-zinc-900/70 px-3 py-2 text-sm font-semibold text-blue-100 hover:border-blue-300/50 hover:bg-zinc-800/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              New Chat
-            </button>
-          </div>
-          <label className="mt-3 inline-flex items-center gap-2 text-xs text-blue-100/80">
-            <input
-              type="checkbox"
-              checked={useAssistantMemory}
-              onChange={(e) => {
-                const next = e.target.checked;
-                setUseAssistantMemory(next);
-                try {
-                  window.localStorage.setItem("assistantUseLongTermMemory", next ? "1" : "0");
-                } catch {
-                  // ignore storage issues
-                }
-              }}
-              className="h-3.5 w-3.5 rounded border-blue-400/40 bg-zinc-900"
-            />
-            Use long-term assistant memory across chats
-          </label>
-        </section>
 
-        <div className="flex-1 overflow-y-auto rounded-2xl border border-blue-500/20 bg-gradient-to-b from-zinc-900/95 via-blue-950/20 to-indigo-950/22 p-5 sm:p-6 mb-4 min-h-[200px] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
-          {messages.length === 0 ? (
-            <p className="text-app-meta text-sm">Send a message to start.</p>
-          ) : (
-            <ul className="space-y-5 sm:space-y-6">
+            {/* Inline-pill chips — wrap naturally to widths driven by their labels. */}
+            <div className="mt-6 flex flex-wrap gap-1.5">
+              {emptyState.chips.map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={() => handleSend(c.prompt)}
+                  disabled={isLoading}
+                  className="rounded-full px-3 py-1.5 text-[12px] font-medium tracking-tight transition-colors duration-150 active:scale-[0.97] disabled:opacity-50"
+                  style={{
+                    background: "rgba(0,229,176,0.05)",
+                    border: "1px solid rgba(0,229,176,0.22)",
+                    color: "rgba(0,229,176,0.92)",
+                  }}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <section
+            className="flex-1 overflow-y-auto -mx-1 px-1 py-4"
+            aria-live="polite"
+          >
+            <ul className="space-y-5">
               {messages.map((m, i) => (
                 <li
                   key={i}
                   className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div
-                    className={
-                      m.role === "user"
-                        ? "max-w-[min(92%,20rem)] rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed bg-gradient-to-br from-blue-500/35 to-indigo-500/35 text-white font-semibold border border-blue-400/25 shadow-sm"
-                        : "w-full max-w-[min(100%,36rem)] rounded-2xl px-4 py-4 sm:px-5 sm:py-4 border border-white/[0.08] bg-zinc-900/55 backdrop-blur-sm shadow-[0_8px_30px_-12px_rgba(0,0,0,0.45)]"
-                    }
-                  >
-                    {m.role === "assistant" ? (
-                      m.programme ? (
+                  {m.role === "user" ? (
+                    /* User: subtle neutral-dark pill. Lets the assistant'\''s mint accent
+                       carry the visual weight without two competing voices. */
+                    <div
+                      className="max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-[15px] sm:text-base font-normal leading-[1.55] tracking-[0.005em] text-white whitespace-pre-wrap break-words"
+                      style={{
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      {m.content}
+                    </div>
+                  ) : (
+                    /* Assistant: 2px low-opacity mint left rail + inset padding.
+                       Not a bubble — just enough to signal "this is the AI speaking". */
+                    <div
+                      className="w-full max-w-[min(100%,36rem)] pl-4 border-l-2"
+                      style={{ borderColor: "rgba(0,229,176,0.30)" }}
+                    >
+                      {m.programme ? (
                         <div className="space-y-4">
                           {m.coachReview?.trim() ? (
                             <AssistantMessageBody content={m.coachReview} />
@@ -1023,56 +1350,77 @@ function AssistantPageInner() {
                         </div>
                       ) : (
                         <AssistantMessageBody content={m.content} />
-                      )
-                    ) : (
-                      <span className="whitespace-pre-wrap break-words">{m.content}</span>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
-          )}
-          {isLoading && (
-            <p className="text-app-meta text-sm mt-2">Thinking…</p>
-          )}
-          <div ref={listEndRef} />
-        </div>
-
-        {messages.length === 0 && !isLoading && (
-          <div className="mb-3">
-            <p className="label-section mb-2 text-blue-200/75">Try one of these</p>
-            <div className="flex flex-wrap gap-2">
-              {starterPrompts.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => handleSend(p)}
-                  className="text-left text-sm px-3 py-2 rounded-xl border border-blue-900/40 bg-zinc-900/80 text-app-secondary hover:border-blue-500/35 hover:text-blue-100 transition-colors"
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
+            {isLoading && (
+              /* Typing indicator: three mint dots, anchored to the assistant rail
+                 so it sits where the next assistant message will appear. */
+              <div
+                className="mt-5 inline-flex items-center gap-1.5 pl-4 border-l-2"
+                style={{ borderColor: "rgba(0,229,176,0.30)" }}
+                aria-label="Assistant is typing"
+              >
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full animate-assistant-typing-dot"
+                  style={{ background: "rgba(0,229,176,0.85)", animationDelay: "0ms" }}
+                />
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full animate-assistant-typing-dot"
+                  style={{ background: "rgba(0,229,176,0.85)", animationDelay: "160ms" }}
+                />
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full animate-assistant-typing-dot"
+                  style={{ background: "rgba(0,229,176,0.85)", animationDelay: "320ms" }}
+                />
+              </div>
+            )}
+            <div ref={listEndRef} />
+          </section>
         )}
 
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder="Ask about your training..."
-            disabled={isLoading}
-            className="input-app flex-1 min-w-0 p-3 border-blue-900/45 focus:border-blue-500/40 focus:ring-blue-500/35 disabled:opacity-50"
-          />
-          <button
-            onClick={() => handleSend()}
-            disabled={isLoading || !input.trim()}
-            className="px-4 py-3 rounded-xl bg-gradient-to-br from-blue-400 via-blue-500 to-indigo-500 text-blue-50 font-bold shadow-[0_10px_26px_-12px_rgba(59,130,246,0.65)] transition hover:brightness-105 active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed"
+        <div className="pt-3 pb-1">
+          <div
+            className="flex items-center gap-2 rounded-full pl-4 pr-1.5 py-1.5 transition-all duration-200 focus-within:border-[color:var(--color-accent)]/45 focus-within:bg-zinc-900/80 focus-within:shadow-[0_0_0_4px_rgba(0,229,176,0.10),0_0_22px_-4px_rgba(0,229,176,0.30)]"
+            style={{
+              background: "rgba(255,255,255,0.025)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
           >
-            Send
-          </button>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+              placeholder="Ask about your training…"
+              disabled={isLoading}
+              className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[15px] font-normal leading-[1.5] tracking-[0.005em] text-white placeholder:text-app-meta py-2 disabled:opacity-50"
+              aria-label="Message"
+            />
+            <button
+              type="button"
+              onClick={() => handleSend()}
+              disabled={sendDisabled}
+              aria-label="Send message"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 active:scale-95 disabled:cursor-not-allowed"
+              style={{
+                background: sendDisabled
+                  ? "rgba(255,255,255,0.06)"
+                  : "#00e5b0",
+                color: sendDisabled
+                  ? "rgba(140,200,196,0.55)"
+                  : "var(--color-accent-foreground)",
+                boxShadow: sendDisabled
+                  ? undefined
+                  : "0 6px 18px -8px rgba(0,229,176,0.55)",
+              }}
+            >
+              <SendArrowIcon />
+            </button>
+          </div>
         </div>
       </div>
     </main>

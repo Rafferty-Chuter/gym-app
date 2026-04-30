@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  /* ── Base surfaces: rich navy-black ──────────────────── */
-  --background: #07090f;
-  --foreground: #edf9f8;
+  /* ── Base surfaces ───────────────────────────────────── */
+  --background: #080b12;
+  --foreground: #f0faf8;
 
-  /* ── Brand accent: vivid teal ────────────────────────── */
-  --accent: 20 184 166;
-  --accent-foreground: 2 18 16;
+  /* ── Brand accent: vivid mint ────────────────────────── */
+  --accent: 0 229 176;
+  --accent-foreground: 0 26 19;
 }
 
 @theme inline {
@@ -28,18 +28,17 @@ body {
 }
 
 @layer utilities {
-  /* Refined surfaces with subtle navy-blue depth */
   [class*="bg-zinc-950"] {
-    background-color: #07090f !important;
+    background-color: #080b12 !important;
   }
   [class*="bg-zinc-900"] {
-    background-color: #0c1219 !important;
+    background-color: #0e1420 !important;
   }
   [class*="bg-zinc-800"] {
-    background-color: #121d28 !important;
+    background-color: #141c2a !important;
   }
   [class*="border-zinc-"] {
-    border-color: rgba(20, 184, 166, 0.13) !important;
+    border-color: rgba(255, 255, 255, 0.06) !important;
   }
 }
 
@@ -47,69 +46,63 @@ body {
 
   /* ── Primary CTA ─────────────────────────────────────── */
   .btn-primary {
-    @apply font-semibold transition-all duration-150 active:translate-y-[1px] active:scale-[0.99];
-    background: linear-gradient(145deg, #0e9e8c 0%, #0d9488 55%, #0b7c70 100%);
-    color: #ccf9f4;
-    border: 1px solid rgba(20, 184, 166, 0.32);
+    @apply font-bold transition-all duration-150 active:translate-y-[1px] active:scale-[0.99];
+    background: #00e5b0;
+    color: #001a13;
+    border: none;
     box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
-      0 4px 16px -4px rgba(20, 184, 166, 0.28),
-      0 2px 6px rgba(0, 0, 0, 0.45);
+      0 4px 16px -6px rgba(0, 229, 176, 0.50),
+      0 2px 6px rgba(0, 0, 0, 0.35);
   }
   .btn-primary:hover {
-    filter: brightness(1.09);
+    filter: brightness(1.07);
     box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
-      0 6px 22px -4px rgba(20, 184, 166, 0.38),
-      0 3px 8px rgba(0, 0, 0, 0.5);
+      0 6px 22px -4px rgba(0, 229, 176, 0.60),
+      0 3px 8px rgba(0, 0, 0, 0.40);
   }
 
   /* ── Secondary / outline button ──────────────────────── */
   .btn-secondary {
     @apply rounded-xl border px-3 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98];
-    border-color: rgba(20, 184, 166, 0.22);
-    background: rgba(12, 18, 25, 0.85);
-    color: rgba(196, 232, 230, 0.76);
+    border-color: rgba(255, 255, 255, 0.10);
+    background: transparent;
+    color: rgba(200, 238, 232, 0.76);
   }
   .btn-secondary:hover {
-    border-color: rgba(20, 184, 166, 0.38);
-    background: rgba(20, 184, 166, 0.07);
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.04);
     color: rgba(220, 248, 245, 0.92);
   }
 
   /* ── App card ────────────────────────────────────────── */
   .card-app {
-    @apply rounded-2xl p-5 transition-all duration-200;
-    background: linear-gradient(145deg, #0c1219 0%, #0f1822 100%);
-    border: 1px solid rgba(20, 184, 166, 0.14);
+    @apply rounded-2xl transition-all duration-200;
+    background: #0e1420;
+    border: 1px solid rgba(255, 255, 255, 0.05);
     box-shadow:
       0 1px 0 0 rgba(255, 255, 255, 0.025) inset,
       0 8px 32px -8px rgba(0, 0, 0, 0.65),
-      0 2px 8px rgba(0, 0, 0, 0.4);
+      0 2px 8px rgba(0, 0, 0, 0.40);
   }
   .card-app:hover {
-    border-color: rgba(20, 184, 166, 0.26);
+    border-color: rgba(255, 255, 255, 0.09);
     transform: translateY(-1px);
-    box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.035) inset,
-      0 12px 40px -8px rgba(0, 0, 0, 0.7),
-      0 4px 12px rgba(0, 0, 0, 0.45);
   }
 
   /* ── Input ───────────────────────────────────────────── */
   .input-app {
     @apply rounded-xl text-white transition-all duration-150;
-    background: rgba(7, 9, 15, 0.92);
-    border: 1px solid rgba(20, 184, 166, 0.18);
-    color: #edf9f8;
+    background: #0e1420;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #f0faf8;
   }
   .input-app::placeholder {
-    color: rgba(100, 155, 165, 0.48);
+    color: rgba(140, 200, 196, 0.38);
   }
   .input-app:focus {
     outline: none;
-    border-color: rgba(20, 184, 166, 0.44);
-    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.11);
+    border-color: rgba(0, 229, 176, 0.40);
+    box-shadow: 0 0 0 3px rgba(0, 229, 176, 0.10);
   }
 
   .focus-accent {
@@ -117,41 +110,78 @@ body {
   }
 
   /* ── Text hierarchy ──────────────────────────────────── */
-  .text-app-secondary  { color: rgba(196, 232, 230, 0.76); }
-  .text-app-tertiary   { color: rgba(128, 188, 192, 0.54); }
-  .text-app-meta       { color: rgba(150, 202, 207, 0.60); }
+  .text-app-secondary  { color: rgba(200, 238, 232, 0.78); }
+  .text-app-tertiary   { color: rgba(140, 200, 196, 0.55); }
+  .text-app-meta       { color: rgba(140, 200, 196, 0.42); }
 
   /* Legacy home aliases */
-  .text-home-secondary { color: rgba(196, 232, 230, 0.76); }
-  .text-home-tertiary  { color: rgba(128, 188, 192, 0.54); }
-  .text-home-meta      { color: rgba(150, 202, 207, 0.60); }
+  .text-home-secondary { color: rgba(200, 238, 232, 0.78); }
+  .text-home-tertiary  { color: rgba(140, 200, 196, 0.55); }
+  .text-home-meta      { color: rgba(140, 200, 196, 0.42); }
 
-  .link-accent      { @apply font-semibold text-teal-300 transition-colors duration-150 hover:text-teal-200; }
-  .link-home-accent { @apply font-semibold text-teal-300 transition-colors duration-150 hover:text-teal-200; }
+  .link-accent      { @apply font-semibold transition-colors duration-150; color: #00e5b0; }
+  .link-accent:hover { color: #60eece; }
+  .link-home-accent { @apply font-semibold transition-colors duration-150; color: #00e5b0; }
+  .link-home-accent:hover { color: #60eece; }
 
   /* ── Status chips ────────────────────────────────────── */
   .chip-low {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold;
     background: rgba(244, 63, 94, 0.10);
-    border: 1px solid rgba(251, 113, 133, 0.26);
+    border: 1px solid rgba(251, 113, 133, 0.22);
     color: #fda4af;
   }
   .chip-moderate {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
-    background: rgba(52, 211, 153, 0.09);
-    border: 1px solid rgba(52, 211, 153, 0.26);
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold;
+    background: rgba(52, 211, 153, 0.08);
+    border: 1px solid rgba(52, 211, 153, 0.22);
     color: #6ee7b7;
   }
   .chip-high {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
-    background: rgba(56, 189, 248, 0.09);
-    border: 1px solid rgba(56, 189, 248, 0.26);
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.22);
     color: #7dd3fc;
   }
 
   /* ── Section label ───────────────────────────────────── */
   .label-section {
     @apply text-[10px] font-bold uppercase tracking-[0.14em];
-    color: rgba(128, 188, 192, 0.52);
+    color: rgba(140, 200, 196, 0.52);
   }
+}
+
+/* ── Assistant page — presence + typing animations ────────── */
+@keyframes assistant-presence {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 rgba(0, 229, 176, 0.0),
+      0 0 0 1px rgba(0, 229, 176, 0.32),
+      0 0 12px 0 rgba(0, 229, 176, 0.12);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(0, 229, 176, 0.08),
+      0 0 0 1px rgba(0, 229, 176, 0.46),
+      0 0 22px 4px rgba(0, 229, 176, 0.20);
+    transform: scale(1.04);
+  }
+}
+.animate-assistant-presence {
+  animation: assistant-presence 2.6s ease-in-out infinite;
+}
+
+@keyframes assistant-typing-dot {
+  0%, 60%, 100% {
+    opacity: 0.30;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+.animate-assistant-typing-dot {
+  animation: assistant-typing-dot 1.2s ease-in-out infinite;
 }
