@@ -40,8 +40,12 @@ import {
 } from "@/lib/assistantMemory";
 import {
   appendToThread,
+  clearAllThreads,
   createNewChatThread,
+  isFreshAppSession,
   loadActiveThread,
+  markAppSessionActive,
+  peekActiveThread,
   type AssistantThread,
 } from "@/lib/assistantThreads";
 import { buildBenchProjectionPayload } from "@/lib/benchProjectionPayload";
@@ -467,6 +471,37 @@ function AssistantPageInner() {
 
   useEffect(() => {
     try {
+      // Fresh tab/window? Distil the prior thread into USER MEMORY, then start clean.
+      // Same-tab navigation keeps the marker, so moving between in-app routes does
+      // not reset the chat.
+      if (isFreshAppSession()) {
+        const prior = peekActiveThread();
+        const priorMessages = prior?.messages ?? [];
+        const priorHasContent = priorMessages.some(
+          (m) => typeof m.content === "string" && m.content.trim().length > 0
+        );
+        if (priorHasContent) {
+          // Best-effort, fire-and-forget. Trivial conversations are skipped inside
+          // the helper, and storage is cleared regardless of extraction success.
+          void extractAndSaveMemoryFromMessages(
+            priorMessages.map((m) => ({ role: m.role, content: m.content }))
+          );
+        }
+        clearAllThreads();
+        const fresh = createNewChatThread();
+        threadRef.current = fresh.thread;
+        setActiveThreadId(fresh.threadId);
+        setExactThreadLoaded(fresh.exactThreadLoaded);
+        setMessages([]);
+        markAppSessionActive();
+        console.log("[thread-debug] fresh app session — started new thread", {
+          threadId: fresh.threadId,
+          priorMessageCount: priorMessages.length,
+          priorExtractionTriggered: priorHasContent,
+        });
+        return;
+      }
+
       const { threadId, thread, exactThreadLoaded: loaded, createdNewThread } = loadActiveThread();
       setActiveThreadId(threadId);
       setExactThreadLoaded(loaded);
@@ -479,7 +514,7 @@ function AssistantPageInner() {
           workout: m.workout,
         }))
       );
-      console.log("[thread-debug] active thread loaded", {
+      console.log("[thread-debug] active thread resumed", {
         threadId,
         exactThreadLoaded: loaded,
         createdNewThread,
@@ -1027,56 +1062,6 @@ function AssistantPageInner() {
       memoryExtractionInFlightRef.current = null;
     }
   }
-
-  // Daily auto-trigger: on first open of a new day with a non-empty thread
-  // already in storage, distil the previous conversation into USER MEMORY and
-  // start fresh. Idempotent within a day via localStorage["assistantLastChatDate"].
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const todayKey = new Date().toISOString().slice(0, 10);
-    let lastDate: string | null = null;
-    try {
-      lastDate = window.localStorage.getItem("assistantLastChatDate");
-    } catch {
-      /* ignore */
-    }
-    if (lastDate === todayKey) return;
-
-    // Read the persisted thread directly so this fires before message state hydrates.
-    let staleMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
-    try {
-      const loaded = loadActiveThread();
-      staleMessages = loaded.thread.messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-    } catch {
-      /* no thread yet */
-    }
-
-    const hasContent = staleMessages.some(
-      (m) => typeof m.content === "string" && m.content.trim().length > 0
-    );
-
-    if (hasContent) {
-      void extractAndSaveMemoryFromMessages(staleMessages).then(() => {
-        const result = createNewChatThread();
-        activeExerciseTopicRef.current = null;
-        threadRef.current = result.thread;
-        setActiveThreadId(result.threadId);
-        setExactThreadLoaded(result.exactThreadLoaded);
-        setMessages([]);
-      });
-    }
-
-    try {
-      window.localStorage.setItem("assistantLastChatDate", todayKey);
-    } catch {
-      /* ignore */
-    }
-    // Run once per mount; relying on stable function refs is fine here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function handleNewChat() {
     if (isLoading) return;

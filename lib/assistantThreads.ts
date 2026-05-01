@@ -33,6 +33,8 @@ const THREADS_STORAGE_KEY = "assistantThreadsV1";
 const ACTIVE_THREAD_ID_KEY = "assistantActiveThreadIdV1";
 const USER_ID_KEY = "assistantUserId";
 const MEMORY_VERSION = 1;
+/** sessionStorage flag — present for the lifetime of a tab/window. Absence = fresh app session. */
+const SESSION_MARKER_KEY = "assistantSessionMarkerV1";
 
 function safeNowIso(): string {
   return new Date().toISOString();
@@ -285,6 +287,58 @@ export function appendToThread(params: {
 
 export function getActiveThreadId(): string | null {
   return readActiveThreadId();
+}
+
+/**
+ * True on the first mount within a new tab/window. Tied to sessionStorage,
+ * which clears when the tab closes — so reopening the app counts as fresh.
+ * Same-tab navigation keeps the marker, so moving between in-app routes
+ * does not reset the chat.
+ */
+export function isFreshAppSession(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return !window.sessionStorage.getItem(SESSION_MARKER_KEY);
+  } catch {
+    return false;
+  }
+}
+
+export function markAppSessionActive(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(SESSION_MARKER_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Reads the persisted active thread without creating one when absent. Used
+ * during fresh-session bootstrap to pull prior messages for memory extraction
+ * before the previous thread is discarded.
+ */
+export function peekActiveThread(): AssistantThread | null {
+  if (typeof window === "undefined") return null;
+  const map = readThreads();
+  const activeId = readActiveThreadId();
+  if (!activeId || !map[activeId]) return null;
+  return normalizeThread(map[activeId]);
+}
+
+/**
+ * Clears all persisted threads from localStorage. Called after a fresh session
+ * has captured durable facts from the prior thread into USER MEMORY — the
+ * raw transcript no longer serves a purpose.
+ */
+export function clearAllThreads(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(THREADS_STORAGE_KEY);
+    window.localStorage.removeItem(ACTIVE_THREAD_ID_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
