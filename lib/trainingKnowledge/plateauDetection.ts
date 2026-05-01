@@ -1,3 +1,8 @@
+// Scope: textbook plateau heuristics powering next-session advice helpers
+// (progressionEngine, nextSessionLogic, trainingAnswerSupport). The home plateau
+// indicator is driven by getExerciseInsights in lib/trainingAnalysis.ts — keep
+// the two paths consistent in spirit but don't conflate them.
+
 export type ExerciseProgressPoint = {
   date: string;
   load: number;

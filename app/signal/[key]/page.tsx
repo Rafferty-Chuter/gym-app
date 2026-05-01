@@ -6,13 +6,17 @@ import { useParams, useRouter, notFound } from "next/navigation";
 import {
   getWorkoutHistory,
   getWorkoutsFromLast7Days,
-  getVolumeByMuscleGroup,
   getExerciseInsights,
-  getMuscleGroupForExercise,
   type RecentPerformance,
   type ExerciseInsights,
 } from "@/lib/trainingAnalysis";
-import { getUniqueExerciseNames } from "@/lib/trainingMetrics";
+import {
+  DEFAULT_DETAILED_MUSCLE_GROUPS,
+  getDetailedMuscleGroupsForLoggedExercise,
+  getDetailedVolumeByMuscleGroup,
+  getUniqueExerciseNames,
+  type DetailedMuscleGroup,
+} from "@/lib/trainingMetrics";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
@@ -338,18 +342,55 @@ function LineChart({
   );
 }
 
-const VOLUME_GROUP_ORDER = ["chest", "back", "shoulders", "arms", "legs"] as const;
-type MuscleGroup = (typeof VOLUME_GROUP_ORDER)[number];
+// Detailed groups give a fairer read than the legacy 5: glutes/hamstrings/calves
+// don't get hidden inside "legs", and biceps/triceps split out of "arms".
+// A compound (e.g. RDL) contributes its set count to every primary group it trains.
+const VOLUME_GROUP_ORDER = DEFAULT_DETAILED_MUSCLE_GROUPS as readonly DetailedMuscleGroup[];
+type MuscleGroup = DetailedMuscleGroup;
 
 type ProgressionState = "good" | "poor" | "unclear";
 type VolumeStatus = "low" | "on-track" | "warning" | "excessive";
 
+// MEV–MAV style weekly hard-set ranges. Deliberately fuzzy; intent is to catch
+// "clearly under" or "clearly over", not to micro-optimise.
 const MUSCLE_RANGES: Record<MuscleGroup, { min: number; max: number }> = {
   chest: { min: 10, max: 20 },
   back: { min: 12, max: 22 },
   shoulders: { min: 8, max: 18 },
-  arms: { min: 12, max: 22 },
-  legs: { min: 12, max: 24 },
+  biceps: { min: 8, max: 18 },
+  triceps: { min: 8, max: 18 },
+  quads: { min: 10, max: 20 },
+  hamstrings: { min: 8, max: 16 },
+  glutes: { min: 8, max: 16 },
+  calves: { min: 8, max: 18 },
+  abs: { min: 8, max: 16 },
+  traps: { min: 6, max: 12 },
+  "rear-delts": { min: 6, max: 14 },
+};
+
+const GROUP_LABEL: Record<MuscleGroup, string> = {
+  chest: "Chest",
+  back: "Back",
+  shoulders: "Shoulders",
+  biceps: "Biceps",
+  triceps: "Triceps",
+  quads: "Quads",
+  hamstrings: "Hamstrings",
+  glutes: "Glutes",
+  calves: "Calves",
+  abs: "Abs",
+  traps: "Traps",
+  "rear-delts": "Rear delts",
+};
+
+// Coach analysis still emits coarse group names (e.g. "legs", "arms"); fan them
+// out so a "low legs" focus highlights every detailed leg subgroup.
+const COARSE_TO_DETAILED: Record<string, MuscleGroup[]> = {
+  chest: ["chest"],
+  back: ["back"],
+  shoulders: ["shoulders"],
+  arms: ["biceps", "triceps"],
+  legs: ["quads", "hamstrings", "glutes", "calves"],
 };
 
 const VOLUME_STATUS_TO_STATE: Record<VolumeStatus, SignalState> = {
@@ -369,36 +410,45 @@ const VOLUME_STATUS_LABEL: Record<VolumeStatus, string> = {
 function getProgressionByMuscle(
   coach: CoachStructuredAnalysis
 ): Record<MuscleGroup, ProgressionState> {
-  const out: Record<MuscleGroup, ProgressionState> = {
-    chest: "unclear",
-    back: "unclear",
-    shoulders: "unclear",
-    arms: "unclear",
-    legs: "unclear",
+  const out = Object.fromEntries(
+    VOLUME_GROUP_ORDER.map((g) => [g, "unclear" as ProgressionState])
+  ) as Record<MuscleGroup, ProgressionState>;
+
+  const setState = (g: MuscleGroup | undefined | null, state: ProgressionState) => {
+    if (!g || !(g in out)) return;
+    if (state === "poor") {
+      out[g] = "poor";
+    } else if (state === "good" && out[g] !== "poor") {
+      out[g] = "good";
+    }
   };
 
-  const setState = (g: string | undefined | null, state: ProgressionState) => {
-    if (!g) return;
-    const key = g.toLowerCase() as MuscleGroup;
-    if (!(key in out)) return;
-    if (state === "poor") {
-      out[key] = "poor";
-    } else if (state === "good" && out[key] !== "poor") {
-      out[key] = "good";
+  const setStateForExercise = (exName: string, state: ProgressionState) => {
+    const groups = getDetailedMuscleGroupsForLoggedExercise({ name: exName });
+    for (const g of groups) setState(g, state);
+  };
+
+  const setStateForCoarseOrDetailed = (raw: string, state: ProgressionState) => {
+    const key = raw.trim().toLowerCase();
+    const fan = COARSE_TO_DETAILED[key];
+    if (fan) {
+      for (const g of fan) setState(g, state);
+      return;
+    }
+    if ((VOLUME_GROUP_ORDER as readonly string[]).includes(key)) {
+      setState(key as MuscleGroup, state);
     }
   };
 
   if (coach.keyFocusType === "plateau" || coach.keyFocusType === "declining") {
-    if (coach.keyFocusExercise) {
-      setState(getMuscleGroupForExercise(coach.keyFocusExercise), "poor");
-    }
+    if (coach.keyFocusExercise) setStateForExercise(coach.keyFocusExercise, "poor");
     if (coach.keyFocusGroups) {
-      for (const g of coach.keyFocusGroups) setState(g, "poor");
+      for (const g of coach.keyFocusGroups) setStateForCoarseOrDetailed(g, "poor");
     }
   }
 
   if (coach.keyFocusType === "progressing" && coach.keyFocusExercise) {
-    setState(getMuscleGroupForExercise(coach.keyFocusExercise), "good");
+    setStateForExercise(coach.keyFocusExercise, "good");
   }
 
   for (const text of coach.whatsGoingWell) {
@@ -406,10 +456,7 @@ function getProgressionByMuscle(
     const match = cleaned.match(
       /^([A-Za-z][A-Za-z\s\-()'./]+?)\s+(?:is\s+)?(?:progressing|improving)\b/i
     );
-    if (match) {
-      const exName = match[1].trim();
-      setState(getMuscleGroupForExercise(exName), "good");
-    }
+    if (match) setStateForExercise(match[1].trim(), "good");
   }
 
   return out;
@@ -465,8 +512,8 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
           const widthPct = Math.max(2, (r.sets / maxSets) * 100);
           return (
             <li key={r.group} className="flex items-center gap-3">
-              <span className="w-16 text-[12px] font-semibold uppercase tracking-wide text-app-secondary">
-                {r.group}
+              <span className="w-20 text-[11px] font-semibold uppercase tracking-wide text-app-secondary">
+                {GROUP_LABEL[r.group]}
               </span>
               <div
                 className="flex-1 h-2.5 rounded-full overflow-hidden"
@@ -593,7 +640,7 @@ function buildVolumeContent(
   workouts: ReturnType<typeof getWorkoutHistory>
 ): DetailContent {
   const weeklyWorkouts = getWorkoutsFromLast7Days(workouts);
-  const weeklyVolume = getVolumeByMuscleGroup(weeklyWorkouts);
+  const weeklyVolume = getDetailedVolumeByMuscleGroup(weeklyWorkouts);
   const totalSets = weeklyWorkouts.reduce(
     (sum, w) =>
       sum + (w.exercises?.reduce((s, ex) => s + countCompletedLoggedSets(ex.sets), 0) ?? 0),
@@ -630,13 +677,16 @@ function buildVolumeContent(
   const excessiveRows = rows.filter((r) => r.status === "excessive");
   const warningRows = rows.filter((r) => r.status === "warning");
 
+  const joinGroups = (gs: MuscleGroup[]) => gs.map((g) => GROUP_LABEL[g]).join(" and ");
+
   if (excessiveRows.length > 0) {
-    const groups = excessiveRows.map((r) => r.group).join(" and ");
+    const groupsLabel = joinGroups(excessiveRows.map((r) => r.group));
+    const groupsLower = groupsLabel.toLowerCase();
     return {
       state: "attention",
       status: "Excessive",
-      explanation: `${groups[0].toUpperCase()}${groups.slice(1)} weekly volume is above the productive range while progress is stalling or unclear. High volume only pays off when it shows up in the lifts; here it isn't.`,
-      prompt: `My ${groups} volume is above range and progress is stalling. Walk me through what to drop.`,
+      explanation: `${groupsLabel} weekly volume is above the productive range while progress is stalling or unclear. High volume only pays off when it shows up in the lifts; here it isn't.`,
+      prompt: `My ${groupsLower} volume is above range and progress is stalling. Walk me through what to drop.`,
       chart: <BarChart rows={rows} />,
     };
   }
@@ -649,13 +699,13 @@ function buildVolumeContent(
       lowEntries.length > 0
         ? lowEntries[0].summary
         : lowRows.length > 0
-          ? `${lowRows.map((r) => r.group).join(" and ")} weekly volume is below the productive range for hypertrophy. The breakdown below shows where you are.`
+          ? `${joinGroups(lowRows.map((r) => r.group))} weekly volume is below the productive range for hypertrophy. The breakdown below shows where you are.`
           : "Weekly volume is running low on at least one muscle group. The breakdown below shows where you are.";
     const lowGroupsText =
       lowEntries.length > 0
         ? lowEntries.map((v) => v.label.toLowerCase()).join(" and ")
         : lowRows.length > 0
-          ? lowRows.map((r) => r.group).join(" and ")
+          ? joinGroups(lowRows.map((r) => r.group)).toLowerCase()
           : "the flagged muscle group";
     return {
       state: "attention",
@@ -667,12 +717,13 @@ function buildVolumeContent(
   }
 
   if (warningRows.length > 0) {
-    const groups = warningRows.map((r) => r.group).join(" and ");
+    const groupsLabel = joinGroups(warningRows.map((r) => r.group));
+    const groupsLower = groupsLabel.toLowerCase();
     return {
       state: "watch",
       status: "Worth a look",
-      explanation: `${groups[0].toUpperCase()}${groups.slice(1)} volume is above the productive range, but the lifts are still moving. Worth watching for fatigue, not yet a problem.`,
-      prompt: `My ${groups} volume is above range but lifts are still progressing. Should I keep pushing or back off?`,
+      explanation: `${groupsLabel} volume is above the productive range, but the lifts are still moving. Worth watching for fatigue, not yet a problem.`,
+      prompt: `My ${groupsLower} volume is above range but lifts are still progressing. Should I keep pushing or back off?`,
       chart: <BarChart rows={rows} />,
     };
   }

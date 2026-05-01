@@ -253,6 +253,29 @@ export function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string
   return counts;
 }
 
+/**
+ * Per-detailed-group set counts. A compound exercise contributes its completed-set count
+ * to every primary detailed group it trains (e.g. RDL → hamstrings + glutes + back),
+ * matching how evidence-based volume guidelines are typically applied.
+ */
+export function getDetailedVolumeByMuscleGroup(
+  workouts: StoredWorkout[],
+  options: { enabledOptional?: ReadonlySet<DetailedMuscleGroup> } = {}
+): Record<DetailedMuscleGroup, number> {
+  const counts = Object.fromEntries(
+    DETAILED_MUSCLE_GROUPS.map((g) => [g, 0])
+  ) as Record<DetailedMuscleGroup, number>;
+  for (const workout of workouts) {
+    for (const ex of workout.exercises ?? []) {
+      const setCount = countCompletedLoggedSets(ex.sets);
+      if (setCount === 0) continue;
+      const groups = getDetailedMuscleGroupsForLoggedExercise(ex, options);
+      for (const g of groups) counts[g] += setCount;
+    }
+  }
+  return counts;
+}
+
 /** Best set = highest weight; if equal, highest reps. */
 export function getBestSet(
   sets: { weight: string; reps: string }[]
@@ -286,6 +309,8 @@ export type ExerciseSessionPerformance = {
   weight: number;
   reps: number;
   e1rm: number;
+  /** Σ weight·reps across all completed hard sets in the session — captures progress hidden from a top-set view. */
+  volumeLoad: number;
 };
 
 export type ExerciseMetrics = {
@@ -331,11 +356,18 @@ export function getExerciseMetrics(
     if (!completedSets.length) continue;
     const best = getBestSet(completedSets);
     if (!best) continue;
+    let volumeLoad = 0;
+    for (const s of completedSets) {
+      const sw = Number(s.weight) || 0;
+      const sr = Number(s.reps) || 0;
+      if (sw > 0 && sr > 0) volumeLoad += sw * sr;
+    }
     newestPerformances.push({
       completedAt: w.completedAt,
       weight: best.weight,
       reps: best.reps,
       e1rm: estimateE1RM(best.weight, best.reps),
+      volumeLoad: Number(volumeLoad.toFixed(1)),
     });
     if (newestPerformances.length >= maxSessions) break;
   }

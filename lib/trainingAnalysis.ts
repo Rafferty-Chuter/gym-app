@@ -121,6 +121,8 @@ export type RecentPerformance = {
   weight: number;
   reps: number;
   e1rm: number;
+  /** Σ weight·reps across completed hard sets in the session. Optional for legacy callers. */
+  volumeLoad?: number;
 };
 
 export type ExerciseTrendResult = {
@@ -215,6 +217,41 @@ const MIN_SESSIONS_FOR_PLATEAU = 3;
 const MIN_SESSIONS_FOR_INSUFFICIENT = 3;
 const MIN_SESSIONS_FOR_PLATEAU_RULE = 4;
 const E1RM_MEANINGFUL_DELTA_PCT = 0.015; // 1.5%
+// Per-session relative slope thresholds: ~0.5%/session e1RM ≈ 1.5% across 4 sessions.
+const E1RM_SLOPE_UP_PER_SESSION = 0.005;
+const E1RM_SLOPE_DOWN_PER_SESSION = -0.005;
+// Volume-load is noisier than e1RM; require ~1%/session before treating it as progression.
+const VOLUME_SLOPE_UP_PER_SESSION = 0.01;
+
+/**
+ * Least-squares slope of `values` against their indices (0..n-1).
+ * Returns 0 when n < 2 or all x are identical (degenerate).
+ */
+function leastSquaresSlope(values: number[]): number {
+  const n = values.length;
+  if (n < 2) return 0;
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumXX = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += values[i];
+    sumXY += i * values[i];
+    sumXX += i * i;
+  }
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return 0;
+  return (n * sumXY - sumX * sumY) / denom;
+}
+
+/** Slope normalized to the series mean — yields a unitless "% per session" figure. */
+function relativeSlopePerSession(values: number[]): number {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((s, v) => s + v, 0) / values.length;
+  if (mean <= 0) return 0;
+  return leastSquaresSlope(values) / mean;
+}
 
 function performanceBetter(
   a: { weight: number; reps: number },
@@ -355,11 +392,19 @@ export function getExerciseInsights(
   const firstE1RM = metrics.firstE1RM;
   const lastE1RM = metrics.lastE1RM;
 
-  const base = Math.max(firstE1RM, 1);
   const deltaE1RM = lastE1RM - firstE1RM;
-  const deltaPct = deltaE1RM / base;
-  const meaningfulUp = deltaPct >= E1RM_MEANINGFUL_DELTA_PCT;
-  const meaningfulDown = deltaPct <= -E1RM_MEANINGFUL_DELTA_PCT;
+
+  // Trend signals are slope-based across the window — robust to a single noisy endpoint.
+  // Volume-load is a co-signal: a flat top-set with rising tonnage is still progress.
+  const e1rmSeries = recentPerformances.map((p) => p.e1rm);
+  const volumeSeries = recentPerformances.map((p) => p.volumeLoad ?? 0);
+  const e1rmSlopePerSession = relativeSlopePerSession(e1rmSeries);
+  const volumeSlopePerSession = volumeSeries.some((v) => v > 0)
+    ? relativeSlopePerSession(volumeSeries)
+    : 0;
+  const e1rmTrendingUp = e1rmSlopePerSession >= E1RM_SLOPE_UP_PER_SESSION;
+  const e1rmTrendingDown = e1rmSlopePerSession <= E1RM_SLOPE_DOWN_PER_SESSION;
+  const volumeTrendingUp = volumeSlopePerSession >= VOLUME_SLOPE_UP_PER_SESSION;
 
   let prTrendSteps = 0;
   let worseningSteps = 0;
@@ -373,13 +418,14 @@ export function getExerciseInsights(
   }
 
   let trend: ExerciseTrend = "stable";
-  if (meaningfulUp || prTrendSteps >= 1) {
+  if (e1rmTrendingUp || volumeTrendingUp || prTrendSteps >= 1) {
     trend = "progressing";
-  } else if (meaningfulDown && worseningSteps >= 2) {
+  } else if (e1rmTrendingDown && worseningSteps >= 2) {
     trend = "declining";
   } else if (
     sessionsTracked >= MIN_SESSIONS_FOR_PLATEAU_RULE &&
-    !meaningfulUp &&
+    !e1rmTrendingUp &&
+    !volumeTrendingUp &&
     prTrendSteps === 0 &&
     hasAdequateExposure
   ) {
@@ -390,7 +436,8 @@ export function getExerciseInsights(
 
   const possiblePlateau =
     sessionsTracked >= MIN_SESSIONS_FOR_PLATEAU_RULE &&
-    !meaningfulUp &&
+    !e1rmTrendingUp &&
+    !volumeTrendingUp &&
     prTrendSteps === 0 &&
     hasAdequateExposure;
   const possibleFatigue =
@@ -398,14 +445,14 @@ export function getExerciseInsights(
 
   const firstStr = `${first.weight} × ${first.reps}`;
   const lastStr = `${last.weight} × ${last.reps}`;
-  const deltaPctAbs = Math.abs(deltaPct * 100).toFixed(1);
+  const summaryPct = Math.abs(e1rmSlopePerSession * sessionsTracked * 100).toFixed(1);
   const deltaSign = deltaE1RM >= 0 ? "+" : "";
 
   const changeSummary =
     trend === "progressing"
-      ? `Estimated strength improved (${deltaSign}${deltaPctAbs}% e1RM) from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
+      ? `Estimated strength improved (${deltaSign}${summaryPct}% e1RM) from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
       : trend === "declining"
-        ? `Estimated strength trended down (${deltaPctAbs}% e1RM) from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
+        ? `Estimated strength trended down (${summaryPct}% e1RM) from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
         : trend === "plateau"
           ? `Estimated strength has been flat across ${sessionsTracked} sessions (${lastStr}, e1RM ~${lastE1RM}).`
           : `Estimated strength is mostly stable across ${sessionsTracked} sessions (${lastStr}).`;
