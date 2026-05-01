@@ -67,12 +67,12 @@ export default function TemplatesPage() {
         </div>
 
         <section className="card-app mb-6 border-zinc-800/70 bg-zinc-900/40">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0 flex-1">
               <p className="text-white font-semibold">Template Library</p>
-              <p className="text-xs text-app-meta">Browse, edit, and launch workouts from your saved templates.</p>
+              <p className="text-xs text-app-meta mt-1">Browse, edit, and launch workouts from your saved templates.</p>
             </div>
-            <Link href="/templates/new" className="px-4 py-2 rounded-xl btn-primary text-sm">
+            <Link href="/templates/new" className="px-4 py-2 rounded-xl btn-primary text-sm shrink-0 self-start sm:self-auto">
               Create New Template
             </Link>
           </div>

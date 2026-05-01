@@ -7,6 +7,16 @@ import { usePriorityGoal, PRIORITY_GOAL_OPTIONS, type PriorityGoal } from "@/lib
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
 import { getStoredUserProfile } from "@/lib/userProfile";
+import { downloadAllWorkoutsCsv } from "@/lib/exportWorkoutsCsv";
+import {
+  loadOnboardingProfile,
+  saveOnboardingProfile,
+  type OnboardingProfile,
+} from "@/lib/onboardingProfile";
+import {
+  OnboardingProfileFields,
+  isOnboardingFormSavable,
+} from "@/app/components/OnboardingProfileFields";
 
 const PROFILE_STORAGE_KEY = "userCoachingProfile";
 
@@ -47,6 +57,41 @@ export default function ProfilePage() {
   const [injuriesCsv, setInjuriesCsv] = useState<string>((initial.injuries ?? []).join(", "));
   const [trainingPrioritiesText, setTrainingPrioritiesText] = useState<string>(initial.trainingPrioritiesText ?? "");
   const [saved, setSaved] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+  // Coach onboarding profile — the 13-field block fed into the assistant
+  // system prompt. Editable here any time per spec.
+  const [onboardingProfile, setOnboardingProfile] = useState<OnboardingProfile>(() => {
+    const existing = loadOnboardingProfile();
+    return existing ?? { units: unit === "lb" ? "lb" : "kg" };
+  });
+  const [onboardingSaved, setOnboardingSaved] = useState(false);
+  const onboardingCanSave = isOnboardingFormSavable(onboardingProfile);
+
+  function handleOnboardingSave() {
+    if (!onboardingCanSave) return;
+    if (onboardingProfile.units !== unit) setUnit(onboardingProfile.units);
+    saveOnboardingProfile(onboardingProfile);
+    setOnboardingSaved(true);
+    window.setTimeout(() => setOnboardingSaved(false), 1400);
+  }
+
+  const tallyFeedbackUrl =
+    process.env.NEXT_PUBLIC_TALLY_FEEDBACK_URL || "https://tally.so/r/feedback-placeholder";
+
+  function handleExportCsv() {
+    try {
+      const { rows, workouts } = downloadAllWorkoutsCsv();
+      if (workouts === 0) {
+        setExportStatus("No workouts logged yet — nothing to export.");
+      } else {
+        setExportStatus(`Exported ${workouts} workouts (${rows} rows).`);
+      }
+    } catch (err) {
+      setExportStatus(`Export failed: ${(err as Error).message}`);
+    }
+    window.setTimeout(() => setExportStatus(null), 4000);
+  }
 
   useEffect(() => {
     setTrainingDays(trainingDaysToUi(initial.trainingDaysAvailable));
@@ -195,6 +240,52 @@ export default function ProfilePage() {
           <button type="button" onClick={saveProfile} className="mt-5 w-full rounded-xl btn-primary py-3">
             {saved ? "Saved" : "Save Profile"}
           </button>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">Coach profile</p>
+          <p className="text-sm text-zinc-400 mb-4">
+            What the coach sees about you. Edit any time — the assistant uses these as standing context.
+          </p>
+          <OnboardingProfileFields value={onboardingProfile} onChange={setOnboardingProfile} />
+          <button
+            type="button"
+            onClick={handleOnboardingSave}
+            disabled={!onboardingCanSave}
+            className="mt-5 w-full py-3 rounded-xl bg-teal-500 text-teal-950 font-semibold transition hover:bg-teal-400 active:scale-[0.98] disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed"
+          >
+            {onboardingSaved ? "Saved" : "Save coach profile"}
+          </button>
+          {!onboardingCanSave && (
+            <p className="text-[11px] text-app-tertiary text-center mt-2">
+              Units and bodyweight are required to save.
+            </p>
+          )}
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">Data &amp; feedback</p>
+          <p className="text-sm text-zinc-400 mb-4">
+            Your data stays yours — export it any time. Got a thought on how the app or coach should work better? Send it.
+          </p>
+          <a
+            href={tallyFeedbackUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center rounded-xl border border-teal-500/40 bg-teal-950/40 px-4 py-3 text-sm font-bold text-teal-100 hover:bg-teal-900/50 hover:border-teal-400/50 transition-colors"
+          >
+            Send feedback
+          </a>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="mt-3 flex w-full items-center justify-center rounded-xl border border-teal-500/40 bg-teal-950/40 px-4 py-3 text-sm font-bold text-teal-100 hover:bg-teal-900/50 hover:border-teal-400/50 transition-colors"
+          >
+            Export my data (CSV)
+          </button>
+          {exportStatus && (
+            <p className="mt-2 text-xs text-app-secondary text-center">{exportStatus}</p>
+          )}
         </section>
 
         <section className="mt-8 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { OnboardingFlow, isOnboardingComplete } from "./OnboardingFlow";
+import { OnboardingFlow } from "./OnboardingFlow";
+import { isOnboardingComplete, loadOnboardingProfile } from "@/lib/onboardingProfile";
 
 type Props = { children: React.ReactNode };
 
@@ -9,7 +10,7 @@ export function OnboardingGate({ children }: Props) {
   const [showOnboarding, setShowOnboarding] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
-    setShowOnboarding(!isOnboardingComplete());
+    setShowOnboarding(!isOnboardingComplete(loadOnboardingProfile()));
   }, []);
 
   if (showOnboarding === undefined) {

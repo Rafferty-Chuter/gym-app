@@ -17,6 +17,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { logAssistantCallCost } from "@/lib/assistantCostLogging";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -73,6 +74,10 @@ export async function POST(req: Request) {
   const conversation = Array.isArray((body as { conversation?: unknown })?.conversation)
     ? ((body as { conversation: unknown[] }).conversation as unknown[])
     : [];
+  const clientIdFromBody =
+    typeof (body as { client_id?: unknown })?.client_id === "string"
+      ? ((body as { client_id: string }).client_id)
+      : undefined;
 
   if (conversation.length === 0) return NextResponse.json({ facts: [] });
 
@@ -98,10 +103,21 @@ export async function POST(req: Request) {
   );
 
   try {
+    const EXTRACT_MEMORY_MODEL = "claude-sonnet-4-6";
+    const startedAt = Date.now();
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: EXTRACT_MEMORY_MODEL,
       max_tokens: 1024,
       messages: [{ role: "user", content: prompt }],
+    });
+    logAssistantCallCost({
+      usage: response.usage,
+      model: EXTRACT_MEMORY_MODEL,
+      streamed: false,
+      subCall: "extract_memory",
+      threadId: undefined,
+      clientId: clientIdFromBody,
+      startedAt,
     });
     const textBlock = response.content.find((b) => b.type === "text");
     const raw = textBlock?.type === "text" ? textBlock.text : "";

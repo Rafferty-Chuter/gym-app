@@ -30,9 +30,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AppProviders>
-          <OnboardingGate>{children}</OnboardingGate>
-          <ActiveWorkoutResumeBar />
-          <BottomTabs />
+          <OnboardingGate>
+            {children}
+            <ActiveWorkoutResumeBar />
+            <BottomTabs />
+          </OnboardingGate>
         </AppProviders>
       </body>
     </html>

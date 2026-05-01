@@ -2,7 +2,7 @@ export type AssistantThreadMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  /** LLM coach intro shown above structured workout/programme cards in the UI. */
+  /** LLM coach intro shown above structured workout cards in the UI. */
   coachReview?: string;
   workout?: {
     sessionTitle: string;
@@ -16,28 +16,6 @@ export type AssistantThreadMessage = {
       rest: string;
     }>;
     note: string;
-  };
-  programme?: {
-    programmeTitle: string;
-    programmeGoal: string;
-    notes: string;
-    debugSource?: string;
-    debugRequestId?: string;
-    debugBuiltAt?: string;
-    days: Array<{
-      dayLabel: string;
-      sessionType: string;
-      purposeSummary: string;
-      exercises: Array<{
-        slotLabel: string;
-        exerciseName: string;
-        sets: string;
-        reps: string;
-        rir: string;
-        rest: string;
-        rationale: string;
-      }>;
-    }>;
   };
   createdAt: string; // ISO
 };
@@ -155,11 +133,6 @@ function normalizeThreadMessage(m: unknown): AssistantThreadMessage | null {
           workout: r.workout as AssistantThreadMessage["workout"],
         }
       : {}),
-    ...(r.programme && typeof r.programme === "object"
-      ? {
-          programme: r.programme as AssistantThreadMessage["programme"],
-        }
-      : {}),
     createdAt: typeof r.createdAt === "string" && r.createdAt ? r.createdAt : safeNowIso(),
   };
 }
@@ -251,7 +224,6 @@ export function appendToThread(params: {
   content: string;
   coachReview?: string;
   workout?: AssistantThreadMessage["workout"];
-  programme?: AssistantThreadMessage["programme"];
 }): AssistantThread {
   if (typeof window === "undefined") {
     const now = safeNowIso();
@@ -268,7 +240,6 @@ export function appendToThread(params: {
             ? { coachReview: safeTrimContent(params.coachReview) }
             : {}),
           ...(params.workout ? { workout: params.workout } : {}),
-          ...(params.programme ? { programme: params.programme } : {}),
           createdAt: now,
         },
       ],
@@ -296,7 +267,6 @@ export function appendToThread(params: {
       ? { coachReview: safeTrimContent(params.coachReview) }
       : {}),
     ...(params.workout ? { workout: params.workout } : {}),
-    ...(params.programme ? { programme: params.programme } : {}),
     createdAt: now,
   };
   const nextThread: AssistantThread = {

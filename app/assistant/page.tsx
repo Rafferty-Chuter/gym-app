@@ -25,6 +25,7 @@ import {
 } from "@/lib/coachStructuredAnalysis";
 import { getEvidenceCardsForReferencedIds } from "@/lib/evidenceMapping";
 import { getStoredUserProfile } from "@/lib/userProfile";
+import { loadOnboardingProfile } from "@/lib/onboardingProfile";
 import { buildCoachingContext } from "@/lib/coachingContext";
 import {
   buildRecentConversationMemory,
@@ -46,7 +47,6 @@ import {
 import { buildBenchProjectionPayload } from "@/lib/benchProjectionPayload";
 import { buildBenchContextSummary } from "@/lib/benchContext";
 import { buildBench1RMEstimate } from "@/lib/bench1rm";
-import type { ActiveProgrammeState as PipelineActiveProgrammeState } from "@/lib/programmePipeline";
 
 type StructuredWorkout = {
   sessionTitle: string;
@@ -67,41 +67,12 @@ type StructuredWorkout = {
   debugTrace?: string;
 };
 
-type StructuredProgramme = {
-  programmeTitle: string;
-  programmeGoal: string;
-  notes: string;
-  debugProgrammeGenerator?: string;
-  debugSource?: string;
-  debugRequestId?: string;
-  debugBuiltAt?: string;
-  days: Array<{
-    dayLabel: string;
-    sessionType: string;
-    purposeSummary: string;
-    debugDayGenerator?: string;
-    targetMuscles?: string[];
-    exercises: Array<{
-      slotLabel: string;
-      exerciseName: string;
-      sets: string;
-      reps: string;
-      rir: string;
-      rest: string;
-      rationale: string;
-    }>;
-  }>;
-};
-
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   coachReview?: string;
   workout?: StructuredWorkout;
-  programme?: StructuredProgramme;
 };
-
-const ASSISTANT_PROGRAMME_PIPELINE_V1 = "new_programme_pipeline_v1" as const;
 
 /**
  * Parses an SSE stream from /api/assistant. Each yielded object is one event
@@ -429,75 +400,27 @@ function AssistantWorkoutCard({ workout }: { workout: StructuredWorkout }) {
   );
 }
 
-function AssistantProgrammeCard({ programme }: { programme: StructuredProgramme }) {
-  const allowed = programme.debugSource === ASSISTANT_PROGRAMME_PIPELINE_V1;
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
-    if (!allowed) {
-      console.error("[programme-render-blocked]", {
-        where: "client_AssistantProgrammeCard",
-        debugSource: programme.debugSource ?? "missing",
-        programmeTitle: programme.programmeTitle,
-        dayCount: programme.days?.length ?? 0,
-      });
-      return;
-    }
-    console.log("[programme-render-allowed]", {
-      where: "client_AssistantProgrammeCard",
-      debugSource: programme.debugSource,
-      debugRequestId: programme.debugRequestId ?? null,
-      programmeTitle: programme.programmeTitle,
-      dayCount: programme.days.length,
-    });
-  }, [programme, allowed]);
-  if (process.env.NODE_ENV === "development" && !allowed) {
-    return (
-      <div
-        className="rounded-xl border-2 border-red-500 bg-red-950/50 px-4 py-3 text-red-100"
-        role="alert"
-      >
-        <p className="text-sm font-bold uppercase tracking-wide text-red-200">
-          Blocked: programme did not come from new programme pipeline
-        </p>
-        <p className="text-xs mt-2 font-mono text-red-200/90">
-          debugSource={JSON.stringify(programme.debugSource ?? null)} · days={programme.days?.length ?? 0}
-        </p>
-      </div>
-    );
+/**
+ * Stable per-browser identifier shipped with every assistant request as
+ * `client_id`. Used server-side for daily soft-cap accounting (see
+ * lib/assistantDailyCap.ts). Generated lazily and persisted in localStorage —
+ * survives page refresh, scoped to one browser profile.
+ */
+function getOrCreateAssistantClientId(): string {
+  if (typeof window === "undefined") return "ssr";
+  const KEY = "assistantClientId";
+  try {
+    const existing = window.localStorage.getItem(KEY);
+    if (existing && existing.length >= 8) return existing;
+    const fresh =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `c_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
+    window.localStorage.setItem(KEY, fresh);
+    return fresh;
+  } catch {
+    return "fallback";
   }
-  return (
-    <div className="space-y-3">
-      <div className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2">
-        <p className="text-sm font-semibold text-blue-100">{programme.programmeTitle}</p>
-        <p className="text-xs text-blue-100/80 mt-0.5">{programme.programmeGoal}</p>
-      </div>
-      <div className="space-y-3">
-        {programme.days.map((day) => (
-          <div key={day.dayLabel} className="rounded-xl border border-white/10 bg-zinc-900/70 px-3 py-3">
-            <p className="text-sm font-semibold text-zinc-100">{day.dayLabel}</p>
-            {day.targetMuscles && day.targetMuscles.length > 0 ? (
-              <p className="text-xs text-zinc-500 mt-0.5">Targets: {day.targetMuscles.join(", ")}</p>
-            ) : null}
-            <p className="text-xs text-zinc-400 mt-0.5">{day.purposeSummary}</p>
-            <div className="space-y-2 mt-2">
-              {day.exercises.map((ex, i) => (
-                <div key={`${day.dayLabel}-${ex.slotLabel}-${i}`} className="rounded-lg border border-white/10 bg-zinc-950/40 px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-blue-200/80">{i + 1}. {ex.slotLabel}</p>
-                  <p className="text-sm font-semibold text-zinc-100 mt-0.5">{ex.exerciseName}</p>
-                  <p className="text-xs text-zinc-300 mt-0.5">
-                    {ex.sets} sets · {ex.reps} reps · {ex.rir} RIR · {ex.rest} rest
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-zinc-300">
-        <span className="text-zinc-100 font-medium">Note:</span> {programme.notes}
-      </p>
-    </div>
-  );
 }
 
 function AssistantPageInner() {
@@ -521,7 +444,10 @@ function AssistantPageInner() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [exactThreadLoaded, setExactThreadLoaded] = useState(false);
   const threadRef = useRef<AssistantThread | null>(null);
-  const activeProgrammeStateRef = useRef<PipelineActiveProgrammeState | null>(null);
+  // Guards against duplicate /api/assistant/extract-memory calls when the daily
+  // auto-trigger and a manual New Chat overlap (saw two billed calls 100ms apart
+  // in dogfood logs). Holds a content hash while a request is in flight.
+  const memoryExtractionInFlightRef = useRef<string | null>(null);
   // Coach analysis for the empty-state opening + chip prompts (same source as the
   // home assistant card insight). Recomputes when workouts, focus, experience,
   // goal, or unit change. Empty-state-only — once the user starts a chat the
@@ -582,39 +508,8 @@ function AssistantPageInner() {
           content: m.content,
           coachReview: m.coachReview,
           workout: m.workout,
-          programme: m.programme,
         }))
       );
-      const programmeMessages = thread.messages.filter(
-        (m) => m.role === "assistant" && m.programme && m.programme.days?.length
-      );
-      if (programmeMessages.length > 0) {
-        const nonV1 = programmeMessages.filter(
-          (m) => m.programme!.debugSource !== ASSISTANT_PROGRAMME_PIPELINE_V1
-        );
-        if (process.env.NODE_ENV === "development" && nonV1.length > 0) {
-          console.warn("[programme-cache-hit]", {
-            hit: true,
-            source: "thread_localStorage_assistantThreadsV1",
-            nonV1ProgrammeMessages: nonV1.length,
-            debugSources: nonV1.map((m) => m.programme?.debugSource ?? "missing"),
-            note: "UI will block these cards unless debugSource is new_programme_pipeline_v1",
-          });
-        }
-        console.log("[programme-cache-hit]", {
-          hit: true,
-          source: "thread_localStorage_assistantThreadsV1",
-          programmeCardCount: programmeMessages.length,
-          threadId,
-          note: "Not a server cache — persisted chat history replayed in UI",
-        });
-      } else {
-        console.log("[programme-cache-hit]", {
-          hit: false,
-          source: "thread_load",
-          threadId,
-        });
-      }
       console.log("[thread-debug] active thread loaded", {
         threadId,
         exactThreadLoaded: loaded,
@@ -662,7 +557,6 @@ function AssistantPageInner() {
           content: m.content,
           coachReview: m.coachReview,
           workout: m.workout,
-          programme: m.programme,
         }))
       );
     }
@@ -680,7 +574,6 @@ function AssistantPageInner() {
         content: m.content,
         coachReview: m.coachReview,
         workout: m.workout,
-        programme: m.programme,
       }))
     );
     console.log("[thread-debug] appended user message", {
@@ -696,7 +589,6 @@ function AssistantPageInner() {
         content: m.content,
         coachReview: m.coachReview,
         workout: m.workout,
-        programme: m.programme,
       }));
 
     // Use a short rolling window for model continuity.
@@ -922,6 +814,8 @@ function AssistantPageInner() {
         body: JSON.stringify({
           message: text,
           thread_id: localThreadId!,
+          client_id: getOrCreateAssistantClientId(),
+          onboardingProfile: loadOnboardingProfile() ?? undefined,
           exactThreadLoaded: localExactThreadLoaded,
           threadMessages: threadMessagesForRequest,
           assistantMemory,
@@ -950,7 +844,6 @@ function AssistantPageInner() {
           benchProjection,
           benchContext,
           benchEstimate,
-          activeProgrammeState: activeProgrammeStateRef.current ?? undefined,
         }),
       });
 
@@ -958,9 +851,6 @@ function AssistantPageInner() {
         reply?: string;
         coachReview?: string;
         structuredWorkout?: unknown;
-        structuredProgramme?: unknown;
-        activeProgrammeState?: unknown;
-        programmeConstraintFailure?: boolean;
         error?: string;
       };
       let data: AssistantStreamPayload = {};
@@ -1011,42 +901,6 @@ function AssistantPageInner() {
       }
 
       if (res.ok && typeof data.reply === "string") {
-        if (data.programmeConstraintFailure === true) {
-          activeProgrammeStateRef.current = null;
-          if (process.env.NODE_ENV === "development") {
-            console.error("[programme-constraint-failure]", {
-              where: "client_after_fetch_api_assistant",
-              replyPreview: (data.reply as string).slice(0, 200),
-            });
-          }
-        }
-        if (process.env.NODE_ENV === "development" && data.activeProgrammeState) {
-          console.log("[assistant-client-active-programme-state]", data.activeProgrammeState);
-        }
-        if (process.env.NODE_ENV === "development" && data.structuredProgramme) {
-          const sp = data.structuredProgramme as StructuredProgramme;
-          if (sp.debugSource !== ASSISTANT_PROGRAMME_PIPELINE_V1) {
-            console.error("[old-programme-path-hit]", {
-              where: "client_after_fetch_api_assistant",
-              debugSource: sp.debugSource ?? "missing",
-            });
-          }
-          console.log("[programme-rendered]", {
-            where: "client_after_fetch_api_assistant",
-            debugSource: sp.debugSource ?? "missing_debugSource",
-            debugRequestId: sp.debugRequestId ?? null,
-            programmeTitle: sp.programmeTitle,
-            dayCount: sp.days?.length ?? 0,
-          });
-        }
-        if (
-          data.activeProgrammeState &&
-          typeof data.activeProgrammeState === "object" &&
-          "programme" in data.activeProgrammeState &&
-          "parsedRequest" in data.activeProgrammeState
-        ) {
-          activeProgrammeStateRef.current = data.activeProgrammeState as PipelineActiveProgrammeState;
-        }
         // Selective long-term memory can be toggled in UI.
         try {
           const proposals = extractMemoryProposalsFromConversation({
@@ -1095,12 +949,6 @@ function AssistantPageInner() {
             data.structuredWorkout && typeof data.structuredWorkout === "object"
               ? (data.structuredWorkout as StructuredWorkout)
               : undefined,
-          programme:
-            data.programmeConstraintFailure !== true &&
-            data.structuredProgramme &&
-            typeof data.structuredProgramme === "object"
-              ? (data.structuredProgramme as StructuredProgramme)
-              : undefined,
         });
         threadRef.current = nextThreadAfterAssistant;
         setMessages(
@@ -1109,7 +957,6 @@ function AssistantPageInner() {
             content: m.content,
             coachReview: m.coachReview,
             workout: m.workout,
-            programme: m.programme,
           }))
         );
         setActiveThreadId(nextThreadAfterAssistant.thread_id);
@@ -1126,7 +973,6 @@ function AssistantPageInner() {
             content: m.content,
             coachReview: m.coachReview,
             workout: m.workout,
-            programme: m.programme,
           }))
         );
       }
@@ -1145,7 +991,6 @@ function AssistantPageInner() {
             content: m.content,
             coachReview: m.coachReview,
             workout: m.workout,
-            programme: m.programme,
           }))
         );
         setActiveThreadId(nextThreadAfterAssistant.thread_id);
@@ -1174,11 +1019,30 @@ function AssistantPageInner() {
       .filter((m) => typeof m.content === "string" && m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content }));
     if (conversation.length === 0) return;
+    // Skip trivial conversations — extraction is a billed Anthropic call (~£0.01-£0.02)
+    // and a 1-message exchange has nothing durable to extract anyway.
+    const userTurnCount = conversation.filter((m) => m.role === "user").length;
+    const totalChars = conversation.reduce((acc, m) => acc + m.content.length, 0);
+    if (userTurnCount < 2 || totalChars < 500) {
+      console.log("[memory-extraction] skipped — trivial conversation", {
+        userTurnCount,
+        totalChars,
+      });
+      return;
+    }
+    // Cheap content fingerprint — length + first/last role+content hashes are enough
+    // to spot the daily-auto-trigger and a manual New Chat racing on the same payload.
+    const fingerprint = `${conversation.length}|${conversation[0].role}:${conversation[0].content.length}|${conversation[conversation.length - 1].role}:${conversation[conversation.length - 1].content.length}`;
+    if (memoryExtractionInFlightRef.current === fingerprint) {
+      console.log("[memory-extraction] skipped — duplicate in flight", { fingerprint });
+      return;
+    }
+    memoryExtractionInFlightRef.current = fingerprint;
     try {
       const res = await fetch("/api/assistant/extract-memory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversation }),
+        body: JSON.stringify({ conversation, client_id: getOrCreateAssistantClientId() }),
       });
       if (!res.ok) return;
       const data = (await res.json()) as { facts?: ExtractedMemoryFact[] };
@@ -1190,6 +1054,8 @@ function AssistantPageInner() {
       }
     } catch (e) {
       console.log("[memory-extraction] failed", e);
+    } finally {
+      memoryExtractionInFlightRef.current = null;
     }
   }
 
@@ -1227,7 +1093,6 @@ function AssistantPageInner() {
       void extractAndSaveMemoryFromMessages(staleMessages).then(() => {
         const result = createNewChatThread();
         activeExerciseTopicRef.current = null;
-        activeProgrammeStateRef.current = null;
         threadRef.current = result.thread;
         setActiveThreadId(result.threadId);
         setExactThreadLoaded(result.exactThreadLoaded);
@@ -1263,7 +1128,6 @@ function AssistantPageInner() {
     const result = createNewChatThread();
     // Hard reset short-term assistant conversation state for this tab/thread.
     activeExerciseTopicRef.current = null;
-    activeProgrammeStateRef.current = null;
     threadRef.current = result.thread;
     setActiveThreadId(result.threadId);
     setExactThreadLoaded(result.exactThreadLoaded);
@@ -1322,16 +1186,40 @@ function AssistantPageInner() {
             </svg>
             <span>Home</span>
           </Link>
-          <button
-            type="button"
-            onClick={handleNewChat}
-            disabled={isLoading}
-            aria-label="New chat"
-            title="New chat"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-app-secondary hover:text-white hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <NewChatIcon />
-          </button>
+          <div className="flex items-center gap-1">
+            <a
+              href={process.env.NEXT_PUBLIC_TALLY_FEEDBACK_URL || "https://tally.so/r/feedback-placeholder"}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Send feedback"
+              title="Send feedback"
+              className="inline-flex items-center gap-1 rounded-full px-2.5 h-9 text-[12px] font-semibold text-app-secondary hover:text-white hover:bg-white/[0.05] transition-colors"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-[14px] w-[14px]"
+                aria-hidden
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span className="hidden sm:inline">Feedback</span>
+            </a>
+            <button
+              type="button"
+              onClick={handleNewChat}
+              disabled={isLoading}
+              aria-label="New chat"
+              title="New chat"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-app-secondary hover:text-white hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <NewChatIcon />
+            </button>
+          </div>
         </header>
 
         {isEmpty ? (
@@ -1418,16 +1306,7 @@ function AssistantPageInner() {
                       className="w-full max-w-[min(100%,36rem)] pl-4 border-l-2"
                       style={{ borderColor: "rgba(0,229,176,0.30)" }}
                     >
-                      {m.programme ? (
-                        <div className="space-y-4">
-                          {m.coachReview?.trim() ? (
-                            <AssistantMessageBody content={m.coachReview} />
-                          ) : null}
-                          <AssistantProgrammeCard programme={m.programme} />
-                        </div>
-                      ) : (
-                        <AssistantMessageBody content={m.content} />
-                      )}
+                      <AssistantMessageBody content={m.content} />
                     </div>
                   )}
                 </li>

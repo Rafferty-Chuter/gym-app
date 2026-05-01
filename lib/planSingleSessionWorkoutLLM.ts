@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { logAssistantCallCost } from "@/lib/assistantCostLogging";
 import { exerciseIdWhitelist, getExerciseCatalogForLLM } from "@/lib/exerciseCatalogForLLM";
 import { resolveSessionExerciseCountPolicy } from "@/lib/sessionExerciseCountPolicy";
 import { buildHypertrophyEvidencePromptBlock } from "@/lib/hypertrophyEvidenceV1";
@@ -485,6 +486,15 @@ EXCLUSION / INJURY KEYWORDS (avoid loading these patterns):\n${JSON.stringify(ex
       output_tokens: res.usage?.output_tokens ?? 0,
       cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? 0,
       cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? 0,
+    });
+    logAssistantCallCost({
+      usage: res.usage,
+      model: PLANNER_MODEL,
+      streamed: true,
+      subCall: "plan_single_session",
+      threadId: undefined,
+      clientId: undefined,
+      startedAt,
     });
     const toolUse = res.content.find(
       (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use" && b.name === PLANNER_TOOL_NAME

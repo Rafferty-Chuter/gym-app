@@ -15,6 +15,8 @@ export const APP_LOCAL_STORAGE_KEYS = [
   "weightUnit",
   "priorityGoal",
   "onboardingComplete",
+  "onboardingProfile",
+  "assistantClientId",
   "experienceLevel",
   "trainingFocus",
   "workoutFromTemplate",
