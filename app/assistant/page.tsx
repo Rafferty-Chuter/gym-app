@@ -369,37 +369,6 @@ function buildEmptyStateContent(
   }
 }
 
-function AssistantWorkoutCard({ workout }: { workout: StructuredWorkout }) {
-  return (
-    <div className="space-y-3">
-      <div className="rounded-xl border border-blue-400/30 bg-blue-500/10 px-3 py-2">
-        <p className="text-sm font-semibold text-blue-100">{workout.sessionTitle}</p>
-        <p className="text-xs text-blue-100/80 mt-0.5">{workout.sessionGoal}</p>
-      </div>
-      <div className="space-y-2">
-        {workout.exercises.map((ex, i) => (
-          <div
-            key={`${ex.slot}-${ex.exercise}-${i}`}
-            className="rounded-xl border border-white/10 bg-zinc-900/70 px-3 py-3"
-          >
-            <p className="text-xs uppercase tracking-wide text-blue-200/80">{i + 1}. {ex.slot}</p>
-            <p className="text-sm font-semibold text-zinc-100 mt-1">{ex.exercise}</p>
-            <p className="text-xs text-zinc-300 mt-1">
-              {ex.sets} sets · {ex.reps} reps · {ex.rir} RIR · {ex.rest} rest
-            </p>
-            {ex.rationale ? (
-              <p className="text-xs text-zinc-400 mt-1">{ex.rationale}</p>
-            ) : null}
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-zinc-300">
-        <span className="text-zinc-100 font-medium">Practical note:</span> {workout.note}
-      </p>
-    </div>
-  );
-}
-
 /**
  * Stable per-browser identifier shipped with every assistant request as
  * `client_id`. Used server-side for daily soft-cap accounting (see

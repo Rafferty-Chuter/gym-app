@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { logAssistantCallCost } from "@/lib/assistantCostLogging";
@@ -33,7 +32,6 @@ import {
   classifyWorkoutArtefactIntent,
   detectConstructionResponseMode,
   hasExplicitLexicalConstructionAsk,
-  mayRunStructuredProgrammePath,
   shouldEmitStructuredSingleSessionWorkout,
   userExplicitlyBlocksStructuredWorkoutGeneration,
 } from "@/lib/workoutConstructionIntent";
@@ -46,48 +44,14 @@ import type {
   RecoveryMode,
 } from "@/lib/workoutTypes";
 import { formatIntRange } from "@/lib/formatPrescriptionDisplay";
-import { isProgrammeModificationIntent, summarizeActiveProgrammeForLog } from "@/lib/assistantProgrammeFlow";
 import { parseSplitFromMessage } from "@/lib/splitParser";
-import { scoreDayForExercise } from "@/lib/scoreDayForExercise";
 import type { SessionType } from "@/lib/sessionTemplates";
-import { getExerciseByIdOrName, type ExerciseMetadata } from "@/lib/exerciseMetadataLibrary";
+import { getExerciseByIdOrName } from "@/lib/exerciseMetadataLibrary";
 import { parseRequestedExerciseConstraints } from "@/lib/parseRequestedExerciseConstraints";
-import type { SplitDefinition } from "@/lib/splitDefinition";
-import {
-  buildProgrammeWithUnifiedSessionPlanner,
-  classifyProgrammeIntent,
-  composeModificationUserMessage,
-  parseProgrammeRequest,
-  resolveSplitDefinitionForRequest,
-  validateProgrammeAgainstRequest,
-  type ActiveProgrammeState as PipelineActiveProgrammeState,
-  type AssistantStructuredProgrammeDebugSource,
-  type BuildProgrammeUserContext,
-  type ParsedProgrammeRequest,
-} from "@/lib/programmePipeline";
-import { getPrescriptionForExercise } from "@/lib/prescriptionDefaults";
-import {
-  extractProgrammeConstraintsLLM,
-  type ProgrammeConstraintsLLMOutput,
-} from "@/lib/extractProgrammeConstraintsLLM";
-import { extractProgrammeStructureLLM } from "@/lib/extractProgrammeStructureLLM";
-import { buildProgrammeFromLLMPlan } from "@/lib/buildProgrammeFromLLMPlan";
 import { generateAssistantSingleSessionWorkout } from "@/lib/assistantSingleSessionGeneration";
 import { parseTargetedMuscleRuleIdsFromMessage } from "@/lib/muscleCoverageBriefForLLM";
-import { generateCoachRoutineReviewLLM } from "@/lib/explainRoutineCoachLLM";
-import { isGenericSessionBuildRequest } from "@/lib/sessionExerciseCountPolicy";
-import {
-  exclusionStringsForExerciseIds,
-  mergeLLMIntoProgrammeBuildState,
-} from "@/lib/mergeLLMProgrammeConstraints";
-import { findExcludedExercisesPresentInProgramme } from "@/lib/validateProgrammeExcludedExercises";
 import { muscleVolumeSummaryForAssistant } from "@/lib/muscleAwareWeeklyVolume";
-import { expandExcludedExerciseIds } from "@/lib/expandExcludedExerciseIds";
-import { programmeDayMuscleCoverageSummaryForQuestion } from "@/lib/muscleAwareProgrammeDayAssessment";
 import { buildHypertrophyEvidencePromptBlock } from "@/lib/hypertrophyEvidenceV1";
-import { mapExerciseToMuscleStimulus } from "@/lib/muscleGroupMapper";
-import type { MuscleGroupId } from "@/lib/muscleGroupRules";
-import { MUSCLE_GROUP_RULES } from "@/lib/muscleGroupRules";
 import { buildSessionFeedbackFromBuiltWorkout } from "@/lib/trainingKnowledge/sessionReviewLogic";
 import { tryAnswerFromTrainingKnowledge as tryAnswerTrainingKnowledgeQuestion } from "@/lib/trainingKnowledge/trainingAnswerSupport";
 import {
@@ -178,10 +142,7 @@ export type AssistantBody = {
     role: "user" | "assistant";
     content: string;
     workout?: AssistantResponse["structuredWorkout"];
-    programme?: AssistantResponse["structuredProgramme"];
   }>;
-  /** Last structured programme + parsed constraints (client resends each turn for modify path). */
-  activeProgrammeState?: PipelineActiveProgrammeState;
   trainingSummary: {
     totalWorkouts: number;
     totalExercises: number;
@@ -339,35 +300,6 @@ export type AssistantResponse = {
     debugGenerator?: string;
     debugTrace?: string;
   };
-  structuredProgramme?: {
-    programmeTitle: string;
-    programmeGoal: string;
-    notes: string;
-    /** Temporary: which server path produced this programme (dev tracing). */
-    debugSource?: AssistantStructuredProgrammeDebugSource;
-    debugRequestId?: string;
-    debugBuiltAt?: string;
-    days: Array<{
-      dayLabel: string;
-      sessionType: string;
-      purposeSummary: string;
-      /** When present, requested exercises are routed to days by muscle overlap. */
-      targetMuscles?: string[];
-      exercises: Array<{
-        slotLabel: string;
-        exerciseName: string;
-        sets: string;
-        reps: string;
-        rir: string;
-        rest: string;
-        rationale: string;
-      }>;
-    }>;
-  };
-  /** Durable pipeline state: full programme + last parsed request (timestamps ISO). */
-  activeProgrammeState?: PipelineActiveProgrammeState;
-  /** When set, client must not treat the turn as a successful programme (no card / clear pipeline state). */
-  programmeConstraintFailure?: boolean;
 };
 
 function buildCoachContextSnippetForReview(opts: {
@@ -737,16 +669,6 @@ function renderBuiltWorkoutReply(workout: BuiltWorkout): string {
   return lines.join("\n");
 }
 
-function isProgrammeBuildRequest(message: string): boolean {
-  const t = message.toLowerCase();
-  return (
-    /\b(program|programme|split|routine|weekly plan|full plan|training plan)\b/.test(t) ||
-    /\b(push pull legs|ppl|upper lower)\b/.test(t) ||
-    /\b\d+\s*(day|days)\b/.test(t) ||
-    /\b(one day|another day|on another day|day\s*1|day\s*2|day\s*3|day\s*4)\b/.test(t)
-  );
-}
-
 type CustomProgrammeDay = {
   label: string;
   sessionType: SessionType;
@@ -761,132 +683,6 @@ function splitTypeFromMessage(message: string): "ppl" | "upper_lower" | "custom"
   if (/\b([3-6])\s*(day|days)\b/.test(t)) return "n_day";
   if (detectCustomProgrammeDays(message).length >= 2) return "custom";
   return "general";
-}
-
-/** True if a logged exercise name satisfies a requested library id (exact or common synonym). */
-function exerciseNameSatisfiesRequestedId(exerciseName: string, requestedId: string): boolean {
-  const n = exerciseName.toLowerCase().trim();
-  const meta = getExerciseByIdOrName(requestedId);
-  if (!meta) return false;
-  if (n === meta.name.toLowerCase()) return true;
-  if (requestedId === "incline_dumbbell_press") {
-    return /\bincline\b/.test(n) && /\bpress\b/.test(n);
-  }
-  if (requestedId === "flat_barbell_bench_press") {
-    const flatLike =
-      /\bflat\b.*\bbarbell\b.*\bbench\b|\bbarbell\b.*\bbench\b|\bbench press\b|\bbarbell bench\b/.test(n);
-    return flatLike && !/\bincline\b/.test(n);
-  }
-  if (requestedId === "overhead_press") {
-    return /\b(overhead|ohp|military)\b/.test(n) && /\bpress\b/.test(n);
-  }
-  if (requestedId === "jm_press") {
-    return /\bjm\s*press\b/.test(n) || /\bj\.m\.\s*press\b/.test(n);
-  }
-  return false;
-}
-
-function requestedExercisePresentInProgramme(
-  programme: NonNullable<AssistantResponse["structuredProgramme"]>,
-  requestedIds: string[]
-): { missingIds: string[]; presentIds: string[] } {
-  const presentIds: string[] = [];
-  const missingIds: string[] = [];
-  for (const id of requestedIds) {
-    const ex = getExerciseByIdOrName(id);
-    if (!ex) {
-      missingIds.push(id);
-      continue;
-    }
-    const satisfied = programme.days.some((d) =>
-      d.exercises.some((e) => exerciseNameSatisfiesRequestedId(e.exerciseName, id))
-    );
-    if (satisfied) presentIds.push(ex.id);
-    else missingIds.push(ex.id);
-  }
-  return { missingIds, presentIds };
-}
-
-function targetDayIndexForExercise(
-  programme: NonNullable<AssistantResponse["structuredProgramme"]>,
-  exercise: ExerciseMetadata,
-  splitType: "ppl" | "upper_lower" | "custom" | "n_day" | "general" | "generic"
-): number {
-  let bestMuscleIdx = -1;
-  let bestMuscleScore = 0;
-  programme.days.forEach((d, idx) => {
-    const s = scoreDayForExercise(d.targetMuscles, exercise);
-    if (s > bestMuscleScore) {
-      bestMuscleScore = s;
-      bestMuscleIdx = idx;
-    }
-  });
-  if (bestMuscleScore > 0) return bestMuscleIdx;
-
-  const byLabel = programme.days.findIndex((d) => {
-    const l = d.dayLabel.toLowerCase();
-    if (splitType === "ppl") {
-      if (exercise.tags.includes("push") && l.includes("push")) return true;
-      if (exercise.tags.includes("pull") && l.includes("pull")) return true;
-      if (exercise.tags.includes("legs") && l.includes("legs")) return true;
-    }
-    if (splitType === "upper_lower") {
-      if (exercise.tags.includes("upper") && l.includes("upper")) return true;
-      if (exercise.tags.includes("lower") && l.includes("lower")) return true;
-    }
-    return false;
-  });
-  if (byLabel >= 0) return byLabel;
-  const bySessionType = programme.days.findIndex((d) => {
-    const s = d.sessionType.toLowerCase();
-    if (exercise.tags.includes("push") && s === "push") return true;
-    if (exercise.tags.includes("pull") && s === "pull") return true;
-    if (exercise.tags.includes("legs") && (s === "legs" || s === "lower")) return true;
-    if (exercise.tags.includes("upper") && s === "upper") return true;
-    if (exercise.tags.includes("lower") && s === "lower") return true;
-    return false;
-  });
-  if (bySessionType >= 0) return bySessionType;
-  return 0;
-}
-
-function enforceRequestedExercisesInProgramme(
-  programme: NonNullable<AssistantResponse["structuredProgramme"]>,
-  requestedIds: string[],
-  splitType: "ppl" | "upper_lower" | "custom" | "n_day" | "general" | "generic",
-  excludedExerciseIds: readonly string[] = []
-): NonNullable<AssistantResponse["structuredProgramme"]> {
-  const banned = new Set(excludedExerciseIds.map((id) => id.trim()).filter(Boolean));
-  const clone: NonNullable<AssistantResponse["structuredProgramme"]> = {
-    ...programme,
-    days: programme.days.map((d) => ({
-      ...d,
-      exercises: d.exercises.map((e) => ({ ...e })),
-    })),
-  };
-  const presence = requestedExercisePresentInProgramme(clone, requestedIds);
-  if (presence.missingIds.length === 0) return clone;
-  for (const id of presence.missingIds) {
-    if (banned.has(id)) continue;
-    const ex = getExerciseByIdOrName(id);
-    if (!ex) continue;
-    const alreadyPresent = clone.days.some((d) =>
-      d.exercises.some((e) => exerciseNameSatisfiesRequestedId(e.exerciseName, id))
-    );
-    if (alreadyPresent) continue;
-    const dayIdx = targetDayIndexForExercise(clone, ex, splitType);
-    const prescription = getPrescriptionForExercise(ex).adjusted;
-    clone.days[dayIdx].exercises.unshift({
-      slotLabel: "Requested exercise",
-      exerciseName: ex.name,
-      sets: formatIntRange(prescription.sets),
-      reps: formatIntRange(prescription.repRange),
-      rir: formatIntRange(prescription.rirRange),
-      rest: `${formatIntRange(prescription.restSeconds)}s`,
-      rationale: "User requested this exercise explicitly; injected as a hard programme constraint.",
-    });
-  }
-  return clone;
 }
 
 function detectCustomProgrammeDays(message: string): CustomProgrammeDay[] {
@@ -935,64 +731,6 @@ function detectCustomProgrammeDays(message: string): CustomProgrammeDay[] {
 
   // Keep a practical upper bound for routine size.
   return sorted.slice(0, 6);
-}
-
-function isPipelineActiveProgrammeState(x: unknown): x is PipelineActiveProgrammeState {
-  if (!x || typeof x !== "object") return false;
-  const o = x as Record<string, unknown>;
-  return (
-    Boolean(o.programme) &&
-    typeof o.programme === "object" &&
-    Boolean(o.parsedRequest) &&
-    typeof o.parsedRequest === "object" &&
-    typeof o.createdAt === "string" &&
-    typeof o.updatedAt === "string"
-  );
-}
-
-function buildPipelineActiveProgrammeState(
-  programme: NonNullable<AssistantResponse["structuredProgramme"]>,
-  parsedRequest: ParsedProgrammeRequest,
-  previous?: PipelineActiveProgrammeState | null
-): PipelineActiveProgrammeState {
-  const now = new Date().toISOString();
-  return {
-    programme,
-    parsedRequest,
-    createdAt: previous?.createdAt ?? now,
-    updatedAt: now,
-  };
-}
-
-function renderStructuredProgrammeText(
-  programme: NonNullable<AssistantResponse["structuredProgramme"]>
-): string {
-  const lines: string[] = [
-    `${programme.programmeTitle}`,
-    programme.programmeGoal,
-    "",
-  ];
-  for (const day of programme.days) {
-    lines.push(`${day.dayLabel} (${day.sessionType})`);
-    for (const ex of day.exercises) {
-      lines.push(
-        `- ${ex.slotLabel}: ${ex.exerciseName} — ${ex.sets} sets, ${ex.reps} reps, ${ex.rir} RIR, ${ex.rest} rest`
-      );
-    }
-    lines.push("");
-  }
-  // notes carries internal telemetry like "DEBUG: generated by programme_structure_llm_path."
-  // followed by a user-facing rationale. Strip the DEBUG header before rendering — the
-  // builder is responsible for telemetry, not the user-facing text.
-  const userFacingNotes = (programme.notes ?? "")
-    .replace(/^DEBUG:[^.]*\.\s*/i, "")
-    .replace(/^Hybrid v\d+ generation\.\s*/i, "")
-    .replace(/^[Aa]ssistant_unified_path[^.]*\.\s*/i, "")
-    .trim();
-  if (userFacingNotes) {
-    lines.push(`Note: ${userFacingNotes}`);
-  }
-  return lines.join("\n");
 }
 
 function hasMinimumViableContext(parsed: ParsedContext): boolean {
@@ -1832,7 +1570,6 @@ async function getAssistantReply(
   benchContext: AssistantBody["benchContext"] | undefined,
   benchEstimate: AssistantBody["benchEstimate"] | undefined,
   coachingContext: CoachingContext | undefined,
-  activeProgramme: NonNullable<AssistantResponse["structuredProgramme"]> | null | undefined,
   exerciseTrends: NonNullable<AssistantBody["exerciseTrends"]>,
   trainingInsights: AssistantBody["trainingInsights"] | undefined,
   priorityGoalExerciseInsight: AssistantBody["priorityGoalExerciseInsight"],
@@ -1896,9 +1633,7 @@ async function getAssistantReply(
 
   const context = `Training data (logged in app): ${trainingSummary.totalWorkouts} total workouts, ${trainingSummary.totalSets} total sets (all-time, counted from completed sets), ${trainingSummary.totalExercises} exercise entries. Last 7 days: ${insightsFrequency} logged session(s). Weekly volume = set counts by muscle group in that window (same calculation as the Coach tab); use these figures verbatim: ${weeklyVolumeStr}. ${volumeCompletenessNote ? `${volumeCompletenessNote} ` : ""}Recent exercise names: ${(trainingSummary.recentExercises ?? []).join(", ") || "none"}.`;
 
-  const plannedDayMuscleCoverageBlock = activeProgramme
-    ? programmeDayMuscleCoverageSummaryForQuestion({ programme: activeProgramme, message })
-    : null;
+  const plannedDayMuscleCoverageBlock = null;
   const hypertrophyEvidenceBlock = buildHypertrophyEvidencePromptBlock();
   const findingsStr = (trainingInsights?.findings ?? []).slice(0, 5).join(" ");
   const rirSuffix = (e: {
@@ -2206,21 +1941,9 @@ ${evidenceScopeBlock}`;
 - Top issue/watch item: ${analysisInputs.topIssue ?? "MISSING"}
 - Next step: ${analysisInputs.nextStep ?? "MISSING"}`;
 
-  const activeProgrammeSummaryBlock =
-    activeProgramme?.days?.length
-      ? `Active structured programme in context (authoritative for "this routine/plan" questions):
-- Title: ${activeProgramme.programmeTitle}
-- Days: ${activeProgramme.days.length}
-- Day labels: ${activeProgramme.days.map((d) => d.dayLabel).join(", ")}
-- Session types: ${activeProgramme.days.map((d) => d.sessionType).join(", ")}
-Use this directly when the user refers to the routine/plan you just gave them.`
-      : "";
-
   const templateReviewBlock = templateDataAvailable
-    ? `Templates / programs (text provided by user in this request):\n${templatesSummary?.trim() ?? ""}\n${activeProgrammeSummaryBlock ? `\n${activeProgrammeSummaryBlock}\n` : ""}`
-    : activeProgrammeSummaryBlock
-      ? `${activeProgrammeSummaryBlock}\n`
-      : `Templates / programs: NO structured template data was sent with this request. Do not pretend you reviewed their saved templates. Ask them to describe template names, split, days per week, and main exercises—or paste details—before judging or comparing programs.\n`;
+    ? `Templates / programs (text provided by user in this request):\n${templatesSummary?.trim() ?? ""}\n`
+    : `Templates / programs: NO structured template data was sent with this request. Do not pretend you reviewed their saved templates. Ask them to describe template names, split, days per week, and main exercises—or paste details—before judging or comparing programs.\n`;
 
   let input = "";
   switch (mode) {
@@ -3182,10 +2905,6 @@ function stripHeadingPrefix(text: string, labels: string[]): string {
 }
 
 type ThreadMessageForDeterministic = { role: "user" | "assistant"; content: string };
-type ThreadMessageWithStructured = ThreadMessageForDeterministic & {
-  workout?: AssistantResponse["structuredWorkout"];
-  programme?: AssistantResponse["structuredProgramme"];
-};
 
 /** Prior assistant message when the user’s latest turn is a challenge/clarification (user, assistant, user). */
 function extractPriorAssistantTurnForCorrection(
@@ -3318,49 +3037,6 @@ function tryBuildDeterministicThreadReferenceReply(params: {
   }
 
   return null;
-}
-
-function extractLatestStructuredProgramme(
-  threadMessages: ThreadMessageWithStructured[] | undefined
-): AssistantResponse["structuredProgramme"] | null {
-  if (!Array.isArray(threadMessages) || threadMessages.length === 0) return null;
-  for (let i = threadMessages.length - 1; i >= 0; i--) {
-    const m = threadMessages[i];
-    if (m?.role === "assistant" && m?.programme && Array.isArray(m.programme.days)) {
-      const p = m.programme;
-      if (!p.days.length) continue;
-      if (process.env.NODE_ENV === "development") {
-        if (p.debugSource !== "new_programme_pipeline_v1") {
-          console.warn("[programme-cache-hit]", {
-            action: "thread_programme_non_v1_still_usable",
-            debugSource: p.debugSource ?? "missing",
-            programmeTitle: p.programmeTitle,
-          });
-        }
-      }
-      console.log("[programme-cache-hit]", {
-        action: "thread_programme_used_for_merge",
-        debugSource: p.debugSource ?? "missing",
-        programmeTitle: p.programmeTitle,
-        dayCount: p.days.length,
-      });
-      return p;
-    }
-  }
-  return null;
-}
-
-function isProgrammeAdjustmentRequest(message: string): boolean {
-  const t = message.toLowerCase();
-  if (!t.trim()) return false;
-  const adjustmentVerb =
-    /\b(add|remove|swap|change|replace|reduce|increase|adjust|modify|rebuild|regenerate|make it|make this|make that|prioriti[sz]e)\b/.test(
-      t
-    );
-  const programmeScoped =
-    /\b(program|programme|routine|split|day|days|ppl|push pull legs|upper lower)\b/.test(t) ||
-    /\b(side delt|delts?|chest|back|legs?|arms?|shoulders?|fatigue|hypertrophy|strength|barbell|dumbbell|machine)\b/.test(t);
-  return adjustmentVerb && programmeScoped;
 }
 
 function tryBuildDeterministicExerciseReply(params: {
@@ -3657,83 +3333,6 @@ Also from your logs: ${cleanSupportLine}
 Next: ${cleanNextMove}${templateLine}`.trim();
 }
 
-function parseSetRangeMaxFromProgrammeText(setsText: string | undefined): number {
-  if (!setsText) return 0;
-  const nums =
-    String(setsText)
-      .match(/\d+/g)
-      ?.map((n) => parseInt(n, 10))
-      .filter(Number.isFinite) ?? [];
-  if (!nums.length) return 0;
-  return Math.max(...nums);
-}
-
-function detectMuscleFromQuestion(message: string): MuscleGroupId | null {
-  const t = message.toLowerCase();
-  if (/\bchest|pec/.test(t)) return "chest";
-  if (/\b(back|lats?|upper back|mid back|rows?|pulldown|pull-up|pull up)\b/.test(t)) return "lats_upper_back";
-  if (/\b(shoulder|delts?)\b/.test(t)) return "delts";
-  if (/\bbiceps?\b/.test(t)) return "biceps";
-  if (/\btriceps?\b/.test(t)) return "triceps";
-  if (/\bquads?\b/.test(t)) return "quads";
-  if (/\bhamstrings?\b/.test(t)) return "hamstrings";
-  if (/\bglutes?\b/.test(t)) return "glutes";
-  if (/\bcalves?\b/.test(t)) return "calves";
-  if (/\b(abs|core|abdominals?)\b/.test(t)) return "abs_core";
-  return null;
-}
-
-function isRoutineVolumeQuestion(message: string): boolean {
-  const t = message.toLowerCase();
-  const asksVolume =
-    /\b(how many sets|weekly sets|sets per week|weekly volume|how much volume)\b/.test(t) ||
-    (/\bsets?\b/.test(t) && /\bweek|weekly\b/.test(t));
-  const referencesRoutine =
-    /\b(this|that)\s+(routine|programme|program|plan|workout)\b/.test(t) ||
-    /\byou\s+just\s+gave\s+me\b/.test(t) ||
-    /\bfrom\s+the\s+(routine|programme|program|plan|workout)\b/.test(t) ||
-    /\bfrom\s+the\s+routine\b/.test(t);
-  return asksVolume || (referencesRoutine && /\bsets?\b/.test(t));
-}
-
-function tryBuildDeterministicRoutineVolumeReply(params: {
-  message: string;
-  activeProgramme: AssistantResponse["structuredProgramme"] | null | undefined;
-}): string | null {
-  const p = params.activeProgramme;
-  if (!p?.days?.length) return null;
-  if (!isRoutineVolumeQuestion(params.message)) return null;
-
-  const direct: Record<MuscleGroupId, number> = Object.fromEntries(
-    (Object.keys(MUSCLE_GROUP_RULES) as MuscleGroupId[]).map((k) => [k, 0])
-  ) as Record<MuscleGroupId, number>;
-
-  for (const day of p.days) {
-    for (const row of day.exercises ?? []) {
-      const meta = getExerciseByIdOrName(row.exerciseName);
-      if (!meta) continue;
-      const setCount = parseSetRangeMaxFromProgrammeText(row.sets);
-      if (!setCount) continue;
-      const stim = mapExerciseToMuscleStimulus(meta);
-      for (const g of stim.direct) {
-        direct[g] += setCount / Math.max(1, stim.direct.length);
-      }
-    }
-  }
-
-  const specific = detectMuscleFromQuestion(params.message);
-  if (specific) {
-    const n = Math.round(direct[specific] ?? 0);
-    const name = MUSCLE_GROUP_RULES[specific].displayName;
-    return `From the routine I just gave you, ${name} gets about ${n} direct set${n === 1 ? "" : "s"} per week.`;
-  }
-
-  const lines = (Object.keys(MUSCLE_GROUP_RULES) as MuscleGroupId[])
-    .map((g) => `- ${MUSCLE_GROUP_RULES[g].displayName}: ~${Math.round(direct[g] ?? 0)} direct sets/week`)
-    .join("\n");
-  return `From the routine I just gave you, estimated weekly direct set volume is:\n${lines}`;
-}
-
 /**
  * Streaming response contract (when client sends `Accept: text/event-stream`):
  *   event: delta   data: { "text": "<chunk>" }     // zero or more
@@ -3775,18 +3374,6 @@ function sanitizeAssistantResponseForClient(payload: AssistantResponse): Assista
     delete (sw as { debugGenerator?: unknown }).debugGenerator;
     delete (sw as { debugTrace?: unknown }).debugTrace;
     next.structuredWorkout = sw;
-  }
-  if (next.structuredProgramme) {
-    const sp = { ...next.structuredProgramme };
-    delete (sp as { debugRequestId?: unknown }).debugRequestId;
-    delete (sp as { debugBuiltAt?: unknown }).debugBuiltAt;
-    delete (sp as { debugProgrammeGenerator?: unknown }).debugProgrammeGenerator;
-    sp.days = sp.days?.map((d) => {
-      const cleaned = { ...d };
-      delete (cleaned as { debugDayGenerator?: unknown }).debugDayGenerator;
-      return cleaned;
-    });
-    next.structuredProgramme = sp;
   }
   return next;
 }
@@ -3874,7 +3461,6 @@ export async function POST(request: NextRequest) {
       benchProjection,
       benchContext,
       benchEstimate,
-      activeProgrammeState: rawClientActiveProgramme,
     } = body;
 
     // Daily soft cap — refuse with a graceful fallback before any LLM call when
@@ -3971,83 +3557,16 @@ export async function POST(request: NextRequest) {
       classifiedAtMs: Date.now(),
       elapsedMsFromReceive: Date.now() - requestStartedAt,
     });
-    const latestStructuredProgramme = extractLatestStructuredProgramme(
-      Array.isArray(threadMessages) ? (threadMessages as ThreadMessageWithStructured[]) : undefined
-    );
-    const programmeAdjustmentAsk = isProgrammeAdjustmentRequest(trimmedMessage);
-    const programmeModificationIntent =
-      Boolean(latestStructuredProgramme) && isProgrammeModificationIntent(trimmedMessage);
-    const programmeModificationFlow =
-      Boolean(latestStructuredProgramme) &&
-      (programmeModificationIntent || programmeAdjustmentAsk);
-    let clientActiveProgramme = isPipelineActiveProgrammeState(rawClientActiveProgramme)
-      ? rawClientActiveProgramme
-      : null;
-    if (clientActiveProgramme && process.env.NODE_ENV === "development") {
-      const p = clientActiveProgramme.programme;
-      if (p.debugSource !== "new_programme_pipeline_v1" || !p.days?.length) {
-        console.warn("[programme-cache-hit]", {
-          action: "client_active_programme_state_rejected_non_v1",
-          debugSource: p.debugSource ?? "missing",
-          dayCount: p.days?.length ?? 0,
-        });
-        clientActiveProgramme = null;
-      }
-    }
-    if (clientActiveProgramme) {
-      console.log("[programmePipeline] active programme state loaded from client", {
-        title: clientActiveProgramme.programme.programmeTitle,
-        dayCount: clientActiveProgramme.programme.days.length,
-        priorIntent: clientActiveProgramme.parsedRequest.intent,
-      });
-    }
-    const mergedStructuredProgramme =
-      clientActiveProgramme?.programme ?? latestStructuredProgramme ?? null;
-    const pipelineIntent = classifyProgrammeIntent(trimmedMessage, {
-      activeProgrammeState: clientActiveProgramme,
-      hasThreadProgramme: Boolean(latestStructuredProgramme),
-    });
-    const parsedProgrammeRequest = parseProgrammeRequest({
-      message: trimmedMessage,
-      intent: pipelineIntent.intent,
-    });
-    if (latestStructuredProgramme) {
-      console.log("[active-programme-loaded]", {
-        programmeTitle: latestStructuredProgramme.programmeTitle,
-        dayCount: latestStructuredProgramme.days.length,
-        sessionTypesByDay: latestStructuredProgramme.days.map((d) => d.sessionType),
-        summary: summarizeActiveProgrammeForLog(latestStructuredProgramme),
-        mergedWithClient: Boolean(clientActiveProgramme?.programme),
-      });
-    } else {
-      console.log("[active-programme-loaded]", {
-        status: clientActiveProgramme ? "client_only" : "none_in_thread",
-      });
-    }
-    console.log("[assistant-intent-lock]", {
-      initialQuestionKind,
-      lockedQuestionKind: questionKind,
-      mode: strictIntentLock.mode,
-      qualifiers: strictIntentLock.qualifiers,
-      programmeModificationFlow,
-      programmeModificationIntent,
-      programmeAdjustmentAsk,
-    });
     const strictConstructionMode = detectConstructionResponseMode(trimmedMessage);
     const explicitLexicalConstructionAsk = hasExplicitLexicalConstructionAsk(trimmedMessage);
     const explicitConstructionAsk =
       explicitLexicalConstructionAsk || strictConstructionMode !== "none";
-    const structuredProgrammePathAllowed = mayRunStructuredProgrammePath({
-      message: trimmedMessage,
-      programmeModificationFlow,
-    });
     console.log("[assistant-workout-artefact-intent]", {
       artefactIntent: classifyWorkoutArtefactIntent(trimmedMessage),
       strictConstructionMode,
       explicitLexicalConstructionAsk,
       explicitConstructionAsk,
       blocksStructuredGeneration: userExplicitlyBlocksStructuredWorkoutGeneration(trimmedMessage),
-      structuredProgrammePathAllowed,
     });
     // Deterministic fast-paths are gated by freshly computed intent each turn.
     const deterministicByKind =
@@ -4056,11 +3575,7 @@ export async function POST(request: NextRequest) {
         :
       tryAnswerTrainingKnowledgeQuestion({
         message: trimmedMessage,
-        activeProgramme: mergedStructuredProgramme,
-      }) ??
-      tryBuildDeterministicRoutineVolumeReply({
-        message: trimmedMessage,
-        activeProgramme: mergedStructuredProgramme,
+        activeProgramme: null,
       }) ??
       ((questionKind === "coaching_recommendation" ||
         questionKind === "projection_estimate" ||
@@ -4109,17 +3624,11 @@ export async function POST(request: NextRequest) {
       ...(Array.isArray(coachingContext?.profile?.injuries) ? coachingContext!.profile!.injuries ?? [] : []),
       ...(parsed.injuryStatus === "present" ? ["injury", "pain"] : []),
     ];
-    const recentExerciseIdsFromContext =
-      coachingContext?.recentWorkouts?.flatMap((w) =>
-        Array.isArray(w.exercises) ? w.exercises.map((e) => e.name || e.exerciseId || "") : []
-      ) ?? [];
-    const preferredExercisesFromContext = latestStructuredProgramme
-      ? latestStructuredProgramme.days.flatMap((d) => d.exercises.map((ex) => ex.exerciseName))
-      : Array.isArray(activeExerciseTopic) && activeExerciseTopic.length > 0
-        ? activeExerciseTopic
-        : activeExerciseTopic
-          ? [activeExerciseTopic]
-          : [];
+    const preferredExercisesFromContext = Array.isArray(activeExerciseTopic) && activeExerciseTopic.length > 0
+      ? activeExerciseTopic
+      : activeExerciseTopic
+        ? [activeExerciseTopic]
+        : [];
     const requestedConstraints = parseRequestedExerciseConstraints(trimmedMessage);
     const requestedExerciseIds = requestedConstraints.exerciseIds;
     /** Only parsed exercise library ids are mandatory; phrasing like "includes" alone must not enable empty-id enforcement. */
@@ -4129,152 +3638,13 @@ export async function POST(request: NextRequest) {
       parserHardRequirementPhrasing: requestedConstraints.hardRequirement,
       constraintHard,
     });
-    const mergedPreferredExercises = Array.from(
-      new Set([...requestedExerciseIds, ...preferredExercisesFromContext])
-    );
     const splitTypeDetected = splitTypeFromMessage(trimmedMessage);
-    const programmeLikeRequested =
-      structuredProgrammePathAllowed &&
-      (questionKind === "multi_day_programme_construction" ||
-        (questionKind === "template_review" && isProgrammeBuildRequest(trimmedMessage)) ||
-        strictConstructionMode === "programme_build" ||
-        explicitConstructionAsk ||
-        programmeModificationFlow);
-    console.log("[programme-template-path-hit]", {
-      hit: false,
-      reason: "No static template return path allowed for programme requests.",
-      elapsedMsFromReceive: Date.now() - requestStartedAt,
-    });
-    console.log("[programme-cache-hit]", {
-      hit: false,
-      where: "assistant_route",
-      reason: "No server-side programme cache; each POST builds or streams fresh.",
-      elapsedMsFromReceive: Date.now() - requestStartedAt,
-    });
-    const recoveryModeForProgramme: RecoveryMode =
-      parsedProgrammeRequest.fatigueMode === "low_fatigue" ||
-      /\b(low fatigue|recovery|deload|easy)\b/i.test(trimmedMessage)
-        ? "low_fatigue"
-        : "normal";
-
-    const skipStructuredForPipelineCompareOrExplain =
-      pipelineIntent.intent === "programme_compare" || pipelineIntent.intent === "programme_explain";
-
-    const pipelineWantsProgrammeModify =
-      pipelineIntent.intent === "programme_modify" && Boolean(mergedStructuredProgramme);
-
-    const pipelineWantsProgrammeBuild =
-      structuredProgrammePathAllowed &&
-      pipelineIntent.intent === "programme_build" &&
-      (explicitConstructionAsk ||
-        questionKind === "multi_day_programme_construction" ||
-        isProgrammeBuildRequest(trimmedMessage));
-
-    const legacyEnterStructuredProgrammePath =
-      structuredProgrammePathAllowed &&
-      (questionKind === "multi_day_programme_construction" ||
-        (questionKind === "template_review" && isProgrammeBuildRequest(trimmedMessage)) ||
-        strictConstructionMode === "programme_build" ||
-        programmeModificationFlow) &&
-      (explicitConstructionAsk ||
-        programmeModificationFlow ||
-        questionKind === "multi_day_programme_construction");
-
-    /**
-     * Cold-start gate: if the user has zero logged workouts, do NOT run the
-     * deterministic programme builder. The pipeline can't construct a
-     * meaningful programme without history and tends to fail muscle-coverage
-     * validation. Fall through to the Coach LLM reply path, which uses the
-     * cold-start preamble in buildLoggedTrainingPreamble to ask 2-3 targeted
-     * personalisation questions instead.
-     *
-     * Programme MODIFICATION is exempt — if there's already an active
-     * programme to modify, the user clearly has context the pipeline can use.
-     */
-    const noLoggedData = (trainingSummary?.totalWorkouts ?? 0) === 0;
-    const coldStartBlocksProgrammeBuild =
-      noLoggedData && !pipelineWantsProgrammeModify && !programmeModificationFlow;
-    if (coldStartBlocksProgrammeBuild && (pipelineWantsProgrammeBuild || legacyEnterStructuredProgrammePath)) {
-      console.log("[programme-cold-start-block]", {
-        reason: "User has 0 logged workouts; routing programme-build request to Coach LLM reply path.",
-        message: trimmedMessage.slice(0, 120),
-      });
-    }
-
-    // The structured programme pipeline (rule-based builder + card UI) was
-    // removed. Programme-build requests now flow into the conversational Coach
-    // LLM path, which writes the whole programme as prose. Keeping the flag as
-    // a permanent `false` constant lets the surrounding routing telemetry stay
-    // intact without resurrecting the old branch.
-    const enterStructuredProgrammePath = false;
-    void skipStructuredForPipelineCompareOrExplain;
-    void pipelineWantsProgrammeModify;
-    void pipelineWantsProgrammeBuild;
-    void legacyEnterStructuredProgrammePath;
-    void coldStartBlocksProgrammeBuild;
-
-    const programmeModificationUnified =
-      pipelineWantsProgrammeModify || programmeModificationFlow;
-
-    const activeForModify: PipelineActiveProgrammeState | null =
-      clientActiveProgramme ??
-      (mergedStructuredProgramme
-        ? {
-            programme: mergedStructuredProgramme,
-            parsedRequest: { intent: "programme_build", splitType: "general" },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }
-        : null);
-
-    const programmeBuildUserMessage =
-      programmeModificationUnified && activeForModify
-        ? composeModificationUserMessage(activeForModify, parsedProgrammeRequest, trimmedMessage)
-        : trimmedMessage;
-
-    let progParsed: ParsedProgrammeRequest = parsedProgrammeRequest;
-    let progExclusions = inferredExclusions;
-    let progRequestedIds = requestedExerciseIds;
-    let progMergedPreferred = mergedPreferredExercises;
-    let programmeLlmConstraints: ProgrammeConstraintsLLMOutput | null = null;
-
-    const resolvedSplitForBuild = programmeModificationUnified
-      ? null
-      : resolveSplitDefinitionForRequest(
-          enterStructuredProgrammePath ? progParsed : parsedProgrammeRequest,
-          enterStructuredProgrammePath ? programmeBuildUserMessage : trimmedMessage
-        );
-
-    const forcedSplitDefinition = programmeModificationUnified
-      ? undefined
-      : resolvedSplitForBuild ?? undefined;
-
-    if (resolvedSplitForBuild && !programmeModificationUnified) {
-      console.log("[programmePipeline] resolved split for dynamic builder", {
-        title: resolvedSplitForBuild.title,
-        source: resolvedSplitForBuild.source,
-        dayCount: resolvedSplitForBuild.days.length,
-      });
-    }
 
     console.log("[assistant-programme-routing]", {
       detectedIntent: questionKind,
-      pipelineIntent: pipelineIntent.intent,
       explicitConstructionAsk,
-      programmeModificationFlow,
-      programmeModificationUnified,
-      programmeModificationIntent,
-      programmeAdjustmentAsk,
-      pipelineWantsProgrammeModify,
-      pipelineWantsProgrammeBuild,
-      skipStructuredForPipelineCompareOrExplain,
-      hasLatestStructuredProgramme: Boolean(latestStructuredProgramme),
-      hasClientActiveProgramme: Boolean(clientActiveProgramme),
-      enterStructuredProgrammePath,
       splitTypeDetected,
       requestedExerciseConstraints: requestedExerciseIds,
-      programmeLlmConstraintsApplied: Boolean(programmeLlmConstraints),
-      flow: programmeLikeRequested ? "programme" : "non-programme",
       cannedTemplateBypassed: true,
     });
     // Structured single-session workout cards have been removed from the UI;
@@ -4593,7 +3963,6 @@ export async function POST(request: NextRequest) {
       benchContext,
       benchEstimate,
       coachingContext,
-      mergedStructuredProgramme,
       exerciseTrends ?? [],
       trainingInsights,
       priorityGoalExerciseInsight,
