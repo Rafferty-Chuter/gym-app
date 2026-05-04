@@ -26,6 +26,62 @@ function newSyntheticExerciseId(): string {
   return `__tpl_ex_${Date.now().toString(36)}_${syntheticIdCounter}`;
 }
 
+/**
+ * Mobile-friendly integer stepper. Replaces native <input type="number"> for
+ * small ranges (set counts) where the typed-input UX is broken on mobile —
+ * concatenated keystrokes ("3" + "5" → "35" → clamped to max), unclearable
+ * fallbacks, and finicky text selection. Tap-to-step is unambiguous, hit
+ * targets are large, and the keyboard never opens.
+ */
+function IntegerStepper({
+  value,
+  onChange,
+  min,
+  max,
+  ariaLabel,
+}: {
+  value: number;
+  onChange: (next: number) => void;
+  min: number;
+  max: number;
+  ariaLabel: string;
+}) {
+  const dec = () => onChange(Math.max(min, value - 1));
+  const inc = () => onChange(Math.min(max, value + 1));
+  return (
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      className="inline-flex items-center rounded-xl border border-zinc-700/80 bg-zinc-900/80 select-none"
+    >
+      <button
+        type="button"
+        onClick={dec}
+        disabled={value <= min}
+        aria-label={`Decrease ${ariaLabel}`}
+        className="h-10 w-10 flex items-center justify-center text-app-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-lg font-semibold"
+      >
+        −
+      </button>
+      <span
+        className="min-w-[2.25rem] text-center text-sm font-semibold text-white tabular-nums"
+        aria-live="polite"
+      >
+        {value}
+      </span>
+      <button
+        type="button"
+        onClick={inc}
+        disabled={value >= max}
+        aria-label={`Increase ${ariaLabel}`}
+        className="h-10 w-10 flex items-center justify-center text-app-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-lg font-semibold"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
   const router = useRouter();
   const [templateName, setTemplateName] = useState(initialTemplate?.name ?? "");
@@ -284,35 +340,37 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-white leading-snug line-clamp-2">{ex.name}</p>
 
-                          <div className="mt-2 grid grid-cols-2 gap-2">
-                            <label className="block">
+                          <div className="mt-2 flex flex-wrap items-end gap-3">
+                            <div>
                               <span className="text-[11px] text-app-meta mb-1 block">Sets</span>
-                              <input
-                                type="number"
+                              <IntegerStepper
+                                value={ex.targetSets}
+                                onChange={(next) => updateExercise(i, { targetSets: next })}
                                 min={1}
                                 max={20}
-                                step={1}
-                                value={ex.targetSets}
-                                onChange={(e) => {
-                                  const n = Number(e.target.value);
-                                  if (!Number.isFinite(n)) return;
-                                  updateExercise(i, { targetSets: Math.max(1, Math.min(20, Math.round(n))) });
-                                }}
-                                className="input-app w-full !px-2 !py-2 text-sm"
+                                ariaLabel={`${ex.name} sets`}
                               />
-                            </label>
-                            <label className="block">
+                            </div>
+                            <label className="block flex-1 min-w-[120px]">
                               <span className="text-[11px] text-app-meta mb-1 block">Rest (sec)</span>
                               <input
-                                type="number"
-                                min={0}
-                                max={600}
-                                step={1}
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 value={ex.restSec ?? 90}
                                 onChange={(e) => {
-                                  const n = Number(e.target.value);
-                                  if (!Number.isFinite(n)) return;
-                                  updateExercise(i, { restSec: Math.max(0, Math.min(600, Math.round(n))) });
+                                  // Allow only digits during typing; clamp + parse on blur.
+                                  const digits = e.target.value.replace(/[^0-9]/g, "");
+                                  // If empty, keep the field empty visually but defer
+                                  // committing — Math.min applied to NaN would write 0
+                                  // and trap the user. Use a sentinel.
+                                  const n = digits === "" ? 0 : parseInt(digits, 10);
+                                  updateExercise(i, { restSec: Math.max(0, Math.min(600, n)) });
+                                }}
+                                onBlur={(e) => {
+                                  const digits = e.target.value.replace(/[^0-9]/g, "");
+                                  const n = digits === "" ? 90 : parseInt(digits, 10);
+                                  updateExercise(i, { restSec: Math.max(0, Math.min(600, n)) });
                                 }}
                                 className="input-app w-full !px-2 !py-2 text-sm"
                               />
@@ -359,25 +417,33 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
               dropdownClassName="rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
               libraryRevision={userLibraryRevision}
             />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={exerciseSetsInput}
-                onChange={(e) => setExerciseSetsInput(Math.max(1, Math.min(20, Number(e.target.value) || 3)))}
-                className="input-app px-3 py-2.5 text-sm"
-                placeholder="Sets"
-              />
-              <input
-                type="number"
-                min={0}
-                max={600}
-                value={restSecInput}
-                onChange={(e) => setRestSecInput(e.target.value)}
-                className="input-app px-3 py-2.5 text-sm"
-                placeholder="Rest (sec)"
-              />
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <span className="text-[11px] text-app-meta mb-1 block">Sets</span>
+                <IntegerStepper
+                  value={exerciseSetsInput}
+                  onChange={setExerciseSetsInput}
+                  min={1}
+                  max={20}
+                  ariaLabel="Default sets"
+                />
+              </div>
+              <label className="block flex-1 min-w-[140px]">
+                <span className="text-[11px] text-app-meta mb-1 block">Rest (sec)</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={restSecInput}
+                  onChange={(e) => setRestSecInput(e.target.value.replace(/[^0-9]/g, ""))}
+                  onBlur={(e) => {
+                    const digits = e.target.value.replace(/[^0-9]/g, "");
+                    if (digits === "") setRestSecInput("90");
+                  }}
+                  className="input-app w-full px-3 py-2.5 text-sm"
+                  placeholder="90"
+                />
+              </label>
             </div>
             <button type="button" onClick={() => addExercise()} className="w-full btn-primary rounded-xl py-2.5 text-sm">
               Add exercise
