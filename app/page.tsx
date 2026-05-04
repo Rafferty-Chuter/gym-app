@@ -12,12 +12,18 @@ import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus, TRAINING_FOCUS_OPTIONS, type TrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel, EXPERIENCE_LEVEL_OPTIONS, type ExperienceLevel } from "@/lib/experienceLevel";
 import { usePriorityGoal } from "@/lib/priorityGoal";
+import { isOnboardingComplete, loadOnboardingProfile } from "@/lib/onboardingProfile";
 import {
   buildCoachStructuredAnalysis,
   EMPTY_COACH_STRUCTURED_ANALYSIS,
   type CoachStructuredAnalysis,
 } from "@/lib/coachStructuredAnalysis";
 import { countCompletedLoggedSets } from "@/lib/completedSets";
+import {
+  DEFAULT_DETAILED_MUSCLE_GROUPS,
+  getDetailedVolumeByMuscleGroup,
+  type DetailedMuscleGroup,
+} from "@/lib/trainingMetrics";
 
 type ProfileModalProps = {
   focus: TrainingFocus;
@@ -233,11 +239,36 @@ function trimToOneLine(text: string, maxLen: number): string {
   return first.slice(0, maxLen - 1).trimEnd() + "…";
 }
 
+// Coarse coach group → detailed group fan-out, mirrored from /signal/[key]/page.tsx.
+const COARSE_TO_DETAILED_HOME: Record<string, DetailedMuscleGroup[]> = {
+  chest: ["chest"],
+  back: ["back"],
+  shoulders: ["shoulders"],
+  arms: ["biceps", "triceps"],
+  legs: ["quads", "hamstrings", "glutes", "calves"],
+};
+
+function muscleHasHistoryHome(
+  label: string,
+  historicalVolume: Record<DetailedMuscleGroup, number>
+): boolean {
+  const key = label.trim().toLowerCase();
+  const fan = COARSE_TO_DETAILED_HOME[key];
+  const groups: DetailedMuscleGroup[] = fan
+    ? fan
+    : (DEFAULT_DETAILED_MUSCLE_GROUPS as readonly string[]).includes(key)
+      ? [key as DetailedMuscleGroup]
+      : [];
+  if (groups.length === 0) return true;
+  return groups.some((g) => (historicalVolume[g] ?? 0) > 0);
+}
+
 function buildIndicators(
   coach: CoachStructuredAnalysis,
   workoutsCount: number,
   thisWeekTotalSets: number,
-  thisWeekWorkoutsCount: number
+  thisWeekWorkoutsCount: number,
+  historicalVolume: Record<DetailedMuscleGroup, number>
 ): Indicator[] {
   const cold = workoutsCount === 0;
   const earlyRead = workoutsCount > 0 && workoutsCount < 3;
@@ -286,11 +317,20 @@ function buildIndicators(
     };
   }
 
-  const lowVolumeEntries = coach.volumeBalance.filter((v) =>
-    /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary)
+  // Drop coach signals about muscles the user has never trained — those are
+  // structural choices, not deficits. Without this gate, importing a 4-week
+  // push-only block paints every other muscle rose-Low and reads as broken.
+  const lowVolumeEntries = coach.volumeBalance.filter(
+    (v) =>
+      /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary) &&
+      muscleHasHistoryHome(v.label, historicalVolume)
+  );
+  const keyFocusGroupsWithHistory = (coach.keyFocusGroups ?? []).filter((g) =>
+    muscleHasHistoryHome(g, historicalVolume)
   );
   const isVolumeAttention =
-    coach.keyFocusType === "low-volume" || lowVolumeEntries.length > 0;
+    (coach.keyFocusType === "low-volume" && keyFocusGroupsWithHistory.length > 0) ||
+    lowVolumeEntries.length > 0;
 
   let volume: Indicator;
   if (cold) {
@@ -307,7 +347,7 @@ function buildIndicators(
     const groupLabels =
       lowVolumeEntries.length > 0
         ? lowVolumeEntries.map((v) => v.label.toLowerCase())
-        : (coach.keyFocusGroups ?? []).map((g) => g.toLowerCase());
+        : keyFocusGroupsWithHistory.map((g) => g.toLowerCase());
     const groupsJoined = groupLabels.join(" and ");
     const context =
       lowVolumeEntries.length > 0
@@ -582,8 +622,22 @@ export default function Home() {
   const { goal } = usePriorityGoal();
   const [profileOpen, setProfileOpen] = useState(false);
   const [workouts, setWorkouts] = useState<ReturnType<typeof getWorkoutHistory>>([]);
+  const [profileSetupNeeded, setProfileSetupNeeded] = useState(false);
   const hasMounted = useIsHydrated();
   const hasActive = useActiveWorkoutFlag();
+
+  useEffect(() => {
+    function recheck() {
+      setProfileSetupNeeded(!isOnboardingComplete(loadOnboardingProfile()));
+    }
+    recheck();
+    window.addEventListener("onboardingProfileChanged", recheck);
+    window.addEventListener("focus", recheck);
+    return () => {
+      window.removeEventListener("onboardingProfileChanged", recheck);
+      window.removeEventListener("focus", recheck);
+    };
+  }, []);
 
   const coachAnalysis = useMemo(() => {
     if (workouts.length === 0) return EMPTY_COACH_STRUCTURED_ANALYSIS;
@@ -614,15 +668,21 @@ export default function Home() {
     return { workoutsCount: recent.length, totalSets };
   }, [workouts]);
 
+  const historicalVolume = useMemo(
+    () => getDetailedVolumeByMuscleGroup(workouts),
+    [workouts]
+  );
+
   const indicators = useMemo(
     () =>
       buildIndicators(
         coachAnalysis,
         workouts.length,
         thisWeek.totalSets,
-        thisWeek.workoutsCount
+        thisWeek.workoutsCount,
+        historicalVolume
       ),
-    [coachAnalysis, workouts.length, thisWeek.totalSets, thisWeek.workoutsCount]
+    [coachAnalysis, workouts.length, thisWeek.totalSets, thisWeek.workoutsCount, historicalVolume]
   );
 
   const insight = useMemo(
@@ -711,6 +771,24 @@ export default function Home() {
             </button>
           </div>
         </div>
+
+        {hasMounted && profileSetupNeeded && (
+          <Link
+            href="/profile"
+            className="mt-2 flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-[12px] transition-colors"
+            style={{
+              background: "rgba(0,229,176,0.06)",
+              border: "1px solid rgba(0,229,176,0.22)",
+              color: "rgba(0,229,176,0.95)",
+            }}
+            aria-label="Set up your coach profile — sharpens every assistant answer"
+          >
+            <span className="font-semibold">
+              Set up your coach profile <span className="opacity-70">· 60s, sharpens every answer</span>
+            </span>
+            <span aria-hidden>→</span>
+          </Link>
+        )}
 
         {profileOpen && (
           <ProfileModal

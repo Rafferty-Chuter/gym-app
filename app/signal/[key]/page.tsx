@@ -349,7 +349,7 @@ const VOLUME_GROUP_ORDER = DEFAULT_DETAILED_MUSCLE_GROUPS as readonly DetailedMu
 type MuscleGroup = DetailedMuscleGroup;
 
 type ProgressionState = "good" | "poor" | "unclear";
-type VolumeStatus = "low" | "on-track" | "warning" | "excessive";
+type VolumeStatus = "not-tracked" | "low" | "on-track" | "warning" | "excessive";
 
 // MEV–MAV style weekly hard-set ranges. Deliberately fuzzy; intent is to catch
 // "clearly under" or "clearly over", not to micro-optimise.
@@ -394,6 +394,7 @@ const COARSE_TO_DETAILED: Record<string, MuscleGroup[]> = {
 };
 
 const VOLUME_STATUS_TO_STATE: Record<VolumeStatus, SignalState> = {
+  "not-tracked": "unknown",
   low: "attention",
   "on-track": "good",
   warning: "watch",
@@ -401,6 +402,7 @@ const VOLUME_STATUS_TO_STATE: Record<VolumeStatus, SignalState> = {
 };
 
 const VOLUME_STATUS_LABEL: Record<VolumeStatus, string> = {
+  "not-tracked": "Not tracked",
   low: "Low",
   "on-track": "On track",
   warning: "Warning",
@@ -465,8 +467,13 @@ function getProgressionByMuscle(
 function classifyMuscleVolume(
   group: MuscleGroup,
   sets: number,
-  progression: ProgressionState
+  progression: ProgressionState,
+  historicalSets: number
 ): VolumeStatus {
+  // A muscle the user has never trained in the imported history is not "low" —
+  // it's untracked. Painting it rose creates false positives that destroy trust
+  // with users whose split simply doesn't cover that muscle.
+  if (historicalSets === 0) return "not-tracked";
   const range = MUSCLE_RANGES[group];
   if (sets < range.min) return "low";
   if (sets <= range.max) return "on-track";
@@ -641,6 +648,9 @@ function buildVolumeContent(
 ): DetailContent {
   const weeklyWorkouts = getWorkoutsFromLast7Days(workouts);
   const weeklyVolume = getDetailedVolumeByMuscleGroup(weeklyWorkouts);
+  // Full-history per-muscle volume — used to distinguish "low this week" from
+  // "user has never trained this muscle". The latter shouldn't be painted rose.
+  const historicalVolume = getDetailedVolumeByMuscleGroup(workouts);
   const totalSets = weeklyWorkouts.reduce(
     (sum, w) =>
       sum + (w.exercises?.reduce((s, ex) => s + countCompletedLoggedSets(ex.sets), 0) ?? 0),
@@ -648,15 +658,22 @@ function buildVolumeContent(
   );
 
   const progressionByMuscle = getProgressionByMuscle(coach);
-  const rows: VolumeBarRow[] = VOLUME_GROUP_ORDER.map((g) => {
+  const rowsRaw: VolumeBarRow[] = VOLUME_GROUP_ORDER.map((g) => {
     const sets = weeklyVolume[g] ?? 0;
+    const historical = historicalVolume[g] ?? 0;
     return {
       group: g,
       sets,
       progression: progressionByMuscle[g],
-      status: classifyMuscleVolume(g, sets, progressionByMuscle[g]),
+      status: classifyMuscleVolume(g, sets, progressionByMuscle[g], historical),
     };
   });
+  // Render not-tracked rows at the bottom so the user's eye lands on the
+  // muscles they actually train first.
+  const rows: VolumeBarRow[] = [
+    ...rowsRaw.filter((r) => r.status !== "not-tracked"),
+    ...rowsRaw.filter((r) => r.status === "not-tracked"),
+  ];
 
   if (workouts.length === 0) {
     return {
@@ -669,11 +686,28 @@ function buildVolumeContent(
     };
   }
 
-  const lowEntries = coach.volumeBalance.filter((v) =>
-    /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary)
+  // Drop coach signals about muscles the user has never trained — those are
+  // structural choices, not deficits. Match label → coarse-or-detailed group(s)
+  // and require at least one of those groups to have historical sets.
+  const muscleHasAnyHistory = (label: string): boolean => {
+    const key = label.trim().toLowerCase();
+    const fan = COARSE_TO_DETAILED[key];
+    const groups: MuscleGroup[] = fan
+      ? fan
+      : (VOLUME_GROUP_ORDER as readonly string[]).includes(key)
+        ? [key as MuscleGroup]
+        : [];
+    if (groups.length === 0) return true; // Unknown label — let it through.
+    return groups.some((g) => (historicalVolume[g] ?? 0) > 0);
+  };
+
+  const lowEntries = coach.volumeBalance.filter(
+    (v) =>
+      /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary) &&
+      muscleHasAnyHistory(v.label)
   );
 
-  const lowRows = rows.filter((r) => r.status === "low" && r.sets > 0);
+  const lowRows = rows.filter((r) => r.status === "low" && r.sets >= 0);
   const excessiveRows = rows.filter((r) => r.status === "excessive");
   const warningRows = rows.filter((r) => r.status === "warning");
 

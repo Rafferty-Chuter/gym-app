@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "./providers";
-import { OnboardingGate } from "./components/OnboardingGate";
 import BottomTabs from "@/components/BottomTabs";
 import ActiveWorkoutResumeBar from "@/components/ActiveWorkoutResumeBar";
 
@@ -30,11 +29,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AppProviders>
-          <OnboardingGate>
-            {children}
-            <ActiveWorkoutResumeBar />
-            <BottomTabs />
-          </OnboardingGate>
+          {children}
+          <ActiveWorkoutResumeBar />
+          <BottomTabs />
         </AppProviders>
       </body>
     </html>
