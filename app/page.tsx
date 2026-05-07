@@ -480,11 +480,11 @@ function buildAssistantInsight(
   if (coach.keyFocus) {
     return {
       text: coach.keyFocus,
-      prompt: `${coach.keyFocus} Why, and what should I do about it next session?`,
+      prompt: `On this read — "${coach.keyFocus}" — why is it happening, and what should I do about it next session?`,
       followUps: [
-        { label: "Why is this happening?", prompt: `${coach.keyFocus} Walk me through the why with reference to my actual training.` },
-        { label: "What do I do next?", prompt: `${coach.keyFocus} Give me a concrete change for next session.` },
-        { label: "Show the data", prompt: `${coach.keyFocus} Show me the specific sets and trends behind this read.` },
+        { label: "Why is this happening?", prompt: `Why is this happening? Walk me through the cause with reference to my actual training. Context: "${coach.keyFocus}"` },
+        { label: "What do I do next?", prompt: `What do I do next? Give me a concrete change for my next session. Context: "${coach.keyFocus}"` },
+        { label: "Show the data", prompt: `Show me the specific sets and trends behind this read. Context: "${coach.keyFocus}"` },
       ],
       cold: false,
     };
@@ -493,11 +493,11 @@ function buildAssistantInsight(
     const s = coach.actionableSuggestions[0];
     return {
       text: s,
-      prompt: `${s} Explain why this matters and how I should apply it.`,
+      prompt: `On this suggestion — "${s}" — explain why it matters and how I should apply it.`,
       followUps: [
-        { label: "Why this matters", prompt: `${s} Explain the rationale and what would happen if I ignored it.` },
-        { label: "How to apply it", prompt: `${s} Give me the specific change for my next session.` },
-        { label: "Show the data", prompt: `${s} Show me the data this is drawn from.` },
+        { label: "Why this matters", prompt: `Why does this matter, and what would happen if I ignored it? Context: "${s}"` },
+        { label: "How to apply it", prompt: `How do I apply this? Give me the specific change for my next session. Context: "${s}"` },
+        { label: "Show the data", prompt: `Show me the data this is drawn from. Context: "${s}"` },
       ],
       cold: false,
     };
