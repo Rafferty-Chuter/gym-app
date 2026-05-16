@@ -149,6 +149,12 @@ export type RecentPerformance = {
   e1rm: number;
   /** Σ weight·reps across completed hard sets in the session. Optional for legacy callers. */
   volumeLoad?: number;
+  /** RIR of the heaviest set, when logged. Surfaced in chart tooltips. */
+  rir?: number;
+  /** Number of completed sets that session for this exercise. */
+  setCount?: number;
+  /** All completed sets for this exercise that session, oldest → newest. Used by chart tooltips' "more sets" expansion. */
+  allSets?: Array<{ weight: number; reps: number; rir?: number; e1rm: number }>;
 };
 
 export type ExerciseTrendResult = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useParams, useRouter, notFound } from "next/navigation";
 import {
@@ -28,6 +28,11 @@ import {
 } from "@/lib/coachStructuredAnalysis";
 import { countCompletedLoggedSets } from "@/lib/completedSets";
 import { loadOnboardingProfile } from "@/lib/onboardingProfile";
+import {
+  ChartPointTooltip,
+  chartPointAriaLabel,
+  type ChartPointDetail,
+} from "@/components/ChartPointTooltip";
 
 /**
  * Comma + Oxford-and group list. Mirrors how people speak:
@@ -244,6 +249,27 @@ function LineChart({
   const innerW = W - padding.l - padding.r;
   const innerH = H - padding.t - padding.b;
 
+  // Tap-target sizing in SVG-units: viewBox is 360 wide and the rendered chart
+  // is ~card-wide on mobile (~320 CSS px), so 1 SVG unit ≈ 0.9 CSS px. A 44pt
+  // tap target → ~50 SVG units. We use 48 to be conservative.
+  const TAP_TARGET = 48;
+
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Dismiss on tap outside the chart card.
+  useEffect(() => {
+    if (activeIdx === null) return;
+    function onDocPointerDown(e: PointerEvent) {
+      const el = containerRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && el.contains(e.target)) return;
+      setActiveIdx(null);
+    }
+    document.addEventListener("pointerdown", onDocPointerDown);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown);
+  }, [activeIdx]);
+
   if (performances.length === 0) {
     return (
       <div
@@ -286,8 +312,23 @@ function LineChart({
   const yTicks = 3;
   const tickValues = Array.from({ length: yTicks }, (_, i) => yMin + (yRange * i) / (yTicks - 1));
 
+  const activeDetail: ChartPointDetail | null =
+    activeIdx !== null && activeIdx >= 0 && activeIdx < points.length
+      ? {
+          completedAt: points[activeIdx].completedAt,
+          heaviest: {
+            weight: points[activeIdx].weight,
+            reps: points[activeIdx].reps,
+            e1rm: points[activeIdx].e1rm,
+            ...(typeof points[activeIdx].rir === "number" ? { rir: points[activeIdx].rir } : {}),
+          },
+          allSets: points[activeIdx].allSets,
+        }
+      : null;
+
   return (
     <div
+      ref={containerRef}
       className="rounded-2xl px-3 py-3 sm:px-4 sm:py-4"
       style={{
         background: "rgba(255,255,255,0.018)",
@@ -298,7 +339,7 @@ function LineChart({
         viewBox={`0 0 ${W} ${H}`}
         className="w-full h-auto"
         role="img"
-        aria-label={`Weight in ${unit} across ${performances.length} sessions`}
+        aria-label={`${valueKey === "e1rm" ? "Estimated 1RM" : "Weight"} in ${unit} across ${performances.length} sessions`}
       >
         {tickValues.map((v, i) => {
           const y = padding.t + innerH - ((v - yMin) / yRange) * innerH;
@@ -328,9 +369,54 @@ function LineChart({
         <path d={areaD} fill={c.chartFill} />
         <path d={lineD} stroke={c.chartLine} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
 
-        {points.map((pt, i) => (
-          <circle key={i} cx={pt.x} cy={pt.y} r="3.5" fill={c.chartLine} />
-        ))}
+        {points.map((pt, i) => {
+          const isActive = activeIdx === i;
+          const detail: ChartPointDetail = {
+            completedAt: pt.completedAt,
+            heaviest: {
+              weight: pt.weight,
+              reps: pt.reps,
+              e1rm: pt.e1rm,
+              ...(typeof pt.rir === "number" ? { rir: pt.rir } : {}),
+            },
+            allSets: pt.allSets,
+          };
+          return (
+            <g key={i}>
+              {/* Visible dot. */}
+              <circle
+                cx={pt.x}
+                cy={pt.y}
+                r={isActive ? 5 : 3.5}
+                fill={c.chartLine}
+                stroke={isActive ? "rgba(255,255,255,0.35)" : "none"}
+                strokeWidth={isActive ? 1.5 : 0}
+                pointerEvents="none"
+              />
+              {/* Invisible 44pt+ tap target. Adjacent rects can overlap on
+                  dense charts; native SVG hit testing resolves to the topmost
+                  (last-drawn) hit — good enough for sweaty-finger tapping. */}
+              <rect
+                x={pt.x - TAP_TARGET / 2}
+                y={pt.y - TAP_TARGET / 2}
+                width={TAP_TARGET}
+                height={TAP_TARGET}
+                fill="transparent"
+                role="button"
+                tabIndex={0}
+                aria-label={chartPointAriaLabel(detail, unit)}
+                style={{ cursor: "pointer", touchAction: "manipulation" }}
+                onClick={() => setActiveIdx((cur) => (cur === i ? null : i))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setActiveIdx((cur) => (cur === i ? null : i));
+                  }
+                }}
+              />
+            </g>
+          );
+        })}
 
         {points.length > 0 && (
           <>
@@ -360,6 +446,14 @@ function LineChart({
       <p className="mt-2 text-[11px] font-medium text-app-tertiary text-center">
         {caption ?? `${valueKey === "e1rm" ? "Estimated 1RM" : "Weight"} (${unit}) × session`}
       </p>
+      {activeDetail && (
+        <ChartPointTooltip
+          detail={activeDetail}
+          unit={unit}
+          showE1RM={true}
+          onClose={() => setActiveIdx(null)}
+        />
+      )}
     </div>
   );
 }

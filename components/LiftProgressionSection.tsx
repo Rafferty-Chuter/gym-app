@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getExerciseInsights } from "@/lib/trainingAnalysis";
 import { getUniqueExerciseNames, getExerciseMetrics } from "@/lib/trainingMetrics";
@@ -13,6 +13,11 @@ import {
   type LiftTrend,
   type LiftTrendStatus,
 } from "@/lib/liftTrend";
+import {
+  ChartPointTooltip,
+  chartPointAriaLabel,
+  type ChartPointDetail,
+} from "@/components/ChartPointTooltip";
 
 type Props = {
   workouts: StoredWorkout[];
@@ -187,6 +192,10 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
     x: PL + (points.length > 1 ? (i / (points.length - 1)) * CHART_W : CHART_W / 2),
     y: PT + CHART_H - ((p.e1rm - yMin) / yRange) * CHART_H,
     e1rm: p.e1rm,
+    weight: p.weight,
+    reps: p.reps,
+    rir: p.rir,
+    allSets: p.allSets,
     date: p.completedAt,
   }));
 
@@ -203,6 +212,33 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
   const e1rmPct = firstE1rm > 0 ? ((e1rmDiff / firstE1rm) * 100).toFixed(1) : null;
 
   const activePt = activeIdx !== null ? chartPts[activeIdx] : null;
+  const activeDetail: ChartPointDetail | null = activePt
+    ? {
+        completedAt: activePt.date,
+        heaviest: {
+          weight: activePt.weight,
+          reps: activePt.reps,
+          e1rm: activePt.e1rm,
+          ...(typeof activePt.rir === "number" ? { rir: activePt.rir } : {}),
+        },
+        allSets: activePt.allSets,
+      }
+    : null;
+
+  // Dismiss tooltip on tap outside the chart card.
+  const chartCardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (activeIdx === null) return;
+    function onDocPointerDown(e: PointerEvent) {
+      const el = chartCardRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && el.contains(e.target)) return;
+      setActiveIdx(null);
+    }
+    document.addEventListener("pointerdown", onDocPointerDown);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown);
+  }, [activeIdx]);
+
   const fallbackStatus: LiftTrendStatus = {
     exercise: exercise ?? "",
     status: "early" as LiftTrend,
@@ -261,7 +297,10 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
 
       {/* Chart card */}
       {exercise && metrics && points.length >= 2 && (
-        <div className="mt-3 rounded-2xl border border-teal-900/20 bg-gradient-to-br from-zinc-900/95 to-zinc-900/85 p-4">
+        <div
+          ref={chartCardRef}
+          className="mt-3 rounded-2xl border border-teal-900/20 bg-gradient-to-br from-zinc-900/95 to-zinc-900/85 p-4"
+        >
           {/* SVG chart */}
           <div className="relative">
             <svg
@@ -269,6 +308,8 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
               width="100%"
               className="overflow-visible"
               style={{ height: "auto" }}
+              role="img"
+              aria-label={`Estimated 1RM (${unit}) across ${chartPts.length} ${exercise} sessions`}
             >
               <defs>
                 <linearGradient id="lp-fill" x1="0" y1="0" x2="0" y2="1">
@@ -317,14 +358,26 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
                 strokeLinecap="round"
               />
 
-              {/* Dots */}
+              {/* Dots + 44pt invisible tap targets. The viewBox is 320 wide
+                  rendered at full container width, so 1 SVG unit ≈ 1 CSS px on
+                  most mobile widths — a 44-unit rect ≈ 44pt tap target. */}
               {chartPts.map((p, i) => {
                 const isActive = activeIdx === i;
                 const isLast = i === chartPts.length - 1;
+                const detail: ChartPointDetail = {
+                  completedAt: p.date,
+                  heaviest: {
+                    weight: p.weight,
+                    reps: p.reps,
+                    e1rm: p.e1rm,
+                    ...(typeof p.rir === "number" ? { rir: p.rir } : {}),
+                  },
+                  allSets: p.allSets,
+                };
                 return (
                   <g key={i}>
                     {isActive && (
-                      <circle cx={p.x} cy={p.y} r="10" fill="rgba(45,212,191,0.08)" />
+                      <circle cx={p.x} cy={p.y} r="10" fill="rgba(45,212,191,0.08)" pointerEvents="none" />
                     )}
                     <circle
                       cx={p.x}
@@ -333,44 +386,29 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
                       fill={isActive || isLast ? "rgb(45,212,191)" : "rgb(20,184,166)"}
                       stroke={isActive ? "rgba(45,212,191,0.35)" : "rgba(7,9,15,0.8)"}
                       strokeWidth={isActive ? "2" : "1.5"}
-                      className="cursor-pointer"
+                      pointerEvents="none"
+                    />
+                    <rect
+                      x={p.x - 22}
+                      y={p.y - 22}
+                      width={44}
+                      height={44}
+                      fill="transparent"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={chartPointAriaLabel(detail, unit)}
+                      style={{ cursor: "pointer", touchAction: "manipulation" }}
                       onClick={() => setActiveIdx(activeIdx === i ? null : i)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setActiveIdx(activeIdx === i ? null : i);
+                        }
+                      }}
                     />
                   </g>
                 );
               })}
-
-              {/* Tooltip for active/last point */}
-              {(() => {
-                const tp = activePt ?? chartPts[chartPts.length - 1];
-                if (!tp) return null;
-                const isRight = tp.x > PL + CHART_W * 0.6;
-                const tx = isRight ? tp.x - 36 : tp.x + 6;
-                return (
-                  <g>
-                    <rect
-                      x={tx}
-                      y={tp.y - 14}
-                      width={34}
-                      height={13}
-                      rx="3"
-                      fill="rgba(12,18,25,0.88)"
-                      stroke="rgba(45,212,191,0.2)"
-                      strokeWidth="0.75"
-                    />
-                    <text
-                      x={tx + 17}
-                      y={tp.y - 4}
-                      textAnchor="middle"
-                      fontSize="8.5"
-                      fontWeight="600"
-                      fill="rgb(153,246,228)"
-                    >
-                      {tp.e1rm.toFixed(1)}{unit}
-                    </text>
-                  </g>
-                );
-              })()}
 
               {/* X-axis date labels */}
               {chartPts.length >= 2 &&
@@ -404,6 +442,15 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
 
           {/* Tap hint */}
           <p className="mt-0.5 text-[10px] text-zinc-600 text-right">Tap a dot to inspect</p>
+
+          {activeDetail && (
+            <ChartPointTooltip
+              detail={activeDetail}
+              unit={unit}
+              showE1RM={true}
+              onClose={() => setActiveIdx(null)}
+            />
+          )}
 
           {/* Insights row */}
           {insights && (

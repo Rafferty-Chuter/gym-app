@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { getWorkoutHistory } from "@/lib/trainingAnalysis";
 import { useWorkoutStore } from "@/lib/workout-store";
@@ -88,6 +88,34 @@ export default function HistoryPage() {
     window.addEventListener("workoutHistoryChanged", onChange);
     return () => window.removeEventListener("workoutHistoryChanged", onChange);
   }, [reload]);
+
+  // Deep-link from chart tooltips: ?w=<completedAt-ISO> expands & scrolls to
+  // that session once the workouts list is loaded. We read window.location
+  // directly to avoid useSearchParams' static-rendering Suspense requirement.
+  // Ref-gated so navigating away within the page doesn't re-trigger a scroll.
+  const deepLinkConsumedRef = useRef<string | null>(null);
+  const [deepLinkTarget, setDeepLinkTarget] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setDeepLinkTarget(params.get("w"));
+  }, []);
+  useEffect(() => {
+    if (workouts.length === 0) return;
+    const w = deepLinkTarget;
+    if (!w || deepLinkConsumedRef.current === w) return;
+    const idx = workouts.findIndex((row) => row.completedAt === w);
+    if (idx === -1) return;
+    const key = `${workouts[idx].completedAt}-${idx}`;
+    setExpandedKey(key);
+    deepLinkConsumedRef.current = w;
+    requestAnimationFrame(() => {
+      document.getElementById(`workout-${idx}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, [workouts, deepLinkTarget]);
 
   function formatDuration(sec: number) {
     const h = Math.floor(sec / 3600);
@@ -219,7 +247,12 @@ export default function HistoryPage() {
               const exercisesToRender =
                 isEditing && editDraft ? editDraft : workout.exercises;
               return (
-                <li key={workout.completedAt} className="card-app">
+                <li
+                  key={workout.completedAt}
+                  id={`workout-${i}`}
+                  className="card-app"
+                  style={{ scrollMarginTop: "5rem" }}
+                >
                   <div className="flex items-start gap-3">
                     <button
                       type="button"

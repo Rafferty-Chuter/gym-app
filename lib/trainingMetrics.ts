@@ -306,11 +306,20 @@ export function estimateE1RM(weight: number, reps: number): number {
 
 export type ExerciseSessionPerformance = {
   completedAt: string;
+  /** Heaviest completed set's weight (by weight, then reps). */
   weight: number;
+  /** Heaviest completed set's reps. */
   reps: number;
+  /** e1RM of the heaviest set (Epley). */
   e1rm: number;
   /** Σ weight·reps across all completed hard sets in the session — captures progress hidden from a top-set view. */
   volumeLoad: number;
+  /** RIR of the heaviest set, when logged. Surfaced in chart tooltips. */
+  rir?: number;
+  /** Number of completed sets that session for this exercise. */
+  setCount?: number;
+  /** All completed sets for this exercise that session, oldest → newest. Used by chart tooltips' "more sets" expansion. */
+  allSets?: Array<{ weight: number; reps: number; rir?: number; e1rm: number }>;
 };
 
 export type ExerciseMetrics = {
@@ -357,10 +366,29 @@ export function getExerciseMetrics(
     const best = getBestSet(completedSets);
     if (!best) continue;
     let volumeLoad = 0;
+    const allSets: NonNullable<ExerciseSessionPerformance["allSets"]> = [];
+    let bestSetRir: number | undefined;
     for (const s of completedSets) {
       const sw = Number(s.weight) || 0;
       const sr = Number(s.reps) || 0;
       if (sw > 0 && sr > 0) volumeLoad += sw * sr;
+      const setRir =
+        typeof s.rir === "number" && Number.isFinite(s.rir) ? s.rir : undefined;
+      allSets.push({
+        weight: sw,
+        reps: sr,
+        ...(setRir !== undefined ? { rir: setRir } : {}),
+        e1rm: estimateE1RM(sw, sr),
+      });
+      // Capture the heaviest-set's RIR (matches best.weight + best.reps); first match wins.
+      if (
+        bestSetRir === undefined &&
+        sw === best.weight &&
+        sr === best.reps &&
+        setRir !== undefined
+      ) {
+        bestSetRir = setRir;
+      }
     }
     newestPerformances.push({
       completedAt: w.completedAt,
@@ -368,6 +396,9 @@ export function getExerciseMetrics(
       reps: best.reps,
       e1rm: estimateE1RM(best.weight, best.reps),
       volumeLoad: Number(volumeLoad.toFixed(1)),
+      ...(bestSetRir !== undefined ? { rir: bestSetRir } : {}),
+      setCount: completedSets.length,
+      allSets,
     });
     if (newestPerformances.length >= maxSessions) break;
   }
