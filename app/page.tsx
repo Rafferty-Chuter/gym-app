@@ -7,7 +7,16 @@ import {
   getWorkoutHistory,
   getWorkoutsFromLast7Days,
 } from "@/lib/trainingAnalysis";
-import { ACTIVE_WORKOUT_CHANGED_EVENT, hasActiveWorkout } from "@/lib/activeWorkout";
+import {
+  ACTIVE_WORKOUT_CHANGED_EVENT,
+  clearActiveWorkout,
+  getActiveWorkout,
+  getSessionLifecycleState,
+  hasActiveWorkout,
+  type DraftWorkout,
+} from "@/lib/activeWorkout";
+import { useWorkoutStore } from "@/lib/workout-store";
+import StaleSessionModal from "@/components/StaleSessionModal";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus, TRAINING_FOCUS_OPTIONS, type TrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel, EXPERIENCE_LEVEL_OPTIONS, type ExperienceLevel } from "@/lib/experienceLevel";
@@ -560,6 +569,84 @@ export default function Home() {
   const [profileSetupNeeded, setProfileSetupNeeded] = useState(false);
   const hasMounted = useIsHydrated();
   const hasActive = useActiveWorkoutFlag();
+  const { addWorkout } = useWorkoutStore();
+  const [staleSession, setStaleSession] = useState<DraftWorkout | null>(null);
+
+  // P1.9 session-state model: on home mount (and whenever the active workout
+  // changes), check whether the current draft is "stale-in-progress" (≥18h
+  // idle with ≥2 confirmed sets) or "abandoned-start" (≤1 set, ≥24h idle).
+  // Stale → show resume modal. Abandoned → silently discard.
+  useEffect(() => {
+    function reconcile() {
+      const draft = getActiveWorkout();
+      const state = getSessionLifecycleState(draft);
+      if (state === "abandoned-start") {
+        clearActiveWorkout();
+        setStaleSession(null);
+        return;
+      }
+      if (state === "stale-in-progress") {
+        setStaleSession(draft);
+        return;
+      }
+      setStaleSession(null);
+    }
+    reconcile();
+    window.addEventListener(ACTIVE_WORKOUT_CHANGED_EVENT, reconcile);
+    window.addEventListener("focus", reconcile);
+    return () => {
+      window.removeEventListener(ACTIVE_WORKOUT_CHANGED_EVENT, reconcile);
+      window.removeEventListener("focus", reconcile);
+    };
+  }, []);
+
+  function finishStaleSession(draft: DraftWorkout) {
+    // Finalise whatever the user confirmed; drafts are dropped per spec.
+    const completedExercises = draft.exercises
+      .map((ex) => {
+        const confirmedOnly = (ex.sets ?? []).filter((s) => s.done === true);
+        const sets = confirmedOnly
+          .map((s) => {
+            const reps = parseFloat(String(s.reps ?? "")) || 0;
+            if (reps <= 0) return null;
+            const out: { weight: string; reps: string; notes?: string; rir?: number } = {
+              weight: String(s.weight ?? ""),
+              reps: String(s.reps ?? ""),
+            };
+            if (typeof s.notes === "string" && s.notes.trim()) out.notes = s.notes.trim();
+            if (typeof s.rir === "number" && Number.isFinite(s.rir)) out.rir = s.rir;
+            return out;
+          })
+          .filter((s): s is NonNullable<typeof s> => s !== null);
+        return {
+          ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
+          name: ex.name,
+          restSec: ex.restSec,
+          sets,
+        };
+      })
+      .filter((ex) => ex.sets.length > 0);
+    if (completedExercises.length === 0) {
+      // Nothing actually confirmed — just discard.
+      clearActiveWorkout();
+      return;
+    }
+    const totalSets = completedExercises.reduce((n, ex) => n + ex.sets.length, 0);
+    const fallbackName =
+      draft.workoutName?.trim() ||
+      draft.templateName?.trim() ||
+      draft.exercises?.[0]?.name?.trim() ||
+      "Workout";
+    addWorkout({
+      completedAt: new Date().toISOString(),
+      name: fallbackName,
+      durationSec: Math.max(0, Math.floor((Date.now() - draft.startedAt) / 1000)),
+      exercises: completedExercises,
+      totalExercises: completedExercises.length,
+      totalSets,
+    });
+    clearActiveWorkout();
+  }
 
   useEffect(() => {
     function recheck() {
@@ -728,6 +815,15 @@ export default function Home() {
             unit={unit}
             setUnit={setUnit}
             onClose={() => setProfileOpen(false)}
+          />
+        )}
+
+        {staleSession && (
+          <StaleSessionModal
+            draft={staleSession}
+            onFinishSession={finishStaleSession}
+            onResumeLogging={() => router.push("/workout")}
+            onClose={() => setStaleSession(null)}
           />
         )}
 

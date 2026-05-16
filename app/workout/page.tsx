@@ -1028,7 +1028,11 @@ export default function WorkoutPage() {
     setRestByExercise({});
     const completedExercises = exercises
       .map(({ exerciseId, name, sets, restSec }) => {
-        const completedSets = getCompletedLoggedSets(sets).map(({ weight, reps, notes, rir }) => {
+        // P1.9: persist only confirmed sets (green check tapped).
+        // Drafts — values entered but not confirmed — never enter the trend
+        // data layer the AI / Signals / Plateau / Volume / Progress read from.
+        const confirmedSetsOnly = sets.filter((s) => s.done === true);
+        const completedSets = getCompletedLoggedSets(confirmedSetsOnly).map(({ weight, reps, notes, rir }) => {
           const out: { weight: string; reps: string; notes?: string; rir?: number } = {
             weight: String(weight ?? ""),
             reps: String(reps ?? ""),
@@ -1271,7 +1275,12 @@ export default function WorkoutPage() {
     );
   }
 
-  function toggleSetDone(exerciseId: number, setIndex: number) {
+  function toggleSetDone(
+    exerciseId: number,
+    setIndex: number,
+    placeholderWeight?: string | null,
+    placeholderReps?: string | null
+  ) {
     setExercises((prev) =>
       prev.map((exercise) => {
         if (exercise.id !== exerciseId) return exercise;
@@ -1279,8 +1288,24 @@ export default function WorkoutPage() {
         const sets = [...exercise.sets];
         while (sets.length <= setIndex) sets.push({ weight: "", reps: "", done: false, notes: "" });
         const current = sets[setIndex] ?? { weight: "", reps: "", done: false, notes: "" };
-        const done = !Boolean(current.done);
-        sets[setIndex] = { ...current, done };
+        const willBeDone = !Boolean(current.done);
+        // P1.9: tapping the green check on a row with the placeholder showing
+        // (no user-typed value yet, but last-session value is visible as a
+        // hint) commits those placeholder values as the user's confirmation.
+        const weightToCommit =
+          willBeDone && (current.weight ?? "").trim() === "" && placeholderWeight
+            ? placeholderWeight
+            : current.weight;
+        const repsToCommit =
+          willBeDone && (current.reps ?? "").trim() === "" && placeholderReps
+            ? placeholderReps
+            : current.reps;
+        sets[setIndex] = {
+          ...current,
+          done: willBeDone,
+          weight: weightToCommit,
+          reps: repsToCommit,
+        };
         return { ...exercise, sets };
       })
     );
@@ -1626,6 +1651,12 @@ export default function WorkoutPage() {
                                 const isNoteExpanded = expandedNoteKey === noteKey;
                                 const isDone = Boolean(set.done);
                                 const isNext = !isDone && index === effectiveNextIdx;
+                                // Draft = user typed values but hasn't tapped the green check yet.
+                                // P1.9: visually flag it so users know nothing is committed.
+                                const hasUserTypedValues =
+                                  (set.weight ?? "").trim() !== "" ||
+                                  (set.reps ?? "").trim() !== "";
+                                const isDraft = !isDone && hasUserTypedValues;
                                 const note = (set.notes ?? "").trim();
                                 const hasNote = note.length > 0;
 
@@ -1652,8 +1683,10 @@ export default function WorkoutPage() {
                                             className={`grid grid-cols-[1.125rem_minmax(4.75rem,1.4fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center rounded-lg py-0.5 ${
                                               isNext
                                                 ? "ring-1 ring-[color:var(--color-accent)]/55 bg-zinc-800/45 shadow-[inset_3px_0_0_0_rgba(45,212,191,0.55),inset_0_0_0_1px_rgba(45,212,191,0.14)]"
-                                                : ""
-                                            } ${isDone ? "opacity-[0.78]" : ""}`}
+                                                : isDraft
+                                                  ? "border border-dashed border-teal-700/35 bg-zinc-800/15"
+                                                  : ""
+                                            } ${isDraft && !isDone ? "[&_input]:text-zinc-300" : ""} ${isDone ? "opacity-[0.78]" : ""}`}
                                             role="button"
                                             tabIndex={0}
                                             onClick={(e) => {
@@ -1859,7 +1892,7 @@ export default function WorkoutPage() {
                                                 }}
                                                 onClick={(e) => {
                                                   e.stopPropagation();
-                                                  toggleSetDone(exercise.id, index);
+                                                  toggleSetDone(exercise.id, index, prevWeightStr, prevRepsStr);
                                                 }}
                                                 className={`${rowIconBtn} rounded-full ${
                                                   isDone
