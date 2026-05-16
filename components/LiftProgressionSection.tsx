@@ -106,7 +106,7 @@ function aggregateBadgeMeta(agg: AggregateLiftTrend): AggregateBadgeMeta {
   switch (agg) {
     case "improving":
       return {
-        label: "Improving",
+        label: "Trending up",
         arrow: "↑",
         textColor: "text-emerald-400",
         bg: "bg-emerald-500/10",
@@ -114,7 +114,7 @@ function aggregateBadgeMeta(agg: AggregateLiftTrend): AggregateBadgeMeta {
       };
     case "declining":
       return {
-        label: "Declining",
+        label: "Trending down",
         arrow: "↓",
         textColor: "text-red-400",
         bg: "bg-red-500/10",

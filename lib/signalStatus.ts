@@ -54,10 +54,13 @@ export function computeProgressStatus(workouts: StoredWorkout[]): SignalStatusRe
     return { state: "unknown", status: "Limited data", aggregate };
   }
   if (aggregate === "improving") {
-    return { state: "good", status: "Improving", aggregate };
+    // "Trending up" hedges honestly — it's a majority-of-readable-lifts
+    // read, not a claim that every lift is improving. Same vocabulary the
+    // assistant uses when describing single lifts.
+    return { state: "good", status: "Trending up", aggregate };
   }
   if (aggregate === "declining") {
-    return { state: "attention", status: "Declining", aggregate };
+    return { state: "attention", status: "Trending down", aggregate };
   }
   return { state: "watch", status: "Mixed", aggregate };
 }

@@ -362,10 +362,10 @@ function buildIndicators(
   } else if (progressStatus.status === "Limited data") {
     progressContext = "Not enough sessions per lift to read a trend yet.";
     progressPrompt = "I don't have enough logged sessions yet to read a trend. How many sessions per lift do you need?";
-  } else if (progressStatus.status === "Improving") {
-    progressContext = "Most of your tracked lifts are progressing on e1RM.";
-    progressPrompt = "Progression is showing on my training. Walk me through which lifts are moving and how much.";
-  } else if (progressStatus.status === "Declining") {
+  } else if (progressStatus.status === "Trending up") {
+    progressContext = "Most of your tracked lifts are trending up on e1RM.";
+    progressPrompt = "Most of my lifts are trending up. Walk me through which ones are moving and how much.";
+  } else if (progressStatus.status === "Trending down") {
     progressContext = "Most of your tracked lifts are trending down on e1RM.";
     progressPrompt = "My progression looks like it's trending down. Walk me through which lifts are declining and what's likely behind it.";
   } else {
