@@ -10,13 +10,7 @@ import {
   type RecentPerformance,
   type ExerciseInsights,
 } from "@/lib/trainingAnalysis";
-import {
-  DEFAULT_DETAILED_MUSCLE_GROUPS,
-  getDetailedMuscleGroupsForLoggedExercise,
-  getDetailedVolumeByMuscleGroup,
-  getUniqueExerciseNames,
-  type DetailedMuscleGroup,
-} from "@/lib/trainingMetrics";
+import { getUniqueExerciseNames } from "@/lib/trainingMetrics";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
@@ -34,6 +28,17 @@ import {
   type ChartPointDetail,
 } from "@/components/ChartPointTooltip";
 import { computeNiceYAxis } from "@/lib/chartScale";
+import {
+  computePlateauStatus,
+  computeProgressStatus,
+  computeVolumeStatus,
+} from "@/lib/signalStatus";
+import {
+  GROUP_LABEL,
+  type MuscleGroup,
+  type VolumeRow,
+  type VolumeStatus,
+} from "@/lib/volumeAnalysis";
 
 /**
  * Comma + Oxford-and group list. Mirrors how people speak:
@@ -451,56 +456,9 @@ function LineChart({
   );
 }
 
-// Detailed groups give a fairer read than the legacy 5: glutes/hamstrings/calves
-// don't get hidden inside "legs", and biceps/triceps split out of "arms".
-// A compound (e.g. RDL) contributes its set count to every primary group it trains.
-const VOLUME_GROUP_ORDER = DEFAULT_DETAILED_MUSCLE_GROUPS as readonly DetailedMuscleGroup[];
-type MuscleGroup = DetailedMuscleGroup;
-
-type ProgressionState = "good" | "poor" | "unclear";
-type VolumeStatus = "not-tracked" | "low" | "on-track" | "warning" | "excessive";
-
-// MEV–MAV style weekly hard-set ranges. Deliberately fuzzy; intent is to catch
-// "clearly under" or "clearly over", not to micro-optimise.
-const MUSCLE_RANGES: Record<MuscleGroup, { min: number; max: number }> = {
-  chest: { min: 10, max: 20 },
-  back: { min: 12, max: 22 },
-  shoulders: { min: 8, max: 18 },
-  biceps: { min: 8, max: 18 },
-  triceps: { min: 8, max: 18 },
-  quads: { min: 10, max: 20 },
-  hamstrings: { min: 8, max: 16 },
-  glutes: { min: 8, max: 16 },
-  calves: { min: 8, max: 18 },
-  abs: { min: 8, max: 16 },
-  traps: { min: 6, max: 12 },
-  "rear-delts": { min: 6, max: 14 },
-};
-
-const GROUP_LABEL: Record<MuscleGroup, string> = {
-  chest: "Chest",
-  back: "Back",
-  shoulders: "Shoulders",
-  biceps: "Biceps",
-  triceps: "Triceps",
-  quads: "Quads",
-  hamstrings: "Hamstrings",
-  glutes: "Glutes",
-  calves: "Calves",
-  abs: "Abs",
-  traps: "Traps",
-  "rear-delts": "Rear delts",
-};
-
-// Coach analysis still emits coarse group names (e.g. "legs", "arms"); fan them
-// out so a "low legs" focus highlights every detailed leg subgroup.
-const COARSE_TO_DETAILED: Record<string, MuscleGroup[]> = {
-  chest: ["chest"],
-  back: ["back"],
-  shoulders: ["shoulders"],
-  arms: ["biceps", "triceps"],
-  legs: ["quads", "hamstrings", "glutes", "calves"],
-};
+// Per-muscle classification (MUSCLE_RANGES, classifyMuscleVolume, etc.) lives
+// in lib/volumeAnalysis.ts so the home Volume card and this detail page
+// classify identically. Local-only types below are presentation-specific.
 
 const VOLUME_STATUS_TO_STATE: Record<VolumeStatus, SignalState> = {
   "not-tracked": "unknown",
@@ -518,84 +476,7 @@ const VOLUME_STATUS_LABEL: Record<VolumeStatus, string> = {
   excessive: "Excessive",
 };
 
-function getProgressionByMuscle(
-  coach: CoachStructuredAnalysis
-): Record<MuscleGroup, ProgressionState> {
-  const out = Object.fromEntries(
-    VOLUME_GROUP_ORDER.map((g) => [g, "unclear" as ProgressionState])
-  ) as Record<MuscleGroup, ProgressionState>;
-
-  const setState = (g: MuscleGroup | undefined | null, state: ProgressionState) => {
-    if (!g || !(g in out)) return;
-    if (state === "poor") {
-      out[g] = "poor";
-    } else if (state === "good" && out[g] !== "poor") {
-      out[g] = "good";
-    }
-  };
-
-  const setStateForExercise = (exName: string, state: ProgressionState) => {
-    const groups = getDetailedMuscleGroupsForLoggedExercise({ name: exName });
-    for (const g of groups) setState(g, state);
-  };
-
-  const setStateForCoarseOrDetailed = (raw: string, state: ProgressionState) => {
-    const key = raw.trim().toLowerCase();
-    const fan = COARSE_TO_DETAILED[key];
-    if (fan) {
-      for (const g of fan) setState(g, state);
-      return;
-    }
-    if ((VOLUME_GROUP_ORDER as readonly string[]).includes(key)) {
-      setState(key as MuscleGroup, state);
-    }
-  };
-
-  if (coach.keyFocusType === "plateau" || coach.keyFocusType === "declining") {
-    if (coach.keyFocusExercise) setStateForExercise(coach.keyFocusExercise, "poor");
-    if (coach.keyFocusGroups) {
-      for (const g of coach.keyFocusGroups) setStateForCoarseOrDetailed(g, "poor");
-    }
-  }
-
-  if (coach.keyFocusType === "progressing" && coach.keyFocusExercise) {
-    setStateForExercise(coach.keyFocusExercise, "good");
-  }
-
-  for (const text of coach.whatsGoingWell) {
-    const cleaned = text.replace(/^\s*Early signal:\s*/i, "").trim();
-    const match = cleaned.match(
-      /^([A-Za-z][A-Za-z\s\-()'./]+?)\s+(?:is\s+)?(?:progressing|improving)\b/i
-    );
-    if (match) setStateForExercise(match[1].trim(), "good");
-  }
-
-  return out;
-}
-
-function classifyMuscleVolume(
-  group: MuscleGroup,
-  sets: number,
-  progression: ProgressionState,
-  historicalSets: number
-): VolumeStatus {
-  // A muscle the user has never trained in the imported history is not "low" —
-  // it's untracked. Painting it rose creates false positives that destroy trust
-  // with users whose split simply doesn't cover that muscle.
-  if (historicalSets === 0) return "not-tracked";
-  const range = MUSCLE_RANGES[group];
-  if (sets < range.min) return "low";
-  if (sets <= range.max) return "on-track";
-  if (progression === "good") return "warning";
-  return "excessive";
-}
-
-type VolumeBarRow = {
-  group: MuscleGroup;
-  sets: number;
-  status: VolumeStatus;
-  progression: ProgressionState;
-};
+type VolumeBarRow = VolumeRow;
 
 function BarChart({ rows }: { rows: VolumeBarRow[] }) {
   const total = rows.reduce((sum, r) => sum + r.sets, 0);
@@ -690,19 +571,20 @@ function buildPlateauContent(
   workouts: ReturnType<typeof getWorkoutHistory>,
   unit: "kg" | "lb"
 ): DetailContent {
+  // Canonical state/status — must match the home Plateau card exactly.
+  const { state, status } = computePlateauStatus(coach, workouts.length);
+
   if (workouts.length === 0) {
     return {
-      state: "unknown",
-      status: "No data yet",
+      state,
+      status,
       explanation:
         "The plateau indicator watches your tracked lifts for sessions where weight and reps stop moving. Log a few workouts and a trend will appear here.",
       prompt: "How does the plateau indicator decide a lift has stalled?",
-      chart: <LineChart performances={[]} state="unknown" unit={unit} />,
+      chart: <LineChart performances={[]} state={state} unit={unit} />,
     };
   }
 
-  const isAttention =
-    coach.keyFocusType === "plateau" || coach.keyFocusType === "declining";
   const isDeclining = coach.keyFocusType === "declining";
   const focusExerciseName = coach.keyFocusExercise;
 
@@ -716,7 +598,7 @@ function buildPlateauContent(
   const performances = exerciseChoice?.insights.recentPerformances ?? [];
   const exerciseLabel = exerciseChoice?.name ?? "your tracked lift";
 
-  if (isAttention) {
+  if (status === "Detected") {
     const sessionCount = performances.length;
     const sessionWord = sessionCount === 1 ? "session" : "sessions";
     const latest = performances[performances.length - 1];
@@ -735,32 +617,32 @@ function buildPlateauContent(
       explanation = `${exerciseLabel} hasn't moved across your recent sessions. The chart shows estimated 1RM per session, so you can see the flat line for yourself.`;
     }
     return {
-      state: "attention",
-      status: "Detected",
+      state,
+      status,
       explanation,
       prompt: `My plateau indicator is flagged on ${exerciseLabel}. Walk me through what's happening and what to change next session.`,
-      chart: <LineChart performances={performances} state="attention" unit={unit} />,
+      chart: <LineChart performances={performances} state={state} unit={unit} />,
     };
   }
 
-  if (workouts.length < 3) {
+  if (status === "Early read") {
     return {
-      state: "unknown",
-      status: "Early read",
+      state,
+      status,
       explanation: `Only ${workouts.length} session${
         workouts.length === 1 ? "" : "s"
       } logged so far. The chart below tracks ${exerciseLabel}; a few more sessions and the plateau read becomes meaningful.`,
       prompt: "I've only got a couple of sessions logged. How many do you need before plateau detection is reliable?",
-      chart: <LineChart performances={performances} state="unknown" unit={unit} />,
+      chart: <LineChart performances={performances} state={state} unit={unit} />,
     };
   }
 
   return {
-    state: "good",
-    status: "Clear",
+    state,
+    status,
     explanation: `No stalls in your tracked lifts right now. The chart shows ${exerciseLabel}, your most-tracked compound; the line should keep climbing or holding for the indicator to stay clear.`,
     prompt: "Plateau indicator is clear. Walk me through which of my lifts you're watching and what would tip it into a plateau read.",
-    chart: <LineChart performances={performances} state="good" unit={unit} />,
+    chart: <LineChart performances={performances} state={state} unit={unit} />,
   };
 }
 
@@ -769,38 +651,19 @@ function buildVolumeContent(
   workouts: ReturnType<typeof getWorkoutHistory>
 ): DetailContent {
   const weeklyWorkouts = getWorkoutsFromLast7Days(workouts);
-  const weeklyVolume = getDetailedVolumeByMuscleGroup(weeklyWorkouts);
-  // Full-history per-muscle volume — used to distinguish "low this week" from
-  // "user has never trained this muscle". The latter shouldn't be painted rose.
-  const historicalVolume = getDetailedVolumeByMuscleGroup(workouts);
   const totalSets = weeklyWorkouts.reduce(
     (sum, w) =>
       sum + (w.exercises?.reduce((s, ex) => s + countCompletedLoggedSets(ex.sets), 0) ?? 0),
     0
   );
 
-  const progressionByMuscle = getProgressionByMuscle(coach);
-  const rowsRaw: VolumeBarRow[] = VOLUME_GROUP_ORDER.map((g) => {
-    const sets = weeklyVolume[g] ?? 0;
-    const historical = historicalVolume[g] ?? 0;
-    return {
-      group: g,
-      sets,
-      progression: progressionByMuscle[g],
-      status: classifyMuscleVolume(g, sets, progressionByMuscle[g], historical),
-    };
-  });
-  // Render not-tracked rows at the bottom so the user's eye lands on the
-  // muscles they actually train first.
-  const rows: VolumeBarRow[] = [
-    ...rowsRaw.filter((r) => r.status !== "not-tracked"),
-    ...rowsRaw.filter((r) => r.status === "not-tracked"),
-  ];
+  // Canonical state/status/rows from the shared helper. MUST match the home Volume card.
+  const { state, status, rows } = computeVolumeStatus(coach, workouts);
 
   if (workouts.length === 0) {
     return {
-      state: "unknown",
-      status: "No data yet",
+      state,
+      status,
       explanation:
         "The volume indicator reads weekly sets per muscle group from your logged sessions. Log sets and the breakdown will appear below.",
       prompt: "Once I start logging, what does the weekly volume indicator track?",
@@ -808,27 +671,9 @@ function buildVolumeContent(
     };
   }
 
-  // Drop coach signals about muscles the user has never trained — those are
-  // structural choices, not deficits. Match label → coarse-or-detailed group(s)
-  // and require at least one of those groups to have historical sets.
-  const muscleHasAnyHistory = (label: string): boolean => {
-    const key = label.trim().toLowerCase();
-    const fan = COARSE_TO_DETAILED[key];
-    const groups: MuscleGroup[] = fan
-      ? fan
-      : (VOLUME_GROUP_ORDER as readonly string[]).includes(key)
-        ? [key as MuscleGroup]
-        : [];
-    if (groups.length === 0) return true; // Unknown label — let it through.
-    return groups.some((g) => (historicalVolume[g] ?? 0) > 0);
-  };
-
-  const lowEntries = coach.volumeBalance.filter(
-    (v) =>
-      /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary) &&
-      muscleHasAnyHistory(v.label)
+  const lowEntries = coach.volumeBalance.filter((v) =>
+    /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary)
   );
-
   const lowRows = rows.filter((r) => r.status === "low" && r.sets >= 0);
   const trackedRows = rows.filter((r) => r.status !== "not-tracked");
   const excessiveRows = rows.filter((r) => r.status === "excessive");
@@ -836,22 +681,19 @@ function buildVolumeContent(
 
   const joinGroups = (gs: MuscleGroup[]) => formatGroupList(gs.map((g) => GROUP_LABEL[g]));
 
-  if (excessiveRows.length > 0) {
+  if (status === "Excessive") {
     const groupsLabel = joinGroups(excessiveRows.map((r) => r.group));
     const groupsLower = groupsLabel.toLowerCase();
     return {
-      state: "attention",
-      status: "Excessive",
+      state,
+      status,
       explanation: `${groupsLabel} weekly volume is above the productive range while progress is stalling or unclear. High volume only pays off when it shows up in the lifts; here it isn't.`,
       prompt: `My ${groupsLower} volume is above range and progress is stalling. Walk me through what to drop.`,
       chart: <BarChart rows={rows} />,
     };
   }
 
-  const isLowAttention =
-    coach.keyFocusType === "low-volume" || lowEntries.length > 0 || lowRows.length > 0;
-
-  if (isLowAttention) {
+  if (status === "Running low") {
     // "Most muscles low" → at least 60% of the muscles the user actually trains
     // are flagged low. When that's true AND weekly session count is below the
     // user's typical, the volume reading is misleading — it's a frequency
@@ -888,40 +730,41 @@ function buildVolumeContent(
           ? joinGroups(lowRows.map((r) => r.group)).toLowerCase()
           : "the flagged muscle group";
     return {
-      state: "attention",
-      status: "Running low",
+      state,
+      status,
       explanation,
       prompt: `Weekly volume looks light on ${lowGroupsText}. Walk me through where I'm short and what to add this week.`,
       chart: <BarChart rows={rows} />,
     };
   }
 
-  if (warningRows.length > 0) {
-    const groupsLabel = joinGroups(warningRows.map((r) => r.group));
-    const groupsLower = groupsLabel.toLowerCase();
+  if (status === "Worth a look") {
+    if (warningRows.length > 0) {
+      const groupsLabel = joinGroups(warningRows.map((r) => r.group));
+      const groupsLower = groupsLabel.toLowerCase();
+      return {
+        state,
+        status,
+        explanation: `${groupsLabel} volume is above the productive range, but the lifts are still moving. Worth watching for fatigue, not yet a problem.`,
+        prompt: `My ${groupsLower} volume is above range but lifts are still progressing. Should I keep pushing or back off?`,
+        chart: <BarChart rows={rows} />,
+      };
+    }
     return {
-      state: "watch",
-      status: "Worth a look",
-      explanation: `${groupsLabel} volume is above the productive range, but the lifts are still moving. Worth watching for fatigue, not yet a problem.`,
-      prompt: `My ${groupsLower} volume is above range but lifts are still progressing. Should I keep pushing or back off?`,
-      chart: <BarChart rows={rows} />,
-    };
-  }
-
-  if (coach.volumeBalance.length > 0) {
-    return {
-      state: "watch",
-      status: "Worth a look",
-      explanation: coach.volumeBalance[0].summary,
+      state,
+      status,
+      explanation:
+        coach.volumeBalance[0]?.summary ??
+        "Some muscles are above range but lifts are still moving. Worth watching for fatigue.",
       prompt: "There are volume balance notes on my training this week. Walk me through them.",
       chart: <BarChart rows={rows} />,
     };
   }
 
-  if (workouts.length < 3) {
+  if (status === "Early read") {
     return {
-      state: "unknown",
-      status: "Early read",
+      state,
+      status,
       explanation: `Only ${workouts.length} session${
         workouts.length === 1 ? "" : "s"
       } logged. The breakdown below is what's there so far.`,
@@ -931,8 +774,8 @@ function buildVolumeContent(
   }
 
   return {
-    state: "good",
-    status: "On track",
+    state,
+    status,
     explanation:
       totalSets > 0
         ? `${totalSets} sets across ${weeklyWorkouts.length} session${
@@ -1072,16 +915,12 @@ function SearchIcon() {
 }
 
 function getProgressPageHeader(
-  coach: CoachStructuredAnalysis,
+  _coach: CoachStructuredAnalysis,
   workouts: ReturnType<typeof getWorkoutHistory>
 ): { state: SignalState; status: string } {
-  if (workouts.length === 0) return { state: "unknown", status: "No data yet" };
-  if (workouts.length < 3) return { state: "unknown", status: "Early read" };
-  if (coach.keyFocusType === "declining") return { state: "attention", status: "Declining" };
-  if (coach.whatsGoingWell.length > 0 || coach.keyFocusType === "progressing") {
-    return { state: "good", status: "Improving" };
-  }
-  return { state: "watch", status: "Flat" };
+  // Canonical state/status — must match the home Progress card exactly.
+  const { state, status } = computeProgressStatus(workouts);
+  return { state, status };
 }
 
 function ProgressDetailView({

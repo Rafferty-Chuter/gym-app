@@ -20,16 +20,10 @@ import {
 } from "@/lib/coachStructuredAnalysis";
 import { countCompletedLoggedSets } from "@/lib/completedSets";
 import {
-  DEFAULT_DETAILED_MUSCLE_GROUPS,
-  getDetailedVolumeByMuscleGroup,
-  getUniqueExerciseNames,
-  type DetailedMuscleGroup,
-} from "@/lib/trainingMetrics";
-import {
-  aggregateLiftTrends,
-  getLiftTrendStatus,
-  type AggregateLiftTrend,
-} from "@/lib/liftTrend";
+  computePlateauStatus,
+  computeProgressStatus,
+  computeVolumeStatus,
+} from "@/lib/signalStatus";
 
 type ProfileModalProps = {
   focus: TrainingFocus;
@@ -253,218 +247,139 @@ function trimToOneLine(text: string, maxLen: number): string {
 }
 
 // Coarse coach group → detailed group fan-out, mirrored from /signal/[key]/page.tsx.
-const COARSE_TO_DETAILED_HOME: Record<string, DetailedMuscleGroup[]> = {
-  chest: ["chest"],
-  back: ["back"],
-  shoulders: ["shoulders"],
-  arms: ["biceps", "triceps"],
-  legs: ["quads", "hamstrings", "glutes", "calves"],
-};
-
-function muscleHasHistoryHome(
-  label: string,
-  historicalVolume: Record<DetailedMuscleGroup, number>
-): boolean {
-  const key = label.trim().toLowerCase();
-  const fan = COARSE_TO_DETAILED_HOME[key];
-  const groups: DetailedMuscleGroup[] = fan
-    ? fan
-    : (DEFAULT_DETAILED_MUSCLE_GROUPS as readonly string[]).includes(key)
-      ? [key as DetailedMuscleGroup]
-      : [];
-  if (groups.length === 0) return true;
-  return groups.some((g) => (historicalVolume[g] ?? 0) > 0);
-}
-
 function buildIndicators(
   coach: CoachStructuredAnalysis,
-  workoutsCount: number,
+  workouts: ReturnType<typeof getWorkoutHistory>,
   thisWeekTotalSets: number,
-  thisWeekWorkoutsCount: number,
-  historicalVolume: Record<DetailedMuscleGroup, number>,
-  progressAggregate: AggregateLiftTrend
+  thisWeekWorkoutsCount: number
 ): Indicator[] {
+  const workoutsCount = workouts.length;
   const cold = workoutsCount === 0;
-  const earlyRead = workoutsCount > 0 && workoutsCount < 3;
 
-  let plateau: Indicator;
-  if (cold) {
-    plateau = {
-      key: "plateau",
-      label: "Plateau",
-      state: "unknown",
-      status: "No data yet",
-      context: "Log a workout and I'll start watching your tracked lifts for stalls.",
-      prompt:
-        "Once I start logging, how does the plateau indicator decide a lift has stalled?",
-    };
-  } else if (coach.keyFocusType === "plateau" || coach.keyFocusType === "declining") {
+  // Plateau — canonical state/status from the shared helper; home picks its
+  // own context/prompt copy off the resulting status string.
+  const plateauStatus = computePlateauStatus(coach, workoutsCount);
+  let plateauContext: string;
+  let plateauPrompt: string;
+  if (plateauStatus.status === "No data yet") {
+    plateauContext = "Log a workout and I'll start watching your tracked lifts for stalls.";
+    plateauPrompt = "Once I start logging, how does the plateau indicator decide a lift has stalled?";
+  } else if (plateauStatus.status === "Detected") {
     const ex = coach.keyFocusExercise ?? "a key lift";
     const isDeclining = coach.keyFocusType === "declining";
-    plateau = {
-      key: "plateau",
-      label: "Plateau",
-      state: "attention",
-      status: "Detected",
-      context: `${ex} ${isDeclining ? "is trending down" : "hasn't moved in your recent sessions"}.`,
-      prompt: `My plateau indicator is flagged on ${ex}. Walk me through what's happening and what to change next session.`,
-    };
-  } else if (earlyRead) {
-    plateau = {
-      key: "plateau",
-      label: "Plateau",
-      state: "unknown",
-      status: "Early read",
-      context: `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the trend reads cleanly.`,
-      prompt:
-        "I've only got a couple of sessions logged. How many do you need before plateau detection is reliable?",
-    };
+    plateauContext = `${ex} ${isDeclining ? "is trending down" : "hasn't moved in your recent sessions"}.`;
+    plateauPrompt = `My plateau indicator is flagged on ${ex}. Walk me through what's happening and what to change next session.`;
+  } else if (plateauStatus.status === "Early read") {
+    plateauContext = `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the trend reads cleanly.`;
+    plateauPrompt = "I've only got a couple of sessions logged. How many do you need before plateau detection is reliable?";
   } else {
-    plateau = {
-      key: "plateau",
-      label: "Plateau",
-      state: "good",
-      status: "Clear",
-      context: "No stalls in your tracked lifts right now.",
-      prompt:
-        "Plateau indicator is clear. Walk me through which of my lifts you're watching and what would tip it.",
-    };
+    plateauContext = "No stalls in your tracked lifts right now.";
+    plateauPrompt = "Plateau indicator is clear. Walk me through which of my lifts you're watching and what would tip it.";
   }
+  const plateau: Indicator = {
+    key: "plateau",
+    label: "Plateau",
+    state: plateauStatus.state,
+    status: plateauStatus.status,
+    context: plateauContext,
+    prompt: plateauPrompt,
+  };
 
-  // Drop coach signals about muscles the user has never trained — those are
-  // structural choices, not deficits. Without this gate, importing a 4-week
-  // push-only block paints every other muscle rose-Low and reads as broken.
-  const lowVolumeEntries = coach.volumeBalance.filter(
-    (v) =>
-      /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary) &&
-      muscleHasHistoryHome(v.label, historicalVolume)
+  // Volume — canonical from helper. Context line still pulls coach summaries
+  // when available so the home card feels specific.
+  const volumeStatus = computeVolumeStatus(coach, workouts);
+  let volumeContext: string;
+  let volumePrompt: string;
+  const lowVolumeEntries = coach.volumeBalance.filter((v) =>
+    /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary)
   );
-  const keyFocusGroupsWithHistory = (coach.keyFocusGroups ?? []).filter((g) =>
-    muscleHasHistoryHome(g, historicalVolume)
-  );
-  const isVolumeAttention =
-    (coach.keyFocusType === "low-volume" && keyFocusGroupsWithHistory.length > 0) ||
-    lowVolumeEntries.length > 0;
-
-  let volume: Indicator;
   if (cold) {
-    volume = {
-      key: "volume",
-      label: "Volume",
-      state: "unknown",
-      status: "No data yet",
-      context: "Log sets and I'll read your weekly volume by muscle group.",
-      prompt:
-        "Once I start logging, what does the weekly volume indicator track?",
-    };
-  } else if (isVolumeAttention) {
-    const groupLabels =
+    volumeContext = "Log sets and I'll read your weekly volume by muscle group.";
+    volumePrompt = "Once I start logging, what does the weekly volume indicator track?";
+  } else if (volumeStatus.status === "Excessive") {
+    const excessiveGroups = volumeStatus.rows
+      .filter((r) => r.status === "excessive")
+      .map((r) => r.group.toLowerCase());
+    const joined = excessiveGroups.join(" and ");
+    volumeContext = joined
+      ? `${joined[0].toUpperCase()}${joined.slice(1)} volume is above the productive range while progress is stalling.`
+      : "Volume on at least one muscle group is above the productive range.";
+    volumePrompt = joined
+      ? `My ${joined} volume is above range. Walk me through what to drop.`
+      : "My volume is above range on at least one muscle group. Walk me through what to drop.";
+  } else if (volumeStatus.status === "Running low") {
+    const lowGroups = volumeStatus.rows
+      .filter((r) => r.status === "low")
+      .map((r) => r.group.toLowerCase());
+    const groupsJoined =
       lowVolumeEntries.length > 0
-        ? lowVolumeEntries.map((v) => v.label.toLowerCase())
-        : keyFocusGroupsWithHistory.map((g) => g.toLowerCase());
-    const groupsJoined = groupLabels.join(" and ");
-    const context =
+        ? lowVolumeEntries.map((v) => v.label.toLowerCase()).join(" and ")
+        : lowGroups.join(" and ");
+    volumeContext =
       lowVolumeEntries.length > 0
         ? trimToOneLine(lowVolumeEntries[0].summary, 120)
         : groupsJoined
           ? `${groupsJoined[0].toUpperCase()}${groupsJoined.slice(1)} weekly volume is below where it should be.`
           : "Weekly volume is running low for at least one muscle group.";
-    volume = {
-      key: "volume",
-      label: "Volume",
-      state: "attention",
-      status: "Running low",
-      context,
-      prompt: groupsJoined
-        ? `Weekly volume looks light on ${groupsJoined}. Walk me through where I'm short and what to add this week.`
-        : "My weekly volume is running low. Walk me through where I'm short and what to add this week.",
-    };
-  } else if (coach.volumeBalance.length > 0) {
-    volume = {
-      key: "volume",
-      label: "Volume",
-      state: "watch",
-      status: "Worth a look",
-      context: trimToOneLine(coach.volumeBalance[0].summary, 120),
-      prompt: "There are volume balance notes on my training this week. Walk me through them.",
-    };
-  } else if (earlyRead) {
-    volume = {
-      key: "volume",
-      label: "Volume",
-      state: "unknown",
-      status: "Early read",
-      context: `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the weekly read becomes meaningful.`,
-      prompt: "I've only got a few sessions in. What can you tell me about my volume so far?",
-    };
+    volumePrompt = groupsJoined
+      ? `Weekly volume looks light on ${groupsJoined}. Walk me through where I'm short and what to add this week.`
+      : "My weekly volume is running low. Walk me through where I'm short and what to add this week.";
+  } else if (volumeStatus.status === "Worth a look") {
+    volumeContext =
+      coach.volumeBalance.length > 0
+        ? trimToOneLine(coach.volumeBalance[0].summary, 120)
+        : "Some muscles are above range but lifts are still moving. Worth watching for fatigue.";
+    volumePrompt = "There are volume balance notes on my training this week. Walk me through them.";
+  } else if (volumeStatus.status === "Early read") {
+    volumeContext = `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the weekly read becomes meaningful.`;
+    volumePrompt = "I've only got a few sessions in. What can you tell me about my volume so far?";
   } else {
-    volume = {
-      key: "volume",
-      label: "Volume",
-      state: "good",
-      status: "On track",
-      context:
-        thisWeekTotalSets > 0
-          ? `${thisWeekTotalSets} sets across ${thisWeekWorkoutsCount} session${thisWeekWorkoutsCount === 1 ? "" : "s"} this week.`
-          : "Balanced across muscle groups.",
-      prompt: "My weekly volume looks balanced. Show me the by-muscle breakdown for this week.",
-    };
+    volumeContext =
+      thisWeekTotalSets > 0
+        ? `${thisWeekTotalSets} sets across ${thisWeekWorkoutsCount} session${thisWeekWorkoutsCount === 1 ? "" : "s"} this week.`
+        : "Balanced across muscle groups.";
+    volumePrompt = "My weekly volume looks balanced. Show me the by-muscle breakdown for this week.";
   }
+  const volume: Indicator = {
+    key: "volume",
+    label: "Volume",
+    state: volumeStatus.state,
+    status: volumeStatus.status,
+    context: volumeContext,
+    prompt: volumePrompt,
+  };
 
-  let progression: Indicator;
-  if (cold) {
-    progression = {
-      key: "progress",
-      label: "Progress",
-      state: "unknown",
-      status: "No data yet",
-      context: "Log a workout and I'll start tracking what's moving and what's stuck.",
-      prompt:
-        "Once I start logging, how does the progression indicator track which lifts are moving?",
-    };
-  } else if (progressAggregate === "limited" || earlyRead) {
-    progression = {
-      key: "progress",
-      label: "Progress",
-      state: "unknown",
-      status: earlyRead ? "Early read" : "Limited data",
-      context: earlyRead
-        ? `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the trend becomes readable.`
-        : "Not enough sessions per lift to read a trend yet.",
-      prompt:
-        "I don't have enough logged sessions yet to read a trend. How many sessions per lift do you need?",
-    };
-  } else if (progressAggregate === "improving") {
-    progression = {
-      key: "progress",
-      label: "Progress",
-      state: "good",
-      status: "Improving",
-      context: "Most of your tracked lifts are progressing on e1RM.",
-      prompt:
-        "Progression is showing on my training. Walk me through which lifts are moving and how much.",
-    };
-  } else if (progressAggregate === "declining") {
-    progression = {
-      key: "progress",
-      label: "Progress",
-      state: "attention",
-      status: "Declining",
-      context: "Most of your tracked lifts are trending down on e1RM.",
-      prompt:
-        "My progression looks like it's trending down. Walk me through which lifts are declining and what's likely behind it.",
-    };
+  // Progress — canonical aggregate from the shared helper.
+  const progressStatus = computeProgressStatus(workouts);
+  let progressContext: string;
+  let progressPrompt: string;
+  if (progressStatus.status === "No data yet") {
+    progressContext = "Log a workout and I'll start tracking what's moving and what's stuck.";
+    progressPrompt = "Once I start logging, how does the progression indicator track which lifts are moving?";
+  } else if (progressStatus.status === "Early read") {
+    progressContext = `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the trend becomes readable.`;
+    progressPrompt = "I've only got a couple of sessions logged. How many sessions per lift do you need before progression becomes readable?";
+  } else if (progressStatus.status === "Limited data") {
+    progressContext = "Not enough sessions per lift to read a trend yet.";
+    progressPrompt = "I don't have enough logged sessions yet to read a trend. How many sessions per lift do you need?";
+  } else if (progressStatus.status === "Improving") {
+    progressContext = "Most of your tracked lifts are progressing on e1RM.";
+    progressPrompt = "Progression is showing on my training. Walk me through which lifts are moving and how much.";
+  } else if (progressStatus.status === "Declining") {
+    progressContext = "Most of your tracked lifts are trending down on e1RM.";
+    progressPrompt = "My progression looks like it's trending down. Walk me through which lifts are declining and what's likely behind it.";
   } else {
-    progression = {
-      key: "progress",
-      label: "Progress",
-      state: "watch",
-      status: "Mixed",
-      context: "Some lifts moving, some flat. No clear overall direction yet.",
-      prompt:
-        "My progression is mixed across lifts. Walk me through which are moving, which are flat, and what to focus on.",
-    };
+    progressContext = "Some lifts moving, some flat. No clear overall direction yet.";
+    progressPrompt = "My progression is mixed across lifts. Walk me through which are moving, which are flat, and what to focus on.";
   }
+  const progression: Indicator = {
+    key: "progress",
+    label: "Progress",
+    state: progressStatus.state,
+    status: progressStatus.status,
+    context: progressContext,
+    prompt: progressPrompt,
+  };
 
   return [plateau, volume, progression];
 }
@@ -688,36 +603,15 @@ export default function Home() {
     return { workoutsCount: recent.length, totalSets };
   }, [workouts]);
 
-  const historicalVolume = useMemo(
-    () => getDetailedVolumeByMuscleGroup(workouts),
-    [workouts]
-  );
-
-  const progressAggregate = useMemo<AggregateLiftTrend>(() => {
-    if (workouts.length === 0) return "limited";
-    const names = getUniqueExerciseNames(workouts);
-    const statuses = names.map((n) => getLiftTrendStatus(workouts, n));
-    return aggregateLiftTrends(statuses);
-  }, [workouts]);
-
   const indicators = useMemo(
     () =>
       buildIndicators(
         coachAnalysis,
-        workouts.length,
+        workouts,
         thisWeek.totalSets,
-        thisWeek.workoutsCount,
-        historicalVolume,
-        progressAggregate
+        thisWeek.workoutsCount
       ),
-    [
-      coachAnalysis,
-      workouts.length,
-      thisWeek.totalSets,
-      thisWeek.workoutsCount,
-      historicalVolume,
-      progressAggregate,
-    ]
+    [coachAnalysis, workouts, thisWeek.totalSets, thisWeek.workoutsCount]
   );
 
   const insight = useMemo(
