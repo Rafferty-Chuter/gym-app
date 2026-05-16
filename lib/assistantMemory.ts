@@ -1,3 +1,5 @@
+import { devLog } from "@/lib/devLog";
+
 export type MemoryVersion = 1;
 
 export type AssistantMemoryItem<T> = {
@@ -155,7 +157,7 @@ export function buildSelectiveMemoryBlock(params: {
         : [] // profile says "don't deprioritize legs", so drop memory-driven deprioritization.
       : uniqLower(deprioritizedMuscles);
 
-  console.log("[memory-debug] conflict resolution", {
+  devLog("[memory-debug] conflict resolution", {
     profileMentionsLegs,
     profileDeprioLegs,
     memoryDeprioritizedMuscles: deprioritizedMuscles,

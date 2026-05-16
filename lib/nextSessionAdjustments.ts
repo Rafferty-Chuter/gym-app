@@ -3,6 +3,7 @@ import { plainCoachNameForCoarseGroup } from "@/lib/coachMusclePools";
 import { getExerciseProfile } from "@/lib/exerciseProfiles";
 import { supportPhraseForExercise } from "@/lib/supportMapping";
 import { selectSupportExercises } from "@/lib/supportExerciseSelection";
+import { devLog } from "@/lib/devLog";
 
 export type SessionAdjustmentType =
   | "keep_session_same"
@@ -87,9 +88,9 @@ export function generateNextSessionAdjustments(params: {
         supportExercises,
         resolvedSupportGroup
       );
-      console.log("[next session] keyFocusExercise:", context.keyFocusExercise);
-      console.log("[next session] supportGroup:", resolvedSupportGroup);
-      console.log("[next session] supportExercises:", selectedSupportExercises);
+      devLog("[next session] keyFocusExercise:", context.keyFocusExercise);
+      devLog("[next session] supportGroup:", resolvedSupportGroup);
+      devLog("[next session] supportExercises:", selectedSupportExercises);
       const areaLabel = areaLabelForGroup(resolvedSupportGroup);
       const setInstructionBase =
         selectedSupportExercises.length >= 2

@@ -1,15 +1,17 @@
 "use client";
 
-import type {
-  OnboardingProfile,
-  OnboardingSex,
-  OnboardingYearsBand,
-  OnboardingGoal,
-  OnboardingDays,
-  OnboardingSessionLength,
-  OnboardingEquipmentBand,
-  OnboardingRirFamiliarity,
-  OnboardingUnits,
+import {
+  EQUIPMENT_KEYS,
+  EQUIPMENT_LABELS,
+  type OnboardingProfile,
+  type OnboardingSex,
+  type OnboardingYearsBand,
+  type OnboardingGoal,
+  type OnboardingDays,
+  type OnboardingSessionLength,
+  type OnboardingRirFamiliarity,
+  type OnboardingEquipment,
+  type OnboardingUnits,
 } from "@/lib/onboardingProfile";
 
 const SEX_OPTIONS: Array<{ value: OnboardingSex; label: string }> = [
@@ -34,13 +36,6 @@ const GOAL_OPTIONS: Array<{ value: OnboardingGoal; label: string }> = [
 
 const DAY_OPTIONS: OnboardingDays[] = [2, 3, 4, 5, 6];
 const SESSION_LENGTH_OPTIONS: OnboardingSessionLength[] = [45, 60, 75, 90];
-
-const EQUIPMENT_OPTIONS: Array<{ value: OnboardingEquipmentBand; label: string }> = [
-  { value: "full_commercial", label: "Full commercial gym" },
-  { value: "well_equipped_home", label: "Well-equipped home gym" },
-  { value: "limited_home", label: "Limited home setup" },
-  { value: "bodyweight", label: "Bodyweight only" },
-];
 
 const RIR_OPTIONS: Array<{ value: OnboardingRirFamiliarity; label: string }> = [
   { value: "yes", label: "Yes" },
@@ -83,9 +78,34 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
     onChange({ ...value, bodyweightKg: kg });
   }
 
+  // Height: stored in cm. Display cm when units=kg, otherwise inches (whole number).
+  const heightDisplay =
+    typeof value.heightCm === "number"
+      ? value.units === "lb"
+        ? Math.round(value.heightCm / 2.54)
+        : Math.round(value.heightCm)
+      : "";
+
+  function setHeightFromInput(raw: string): void {
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num <= 0) {
+      onChange({ ...value, heightCm: undefined });
+      return;
+    }
+    const cm = value.units === "lb" ? num * 2.54 : num;
+    onChange({ ...value, heightCm: cm });
+  }
+
+  function toggleEquipment(key: OnboardingEquipment): void {
+    const current = value.equipment ?? [];
+    const has = current.includes(key);
+    const next = has ? current.filter((k) => k !== key) : [...current, key];
+    onChange({ ...value, equipment: next.length > 0 ? next : undefined });
+  }
+
   return (
     <div className="space-y-5">
-      {/* Field 1 — Display name (optional) */}
+      {/* 1 — Display name (optional) */}
       <div>
         <label className={labelClass}>Display name (optional)</label>
         <input
@@ -98,7 +118,7 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         />
       </div>
 
-      {/* Field 2 — Units (required) */}
+      {/* 2 — Units (required) */}
       <div>
         <label className={labelClass}>Units <span className="text-teal-400">*</span></label>
         <div className="flex gap-3">
@@ -117,7 +137,7 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         </div>
       </div>
 
-      {/* Field 3 — Sex */}
+      {/* 3 — Sex */}
       <div>
         <label className={labelClass}>Sex</label>
         <div className="flex flex-wrap gap-2">
@@ -134,7 +154,7 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         </div>
       </div>
 
-      {/* Field 4 — Age */}
+      {/* 4 — Age */}
       <div>
         <label className={labelClass}>Age</label>
         <input
@@ -152,7 +172,7 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         />
       </div>
 
-      {/* Field 5 — Bodyweight (required) */}
+      {/* 5 — Bodyweight (required) */}
       <div>
         <label className={labelClass}>Bodyweight <span className="text-teal-400">*</span></label>
         <div className="flex items-center gap-2">
@@ -170,7 +190,25 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         </div>
       </div>
 
-      {/* Field 6 — Years training */}
+      {/* 6 — Height */}
+      <div>
+        <label className={labelClass}>Height</label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            inputMode="decimal"
+            min={1}
+            step={value.units === "lb" ? 1 : 0.5}
+            value={heightDisplay}
+            onChange={(e) => setHeightFromInput(e.target.value)}
+            placeholder={value.units === "lb" ? "e.g. 70 in" : "e.g. 178"}
+            className={`${inputClass} flex-1`}
+          />
+          <span className="text-sm text-app-tertiary w-8">{value.units === "lb" ? "in" : "cm"}</span>
+        </div>
+      </div>
+
+      {/* 7 — Years training */}
       <div>
         <label className={labelClass}>Years training</label>
         <div className="flex flex-wrap gap-2">
@@ -187,7 +225,7 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         </div>
       </div>
 
-      {/* Field 7 — Primary goal */}
+      {/* 8 — Primary goal */}
       <div>
         <label className={labelClass}>Primary goal</label>
         <div className="flex flex-wrap gap-2">
@@ -204,7 +242,7 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         </div>
       </div>
 
-      {/* Field 8 — Days/week */}
+      {/* 9 — Days/week */}
       <div>
         <label className={labelClass}>Days available per week</label>
         <div className="flex gap-2">
@@ -223,7 +261,7 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         </div>
       </div>
 
-      {/* Field 9 — Session length */}
+      {/* 10 — Session length */}
       <div>
         <label className={labelClass}>Session length target</label>
         <div className="flex gap-2">
@@ -242,24 +280,28 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         </div>
       </div>
 
-      {/* Field 10 — Equipment */}
+      {/* 11 — Equipment (multi-select chips) */}
       <div>
         <label className={labelClass}>Equipment</label>
-        <div className="flex flex-col gap-2">
-          {EQUIPMENT_OPTIONS.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => set("equipmentBand", value.equipmentBand === o.value ? undefined : o.value)}
-              className={`text-left ${optClass} ${value.equipmentBand === o.value ? optActive : optInactive}`}
-            >
-              {o.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          {EQUIPMENT_KEYS.map((key) => {
+            const active = (value.equipment ?? []).includes(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleEquipment(key)}
+                className={`${optClass} ${active ? optActive : optInactive}`}
+              >
+                {EQUIPMENT_LABELS[key]}
+              </button>
+            );
+          })}
         </div>
+        <p className={helperClass}>Pick everything you have access to.</p>
       </div>
 
-      {/* Field 11 — Constraints */}
+      {/* 12 — Constraints */}
       <div>
         <label className={labelClass}>Injuries / constraints (optional)</label>
         <textarea
@@ -271,7 +313,19 @@ export function OnboardingProfileFields({ value, onChange }: Props) {
         <p className={helperClass}>The coach uses this so you don&rsquo;t have to mention it every time.</p>
       </div>
 
-      {/* RIR familiarity */}
+      {/* 13 — Tell the coach what matters */}
+      <div>
+        <label className={labelClass}>Tell the coach what matters (optional)</label>
+        <textarea
+          value={value.trainingPrioritiesText ?? ""}
+          onChange={(e) => set("trainingPrioritiesText", e.target.value)}
+          placeholder="e.g. Build muscle overall, bring up chest and arms, keep legs ticking over, avoid irritating left shoulder"
+          className={`${inputClass} resize-none min-h-[96px]`}
+        />
+        <p className={helperClass}>Free-text. The coach reads this verbatim.</p>
+      </div>
+
+      {/* 14 — RIR familiarity */}
       <div>
         <label className={labelClass}>Familiar with RIR / RPE?</label>
         <div className="flex flex-wrap gap-2">

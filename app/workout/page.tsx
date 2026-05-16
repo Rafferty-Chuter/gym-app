@@ -425,6 +425,10 @@ export default function WorkoutPage() {
     }[]
   >([]);
   const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
+  // Long-press to reveal per-row edit/delete actions — replaces always-on trailing icons.
+  const [setActionMenuKey, setSetActionMenuKey] = useState<string | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef<boolean>(false);
   const [restAdjustExerciseId, setRestAdjustExerciseId] = useState<number | null>(null);
   const [exerciseMenuOpenId, setExerciseMenuOpenId] = useState<number | null>(null);
   const [reorderMode, setReorderMode] = useState(false);
@@ -1587,7 +1591,7 @@ export default function WorkoutPage() {
                         return (
                           <div className="overflow-x-auto -mx-0.5 px-0.5">
                             <div className="min-w-[min(100%,20rem)]">
-                            <div className="mb-1 grid grid-cols-[1.125rem_1fr_1fr_2rem_2.75rem_2.75rem_2.75rem] gap-x-2 items-center px-0.5">
+                            <div className="mb-1 grid grid-cols-[1.125rem_minmax(4.75rem,1.4fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center px-0.5">
                               <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 text-center">
                                 #
                               </span>
@@ -1601,8 +1605,6 @@ export default function WorkoutPage() {
                                 RIR
                               </span>
                               <span className="sr-only">Done</span>
-                              <span className="sr-only">Note</span>
-                              <span className="sr-only">Remove</span>
                             </div>
 
                             <ul className="space-y-1 text-zinc-200/95">
@@ -1647,14 +1649,19 @@ export default function WorkoutPage() {
                                             </div>
                                           )}
                                           <div
-                                            className={`grid grid-cols-[1.125rem_1fr_1fr_2rem_2.75rem_2.75rem_2.75rem] gap-x-2 items-center rounded-lg py-0.5 ${
+                                            className={`grid grid-cols-[1.125rem_minmax(4.75rem,1.4fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center rounded-lg py-0.5 ${
                                               isNext
-                                                ? "ring-1 ring-[color:var(--color-accent)]/45 bg-zinc-800/30 shadow-[inset_0_0_0_1px_rgba(45,212,191,0.12)]"
+                                                ? "ring-1 ring-[color:var(--color-accent)]/55 bg-zinc-800/45 shadow-[inset_3px_0_0_0_rgba(45,212,191,0.55),inset_0_0_0_1px_rgba(45,212,191,0.14)]"
                                                 : ""
                                             } ${isDone ? "opacity-[0.78]" : ""}`}
                                             role="button"
                                             tabIndex={0}
                                             onClick={(e) => {
+                                              if (longPressFiredRef.current) {
+                                                longPressFiredRef.current = false;
+                                                e.preventDefault();
+                                                return;
+                                              }
                                               if (
                                                 e.target instanceof HTMLInputElement ||
                                                 e.target instanceof HTMLButtonElement
@@ -1663,6 +1670,49 @@ export default function WorkoutPage() {
                                               setInputRefs.current[
                                                 `${exercise.id}-${index}-weight`
                                               ]?.focus();
+                                            }}
+                                            onPointerDown={(e) => {
+                                              if (
+                                                e.target instanceof HTMLInputElement ||
+                                                e.target instanceof HTMLButtonElement
+                                              )
+                                                return;
+                                              longPressFiredRef.current = false;
+                                              if (longPressTimerRef.current) {
+                                                window.clearTimeout(longPressTimerRef.current);
+                                              }
+                                              longPressTimerRef.current = window.setTimeout(() => {
+                                                longPressFiredRef.current = true;
+                                                setSetActionMenuKey(noteKey);
+                                                try {
+                                                  navigator.vibrate?.(15);
+                                                } catch {
+                                                  /* ignore */
+                                                }
+                                              }, 500);
+                                            }}
+                                            onPointerUp={() => {
+                                              if (longPressTimerRef.current) {
+                                                window.clearTimeout(longPressTimerRef.current);
+                                                longPressTimerRef.current = null;
+                                              }
+                                            }}
+                                            onPointerLeave={() => {
+                                              if (longPressTimerRef.current) {
+                                                window.clearTimeout(longPressTimerRef.current);
+                                                longPressTimerRef.current = null;
+                                              }
+                                            }}
+                                            onPointerCancel={() => {
+                                              if (longPressTimerRef.current) {
+                                                window.clearTimeout(longPressTimerRef.current);
+                                                longPressTimerRef.current = null;
+                                              }
+                                            }}
+                                            onContextMenu={(e) => {
+                                              // Mirror long-press for desktop right-click.
+                                              e.preventDefault();
+                                              setSetActionMenuKey(noteKey);
                                             }}
                                             onKeyDown={(e) => {
                                               if (e.target instanceof HTMLInputElement) return;
@@ -1713,7 +1763,7 @@ export default function WorkoutPage() {
                                                 className={`${logInputInner} pl-2 pr-1`}
                                               />
                                               <span
-                                                className="shrink-0 pr-2 text-[9px] font-semibold uppercase tracking-wide text-teal-200/45 tabular-nums select-none"
+                                                className="shrink-0 ml-1 pr-2 text-[9px] font-semibold uppercase tracking-wide text-teal-200/45 tabular-nums select-none"
                                                 aria-hidden
                                               >
                                                 {unit}
@@ -1823,66 +1873,43 @@ export default function WorkoutPage() {
                                                 </span>
                                               </button>
                                             </div>
-                                            <div className="flex justify-center">
-                                              {!isNoteExpanded ? (
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setExpandedNoteKey(noteKey);
-                                                  }}
-                                                  className={`${rowIconBtn} relative border-teal-700/20 text-teal-200/55 hover:border-teal-600/30 hover:bg-zinc-800/45 hover:text-teal-100/90`}
-                                                  aria-label={hasNote ? "Edit set note" : "Add set note"}
-                                                >
-                                                  <svg
-                                                    className="h-4 w-4 sm:h-3.5 sm:w-3.5"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth={1.5}
-                                                    viewBox="0 0 24 24"
-                                                    aria-hidden
-                                                  >
-                                                    <path
-                                                      strokeLinecap="round"
-                                                      strokeLinejoin="round"
-                                                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                                    />
-                                                  </svg>
-                                                  {hasNote && (
-                                                    <span className="absolute top-2 right-2 sm:top-1.5 sm:right-1.5 h-1 w-1 rounded-full bg-[color:var(--color-accent)] ring-1 ring-zinc-900/80" />
-                                                  )}
-                                                </button>
-                                              ) : (
-                                                <span className="min-h-[44px] min-w-[44px] sm:min-h-8 sm:min-w-8" />
-                                              )}
-                                            </div>
-                                            <div className="flex justify-center">
+                                          </div>
+
+                                          {setActionMenuKey === noteKey && (
+                                            <div
+                                              className="mt-1 flex items-center gap-2 rounded-lg border border-teal-700/40 bg-zinc-900/95 px-2 py-1.5 shadow-md shadow-black/30"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
                                               <button
                                                 type="button"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
+                                                onClick={() => {
+                                                  setSetActionMenuKey(null);
+                                                  setExpandedNoteKey(noteKey);
+                                                }}
+                                                className="flex-1 rounded-md border border-teal-700/30 bg-zinc-800/55 px-2 py-2 text-[12px] font-semibold text-teal-100 transition hover:bg-zinc-800 active:scale-[0.98]"
+                                              >
+                                                {hasNote ? "Edit note" : "Add note"}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setSetActionMenuKey(null);
                                                   deleteSet(exercise.id, index);
                                                 }}
-                                                className={`${rowIconBtn} text-zinc-500 hover:border-red-500/25 hover:bg-red-950/20 hover:text-red-300/90`}
-                                                aria-label={`Remove set ${index + 1}`}
+                                                className="flex-1 rounded-md border border-red-700/40 bg-red-950/35 px-2 py-2 text-[12px] font-semibold text-red-200 transition hover:bg-red-900/45 active:scale-[0.98]"
                                               >
-                                                <svg
-                                                  className="h-4 w-4 sm:h-3.5 sm:w-3.5"
-                                                  fill="none"
-                                                  stroke="currentColor"
-                                                  strokeWidth={1.5}
-                                                  viewBox="0 0 24 24"
-                                                  aria-hidden
-                                                >
-                                                  <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                  />
-                                                </svg>
+                                                Delete set
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setSetActionMenuKey(null)}
+                                                className="rounded-md border border-zinc-700/40 bg-zinc-900/60 px-2 py-2 text-[12px] font-semibold text-zinc-300 transition hover:bg-zinc-800/70"
+                                                aria-label="Close actions"
+                                              >
+                                                Close
                                               </button>
                                             </div>
-                                          </div>
+                                          )}
 
                                           {isNoteExpanded &&
                                             (() => {

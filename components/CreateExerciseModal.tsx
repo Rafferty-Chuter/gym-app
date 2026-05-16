@@ -11,6 +11,7 @@ import {
   type UserExerciseRecord,
 } from "@/lib/userExerciseLibrary";
 import type { Exercise } from "@/lib/exerciseLibrary";
+import { normalizeCasingOnly } from "@/lib/exerciseNameNormalize";
 
 type Props = {
   open: boolean;
@@ -52,7 +53,7 @@ export default function CreateExerciseModal({ open, initialName, onClose, onCrea
   if (!open) return null;
 
   function submit() {
-    const trimmed = name.trim();
+    const trimmed = normalizeCasingOnly(name.trim());
     if (!trimmed) return;
     const record = addUserExerciseRecord({
       name: trimmed,

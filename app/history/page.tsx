@@ -180,7 +180,7 @@ export default function HistoryPage() {
   }, [editDraft]);
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6">
+    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex flex-wrap items-center gap-4">
           <Link href="/" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">

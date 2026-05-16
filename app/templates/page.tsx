@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useUnit } from "@/lib/unit-preference";
 import {
   deleteTemplateById,
+  duplicateTemplate,
   getStoredTemplates,
   type WorkoutTemplate,
 } from "@/lib/templateStorage";
@@ -41,6 +42,12 @@ export default function TemplatesPage() {
   function deleteTemplate(templateId: string) {
     deleteTemplateById(templateId);
     refreshTemplates();
+  }
+
+  function duplicateAndEdit(templateId: string) {
+    const newId = duplicateTemplate(templateId);
+    if (!newId) return;
+    router.push(`/templates/${encodeURIComponent(newId)}`);
   }
 
   return (
@@ -109,6 +116,14 @@ export default function TemplatesPage() {
                       >
                         Edit
                       </Link>
+                      <button
+                        type="button"
+                        onClick={() => duplicateAndEdit(template.id)}
+                        className="px-3 py-2 rounded-xl btn-secondary text-sm"
+                        aria-label={`Duplicate ${template.name}`}
+                      >
+                        Duplicate
+                      </button>
                       <button
                         type="button"
                         onClick={() => deleteTemplate(template.id)}

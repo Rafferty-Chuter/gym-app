@@ -105,3 +105,22 @@ export function deleteTemplateById(templateId: string) {
   saveTemplates(all);
 }
 
+/**
+ * Create a copy of an existing template with " (copy)" appended to the name.
+ * Returns the new template id (so the caller can route into edit mode), or
+ * null if the source template wasn't found.
+ */
+export function duplicateTemplate(templateId: string): string | null {
+  const all = getStoredTemplates();
+  const source = all.find((t) => t.id === templateId);
+  if (!source) return null;
+  const newId = `tpl_dup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const copy: WorkoutTemplate = {
+    id: newId,
+    name: `${source.name} (copy)`,
+    exercises: source.exercises.map((ex) => ({ ...ex })),
+  };
+  saveTemplates([...all, copy]);
+  return newId;
+}
+

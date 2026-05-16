@@ -27,6 +27,21 @@ import {
   type CoachStructuredAnalysis,
 } from "@/lib/coachStructuredAnalysis";
 import { countCompletedLoggedSets } from "@/lib/completedSets";
+import { loadOnboardingProfile } from "@/lib/onboardingProfile";
+
+/**
+ * Comma + Oxford-and group list. Mirrors how people speak:
+ *   1 → "Chest"
+ *   2 → "Chest and Back"
+ *   3+ → "Chest, Back, and Quads"
+ */
+function formatGroupList(labels: string[]): string {
+  const items = labels.map((s) => s.trim()).filter(Boolean);
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
 
 type SignalKey = "plateau" | "volume" | "progress";
 type SignalState = "good" | "watch" | "attention" | "unknown";
@@ -159,6 +174,13 @@ const LABEL: Record<SignalKey, string> = {
   plateau: "Plateau",
   volume: "Volume",
   progress: "Progress",
+};
+
+/** Time window each signal is computed over — shown in the detail header. */
+const SIGNAL_WINDOW_LABEL: Record<SignalKey, string> = {
+  plateau: "Per lift · last 6 sessions",
+  volume: "Last 7 days",
+  progress: "Per lift · last 6 sessions",
 };
 
 type DetailContent = {
@@ -608,14 +630,28 @@ function buildPlateauContent(
   const exerciseLabel = exerciseChoice?.name ?? "your tracked lift";
 
   if (isAttention) {
+    const sessionCount = performances.length;
+    const sessionWord = sessionCount === 1 ? "session" : "sessions";
+    const latest = performances[performances.length - 1];
+    const latestSetStr =
+      latest && latest.weight > 0 ? `${latest.weight}${unit}×${latest.reps}` : null;
+    let explanation: string;
+    if (isDeclining) {
+      // Genuinely declining: working weight (and/or e1RM) trending down.
+      explanation = `${exerciseLabel} is trending down across your last ${
+        sessionCount || "few"
+      } ${sessionWord}. The chart shows the working weight per session, so you can see the falling line for yourself.`;
+    } else if (sessionCount > 0 && latestSetStr) {
+      // Flat plateau: weight (and reps) haven't moved meaningfully. Don't say
+      // "trending down" on a flat line — describe the actual hold.
+      explanation = `${exerciseLabel} has been flat at ${latestSetStr} for ${sessionCount} ${sessionWord}. The chart shows the working weight per session — the line is holding rather than climbing.`;
+    } else {
+      explanation = `${exerciseLabel} hasn't moved across your recent sessions. The chart shows the working weight per session, so you can see the flat line for yourself.`;
+    }
     return {
       state: "attention",
       status: "Detected",
-      explanation: `${exerciseLabel} ${
-        isDeclining ? "is trending down" : "hasn't moved"
-      } across your last ${performances.length || "few"} session${
-        performances.length === 1 ? "" : "s"
-      }. The chart shows the working weight per session, so you can see the flat or falling line for yourself.`,
+      explanation,
       prompt: `My plateau indicator is flagged on ${exerciseLabel}. Walk me through what's happening and what to change next session.`,
       chart: <LineChart performances={performances} state="attention" unit={unit} />,
     };
@@ -708,10 +744,11 @@ function buildVolumeContent(
   );
 
   const lowRows = rows.filter((r) => r.status === "low" && r.sets >= 0);
+  const trackedRows = rows.filter((r) => r.status !== "not-tracked");
   const excessiveRows = rows.filter((r) => r.status === "excessive");
   const warningRows = rows.filter((r) => r.status === "warning");
 
-  const joinGroups = (gs: MuscleGroup[]) => gs.map((g) => GROUP_LABEL[g]).join(" and ");
+  const joinGroups = (gs: MuscleGroup[]) => formatGroupList(gs.map((g) => GROUP_LABEL[g]));
 
   if (excessiveRows.length > 0) {
     const groupsLabel = joinGroups(excessiveRows.map((r) => r.group));
@@ -729,15 +766,38 @@ function buildVolumeContent(
     coach.keyFocusType === "low-volume" || lowEntries.length > 0 || lowRows.length > 0;
 
   if (isLowAttention) {
-    const explanation =
-      lowEntries.length > 0
-        ? lowEntries[0].summary
-        : lowRows.length > 0
-          ? `${joinGroups(lowRows.map((r) => r.group))} weekly volume is below the productive range for hypertrophy. The breakdown below shows where you are.`
-          : "Weekly volume is running low on at least one muscle group. The breakdown below shows where you are.";
+    // "Most muscles low" → at least 60% of the muscles the user actually trains
+    // are flagged low. When that's true AND weekly session count is below the
+    // user's typical, the volume reading is misleading — it's a frequency
+    // story, not a programming story.
+    const mostMusclesLow =
+      trackedRows.length > 0 && lowRows.length / trackedRows.length >= 0.6;
+    const onboarding = loadOnboardingProfile();
+    const typicalDays =
+      typeof onboarding?.daysPerWeek === "number" && onboarding.daysPerWeek >= 2
+        ? onboarding.daysPerWeek
+        : 3;
+    // Default heuristic when no onboarding profile: ≤2 sessions = low.
+    const isLowFrequencyWeek = weeklyWorkouts.length < Math.max(typicalDays - 1, 2);
+
+    let explanation: string;
+    if (mostMusclesLow && isLowFrequencyWeek) {
+      const sessionWord = weeklyWorkouts.length === 1 ? "session" : "sessions";
+      explanation = `Most muscles are below the productive volume range — but you've only logged ${weeklyWorkouts.length} ${sessionWord} this week. Volume will catch up with normal frequency.`;
+    } else if (mostMusclesLow) {
+      explanation =
+        "Most muscles are below the productive volume range. Either training intensity is high enough that the lower volume is sufficient, or volume should come up — see the breakdown below.";
+    } else if (lowEntries.length > 0) {
+      explanation = lowEntries[0].summary;
+    } else if (lowRows.length > 0) {
+      explanation = `${joinGroups(lowRows.map((r) => r.group))} weekly volume is below the productive range for hypertrophy. The breakdown below shows where you are.`;
+    } else {
+      explanation = "Weekly volume is running low on at least one muscle group. The breakdown below shows where you are.";
+    }
+
     const lowGroupsText =
       lowEntries.length > 0
-        ? lowEntries.map((v) => v.label.toLowerCase()).join(" and ")
+        ? formatGroupList(lowEntries.map((v) => v.label)).toLowerCase()
         : lowRows.length > 0
           ? joinGroups(lowRows.map((r) => r.group)).toLowerCase()
           : "the flagged muscle group";
@@ -1315,6 +1375,9 @@ export default function SignalDetailPage() {
               <h1 className="text-[26px] font-black tracking-tight text-white leading-tight">
                 {LABEL[key]}
               </h1>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-home-tertiary/80">
+                {SIGNAL_WINDOW_LABEL[key]}
+              </p>
             </div>
             <span
               className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold tracking-wide"

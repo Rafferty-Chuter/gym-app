@@ -280,6 +280,13 @@ export type AssistantResponse = {
   reply: string;
   /** When set, natural-language coach review of structured output; also prepended to `reply`. */
   coachReview?: string;
+  /**
+   * Short, user-facing labels for the data sources the model relied on. Rendered
+   * as a "What I looked at" expander at the bottom of the message. Extracted
+   * server-side from a `<datasources>…</datasources>` block in the model output
+   * so the user never sees the raw tag mid-stream.
+   */
+  dataSources?: string[];
   structuredWorkout?: {
     sessionTitle: string;
     sessionGoal: string;
@@ -1406,6 +1413,41 @@ const USER_MEMORY_USAGE_BLOCK = `
 `.trim();
 
 const STATIC_COACH_SYSTEM_PROMPT = `You are an expert AI strength and hypertrophy coach embedded in a training app. Answer based strictly on the user's logged workout data, coaching context, and evidence-based training principles provided in each request. Never fabricate training data, studies, statistics, or coaching claims not present in the request payload.
+
+---
+COACHING PRINCIPLES — these override response-style preferences when in conflict:
+
+1. Validate before answering. When the user proposes a programming change, training change, or exercise swap, your first task is to evaluate whether the proposed change is warranted given their training data. Only then answer the "how" question. Format your response in two parts:
+   a) "Should you do this?" — your read on whether the change addresses a real problem the data shows.
+   b) "If yes, here's how" — the programming detail (only if a) is yes or yes-conditional).
+
+2. Maintain a stable read of each lift. Before answering any question about a specific lift, internally settle on its current trend status (Progressing / Flat / Declining / Early) based on the canonical trend data available to you in USER CONTEXT. Do not let the user's framing of the lift shift your assessment. If the user characterises a progressing lift as a plateau, correct them. If they characterise a stalled lift as fine, correct them.
+
+3. Validate UI labels against data before defending them. If a user references a label, signal, or summary shown in the app ("you said my progress is improving"), check whether that label is consistent with the underlying per-lift data in USER CONTEXT. If there's a discrepancy, surface it honestly rather than constructing a reconciliation that papers over it.
+
+4. Hedge appropriately on external evidence. When citing exercise science literature (lengthened-position bias, EMG findings, hypertrophy mechanisms, etc.), use language that reflects the actual strength of evidence. Do not state contested claims as established facts. Default to "there's some evidence suggesting…" rather than "evidence shows…". Do not invent citations.
+
+5. Carry stalls into recommendations. When summarising training data, any stalled lift you identify must be carried into your action recommendation, even if the recommendation is "monitor, don't act yet". Do not surface a stall in the data summary and then drop it from the action plan.
+
+6. Default to challenging the user's framing where the data warrants it. The user is paying for a coach, not a yes-machine. If they propose more volume on a lift that's progressing, your first instinct should be "you don't need it" — not "here's how".
+
+---
+DATA SOURCES TRANSPARENCY:
+
+After any substantive answer, append a single trailing block listing 2–5 short labels for the data sources you actually relied on to produce the answer. Use this exact format on its own lines at the very end of your reply:
+
+<datasources>
+- Last N <lift> sessions
+- Logged RIR values
+- Template rotation (last 4 sessions)
+- Profile: <days/week>, <goal>
+</datasources>
+
+Rules:
+- Only label sources you genuinely used; do not invent sources you didn't read.
+- Keep each label ≤ 60 chars, no full sentences.
+- Omit the block entirely for trivial greetings, clarification questions, or one-line acknowledgements.
+- This block is stripped server-side from the streamed reply and shown to the user as a collapsible "What I looked at" expander — so do not reference the block in your prose.
 
 ---
 USER CONTEXT INTEGRATION:
@@ -3399,10 +3441,84 @@ function respond(payload: AssistantResponse, stream: boolean): Response {
   return new Response(body, { headers: SSE_HEADERS });
 }
 
+const DATASOURCES_START = "<datasources>";
+const DATASOURCES_END = "</datasources>";
+
+/**
+ * Streaming filter that strips a trailing `<datasources>…</datasources>` block
+ * from the model's text so the user never sees the raw tag mid-stream, while
+ * capturing the source labels for emission on the terminal `done` event.
+ *
+ * Holds back the trailing (START.length - 1) chars of each chunk so a tag
+ * straddling chunk boundaries is still caught.
+ */
+function createDataSourcesFilter(emitDelta: (text: string) => void) {
+  let pending = "";
+  let inBlock = false;
+  let visibleReply = "";
+  let blockBuf = "";
+
+  function emit(text: string) {
+    if (!text) return;
+    emitDelta(text);
+    visibleReply += text;
+  }
+
+  function feed(rawDelta: string) {
+    if (!rawDelta) return;
+    if (inBlock) {
+      blockBuf += rawDelta;
+      return;
+    }
+    pending += rawDelta;
+    const startIdx = pending.indexOf(DATASOURCES_START);
+    if (startIdx !== -1) {
+      const before = pending.slice(0, startIdx);
+      emit(before);
+      inBlock = true;
+      blockBuf = pending.slice(startIdx + DATASOURCES_START.length);
+      pending = "";
+      return;
+    }
+    const holdback = Math.min(DATASOURCES_START.length - 1, pending.length);
+    const toEmit = pending.slice(0, pending.length - holdback);
+    if (toEmit) emit(toEmit);
+    pending = pending.slice(pending.length - holdback);
+  }
+
+  function finalize(): { reply: string; dataSources?: string[] } {
+    if (!inBlock && pending) {
+      // No data-sources block — flush whatever was held back.
+      emit(pending);
+      pending = "";
+    }
+    let sources: string[] | undefined;
+    if (inBlock) {
+      const endIdx = blockBuf.indexOf(DATASOURCES_END);
+      const inner = endIdx === -1 ? blockBuf : blockBuf.slice(0, endIdx);
+      const parsed = inner
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => line.replace(/^[-*•]\s*/, "").trim())
+        .filter(Boolean)
+        .slice(0, 8);
+      if (parsed.length > 0) sources = parsed;
+    }
+    return {
+      reply: visibleReply.trimEnd(),
+      ...(sources && sources.length > 0 ? { dataSources: sources } : {}),
+    };
+  }
+
+  return { feed, finalize };
+}
+
 /**
  * Drives the LLM streaming path. `compute` receives an `onDelta` it must invoke
- * for each text chunk; it returns the final assembled reply, which the helper
- * forwards on the terminal `done` event together with any extra fields.
+ * for each text chunk; it returns the final assembled reply. The helper strips
+ * the model's `<datasources>…</datasources>` trailer (if present) before
+ * forwarding text to the client, and emits the parsed labels on `done`.
  */
 function respondLLMStream(
   compute: (onDelta: (text: string) => void) => Promise<string>,
@@ -3411,10 +3527,16 @@ function respondLLMStream(
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        const reply = await compute((delta) => {
+        const filter = createDataSourcesFilter((delta) => {
           if (delta) controller.enqueue(encodeSSE("delta", { text: delta }));
         });
-        const final: AssistantResponse = { reply, ...extra };
+        await compute((delta) => filter.feed(delta));
+        const filtered = filter.finalize();
+        const final: AssistantResponse = {
+          reply: filtered.reply,
+          ...(filtered.dataSources ? { dataSources: filtered.dataSources } : {}),
+          ...extra,
+        };
         controller.enqueue(encodeSSE("done", final));
       } catch (err) {
         const message = err instanceof Error ? err.message : "Assistant streaming failed.";

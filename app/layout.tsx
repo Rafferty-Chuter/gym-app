@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppProviders } from "./providers";
 import BottomTabs from "@/components/BottomTabs";
 import ActiveWorkoutResumeBar from "@/components/ActiveWorkoutResumeBar";
+import RestTimerBanner from "@/components/RestTimerBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AppProviders>
           {children}
+          <RestTimerBanner />
           <ActiveWorkoutResumeBar />
           <BottomTabs />
         </AppProviders>

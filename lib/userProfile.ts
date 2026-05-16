@@ -2,6 +2,7 @@ import type { TrainingFocus } from "@/lib/trainingFocus";
 import type { ExperienceLevel } from "@/lib/experienceLevel";
 import type { PriorityGoal } from "@/lib/priorityGoal";
 import { getSelectiveAssistantMemory, type AssistantSelectiveMemoryV1 } from "@/lib/assistantMemory";
+import { loadOnboardingProfile, type OnboardingProfile } from "@/lib/onboardingProfile";
 
 export type LowerBodyPriority = "Required" | "Reduced" | "Not a focus";
 
@@ -134,6 +135,54 @@ export function parseTrainingPrioritiesText(text?: string): ParsedTrainingPriori
   };
 }
 
+function fromOnboardingProfile(
+  onboarding: OnboardingProfile,
+  fallback: UserProfile,
+  goal: PriorityGoal
+): UserProfile {
+  const equipment = uniqueLower(
+    Array.isArray(onboarding.equipment) && onboarding.equipment.length > 0
+      ? (onboarding.equipment as string[])
+      : fallback.equipment
+  );
+  const injuries = uniqueLower(
+    (onboarding.constraintsText ?? "")
+      .split(/[,\n]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+  const trainingPrioritiesText = onboarding.trainingPrioritiesText?.trim() ?? "";
+  const lowerFromText = inferLowerBodyPriorityFromText(trainingPrioritiesText);
+  const memory = getSelectiveAssistantMemory();
+  const lowerFromMemory = inferLowerBodyPriorityFromAssistantMemoryShared(memory);
+  return {
+    goal,
+    trainingDaysAvailable:
+      typeof onboarding.daysPerWeek === "number" && Number.isFinite(onboarding.daysPerWeek)
+        ? onboarding.daysPerWeek
+        : fallback.trainingDaysAvailable,
+    equipment,
+    injuries,
+    availableSessionTime:
+      typeof onboarding.sessionLengthMin === "number" && Number.isFinite(onboarding.sessionLengthMin)
+        ? onboarding.sessionLengthMin
+        : fallback.availableSessionTime,
+    trainingPrioritiesText,
+    coachPrioritise: "Custom / use my notes",
+    lowerBodyPriority: lowerFromText ?? lowerFromMemory ?? fallback.lowerBodyPriority,
+  };
+}
+
+function inferLowerBodyPriorityFromAssistantMemoryShared(
+  memory: AssistantSelectiveMemoryV1
+): LowerBodyPriority | undefined {
+  const deprior = memory.stablePreferences.deprioritizedMuscles.value ?? [];
+  if (deprior.some((m) => m.trim().toLowerCase() === "legs")) return "Not a focus";
+  const priority = memory.stablePreferences.priorityMuscles.value ?? [];
+  if (priority.some((m) => m.trim().toLowerCase() === "legs")) return "Required";
+  return undefined;
+}
+
 export function getStoredUserProfile(
   focus: TrainingFocus,
   experienceLevel: ExperienceLevel,
@@ -142,12 +191,14 @@ export function getStoredUserProfile(
   const fallback = createDefaultUserProfile(focus, experienceLevel, goal);
   if (typeof window === "undefined") return fallback;
 
+  // Canonical: onboardingProfile is the single source of truth post-P0.4.
+  // Fall back to legacy userCoachingProfile only when no onboarding exists,
+  // so existing users on the old form keep working until they next save.
+  const onboarding = loadOnboardingProfile();
+  if (onboarding) return fromOnboardingProfile(onboarding, fallback, goal);
+
   function inferLowerBodyPriorityFromAssistantMemory(memory: AssistantSelectiveMemoryV1): LowerBodyPriority | undefined {
-    const deprior = memory.stablePreferences.deprioritizedMuscles.value ?? [];
-    if (deprior.some((m) => m.trim().toLowerCase() === "legs")) return "Not a focus";
-    const priority = memory.stablePreferences.priorityMuscles.value ?? [];
-    if (priority.some((m) => m.trim().toLowerCase() === "legs")) return "Required";
-    return undefined;
+    return inferLowerBodyPriorityFromAssistantMemoryShared(memory);
   }
 
   try {

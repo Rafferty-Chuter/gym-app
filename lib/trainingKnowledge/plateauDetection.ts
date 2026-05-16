@@ -1,7 +1,16 @@
 // Scope: textbook plateau heuristics powering next-session advice helpers
-// (progressionEngine, nextSessionLogic, trainingAnswerSupport). The home plateau
-// indicator is driven by getExerciseInsights in lib/trainingAnalysis.ts — keep
-// the two paths consistent in spirit but don't conflate them.
+// (progressionEngine, nextSessionLogic, trainingAnswerSupport).
+//
+// Plateau decision MUST route through the canonical lift trend module
+// (lib/liftTrend) so the assistant's advice never disagrees with the
+// Progress tab or the home Plateau signal about the same lift.
+
+import {
+  classifyE1rmSeries,
+  isPlateau,
+  TREND_WINDOW,
+} from "@/lib/liftTrend";
+import { estimateE1RM } from "@/lib/trainingMetrics";
 
 export type ExerciseProgressPoint = {
   date: string;
@@ -11,11 +20,6 @@ export type ExerciseProgressPoint = {
   rir: number;
 };
 
-function slope(values: number[]): number {
-  if (values.length < 2) return 0;
-  return values[values.length - 1] - values[0];
-}
-
 export function detectNoisyButNormalVariation(history: ExerciseProgressPoint[]): boolean {
   if (history.length < 4) return true;
   const reps = history.map((h) => h.reps);
@@ -24,11 +28,10 @@ export function detectNoisyButNormalVariation(history: ExerciseProgressPoint[]):
 }
 
 export function detectPlateau(history: ExerciseProgressPoint[]): boolean {
-  if (history.length < 4) return false;
-  const recent = history.slice(-4);
-  const loadSlope = slope(recent.map((h) => h.load));
-  const repSlope = slope(recent.map((h) => h.reps));
-  return loadSlope <= 0 && repSlope <= 0;
+  const series = history
+    .slice(-TREND_WINDOW)
+    .map((h) => estimateE1RM(h.load, h.reps));
+  return isPlateau(classifyE1rmSeries(series));
 }
 
 export function shouldTriggerPlateauAdvice(history: ExerciseProgressPoint[]): boolean {

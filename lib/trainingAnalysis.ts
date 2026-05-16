@@ -20,6 +20,12 @@ import {
   getExerciseMetrics,
 } from "@/lib/trainingMetrics";
 import { getCompletedLoggedSets } from "@/lib/completedSets";
+import {
+  getLiftTrendStatus,
+  isPlateau as canonicalIsPlateau,
+  type LiftTrendStatus,
+} from "@/lib/liftTrend";
+import { normalizeExerciseName } from "@/lib/exerciseNameNormalize";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
@@ -97,7 +103,27 @@ export function getWorkoutHistory(): StoredWorkout[] {
     const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // One-time migration of legacy exercise names ("dumbell" / "TricEp" etc.).
+    // We mutate a copy, persist back only if anything changed, so the bad
+    // spellings disappear instead of being just hidden by display formatters.
+    let changed = false;
+    const migrated = (parsed as StoredWorkout[]).map((w) => ({
+      ...w,
+      exercises: (w.exercises ?? []).map((ex) => {
+        const cleaned = normalizeExerciseName(ex.name ?? "");
+        if (cleaned !== ex.name) changed = true;
+        return { ...ex, name: cleaned };
+      }),
+    }));
+    if (changed) {
+      try {
+        localStorage.setItem(WORKOUT_HISTORY_KEY, JSON.stringify(migrated));
+      } catch {
+        /* ignore persistence failure — migrated copy still returned */
+      }
+    }
+    return migrated;
   } catch {
     return [];
   }
@@ -213,64 +239,28 @@ function computeExerciseRIRFields(
 }
 
 const DEFAULT_MAX_SESSIONS = 5;
-const MIN_SESSIONS_FOR_PLATEAU = 3;
 const MIN_SESSIONS_FOR_INSUFFICIENT = 3;
-const MIN_SESSIONS_FOR_PLATEAU_RULE = 4;
-const E1RM_MEANINGFUL_DELTA_PCT = 0.015; // 1.5%
-// Per-session relative slope thresholds: ~0.5%/session e1RM ≈ 1.5% across 4 sessions.
-const E1RM_SLOPE_UP_PER_SESSION = 0.005;
-const E1RM_SLOPE_DOWN_PER_SESSION = -0.005;
-// Volume-load is noisier than e1RM; require ~1%/session before treating it as progression.
-const VOLUME_SLOPE_UP_PER_SESSION = 0.01;
+/** Per-step e1RM jump that counts as a "PR step" / "worsening step" for fatigue/consistency reads. */
+const E1RM_MEANINGFUL_DELTA_PCT = 0.015;
 
 /**
- * Least-squares slope of `values` against their indices (0..n-1).
- * Returns 0 when n < 2 or all x are identical (degenerate).
+ * Map the canonical trend status to the legacy ExerciseTrend enum so existing
+ * consumers (`insight.trend`) keep working without rewriting downstream code.
  */
-function leastSquaresSlope(values: number[]): number {
-  const n = values.length;
-  if (n < 2) return 0;
-  let sumX = 0;
-  let sumY = 0;
-  let sumXY = 0;
-  let sumXX = 0;
-  for (let i = 0; i < n; i++) {
-    sumX += i;
-    sumY += values[i];
-    sumXY += i * values[i];
-    sumXX += i * i;
-  }
-  const denom = n * sumXX - sumX * sumX;
-  if (denom === 0) return 0;
-  return (n * sumXY - sumX * sumY) / denom;
-}
-
-/** Slope normalized to the series mean — yields a unitless "% per session" figure. */
-function relativeSlopePerSession(values: number[]): number {
-  if (values.length < 2) return 0;
-  const mean = values.reduce((s, v) => s + v, 0) / values.length;
-  if (mean <= 0) return 0;
-  return leastSquaresSlope(values) / mean;
-}
-
-function performanceBetter(
-  a: { weight: number; reps: number },
-  b: { weight: number; reps: number }
-): boolean {
-  return a.weight > b.weight || (a.weight === b.weight && a.reps > b.reps);
-}
-
-function performanceWorse(
-  a: { weight: number; reps: number },
-  b: { weight: number; reps: number }
-): boolean {
-  return a.weight < b.weight || (a.weight === b.weight && a.reps < b.reps);
+function mapCanonicalToExerciseTrend(canon: LiftTrendStatus): ExerciseTrend {
+  if (canon.status === "early") return "insufficient_data";
+  if (canon.status === "progressing") return "progressing";
+  if (canon.status === "declining") return "declining";
+  return canonicalIsPlateau(canon) ? "plateau" : "stable";
 }
 
 /**
- * Deterministic trend analysis per exercise using last 3–5 sessions.
- * Compares best set per session (highest weight, then reps) to classify:
- * progressing, stable, plateau, or declining.
+ * Per-exercise trend, routed through the canonical lift trend module so this
+ * never disagrees with the Progress tab, Plateau signal, or AI context.
+ *
+ * The `maxSessions` option is retained for backwards compatibility but no
+ * longer affects the trend classification — that uses the canonical window.
+ * It still bounds the `recentPerformances` returned for downstream display.
  */
 export function getExerciseTrends(
   workouts: StoredWorkout[],
@@ -278,7 +268,7 @@ export function getExerciseTrends(
 ): ExerciseTrendResult[] {
   const maxSessions = Math.min(
     Math.max(options?.maxSessions ?? DEFAULT_MAX_SESSIONS, 3),
-    5
+    24
   );
   const sorted = [...workouts].sort(
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -304,28 +294,10 @@ export function getExerciseTrends(
       if (performances.length >= maxSessions) break;
     }
 
-    let trend: ExerciseTrend = "stable";
-    if (performances.length >= 2) {
-      const ordered = [...performances].reverse();
-      const first = ordered[0];
-      const last = ordered[ordered.length - 1];
-      if (performanceBetter(last, first)) {
-        trend = "progressing";
-      } else if (performanceWorse(last, first)) {
-        trend = "declining";
-      } else {
-        let noImprovementCount = 0;
-        for (let i = ordered.length - 1; i > 0; i--) {
-          if (!performanceBetter(ordered[i], ordered[i - 1])) noImprovementCount += 1;
-          else break;
-        }
-        trend = noImprovementCount >= MIN_SESSIONS_FOR_PLATEAU - 1 ? "plateau" : "stable";
-      }
-    }
-
+    const canon = getLiftTrendStatus(workouts, exerciseName);
     results.push({
       exercise: exerciseName,
-      trend,
+      trend: mapCanonicalToExerciseTrend(canon),
       recentPerformances: performances.reverse(),
     });
   }
@@ -394,18 +366,8 @@ export function getExerciseInsights(
 
   const deltaE1RM = lastE1RM - firstE1RM;
 
-  // Trend signals are slope-based across the window — robust to a single noisy endpoint.
-  // Volume-load is a co-signal: a flat top-set with rising tonnage is still progress.
-  const e1rmSeries = recentPerformances.map((p) => p.e1rm);
-  const volumeSeries = recentPerformances.map((p) => p.volumeLoad ?? 0);
-  const e1rmSlopePerSession = relativeSlopePerSession(e1rmSeries);
-  const volumeSlopePerSession = volumeSeries.some((v) => v > 0)
-    ? relativeSlopePerSession(volumeSeries)
-    : 0;
-  const e1rmTrendingUp = e1rmSlopePerSession >= E1RM_SLOPE_UP_PER_SESSION;
-  const e1rmTrendingDown = e1rmSlopePerSession <= E1RM_SLOPE_DOWN_PER_SESSION;
-  const volumeTrendingUp = volumeSlopePerSession >= VOLUME_SLOPE_UP_PER_SESSION;
-
+  // Per-step deltas are kept for fatigue/consistency reads only — never for
+  // trend classification, which routes through getLiftTrendStatus.
   let prTrendSteps = 0;
   let worseningSteps = 0;
   for (let i = 1; i < recentPerformances.length; i++) {
@@ -417,35 +379,15 @@ export function getExerciseInsights(
     if (stepDeltaPct <= -E1RM_MEANINGFUL_DELTA_PCT) worseningSteps += 1;
   }
 
-  let trend: ExerciseTrend = "stable";
-  if (e1rmTrendingUp || volumeTrendingUp || prTrendSteps >= 1) {
-    trend = "progressing";
-  } else if (e1rmTrendingDown && worseningSteps >= 2) {
-    trend = "declining";
-  } else if (
-    sessionsTracked >= MIN_SESSIONS_FOR_PLATEAU_RULE &&
-    !e1rmTrendingUp &&
-    !volumeTrendingUp &&
-    prTrendSteps === 0 &&
-    hasAdequateExposure
-  ) {
-    trend = "plateau";
-  } else {
-    trend = "stable";
-  }
-
-  const possiblePlateau =
-    sessionsTracked >= MIN_SESSIONS_FOR_PLATEAU_RULE &&
-    !e1rmTrendingUp &&
-    !volumeTrendingUp &&
-    prTrendSteps === 0 &&
-    hasAdequateExposure;
+  const canon = getLiftTrendStatus(workouts, exerciseName);
+  const trend: ExerciseTrend = mapCanonicalToExerciseTrend(canon);
+  const possiblePlateau = trend === "plateau";
   const possibleFatigue =
     trend === "declining" && worseningSteps >= 2 && (daysSinceLastPerformed ?? 999) <= 10;
 
   const firstStr = `${first.weight} × ${first.reps}`;
   const lastStr = `${last.weight} × ${last.reps}`;
-  const summaryPct = Math.abs(e1rmSlopePerSession * sessionsTracked * 100).toFixed(1);
+  const summaryPct = Math.abs(canon.windowChangePct * 100).toFixed(1);
   const deltaSign = deltaE1RM >= 0 ? "+" : "";
 
   const changeSummary =
@@ -454,7 +396,7 @@ export function getExerciseInsights(
       : trend === "declining"
         ? `Estimated strength trended down (${summaryPct}% e1RM) from ${firstStr} to ${lastStr} across ${sessionsTracked} sessions.`
         : trend === "plateau"
-          ? `Estimated strength has been flat across ${sessionsTracked} sessions (${lastStr}, e1RM ~${lastE1RM}).`
+          ? `Estimated strength has been flat across ${canon.sessionsTracked} sessions (${lastStr}, e1RM ~${lastE1RM}).`
           : `Estimated strength is mostly stable across ${sessionsTracked} sessions (${lastStr}).`;
 
   const consistency: "consistent" | "inconsistent" =

@@ -1,6 +1,7 @@
 import { getSuggestedExercisesForCoarseGroup } from "@/lib/coachMusclePools";
 import { getExerciseProfile } from "@/lib/exerciseProfiles";
 import { resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
+import { devLog } from "@/lib/devLog";
 
 const GROUP_ALIASES: Record<string, string[]> = {
   back: ["back", "lats", "upper back", "rear delts"],
@@ -48,7 +49,7 @@ export function matchesSupportGroup(exerciseName: string, supportGroup?: string)
     return true;
   }
   const meta = resolveLoggedExerciseMeta({ name: exerciseName });
-  console.log("[support selection] resolved metadata", {
+  devLog("[support selection] resolved metadata", {
     exerciseName,
     resolvedExerciseId: meta?.id ?? null,
     supportGroup: group,

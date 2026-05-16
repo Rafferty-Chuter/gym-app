@@ -5,6 +5,14 @@ import Link from "next/link";
 import { getExerciseInsights } from "@/lib/trainingAnalysis";
 import { getUniqueExerciseNames, getExerciseMetrics } from "@/lib/trainingMetrics";
 import type { StoredWorkout, ExerciseInsights } from "@/lib/trainingAnalysis";
+import {
+  aggregateLiftTrends,
+  getLiftTrendStatus,
+  isPlateau,
+  type AggregateLiftTrend,
+  type LiftTrend,
+  type LiftTrendStatus,
+} from "@/lib/liftTrend";
 
 type Props = {
   workouts: StoredWorkout[];
@@ -34,55 +42,100 @@ function niceRange(min: number, max: number): [number, number] {
 
 type TrendMeta = { label: string; arrow: string; textColor: string; bg: string; border: string };
 
-function trendMeta(trend: ExerciseInsights["trend"]): TrendMeta {
-  switch (trend) {
+function trendMeta(status: LiftTrendStatus): TrendMeta {
+  switch (status.status) {
     case "progressing":
       return { label: "Progressing", arrow: "↑", textColor: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/25" };
-    case "plateau":
-      return { label: "Plateau", arrow: "—", textColor: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/25" };
     case "declining":
       return { label: "Declining", arrow: "↓", textColor: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/22" };
-    case "stable":
-      return { label: "Stable", arrow: "→", textColor: "text-amber-300", bg: "bg-amber-500/10", border: "border-amber-500/22" };
+    case "flat":
+      return { label: "Flat", arrow: "→", textColor: "text-amber-300", bg: "bg-amber-500/10", border: "border-amber-500/22" };
     default:
       return { label: "Early data", arrow: "·", textColor: "text-zinc-400", bg: "bg-zinc-500/10", border: "border-zinc-500/20" };
   }
 }
 
-function shouldShowCoachCta(trend: ExerciseInsights["trend"]): boolean {
-  return trend === "plateau" || trend === "declining" || trend === "stable";
+function shouldShowCoachCta(status: LiftTrendStatus): boolean {
+  return status.status === "flat" || status.status === "declining";
 }
 
-function coachMessage(exercise: string, ins: ExerciseInsights, unit: "kg" | "lb"): string {
+function coachMessage(exercise: string, status: LiftTrendStatus, ins: ExerciseInsights, unit: "kg" | "lb"): string {
   const e1rm = ins.recentPerformances.at(-1)?.e1rm?.toFixed(1) ?? null;
   const sessions = ins.sessionsTracked;
   const base = `I'm not progressing on ${exercise}`;
   const strengthStr = e1rm ? ` (currently around ${e1rm}${unit} estimated max)` : "";
   const sessionStr = ` across ${sessions} logged session${sessions === 1 ? "" : "s"}`;
-  if (ins.trend === "plateau")
+  if (isPlateau(status))
     return `${base}${strengthStr}${sessionStr}. My strength has plateaued — what should I do to break through?`;
-  if (ins.trend === "declining")
+  if (status.status === "declining")
     return `${base}${strengthStr}${sessionStr}. My strength has been trending down — what could be causing this and how should I address it?`;
   return `${base}${strengthStr}${sessionStr}. My strength has been flat for a while — how should I adjust my programming to start progressing again?`;
 }
 
-function insightText(ins: ExerciseInsights): string {
-  if (ins.trend === "insufficient_data") {
-    const need = Math.max(0, 3 - ins.sessionsTracked);
-    return `Log ${need} more session${need === 1 ? "" : "s"} to unlock trend analysis.`;
+function insightText(status: LiftTrendStatus, ins: ExerciseInsights): string {
+  if (status.status === "early") {
+    const need = Math.max(0, 3 - status.sessionsTracked);
+    return need > 0
+      ? `Log ${need} more session${need === 1 ? "" : "s"} to unlock trend analysis.`
+      : "Trend analysis will appear once we have a clean read on this lift.";
   }
-  if (ins.trend === "progressing") {
+  if (status.status === "progressing") {
     if (typeof ins.avgRIR === "number" && ins.avgRIR > 2.5)
       return "Progressing well. Push a little closer to failure — you still have room in reserve.";
     return "Good momentum. Keep adding load when you hit the top of your rep range.";
   }
-  if (ins.trend === "plateau") {
-    return "No meaningful gain detected. Try shifting rep range, adding a set, or taking a lighter week first.";
-  }
-  if (ins.trend === "declining") {
+  if (status.status === "declining") {
     return "Strength is trending down. Accumulated fatigue is likely — a lighter week before reassessing is recommended.";
   }
+  if (isPlateau(status)) {
+    return "No meaningful gain across recent sessions. Try shifting rep range, adding a set, or taking a lighter week first.";
+  }
   return "Holding steady. Increase load by the smallest increment next session to restart progress.";
+}
+
+type AggregateBadgeMeta = {
+  label: string;
+  arrow: string;
+  textColor: string;
+  bg: string;
+  border: string;
+};
+
+function aggregateBadgeMeta(agg: AggregateLiftTrend): AggregateBadgeMeta {
+  switch (agg) {
+    case "improving":
+      return {
+        label: "Improving",
+        arrow: "↑",
+        textColor: "text-emerald-400",
+        bg: "bg-emerald-500/10",
+        border: "border-emerald-500/25",
+      };
+    case "declining":
+      return {
+        label: "Declining",
+        arrow: "↓",
+        textColor: "text-red-400",
+        bg: "bg-red-500/10",
+        border: "border-red-500/22",
+      };
+    case "mixed":
+      return {
+        label: "Mixed",
+        arrow: "→",
+        textColor: "text-amber-300",
+        bg: "bg-amber-500/10",
+        border: "border-amber-500/22",
+      };
+    default:
+      return {
+        label: "Limited data",
+        arrow: "·",
+        textColor: "text-zinc-400",
+        bg: "bg-zinc-500/10",
+        border: "border-zinc-500/20",
+      };
+  }
 }
 
 export function LiftProgressionSection({ workouts, unit }: Props) {
@@ -96,6 +149,13 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
       .map((e) => e.name);
   }, [workouts]);
 
+  const aggregate = useMemo<AggregateLiftTrend>(() => {
+    const names = getUniqueExerciseNames(workouts);
+    const statuses = names.map((n) => getLiftTrendStatus(workouts, n));
+    return aggregateLiftTrends(statuses);
+  }, [workouts]);
+  const aggMeta = aggregateBadgeMeta(aggregate);
+
   const [selected, setSelected] = useState<string | null>(null);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
 
@@ -108,6 +168,11 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
 
   const insights = useMemo(
     () => (exercise ? getExerciseInsights(workouts, exercise, { maxSessions: 12 }) : null),
+    [workouts, exercise]
+  );
+
+  const status = useMemo<LiftTrendStatus | null>(
+    () => (exercise ? getLiftTrendStatus(workouts, exercise) : null),
     [workouts, exercise]
   );
 
@@ -138,12 +203,30 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
   const e1rmPct = firstE1rm > 0 ? ((e1rmDiff / firstE1rm) * 100).toFixed(1) : null;
 
   const activePt = activeIdx !== null ? chartPts[activeIdx] : null;
-  const tm = insights ? trendMeta(insights.trend) : trendMeta("insufficient_data");
+  const fallbackStatus: LiftTrendStatus = {
+    exercise: exercise ?? "",
+    status: "early" as LiftTrend,
+    sessionsTracked: 0,
+    startingE1rm: 0,
+    latestE1rm: 0,
+    slopePerSession: 0,
+    windowChangePct: 0,
+  };
+  const tm = trendMeta(status ?? fallbackStatus);
 
   return (
     <section className="mb-7">
-      <div className="flex items-center justify-between mb-3">
-        <p className="label-section">Lift Progression</p>
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="label-section">Lift Progression</p>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${aggMeta.bg} ${aggMeta.border} ${aggMeta.textColor}`}
+            aria-label={`Overall trend: ${aggMeta.label}`}
+          >
+            <span>{aggMeta.arrow}</span>
+            {aggMeta.label}
+          </span>
+        </div>
         {insights && e1rmPct !== null && (
           <span
             className={`text-[11px] font-semibold tabular-nums ${
@@ -352,13 +435,13 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
 
               {/* Insight text */}
               <p className="text-[12px] leading-snug text-zinc-400 border-l-2 border-teal-600/30 pl-3">
-                {insightText(insights)}
+                {insightText(status ?? fallbackStatus, insights)}
               </p>
 
               {/* Coach CTA */}
-              {shouldShowCoachCta(insights.trend) && exercise && (
+              {status && shouldShowCoachCta(status) && exercise && (
                 <Link
-                  href={`/assistant?q=${encodeURIComponent(coachMessage(exercise, insights, unit))}`}
+                  href={`/assistant?q=${encodeURIComponent(coachMessage(exercise, status, insights, unit))}`}
                   className="mt-1 flex items-center justify-between gap-3 rounded-xl border border-teal-800/30 bg-teal-950/30 px-4 py-3 transition hover:border-teal-600/40 hover:bg-teal-950/50 active:scale-[0.99]"
                 >
                   <div className="flex items-center gap-2.5">

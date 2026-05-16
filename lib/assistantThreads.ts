@@ -1,9 +1,13 @@
+import { devLog } from "@/lib/devLog";
+
 export type AssistantThreadMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   /** LLM coach intro shown above structured workout cards in the UI. */
   coachReview?: string;
+  /** Short labels for sources the model relied on; rendered as a quiet expander. */
+  dataSources?: string[];
   workout?: {
     sessionTitle: string;
     sessionGoal: string;
@@ -125,11 +129,19 @@ function normalizeThreadMessage(m: unknown): AssistantThreadMessage | null {
   const id = typeof r.id === "string" && r.id.trim() ? r.id : `m_${Math.random().toString(16).slice(2)}`;
   const coachReview =
     typeof r.coachReview === "string" && r.coachReview.trim() ? safeTrimContent(r.coachReview) : undefined;
+  const dataSources = Array.isArray(r.dataSources)
+    ? r.dataSources
+        .filter((s): s is string => typeof s === "string")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 8)
+    : undefined;
   return {
     id,
     role: r.role,
     content: safeTrimContent(r.content),
     ...(coachReview ? { coachReview } : {}),
+    ...(dataSources && dataSources.length > 0 ? { dataSources } : {}),
     ...(r.workout && typeof r.workout === "object"
       ? {
           workout: r.workout as AssistantThreadMessage["workout"],
@@ -225,6 +237,7 @@ export function appendToThread(params: {
   role: "user" | "assistant";
   content: string;
   coachReview?: string;
+  dataSources?: string[];
   workout?: AssistantThreadMessage["workout"];
 }): AssistantThread {
   if (typeof window === "undefined") {
@@ -240,6 +253,9 @@ export function appendToThread(params: {
           content: safeTrimContent(params.content),
           ...(params.coachReview?.trim()
             ? { coachReview: safeTrimContent(params.coachReview) }
+            : {}),
+          ...(params.dataSources && params.dataSources.length > 0
+            ? { dataSources: params.dataSources.slice(0, 8) }
             : {}),
           ...(params.workout ? { workout: params.workout } : {}),
           createdAt: now,
@@ -381,7 +397,7 @@ export function createNewChatThread(): {
   writeActiveThreadId(newId);
 
   if (process.env.NODE_ENV === "development") {
-    console.log("[thread-debug] createNewChatThread", {
+    devLog("[thread-debug] createNewChatThread", {
       threadId: newId,
       freshThread: true,
       priorActivePreservedInMap: true,

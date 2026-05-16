@@ -22,8 +22,14 @@ import { countCompletedLoggedSets } from "@/lib/completedSets";
 import {
   DEFAULT_DETAILED_MUSCLE_GROUPS,
   getDetailedVolumeByMuscleGroup,
+  getUniqueExerciseNames,
   type DetailedMuscleGroup,
 } from "@/lib/trainingMetrics";
+import {
+  aggregateLiftTrends,
+  getLiftTrendStatus,
+  type AggregateLiftTrend,
+} from "@/lib/liftTrend";
 
 type ProfileModalProps = {
   focus: TrainingFocus;
@@ -126,6 +132,13 @@ type Indicator = {
   status: string;
   context: string;
   prompt: string;
+};
+
+/** What time window each Signal is computed over — shown under the label so users know what they're reading. */
+const INDICATOR_WINDOW_LABEL: Record<Indicator["key"], string> = {
+  plateau: "Per lift · last 6 sessions",
+  volume: "Last 7 days",
+  progress: "Per lift · last 6 sessions",
 };
 
 const STATE_COLOR: Record<
@@ -268,7 +281,8 @@ function buildIndicators(
   workoutsCount: number,
   thisWeekTotalSets: number,
   thisWeekWorkoutsCount: number,
-  historicalVolume: Record<DetailedMuscleGroup, number>
+  historicalVolume: Record<DetailedMuscleGroup, number>,
+  progressAggregate: AggregateLiftTrend
 ): Indicator[] {
   const cold = workoutsCount === 0;
   const earlyRead = workoutsCount > 0 && workoutsCount < 3;
@@ -408,45 +422,47 @@ function buildIndicators(
       prompt:
         "Once I start logging, how does the progression indicator track which lifts are moving?",
     };
-  } else if (earlyRead) {
+  } else if (progressAggregate === "limited" || earlyRead) {
     progression = {
       key: "progress",
       label: "Progress",
       state: "unknown",
-      status: "Early read",
-      context: `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the trend becomes readable.`,
+      status: earlyRead ? "Early read" : "Limited data",
+      context: earlyRead
+        ? `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the trend becomes readable.`
+        : "Not enough sessions per lift to read a trend yet.",
       prompt:
-        "I've only got a couple of sessions logged. How many do you need before progression becomes readable?",
+        "I don't have enough logged sessions yet to read a trend. How many sessions per lift do you need?",
     };
-  } else if (coach.whatsGoingWell.length > 0) {
+  } else if (progressAggregate === "improving") {
     progression = {
       key: "progress",
       label: "Progress",
       state: "good",
       status: "Improving",
-      context: trimToOneLine(coach.whatsGoingWell[0], 120),
+      context: "Most of your tracked lifts are progressing on e1RM.",
       prompt:
         "Progression is showing on my training. Walk me through which lifts are moving and how much.",
     };
-  } else if (coach.keyFocusType === "progressing") {
+  } else if (progressAggregate === "declining") {
     progression = {
       key: "progress",
       label: "Progress",
-      state: "good",
-      status: "Improving",
-      context: "Recent sessions show forward movement on your tracked lifts.",
+      state: "attention",
+      status: "Declining",
+      context: "Most of your tracked lifts are trending down on e1RM.",
       prompt:
-        "Progression is showing on my training. Walk me through which lifts are moving and how much.",
+        "My progression looks like it's trending down. Walk me through which lifts are declining and what's likely behind it.",
     };
   } else {
     progression = {
       key: "progress",
       label: "Progress",
       state: "watch",
-      status: "Quiet",
-      context: "Nothing improving clearly in the last few sessions.",
+      status: "Mixed",
+      context: "Some lifts moving, some flat. No clear overall direction yet.",
       prompt:
-        "Progression isn't showing clearly yet. What would help me get clearer progression signals?",
+        "My progression is mixed across lifts. Walk me through which are moving, which are flat, and what to focus on.",
     };
   }
 
@@ -523,11 +539,12 @@ function IndicatorTile({
 }) {
   const c = STATE_COLOR[indicator.state];
   const Icon = INDICATOR_ICON[indicator.key];
+  const windowLabel = INDICATOR_WINDOW_LABEL[indicator.key];
   return (
     <button
       type="button"
       onClick={onTap}
-      aria-label={`${indicator.label} status: ${indicator.status}. ${indicator.context} Tap to open the ${indicator.label.toLowerCase()} detail.`}
+      aria-label={`${indicator.label} (${windowLabel}) status: ${indicator.status}. ${indicator.context} Tap to open the ${indicator.label.toLowerCase()} detail.`}
       className="group flex h-full w-full flex-col items-start gap-2.5 rounded-2xl px-3 py-3 text-left transition-colors duration-150 hover:bg-white/[0.03] active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
       style={{
         background: "rgba(255,255,255,0.018)",
@@ -547,6 +564,9 @@ function IndicatorTile({
       <div className="flex flex-col gap-1.5 min-w-0">
         <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-home-tertiary">
           {indicator.label}
+        </span>
+        <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-home-tertiary/70 leading-tight">
+          {windowLabel}
         </span>
         <span
           className="inline-flex items-center self-start rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide"
@@ -673,6 +693,13 @@ export default function Home() {
     [workouts]
   );
 
+  const progressAggregate = useMemo<AggregateLiftTrend>(() => {
+    if (workouts.length === 0) return "limited";
+    const names = getUniqueExerciseNames(workouts);
+    const statuses = names.map((n) => getLiftTrendStatus(workouts, n));
+    return aggregateLiftTrends(statuses);
+  }, [workouts]);
+
   const indicators = useMemo(
     () =>
       buildIndicators(
@@ -680,9 +707,17 @@ export default function Home() {
         workouts.length,
         thisWeek.totalSets,
         thisWeek.workoutsCount,
-        historicalVolume
+        historicalVolume,
+        progressAggregate
       ),
-    [coachAnalysis, workouts.length, thisWeek.totalSets, thisWeek.workoutsCount, historicalVolume]
+    [
+      coachAnalysis,
+      workouts.length,
+      thisWeek.totalSets,
+      thisWeek.workoutsCount,
+      historicalVolume,
+      progressAggregate,
+    ]
   );
 
   const insight = useMemo(

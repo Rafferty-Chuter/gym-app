@@ -75,6 +75,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   coachReview?: string;
+  dataSources?: string[];
   workout?: StructuredWorkout;
 };
 
@@ -207,6 +208,43 @@ function AssistantMessageBody({ content }: { content: string }) {
         {content}
       </ReactMarkdown>
     </div>
+  );
+}
+
+/**
+ * Quiet "What I looked at" expander shown beneath an assistant message.
+ * Closed by default; uses native <details> for zero-JS collapse, keyboard
+ * accessibility, and screen-reader semantics. Renders nothing when the
+ * assistant didn't emit any data-source labels (trivial replies).
+ */
+function DataSourcesExpander({ sources }: { sources?: string[] }) {
+  if (!sources || sources.length === 0) return null;
+  return (
+    <details className="mt-3 group">
+      <summary
+        className="cursor-pointer select-none list-none text-[11px] font-semibold uppercase tracking-[0.12em] text-app-tertiary hover:text-app-secondary transition flex items-center gap-1.5"
+        aria-label="Show data sources used in this response"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-3 w-3 transition-transform duration-150 group-open:rotate-90"
+          aria-hidden
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+        <span>What I looked at</span>
+      </summary>
+      <ul className="mt-2 space-y-1 pl-4 list-disc marker:text-app-tertiary text-[12px] leading-[1.5] text-app-secondary">
+        {sources.map((s, i) => (
+          <li key={`${i}-${s}`}>{s}</li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -511,6 +549,7 @@ function AssistantPageInner() {
           role: m.role,
           content: m.content,
           coachReview: m.coachReview,
+          dataSources: m.dataSources,
           workout: m.workout,
         }))
       );
@@ -560,6 +599,7 @@ function AssistantPageInner() {
           role: m.role,
           content: m.content,
           coachReview: m.coachReview,
+          dataSources: m.dataSources,
           workout: m.workout,
         }))
       );
@@ -577,6 +617,7 @@ function AssistantPageInner() {
         role: m.role,
         content: m.content,
         coachReview: m.coachReview,
+        dataSources: m.dataSources,
         workout: m.workout,
       }))
     );
@@ -854,6 +895,7 @@ function AssistantPageInner() {
       type AssistantStreamPayload = {
         reply?: string;
         coachReview?: string;
+        dataSources?: string[];
         structuredWorkout?: unknown;
         error?: string;
       };
@@ -944,11 +986,21 @@ function AssistantPageInner() {
             JSON.stringify(data.structuredWorkout, null, 2)
           );
         }
+        const dataSourcesFromApi = Array.isArray(data.dataSources)
+          ? data.dataSources
+              .filter((s): s is string => typeof s === "string")
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .slice(0, 8)
+          : undefined;
         const nextThreadAfterAssistant = appendToThread({
           threadId: localThreadId!,
           role: "assistant",
           content: data.reply,
           ...(coachReviewFromApi ? { coachReview: coachReviewFromApi } : {}),
+          ...(dataSourcesFromApi && dataSourcesFromApi.length > 0
+            ? { dataSources: dataSourcesFromApi }
+            : {}),
           workout:
             data.structuredWorkout && typeof data.structuredWorkout === "object"
               ? (data.structuredWorkout as StructuredWorkout)
@@ -960,6 +1012,7 @@ function AssistantPageInner() {
             role: m.role,
             content: m.content,
             coachReview: m.coachReview,
+            dataSources: m.dataSources,
             workout: m.workout,
           }))
         );
@@ -976,6 +1029,7 @@ function AssistantPageInner() {
             role: m.role,
             content: m.content,
             coachReview: m.coachReview,
+            dataSources: m.dataSources,
             workout: m.workout,
           }))
         );
@@ -1261,6 +1315,7 @@ function AssistantPageInner() {
                       style={{ borderColor: "rgba(0,229,176,0.30)" }}
                     >
                       <AssistantMessageBody content={m.content} />
+                      <DataSourcesExpander sources={m.dataSources} />
                     </div>
                   )}
                 </li>

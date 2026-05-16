@@ -16,6 +16,7 @@ import {
   type ExerciseInsights,
 } from "@/lib/trainingAnalysis";
 import { resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
+import { devLog } from "@/lib/devLog";
 import {
   decideNextActions,
   inferTrainingStyle,
@@ -484,7 +485,7 @@ function getRecentExercisesByMuscleGroup(
     legs: new Set<string>(),
   };
   const consideredWorkouts = sorted.slice(0, SUPPORT_EXERCISE_LOOKBACK_WORKOUTS);
-  console.log(
+  devLog(
     "[coach structured analysis] support extraction workouts considered",
     consideredWorkouts.map((w) => ({
       completedAt: w.completedAt,
@@ -520,13 +521,13 @@ function getRecentExercisesByMuscleGroup(
         exerciseId: ex.exerciseId,
         name: label,
       });
-      console.log("[coach structured analysis] resolved metadata", {
+      devLog("[coach structured analysis] resolved metadata", {
         exerciseName: label,
         exerciseId: ex.exerciseId ?? null,
         resolvedExerciseId: resolvedMeta?.id ?? null,
       });
       const group = classifyGroup(label);
-      console.log("[coach structured analysis] support extraction exercise group", {
+      devLog("[coach structured analysis] support extraction exercise group", {
         exercise: label,
         group: group ?? null,
       });
@@ -537,7 +538,7 @@ function getRecentExercisesByMuscleGroup(
       out[group].push(label);
     }
   }
-  console.log("[coach structured analysis] support extraction final by-group", out);
+  devLog("[coach structured analysis] support extraction final by-group", out);
   return out;
 }
 
@@ -695,7 +696,7 @@ export function buildCoachStructuredAnalysis(
     goal: String(goal),
     volumeByMuscle: insights.weeklyVolume,
   });
-  console.log("[coach structured analysis] supportGapResult", supportGapResult);
+  devLog("[coach structured analysis] supportGapResult", supportGapResult);
   const exerciseNames = getUniqueExerciseNamesFromWorkouts(allWorkouts);
   const allExerciseInsights = exerciseNames
     .map((name) => getExerciseInsights(allWorkouts, name, { maxSessions: 5 }))
@@ -717,7 +718,7 @@ export function buildCoachStructuredAnalysis(
   // are still moving. Per-muscle progression is derived from the same
   // per-exercise insights window the orchestrator otherwise uses (maxSessions: 5).
   const progressionByMuscle = getProgressionByMuscleGroup(allWorkouts);
-  console.log("[coach structured analysis] progressionByMuscle", progressionByMuscle);
+  devLog("[coach structured analysis] progressionByMuscle", progressionByMuscle);
 
   const rawSignals = [
     ...detectExerciseSignals(allWorkouts, {
@@ -967,21 +968,21 @@ export function buildCoachStructuredAnalysis(
     ...(avgRIR !== undefined ? { avgRIR } : {}),
     ...(trainingStyle ? { trainingStyle } : {}),
   };
-  console.log("[coach structured analysis] decisionContext", decisionContext);
+  devLog("[coach structured analysis] decisionContext", decisionContext);
 
   const coachDecisions = decideNextActions(decisionContext);
   const coachDecisionsForCoach =
     shouldSuppressLegs && resolvedSupportGroupForCoach === "legs"
       ? coachDecisions.filter((d) => d.type !== "increase_support_volume")
       : coachDecisions;
-  console.log("[coach structured analysis] coachDecisions", coachDecisions);
+  devLog("[coach structured analysis] coachDecisions", coachDecisions);
 
   if (
     !isLiftSpecificGoal(goal) &&
     decisionContext.supportGap === true &&
     decisionContext.keyFocusType === "low-volume"
   ) {
-    console.log(
+    devLog(
       "[coach structured analysis] coachDecisions (broad goal + support gap / low-volume)",
       coachDecisions
     );
@@ -995,10 +996,10 @@ export function buildCoachStructuredAnalysis(
     supportGroup && supportGroup in insights.weeklyVolume
       ? insights.weeklyVolume[supportGroup]
       : undefined;
-  console.log("[coach structured analysis] keyFocusExercise", decisionContext.keyFocusExercise);
-  console.log("[coach structured analysis] supportGroup", supportGroup);
-  console.log("[coach structured analysis] supportExercises", supportExercises);
-  console.log("[coach structured analysis] supportGroupWeeklySets", supportGroupWeeklySets);
+  devLog("[coach structured analysis] keyFocusExercise", decisionContext.keyFocusExercise);
+  devLog("[coach structured analysis] supportGroup", supportGroup);
+  devLog("[coach structured analysis] supportExercises", supportExercises);
+  devLog("[coach structured analysis] supportGroupWeeklySets", supportGroupWeeklySets);
 
   const decisionBasedSuggestions = coachDecisionsForCoach.map((d) => {
     try {
@@ -1007,7 +1008,7 @@ export function buildCoachStructuredAnalysis(
         context: decisionContext,
         unit,
       });
-      console.log("[coach structured analysis] prescription", { decisionId: d.id, prescription });
+      devLog("[coach structured analysis] prescription", { decisionId: d.id, prescription });
       const text = prescriptionToText(
         d,
         prescription,
@@ -1018,7 +1019,7 @@ export function buildCoachStructuredAnalysis(
         supportGroupWeeklySets,
         isBuildOverallMuscle ? lowerBodyPriority : undefined
       );
-      console.log("[coach structured analysis] final prescription text", {
+      devLog("[coach structured analysis] final prescription text", {
         decisionId: d.id,
         text,
       });
@@ -1029,7 +1030,7 @@ export function buildCoachStructuredAnalysis(
       return decisionToText(d, decisionContext, unit);
     }
   });
-  console.log("[coach structured analysis] decisionBasedSuggestions", decisionBasedSuggestions);
+  devLog("[coach structured analysis] decisionBasedSuggestions", decisionBasedSuggestions);
 
   const actionableSuggestions =
     decisionBasedSuggestions.length > 0
@@ -1050,7 +1051,7 @@ export function buildCoachStructuredAnalysis(
     supportGroup,
     unit,
   });
-  console.log("[coach structured analysis] nextSessionAdjustmentPlan", nextSessionAdjustmentPlan);
+  devLog("[coach structured analysis] nextSessionAdjustmentPlan", nextSessionAdjustmentPlan);
 
   return {
     keyFocus: keyFocus.text,
