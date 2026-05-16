@@ -18,6 +18,7 @@ import {
   chartPointAriaLabel,
   type ChartPointDetail,
 } from "@/components/ChartPointTooltip";
+import { computeNiceYAxis } from "@/lib/chartScale";
 
 type Props = {
   workouts: StoredWorkout[];
@@ -38,11 +39,6 @@ function shortDate(iso: string): string {
   const d = new Date(iso);
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${d.getDate()} ${months[d.getMonth()]}`;
-}
-
-function niceRange(min: number, max: number): [number, number] {
-  const pad = Math.max((max - min) * 0.12, 2.5);
-  return [Math.floor((min - pad) / 2.5) * 2.5, Math.ceil((max + pad) / 2.5) * 2.5];
 }
 
 type TrendMeta = { label: string; arrow: string; textColor: string; bg: string; border: string };
@@ -185,7 +181,7 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
 
   const points = metrics?.recentPerformances ?? [];
   const e1rms = points.map((p) => p.e1rm);
-  const [yMin, yMax] = points.length >= 2 ? niceRange(Math.min(...e1rms), Math.max(...e1rms)) : [0, 100];
+  const { yMin, yMax } = points.length >= 2 ? computeNiceYAxis(e1rms) : { yMin: 0, yMax: 100 };
   const yRange = Math.max(yMax - yMin, 1);
 
   const chartPts = points.map((p, i) => ({
@@ -321,7 +317,8 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
               {/* Horizontal grid lines */}
               {[0, 0.5, 1].map((t) => {
                 const gy = PT + CHART_H * (1 - t);
-                const label = (yMin + yRange * t).toFixed(0);
+                const tickValue = yMin + yRange * t;
+                const label = Number.isInteger(tickValue) ? String(tickValue) : tickValue.toFixed(1);
                 return (
                   <g key={t}>
                     <line

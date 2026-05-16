@@ -33,6 +33,7 @@ import {
   chartPointAriaLabel,
   type ChartPointDetail,
 } from "@/components/ChartPointTooltip";
+import { computeNiceYAxis } from "@/lib/chartScale";
 
 /**
  * Comma + Oxford-and group list. Mirrors how people speak:
@@ -233,7 +234,7 @@ function LineChart({
   performances,
   state,
   unit,
-  valueKey = "weight",
+  valueKey = "e1rm",
   caption,
 }: {
   performances: RecentPerformance[];
@@ -287,12 +288,7 @@ function LineChart({
 
   const valueOf = (p: RecentPerformance) => (valueKey === "e1rm" ? p.e1rm : p.weight);
   const values = performances.map(valueOf);
-  const minW = Math.min(...values);
-  const maxW = Math.max(...values);
-  const range = Math.max(1, maxW - minW);
-  const yPad = range * 0.2;
-  const yMin = Math.max(0, minW - yPad);
-  const yMax = maxW + yPad;
+  const { yMin, yMax, ticks: tickValues } = computeNiceYAxis(values);
   const yRange = Math.max(1, yMax - yMin);
 
   const points = performances.map((p, i) => {
@@ -308,9 +304,6 @@ function LineChart({
     `M ${points[0].x} ${padding.t + innerH} ` +
     points.map((pt) => `L ${pt.x} ${pt.y}`).join(" ") +
     ` L ${points[points.length - 1].x} ${padding.t + innerH} Z`;
-
-  const yTicks = 3;
-  const tickValues = Array.from({ length: yTicks }, (_, i) => yMin + (yRange * i) / (yTicks - 1));
 
   const activeDetail: ChartPointDetail | null =
     activeIdx !== null && activeIdx >= 0 && activeIdx < points.length
@@ -360,7 +353,7 @@ function LineChart({
                 fill="rgba(140,200,196,0.55)"
                 textAnchor="end"
               >
-                {Math.round(v)}
+                {Number.isInteger(v) ? String(v) : v.toFixed(1)}
               </text>
             </g>
           );
@@ -444,7 +437,7 @@ function LineChart({
         )}
       </svg>
       <p className="mt-2 text-[11px] font-medium text-app-tertiary text-center">
-        {caption ?? `${valueKey === "e1rm" ? "Estimated 1RM" : "Weight"} (${unit}) × session`}
+        {caption ?? `Estimated 1RM (${unit}) per session`}
       </p>
       {activeDetail && (
         <ChartPointTooltip
@@ -731,16 +724,15 @@ function buildPlateauContent(
       latest && latest.weight > 0 ? `${latest.weight}${unit}×${latest.reps}` : null;
     let explanation: string;
     if (isDeclining) {
-      // Genuinely declining: working weight (and/or e1RM) trending down.
       explanation = `${exerciseLabel} is trending down across your last ${
         sessionCount || "few"
-      } ${sessionWord}. The chart shows the working weight per session, so you can see the falling line for yourself.`;
+      } ${sessionWord}. The chart shows estimated 1RM per session, so you can see the falling line for yourself.`;
     } else if (sessionCount > 0 && latestSetStr) {
-      // Flat plateau: weight (and reps) haven't moved meaningfully. Don't say
-      // "trending down" on a flat line — describe the actual hold.
-      explanation = `${exerciseLabel} has been flat at ${latestSetStr} for ${sessionCount} ${sessionWord}. The chart shows the working weight per session — the line is holding rather than climbing.`;
+      // Flat plateau: e1RM hasn't moved meaningfully. Don't say "trending
+      // down" on a flat line — describe the actual hold.
+      explanation = `${exerciseLabel} has been flat at ${latestSetStr} for ${sessionCount} ${sessionWord}. The chart shows estimated 1RM per session — the line is holding rather than climbing.`;
     } else {
-      explanation = `${exerciseLabel} hasn't moved across your recent sessions. The chart shows the working weight per session, so you can see the flat line for yourself.`;
+      explanation = `${exerciseLabel} hasn't moved across your recent sessions. The chart shows estimated 1RM per session, so you can see the flat line for yourself.`;
     }
     return {
       state: "attention",
