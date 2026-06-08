@@ -16,22 +16,34 @@ import {
 } from "@/lib/liftTrend";
 import { getUniqueExerciseNames } from "@/lib/trainingMetrics";
 import { buildVolumeRows, type VolumeRow } from "@/lib/volumeAnalysis";
+import {
+  detectPlateauAcrossLifts,
+  type PlateauDetection,
+} from "@/lib/plateauSignal";
 
 export type SignalState = "good" | "watch" | "attention" | "unknown";
 export type SignalStatusResult = { state: SignalState; status: string };
 
 const EARLY_THRESHOLD_WORKOUTS = 3;
 
-/** Plateau: routes through coach.keyFocusType (already canonical via P0.1). */
+/**
+ * Plateau (P0.8): strict detector that fires only when a lift has made no
+ * net forward progress AND has a non-positive full-window slope. Peak-then-
+ * pullback inside the window doesn't fire — that's normal training variance.
+ *
+ * No longer routes through coach.keyFocusType — the coach picks "key focus"
+ * for assistant context, but it can flag a lift the Plateau signal would
+ * reject. We rely on detectPlateauAcrossLifts as the single authority.
+ */
 export function computePlateauStatus(
-  coach: CoachStructuredAnalysis,
-  workoutsCount: number
-): SignalStatusResult {
-  if (workoutsCount === 0) return { state: "unknown", status: "No data yet" };
-  if (coach.keyFocusType === "plateau" || coach.keyFocusType === "declining") {
-    return { state: "attention", status: "Detected" };
+  workouts: StoredWorkout[]
+): SignalStatusResult & { detection?: PlateauDetection } {
+  if (workouts.length === 0) return { state: "unknown", status: "No data yet" };
+  const detection = detectPlateauAcrossLifts(workouts);
+  if (detection) {
+    return { state: "attention", status: "Detected", detection };
   }
-  if (workoutsCount < EARLY_THRESHOLD_WORKOUTS) {
+  if (workouts.length < EARLY_THRESHOLD_WORKOUTS) {
     return { state: "unknown", status: "Early read" };
   }
   return { state: "good", status: "Clear" };

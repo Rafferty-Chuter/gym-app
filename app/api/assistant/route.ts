@@ -1984,7 +1984,7 @@ ${evidenceScopeBlock}`;
 - Next step: ${analysisInputs.nextStep ?? "MISSING"}`;
 
   const templateReviewBlock = templateDataAvailable
-    ? `Templates / programs (text provided by user in this request):\n${templatesSummary?.trim() ?? ""}\n`
+    ? `User's saved routines / templates:\n${templatesSummary?.trim() ?? ""}\n`
     : `Templates / programs: NO structured template data was sent with this request. Do not pretend you reviewed their saved templates. Ask them to describe template names, split, days per week, and main exercises—or paste details—before judging or comparing programs.\n`;
 
   let input = "";
@@ -3607,8 +3607,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const templatesSummary =
-      typeof rawTemplatesSummary === "string" ? rawTemplatesSummary : undefined;
+    const templatesSummary = (() => {
+      if (typeof rawTemplatesSummary === "string" && rawTemplatesSummary.trim()) {
+        return rawTemplatesSummary;
+      }
+      const ctx = coachingContext as Partial<CoachingContext> | null | undefined;
+      const templates = Array.isArray(ctx?.templates) ? ctx.templates : [];
+      if (templates.length === 0) return undefined;
+      const lines: string[] = [];
+      for (const t of templates) {
+        const exLines = (t.exercises ?? [])
+          .map((ex: { name: string; targetSets?: number; restSec?: number }) => {
+            const parts = [ex.name];
+            if (ex.targetSets) parts.push(`${ex.targetSets} sets`);
+            if (ex.restSec) parts.push(`${Math.round(ex.restSec / 60)}min rest`);
+            return `  - ${parts.join(", ")}`;
+          })
+          .join("\n");
+        lines.push(`Template: ${t.name}\n${exLines || "  (no exercises listed)"}`);
+      }
+      const freq = ctx?.inferred?.frequency;
+      const split = ctx?.inferred?.split;
+      const volByMuscle = ctx?.inferred?.volumeByMuscle ?? {};
+      const volEntries = Object.entries(volByMuscle)
+        .filter(([, sets]) => sets > 0)
+        .sort((a, b) => b[1] - a[1])
+        .map(([m, sets]) => `${m}: ${sets} sets/wk`)
+        .join(", ");
+      const meta: string[] = [];
+      if (freq) meta.push(`Current logged frequency: ${freq} sessions/week`);
+      if (split) meta.push(`Inferred split pattern: ${split}`);
+      if (volEntries) meta.push(`Weekly volume by muscle: ${volEntries}`);
+      if (meta.length) lines.unshift(meta.join(" | "));
+      return lines.join("\n\n");
+    })();
     const templateDataAvailable = Boolean(templatesSummary?.trim());
 
     const userMemory: ExtractedMemoryFact[] = Array.isArray(rawUserMemory)

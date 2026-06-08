@@ -22,6 +22,7 @@ export type DraftWorkout = {
   lastSavedAt?: number;
   workoutName: string;
   templateName: string | null;
+  templateId?: string;
   exercises: DraftExercise[];
   restTimerByExercise?: Record<
     number,

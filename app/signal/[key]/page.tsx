@@ -567,12 +567,12 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
 }
 
 function buildPlateauContent(
-  coach: CoachStructuredAnalysis,
+  _coach: CoachStructuredAnalysis,
   workouts: ReturnType<typeof getWorkoutHistory>,
   unit: "kg" | "lb"
 ): DetailContent {
-  // Canonical state/status — must match the home Plateau card exactly.
-  const { state, status } = computePlateauStatus(coach, workouts.length);
+  // Canonical state/status + detection — must match the home Plateau card.
+  const { state, status, detection } = computePlateauStatus(workouts);
 
   if (workouts.length === 0) {
     return {
@@ -585,9 +585,10 @@ function buildPlateauContent(
     };
   }
 
-  const isDeclining = coach.keyFocusType === "declining";
-  const focusExerciseName = coach.keyFocusExercise;
-
+  // When the strict detector flags a lift, lock the chart focus to that
+  // exact lift so the prose, numbers, and the chart line all describe the
+  // same thing.
+  const focusExerciseName = detection?.exercise;
   const exerciseChoice = focusExerciseName
     ? {
         name: focusExerciseName,
@@ -598,23 +599,23 @@ function buildPlateauContent(
   const performances = exerciseChoice?.insights.recentPerformances ?? [];
   const exerciseLabel = exerciseChoice?.name ?? "your tracked lift";
 
-  if (status === "Detected") {
-    const sessionCount = performances.length;
+  if (status === "Detected" && detection) {
+    const sessionCount = detection.sessionsTracked;
     const sessionWord = sessionCount === 1 ? "session" : "sessions";
-    const latest = performances[performances.length - 1];
+    const latestPerf = performances[performances.length - 1];
     const latestSetStr =
-      latest && latest.weight > 0 ? `${latest.weight}${unit}×${latest.reps}` : null;
+      latestPerf && latestPerf.weight > 0 ? `${latestPerf.weight}${unit}×${latestPerf.reps}` : null;
+    const startStr = `${detection.startingE1rm.toFixed(1)}${unit}`;
+    const endStr = `${detection.latestE1rm.toFixed(1)}${unit}`;
     let explanation: string;
-    if (isDeclining) {
-      explanation = `${exerciseLabel} is trending down across your last ${
-        sessionCount || "few"
-      } ${sessionWord}. The chart shows estimated 1RM per session, so you can see the falling line for yourself.`;
-    } else if (sessionCount > 0 && latestSetStr) {
-      // Flat plateau: e1RM hasn't moved meaningfully. Don't say "trending
-      // down" on a flat line — describe the actual hold.
-      explanation = `${exerciseLabel} has been flat at ${latestSetStr} for ${sessionCount} ${sessionWord}. The chart shows estimated 1RM per session — the line is holding rather than climbing.`;
+    if (detection.kind === "declining") {
+      explanation = `${exerciseLabel} is trending down across your last ${sessionCount} ${sessionWord}. Estimated 1RM has dropped from ${startStr} to ${endStr}.`;
+    } else if (detection.kind === "net-flat-with-variance") {
+      explanation = `${exerciseLabel} hasn't made net progress over the last ${sessionCount} ${sessionWord}. Estimated 1RM started at ${startStr} and is now ${endStr}.`;
     } else {
-      explanation = `${exerciseLabel} hasn't moved across your recent sessions. The chart shows estimated 1RM per session, so you can see the flat line for yourself.`;
+      // Flat: variance is small — describe the actual hold.
+      const setPart = latestSetStr ? ` at ${latestSetStr}` : "";
+      explanation = `${exerciseLabel} has been flat${setPart} for ${sessionCount} ${sessionWord}. Estimated 1RM hasn't moved.`;
     }
     return {
       state,

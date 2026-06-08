@@ -36,6 +36,7 @@ import {
   type UserExerciseRecord,
 } from "@/lib/userExerciseLibrary";
 import { getCompletedLoggedSets } from "@/lib/completedSets";
+import { getTemplateById } from "@/lib/templateStorage";
 
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
@@ -434,6 +435,7 @@ export default function WorkoutPage() {
   const [reorderMode, setReorderMode] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [routineChanges, setRoutineChanges] = useState<string[] | null>(null);
   const [lastPerformance, setLastPerformance] = useState<
     Record<string, { weight: string; reps: string } | null>
   >({});
@@ -887,6 +889,7 @@ export default function WorkoutPage() {
     if (draft && draftHasMeaningfulContent(draft)) {
       setWorkoutName(draft.workoutName);
       setTemplateName(draft.templateName);
+      setTemplateId(draft.templateId ?? null);
       setExercises(
         draft.exercises.map((ex) => ({
           ...ex,
@@ -940,6 +943,7 @@ export default function WorkoutPage() {
       exercises: exs,
       workoutName: wn,
       templateName: tn,
+      templateId: tid,
       startTime: st,
       restByExercise: timers,
     } = latestWorkoutRef.current;
@@ -947,6 +951,7 @@ export default function WorkoutPage() {
       startedAt: 0,
       workoutName: wn,
       templateName: tn,
+      ...(tid ? { templateId: tid } : {}),
       exercises: exs.map((ex) => ({
         id: ex.id,
         ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
@@ -1022,6 +1027,37 @@ export default function WorkoutPage() {
     return `Workout · ${short}`;
   }
 
+  function detectRoutineChanges(
+    templateExercises: { name: string; exerciseId?: string; targetSets: number }[],
+    completedExercises: { name: string; exerciseId?: string; sets: unknown[] }[]
+  ): string[] {
+    const norm = (s: string) => s.toLowerCase().trim();
+    const templateMap = new Map(
+      templateExercises.map((ex) => [ex.exerciseId ?? norm(ex.name), ex])
+    );
+    const completedMap = new Map(
+      completedExercises.map((ex) => [ex.exerciseId ?? norm(ex.name), ex])
+    );
+    const changes: string[] = [];
+
+    for (const [key, tex] of templateMap) {
+      const cex = completedMap.get(key);
+      if (!cex) {
+        changes.push(`Removed "${tex.name}"`);
+      } else if ((cex.sets as unknown[]).length !== tex.targetSets) {
+        changes.push(
+          `"${tex.name}" — ${(cex.sets as unknown[]).length} set${(cex.sets as unknown[]).length !== 1 ? "s" : ""} instead of ${tex.targetSets}`
+        );
+      }
+    }
+    for (const [key, cex] of completedMap) {
+      if (!templateMap.has(key)) {
+        changes.push(`Added "${cex.name}"`);
+      }
+    }
+    return changes;
+  }
+
   function finishWorkout() {
     if (exercises.length === 0) return;
     setRoutineSaved(false);
@@ -1062,6 +1098,19 @@ export default function WorkoutPage() {
     addWorkout(completed);
     clearActiveWorkout();
     persistEnabledRef.current = false;
+
+    if (templateId) {
+      const sourceTemplate = getTemplateById(templateId);
+      if (sourceTemplate) {
+        const changes = detectRoutineChanges(sourceTemplate.exercises, completedExercises);
+        setRoutineChanges(changes.length > 0 ? changes : null);
+      } else {
+        setRoutineChanges(null);
+      }
+    } else {
+      setRoutineChanges(null);
+    }
+
     setShowSummary(true);
   }
 
@@ -2203,6 +2252,38 @@ export default function WorkoutPage() {
                     </li>
                   ))}
                 </ul>
+                {templateId && routineChanges && routineChanges.length > 0 && (
+                  <div className="mb-4 rounded-xl border border-teal-700/40 bg-teal-950/30 p-4">
+                    <p className="text-sm font-semibold text-teal-300 mb-1">
+                      This workout differs from &ldquo;{templateName}&rdquo;
+                    </p>
+                    <ul className="text-xs text-teal-200/70 space-y-0.5 mb-3">
+                      {routineChanges.map((change, i) => (
+                        <li key={i}>· {change}</li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-app-secondary mb-3">
+                      Want to update the routine to reflect today&apos;s session?
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          overwriteTemplateFromSession();
+                          setRoutineChanges(null);
+                        }}
+                        className="flex-1 py-2 rounded-lg text-sm font-semibold bg-teal-700/40 text-teal-200 hover:bg-teal-700/60 transition"
+                      >
+                        Update routine
+                      </button>
+                      <button
+                        onClick={() => setRoutineChanges(null)}
+                        className="flex-1 py-2 rounded-lg text-sm font-semibold border border-zinc-700 text-app-secondary hover:bg-zinc-800 transition"
+                      >
+                        Keep original
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <button
                     onClick={saveAsRoutineFromSession}
@@ -2211,15 +2292,6 @@ export default function WorkoutPage() {
                   >
                     {routineSaved ? "Routine Saved" : "Save as Routine"}
                   </button>
-                  {templateId && (
-                    <button
-                      onClick={overwriteTemplateFromSession}
-                      disabled={exercises.length === 0}
-                      className="w-full py-3 rounded-xl font-semibold border border-teal-900/50 text-app-secondary hover:bg-teal-950/40 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      Update Existing Template
-                    </button>
-                  )}
                   <button
                     onClick={() => router.push("/")}
                     className="w-full py-3 rounded-xl btn-primary"

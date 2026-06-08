@@ -265,19 +265,24 @@ function buildIndicators(
   const workoutsCount = workouts.length;
   const cold = workoutsCount === 0;
 
-  // Plateau — canonical state/status from the shared helper; home picks its
-  // own context/prompt copy off the resulting status string.
-  const plateauStatus = computePlateauStatus(coach, workoutsCount);
+  // Plateau — strict detector (P0.8). Fires only when a lift has truly
+  // stagnated over the full 6-session window; peak-and-pullback is normal.
+  const plateauStatus = computePlateauStatus(workouts);
   let plateauContext: string;
   let plateauPrompt: string;
   if (plateauStatus.status === "No data yet") {
     plateauContext = "Log a workout and I'll start watching your tracked lifts for stalls.";
     plateauPrompt = "Once I start logging, how does the plateau indicator decide a lift has stalled?";
-  } else if (plateauStatus.status === "Detected") {
-    const ex = coach.keyFocusExercise ?? "a key lift";
-    const isDeclining = coach.keyFocusType === "declining";
-    plateauContext = `${ex} ${isDeclining ? "is trending down" : "hasn't moved in your recent sessions"}.`;
-    plateauPrompt = `My plateau indicator is flagged on ${ex}. Walk me through what's happening and what to change next session.`;
+  } else if (plateauStatus.status === "Detected" && plateauStatus.detection) {
+    const d = plateauStatus.detection;
+    if (d.kind === "declining") {
+      plateauContext = `${d.exercise} is trending down across your last ${d.sessionsTracked} sessions.`;
+    } else if (d.kind === "net-flat-with-variance") {
+      plateauContext = `${d.exercise} hasn't made net progress over your last ${d.sessionsTracked} sessions.`;
+    } else {
+      plateauContext = `${d.exercise} has been flat for ${d.sessionsTracked} sessions.`;
+    }
+    plateauPrompt = `My plateau indicator is flagged on ${d.exercise}. Walk me through what's happening and what to change next session.`;
   } else if (plateauStatus.status === "Early read") {
     plateauContext = `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the trend reads cleanly.`;
     plateauPrompt = "I've only got a couple of sessions logged. How many do you need before plateau detection is reliable?";
