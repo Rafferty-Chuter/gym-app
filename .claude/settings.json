@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && if [ ! -d node_modules ]; then npm ci --no-audit --no-fund; fi",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}

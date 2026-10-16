@@ -1,0 +1,122 @@
+{
+  "app/components/OnboardingGate.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "app/history/page.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 3
+    }
+  },
+  "app/templates/page.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "app/volume/page.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "app/workout/page.tsx": {
+    "react-hooks/purity": {
+      "count": 2
+    }
+  },
+  "app/workout/start/page.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "components/ActiveWorkoutResumeBar.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "components/CreateExerciseModal.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "components/LiftProgressionSection.tsx": {
+    "react-hooks/rules-of-hooks": {
+      "count": 2
+    }
+  },
+  "lib/assistantExplanation.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "lib/dayQuality.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "lib/experienceLevel.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "lib/llmPlannedSessionMapper.ts": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "lib/planSingleSessionWorkoutLLM.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "lib/priorityGoal.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "lib/trainingFocus.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "lib/trainingKnowledge/exerciseCombinationLogic.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "lib/trainingKnowledge/exerciseContribution.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "lib/trainingKnowledge/exerciseRedundancy.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "lib/trainingKnowledge/exerciseSelection.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "lib/trainingKnowledge/muscleCoverage.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "lib/trainingKnowledge/trainingAnswerSupport.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "lib/unit-preference.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "lib/workout-store.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  }
+}

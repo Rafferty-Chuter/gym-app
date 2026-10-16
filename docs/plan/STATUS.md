@@ -1,6 +1,6 @@
 # Status
 
-Working branch: _(set by the first session)_
+Working branch: `claude/admiring-ptolemy-mz6jwu` (this session's assigned branch; merge to `main` for H5)
 
 
 Update this file at the end of every ticket. Statuses: `todo` · `doing` · `done` · `blocked` · `skipped`.
@@ -15,7 +15,7 @@ Update this file at the end of every ticket. Statuses: `todo` · `doing` · `don
 ## M1 — Body layer MVP (★ = morning critical path, in this order)
 | Ticket | Status | Date | Evidence / notes |
 |---|---|---|---|
-| ★ F1 Tooling, check, lint baseline, session hook | todo | | |
+| ★ F1 Tooling, check, lint baseline, session hook | done | 2026-10-16 | vitest + happy-dom (bumped @types/node to ^22 for vitest 5); `npm run check` and `npm run build` pass; `eslint-suppressions.json` freezes 41 old errors; SessionStart hook runs `npm ci` when needed; `.env.example`; skills vendored: `web-design-guidelines`, `vercel-react-best-practices` (the skill is named `vercel-react-best-practices`, not `react-best-practices`); PRODUCT.md updated per 01 §5 (D4 default); **DESIGN.md written from the approved brief** (MacroFactor-style direction) |
 | ★ F3 Foundations (stats, dates, units, storage, models, API guard) | todo | | |
 | ★ P1 Physique types + repos | todo | | |
 | ★ P2 Weight engine + fixtures | todo | | |
