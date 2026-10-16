@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, notFound } from "next/navigation";
 import {
@@ -12,6 +12,9 @@ import {
 } from "@/lib/trainingAnalysis";
 import { getUniqueExerciseNames } from "@/lib/trainingMetrics";
 import { useUnit } from "@/lib/unit-preference";
+import { STATE_COLOR, type SignalState } from "@/lib/ui/status";
+import { SIGNAL_ICON } from "@/components/ui/SignalIcons";
+import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
 import { usePriorityGoal } from "@/lib/priorityGoal";
@@ -55,131 +58,6 @@ function formatGroupList(labels: string[]): string {
 }
 
 type SignalKey = "plateau" | "volume" | "progress";
-type SignalState = "good" | "watch" | "attention" | "unknown";
-
-const STATE_COLOR: Record<
-  SignalState,
-  {
-    stroke: string;
-    iconBg: string;
-    iconBorder: string;
-    statusText: string;
-    statusBg: string;
-    statusBorder: string;
-    chartLine: string;
-    chartFill: string;
-  }
-> = {
-  good: {
-    stroke: "#00e5b0",
-    iconBg: "rgba(0,229,176,0.10)",
-    iconBorder: "rgba(0,229,176,0.30)",
-    statusText: "#00e5b0",
-    statusBg: "rgba(0,229,176,0.10)",
-    statusBorder: "rgba(0,229,176,0.30)",
-    chartLine: "#00e5b0",
-    chartFill: "rgba(0,229,176,0.10)",
-  },
-  watch: {
-    stroke: "#fbbf24",
-    iconBg: "rgba(251,191,36,0.10)",
-    iconBorder: "rgba(251,191,36,0.32)",
-    statusText: "#fbbf24",
-    statusBg: "rgba(251,191,36,0.10)",
-    statusBorder: "rgba(251,191,36,0.32)",
-    chartLine: "#fbbf24",
-    chartFill: "rgba(251,191,36,0.10)",
-  },
-  attention: {
-    stroke: "#fb7185",
-    iconBg: "rgba(251,113,133,0.10)",
-    iconBorder: "rgba(251,113,133,0.32)",
-    statusText: "#fb7185",
-    statusBg: "rgba(251,113,133,0.10)",
-    statusBorder: "rgba(251,113,133,0.32)",
-    chartLine: "#fb7185",
-    chartFill: "rgba(251,113,133,0.10)",
-  },
-  unknown: {
-    stroke: "rgba(140,200,196,0.50)",
-    iconBg: "rgba(140,200,196,0.06)",
-    iconBorder: "rgba(140,200,196,0.18)",
-    statusText: "rgba(140,200,196,0.65)",
-    statusBg: "rgba(140,200,196,0.05)",
-    statusBorder: "rgba(140,200,196,0.16)",
-    chartLine: "rgba(140,200,196,0.50)",
-    chartFill: "rgba(140,200,196,0.06)",
-  },
-};
-
-const SUBSCRIBE_NOOP = () => () => {};
-function useIsHydrated(): boolean {
-  return useSyncExternalStore(
-    SUBSCRIBE_NOOP,
-    () => true,
-    () => false
-  );
-}
-
-function PlateauIcon({ color }: { color: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[22px] w-[22px]"
-      aria-hidden
-    >
-      <path d="M3 18 L8 11 L16 11 L21 18" />
-    </svg>
-  );
-}
-
-function VolumeIcon({ color }: { color: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[22px] w-[22px]"
-      aria-hidden
-    >
-      <line x1="6" y1="19" x2="6" y2="14" />
-      <line x1="12" y1="19" x2="12" y2="9" />
-      <line x1="18" y1="19" x2="18" y2="11" />
-    </svg>
-  );
-}
-
-function ProgressIcon({ color }: { color: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[22px] w-[22px]"
-      aria-hidden
-    >
-      <path d="M3 17 L9 11 L13 14 L21 6" />
-      <polyline points="15 6 21 6 21 12" />
-    </svg>
-  );
-}
-
-const ICONS: Record<SignalKey, React.ComponentType<{ color: string }>> = {
-  plateau: PlateauIcon,
-  volume: VolumeIcon,
-  progress: ProgressIcon,
-};
 
 const LABEL: Record<SignalKey, string> = {
   plateau: "Plateau",
@@ -1235,7 +1113,7 @@ export default function SignalDetailPage() {
     : staticContent!.status;
 
   const c = STATE_COLOR[headerState];
-  const Icon = ICONS[key];
+  const Icon = SIGNAL_ICON[key];
 
   function openAssistantWithPrompt(prompt: string) {
     if (typeof window !== "undefined") {

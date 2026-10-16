@@ -19,13 +19,4 @@ export function useRecordStore<T>(store: RecordStore<T>): Readonly<Record<string
   return useSyncExternalStore(store.subscribe, store.snapshot, () => EMPTY_RECORD as Readonly<Record<string, T>>);
 }
 
-const SUBSCRIBE_NOOP = () => () => {};
-
-/** True once the component has mounted on the client. */
-export function useIsHydrated(): boolean {
-  return useSyncExternalStore(
-    SUBSCRIBE_NOOP,
-    () => true,
-    () => false
-  );
-}
+export { useIsHydrated } from "@/lib/ui/useIsHydrated";
