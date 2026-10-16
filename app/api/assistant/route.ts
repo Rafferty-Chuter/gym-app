@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { logAssistantCallCost } from "@/lib/assistantCostLogging";
+import { ASSISTANT_MODEL } from "@/lib/ai/models";
 import { getDailyUsage, isOverDailyCap } from "@/lib/assistantDailyCap";
 import { formatUserProfileBlock, type OnboardingProfile } from "@/lib/onboardingProfile";
 import {
@@ -2877,7 +2878,6 @@ ${benchEstimateBlock}`.trim();
     });
   };
 
-  const ASSISTANT_MODEL = "claude-sonnet-4-6";
 
   if (onDelta) {
     const startedAt = Date.now();

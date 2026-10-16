@@ -18,6 +18,7 @@ import {
   getBestSet,
 } from "@/lib/trainingMetrics";
 import { getCompletedLoggedSets } from "@/lib/completedSets";
+import { leastSquaresSlope } from "@/lib/stats";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
 export const TREND_WINDOW = 6;
@@ -43,23 +44,6 @@ export type LiftTrendStatus = {
   windowChangePct: number;
 };
 
-function leastSquaresSlope(values: readonly number[]): number {
-  const n = values.length;
-  if (n < 2) return 0;
-  let sumX = 0;
-  let sumY = 0;
-  let sumXY = 0;
-  let sumXX = 0;
-  for (let i = 0; i < n; i++) {
-    sumX += i;
-    sumY += values[i];
-    sumXY += i * values[i];
-    sumXX += i * i;
-  }
-  const denom = n * sumXX - sumX * sumX;
-  if (denom === 0) return 0;
-  return (n * sumXY - sumX * sumY) / denom;
-}
 
 /**
  * Classify an already-extracted e1RM series (oldest → newest).

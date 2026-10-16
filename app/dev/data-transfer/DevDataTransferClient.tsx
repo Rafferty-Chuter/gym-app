@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   APP_LOCAL_STORAGE_KEYS,
+  downloadAppLocalStorageSnapshot,
   exportAppLocalStorageSnapshot,
   importAppLocalStorageSnapshot,
   listUnknownKeysInImport,
@@ -57,13 +58,29 @@ export default function DevDataTransferClient() {
 
         <section className="rounded-2xl border border-amber-500/25 bg-zinc-900/80 p-5 space-y-3">
           <h2 className="text-lg font-semibold text-amber-100">Export</h2>
-          <button
-            type="button"
-            onClick={handleExport}
-            className="rounded-xl bg-amber-500/20 border border-amber-400/40 px-4 py-2.5 text-sm font-semibold text-amber-100 hover:bg-amber-500/30"
-          >
-            Export Data
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  downloadAppLocalStorageSnapshot();
+                  setStatus("Downloaded a .json backup.");
+                } catch (e) {
+                  setStatus(e instanceof Error ? e.message : "Download failed.");
+                }
+              }}
+              className="rounded-xl bg-amber-500/20 border border-amber-400/40 px-4 py-2.5 text-sm font-semibold text-amber-100 hover:bg-amber-500/30"
+            >
+              Download .json
+            </button>
+            <button
+              type="button"
+              onClick={handleExport}
+              className="rounded-xl border border-zinc-600 px-4 py-2.5 text-sm font-semibold text-zinc-200 hover:bg-zinc-800"
+            >
+              Show as text
+            </button>
+          </div>
           <textarea
             readOnly
             value={exportText}

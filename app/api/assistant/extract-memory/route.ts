@@ -17,6 +17,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { EXTRACT_MEMORY_MODEL } from "@/lib/ai/models";
 import { logAssistantCallCost } from "@/lib/assistantCostLogging";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -103,7 +104,6 @@ export async function POST(req: Request) {
   );
 
   try {
-    const EXTRACT_MEMORY_MODEL = "claude-sonnet-4-6";
     const startedAt = Date.now();
     const response = await anthropic.messages.create({
       model: EXTRACT_MEMORY_MODEL,

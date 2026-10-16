@@ -16,8 +16,8 @@ Update this file at the end of every ticket. Statuses: `todo` · `doing` · `don
 | Ticket | Status | Date | Evidence / notes |
 |---|---|---|---|
 | ★ F1 Tooling, check, lint baseline, session hook | done | 2026-10-16 | vitest + happy-dom (bumped @types/node to ^22 for vitest 5); `npm run check` and `npm run build` pass; `eslint-suppressions.json` freezes 41 old errors; SessionStart hook runs `npm ci` when needed; `.env.example`; skills vendored: `web-design-guidelines`, `vercel-react-best-practices` (the skill is named `vercel-react-best-practices`, not `react-best-practices`); PRODUCT.md updated per 01 §5 (D4 default); **DESIGN.md written from the approved brief** (MacroFactor-style direction) |
-| ★ F3 Foundations (stats, dates, units, storage, models, API guard) | todo | | |
-| ★ P1 Physique types + repos | todo | | |
+| ★ F3 Foundations (stats, dates, units, storage, models, API guard) | done | 2026-10-16 | `lib/stats.ts` (olsSlope hand-worked SE test; robustSlope iterates clipped refits, spike test), `lib/dates.ts` (tz test), `lib/units.ts`, `lib/storage/{keys,kv,repo,useStored}.ts` (round-trip, quota rejection, backup superset + legacy import tests), `lib/ai/models.ts` (4 sites pointed at it; rates table for cost logging), `lib/api/guard.ts` (zod→cap order test), liftTrend uses shared slope (3 characterisation tests). Download .json button on Data tools. Deviation: robustSlope refits to convergence (max 8) rather than once; one refit left a 0.14 %/wk shift from a 3 kg spike. |
+| ★ P1 Physique types + repos | done | 2026-10-16 | `lib/physique/types.ts`, `lib/physique/io/{repos,profile}.ts`; keys registered; backup round-trip test; profile resolution test. Fixed a storage-seam bug found by the test: stores now register change listeners on write/clear too, and import goes through `kv` so caches invalidate. |
 | ★ P2 Weight engine + fixtures | todo | | |
 | ★ U1 UI primitives | todo | | |
 | ★ U2a Body page: logging + trend chart | todo | | |
