@@ -2,269 +2,431 @@
 
 How to work a ticket: see "Session protocol" in `README.md`, or run the `/next-ticket` skill. Track progress in `STATUS.md`.
 
-**Ticket format.** Milestone · size (see size key below) · depends on · skills to load · read first · what to do · acceptance criteria · verification.
+**Ticket format.** Milestone · size · depends on · skills to load · read first · what to do · acceptance criteria.
 
 **★ = morning critical path.** Do these in this order:
 
 `F1 → F3 → P1 → P2 → U1 → U2a → I1 → P3 → U3 → P4 → P5 → U2b → I2 → V1`
 
-**Why logging comes before the judge.** The judge can't say anything until there are about 14–21 days of weight and food data (02 §2.2, §4.3). So the first goal is to make **logging live** (weight, food, sleep, with the trend chart) so data starts building up from day one. If the overnight run stops early, you can still start logging in the morning, and the judge lands next. It will have data by the time it's allowed to speak.
+**Why logging comes before the judge.** The judge can't say anything until there are about 14–28 days of weight and food data (02 §2.2, §4.3). So the first goal is to make **logging live** (weight, food, sleep, waist, with the trend chart) so data starts building up from day one. If the overnight run stops early, you can still start logging in the morning, once the branch is deployed (H5). The judge lands next, and it will have data by the time it's allowed to speak.
 
-**Size key:** S ≈ 15–30 min, M ≈ 30–90 min, L ≈ 1.5–3 h of agent time. The full ★ path is roughly 10–14 hours of agent time. Everything else in M1 follows.
+**Size key:** S ≈ 15–30 min, M ≈ 30–90 min, L ≈ 1.5–3 h of agent time. The full ★ path is roughly 10–14 hours of agent time.
+
+### Rules for autonomous runs (apply to every ticket)
+
+1. **Criteria that need secrets, paid API calls or human judgement never block a ticket.** Record "not run: no key" (or "needs human check") in STATUS, then mark the ticket done once everything else passes.
+2. **Time box.** If a ticket runs past 2× its size, ship the tested subset, log the rest as a follow-up row in STATUS, and continue.
+3. **The design skill in an autonomous run.**
+   - `05-design.md` is the **user-approved shape brief** for every M1 UI ticket. Its §1–7 count as an already-confirmed brief, so record `shape=pass(05-design)`.
+   - Image probes: record `image_gate=skipped:autonomous-run`.
+   - Never run `$impeccable shape`, `teach` or anything else that waits for a reply.
+   - Use `critique`, `audit` and `polish` after building.
+4. **Before pushing a UI or route change, run `npm run build` too.** It catches Next-only errors such as invalid route exports or a missing Suspense boundary around `useSearchParams`.
+5. **ESLint suppressions.** If lint fails with "suppressions left that do not occur anymore", run `npx eslint --prune-suppressions` and commit the file. Never re-run `--suppress-all` after F1.
+6. **Never write to real user data.** Seed and dev pages are dev-only (`notFound()` in production).
 
 ---
 
-## M0 — Your setup (human, about 15 minutes)
+## M0 — Your setup (human)
 
-### H1 · Back up and protect your data
-1. On your iPhone, open the deployed app in Safari → Profile → Data tools → **Export**. Save the JSON to Files.
-2. Safari → Share → **Add to Home Screen**, and open the app from that icon from now on. Safari deletes a site's storage after 7 days without a visit; Home Screen apps are exempt.
+### H1 · Back up and protect your data (5 min)
+1. On your iPhone, open the production app in Safari → Profile → Data tools → **Export**, and save the JSON somewhere safe. After F3 there's a "Download .json" button.
+2. Safari → Share → **Add to Home Screen**, and use that icon from now on. Safari deletes a site's storage after 7 days without a visit; Home Screen apps are exempt.
 3. Repeat the export weekly until M3 moves data to Supabase.
 
-### H2 · Prepare the sessions
-1. Merge this plan into your main branch, so every new session sees `CLAUDE.md` and `docs/plan/`. Or start sessions on this branch.
-2. In the Claude Code cloud environment settings, check that `ANTHROPIC_API_KEY` is available if you want sessions to run `npm run eval`. It's optional; evals cost money.
-3. Start sessions with the Fable model. Paste the kickoff prompt from `README.md`.
+### H2 · Prepare the sessions (5 min)
+1. Merge this plan's branch (`claude/admiring-ptolemy-mz6jwu`) into `main`, so every session sees `CLAUDE.md` and `docs/plan/`. If you don't, the kickoff prompt branches from the plan branch instead.
+2. Optional: make `ANTHROPIC_API_KEY` available to the cloud environment if you want sessions to run `npm run eval` (it costs money). Without it, AI-dependent checks are recorded as "not run".
+3. Start sessions with the Fable model and paste the kickoff prompt from `README.md`.
+
+### H5 · Ship M1 to your phone (after the overnight run)
+1. Check `STATUS.md`: the ★ tickets up to at least **U2a + I1** are `done`, and `npm run build` passed.
+2. Export a backup from production (H1).
+3. Merge `physique/m1` (or the session's branch) into `main`. Vercel deploys production.
+4. Log **only** in the production Home Screen app. Preview deployments are a different origin, so anything logged there won't appear in production.
 
 ---
 
 ## M1 — Body layer MVP
 
 ### ★ F1 · Tooling: tests, one check command, lint baseline, session hook
-M1 · S · depends on: — · skills: `session-start-hook`
+M1 · S · depends on: — · skills: `session-start-hook` (as reference only: skip its commit/push and wrap-up steps)
 Read first: `research/E-codebase-audit.md` §5.1, §5.4.
 
 Do:
-1. `npm i -D vitest`. Add `vitest.config.ts` with the `@/` alias, and scripts `test`, `typecheck` (`tsc --noEmit`) and `check` (`npm run typecheck && npm run lint && npm test`).
+1. `npm i -D vitest happy-dom`.
+   - Add `vitest.config.ts` with the `@/` alias and `environment: "happy-dom"`.
+   - Add scripts: `"test": "vitest run"`, `"typecheck": "tsc --noEmit"`, `"check": "npm run typecheck && npm run lint && npm test"`.
 2. Port `scripts/test-volume-rules.ts` to `lib/__tests__/volumeRules.test.ts`.
-3. In `eslint.config.mjs`, add `.agents/**` to `globalIgnores`. Run `npx eslint --suppress-all` to freeze the existing violations into `eslint-suppressions.json`. New violations still fail.
-4. Use the `session-start-hook` skill to add a SessionStart hook that runs `npm ci` when `node_modules` is missing, so cloud sessions can run tests.
-5. Add `.env.example` listing `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`.
-6. Vendor the web skills from `06-tooling.md` §2 (`npx skills add vercel-labs/agent-skills --skill react-best-practices --skill web-design-guidelines -a claude-code -y`, with `DISABLE_TELEMETRY=1`) and commit `.claude/skills/*` and `skills-lock.json`. If the network blocks it, note that in STATUS and continue.
+3. ESLint baseline:
+   - In `eslint.config.mjs`, add `.agents/**` and `.claude/skills/**` to `globalIgnores`.
+   - Run `npx eslint --suppress-all` **once** to freeze the existing errors into `eslint-suppressions.json`, and commit it.
+   - New violations still fail. ESLint 9.39.4 is installed and supports suppressions.
+4. Add a SessionStart hook in `.claude/settings.json` that runs `npm ci` when `node_modules` is missing, with a timeout ≥ 300 s.
+5. Add `.env.example` listing `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`, and `!.env.example` to `.gitignore`.
+6. Vendor the web skills from `06-tooling.md` §2 (`DISABLE_TELEMETRY=1 npx skills add vercel-labs/agent-skills --skill react-best-practices --skill web-design-guidelines -a claude-code -y`).
+   - Commit `.agents/skills/*`, the `.claude/skills/*` symlinks and `skills-lock.json`.
+   - If the network blocks it, note that in STATUS and continue.
 7. Unless README decision D4 says otherwise, apply `01-product-spec.md` §5 to `PRODUCT.md`.
 
 Acceptance:
-- [ ] `npm run check` exits 0 on a clean checkout.
-- [ ] Introducing a new lint error makes `npm run lint` fail.
+- [ ] `npm run check` exits 0.
+- [ ] A new deliberate lint error makes `npm run lint` fail. Revert it afterwards.
 - [ ] The volume-rules tests pass under vitest.
+- [ ] `npm run build` passes.
 
 ### F2 · Fix the bugs that corrupt data
-M1 · M · depends on: F1
+M1 · M · depends on: F1 (not on the ★ path; run after V1)
 Read first: `research/E-codebase-audit.md` §5.7; `research/B-training-apps.md` HV-11.
 
-Do (one test per fix):
+Do (one test per fix; prune suppressions afterwards, per rule 5):
 1. History edit drops `rir` and `exerciseId` (`app/history/page.tsx:36-41, 145-150`). Preserve every set field through edit and save.
-2. Hevy CSV with `weight_lbs` imports blank weights (`lib/csvImport.ts` `parseHevy`). Accept `weight_kg` or `weight_lbs` and convert to the user's unit. Map `set_type` failure → RIR 0 and dropset → merge into the previous set. Read `superset_id` (store it if present).
+2. Hevy CSV with `weight_lbs` imports blank weights (`lib/csvImport.ts` `parseHevy`).
+   - Accept `weight_kg` or `weight_lbs` and convert to the user's unit.
+   - Map `set_type` failure → RIR 0, and dropset → merge into the previous set.
+   - Read `superset_id` and store it if present.
 3. `addWorkout` doesn't dispatch `workoutHistoryChanged` (`lib/workout-store.tsx:106-114`).
-4. The non-streaming JSON path leaks `<datasources>` (`route.ts:4139-4140`). Strip it the same way the stream path does.
-5. The backup allowlist misses `assistantMemory`, `restTimerNotifySettings` and `volumeEnabledOptionalGroups`, and wrongly lists sessionStorage keys (`lib/devDataTransfer.ts:5-24`).
-6. Conditional hooks in `components/LiftProgressionSection.tsx:180/225-226`.
+4. The non-streaming JSON path leaks `<datasources>` (`app/api/assistant/route.ts:4139-4140`). Strip it the same way the stream path does.
+5. Conditional hooks in `components/LiftProgressionSection.tsx:180/225-226`.
 
 Acceptance:
-- [ ] Each fix has a test (or, for UI-only fixes, a short manual check recorded in STATUS).
+- [ ] Each fix has a test, or for UI-only fixes a short manual check recorded in STATUS.
 - [ ] `npm run check` passes.
 
 ### ★ F3 · Foundations: stats, dates, units, storage seam, models, API guard
 M1 · M · depends on: F1
-Read first: `03-architecture.md` §2; `research/E-codebase-audit.md` §7.2–7.3.
+Read first: `03-architecture.md` §2; `research/E-codebase-audit.md` §1.4, §7.2–7.3.
 
 Do:
-1. **`lib/stats.ts`:** `mean`, `median`, `stdev`, `winsorize`, `ewma`, and `olsSlope(xs, ys)` returning `{slope, intercept, se, n}`. Move the private `leastSquaresSlope` out of `lib/liftTrend.ts` and re-export it, keeping liftTrend's behaviour identical.
-2. **`lib/dates.ts`:** `localDateKey(date, tz?)`, `addDays`, `dayDiff`, `dateRange`, `weekday`. All take explicit dates (no implicit now).
-3. **`lib/units.ts`:** a single `KG_PER_LB = 0.45359237`; `kgToDisplay`, `displayToKg`, `formatWeight(kg, unit)`, `formatKcal`. Don't migrate existing callers yet (M2/F7).
-4. **`lib/storage/`:** build `keys.ts`, `kv.ts`, `useStored.ts` and `repo.ts` per `03-architecture.md` §2.
-   - `createRepo<T extends {id: string}>(key)` exposes async `list`, `get`, `upsert`, `remove`, `bulkUpsert` and `subscribe`, plus a sync `snapshot()` for `useSyncExternalStore`.
-   - Make `lib/devDataTransfer.ts` derive its allowlist from `keys.ts` (registered keys flagged `includeInBackup`).
-5. **`lib/ai/models.ts`:** `ASSISTANT_MODEL = "claude-sonnet-4-6"` (unchanged for now) and `FOOD_PARSE_MODEL = "claude-opus-5-5"`. Point the 4 hard-coded sites at it.
-6. **`lib/api/guard.ts`:** `withPaidRoute({schema, maxBytes, subCall}, handler)`. It:
+1. **`lib/stats.ts`** (pure):
+   - `mean`, `median`, `mad`, `stdev`, `winsorize`, `ewma`;
+   - `olsSlope(xs, ys)` → `{slope, intercept, se, n}`;
+   - `robustSlope(xs, ys)` (OLS, cap residuals at 3 × MAD, refit once) → same shape.
+
+   Move the private `leastSquaresSlope` out of `lib/liftTrend.ts` and keep liftTrend's behaviour identical.
+2. **`lib/dates.ts`** (pure): `localDateKey(date, tz)`, `addDays`, `dayDiff`, `dateRange`, `weekday`, `isWeekday`, plus `clientNow()`. `clientNow()` is the only impure helper; it returns `{today: "YYYY-MM-DD", tz}` from `Intl.DateTimeFormat().resolvedOptions().timeZone`.
+3. **`lib/units.ts`** (pure):
+   - a single `KG_PER_LB = 0.45359237`;
+   - `kgToDisplay`, `displayToKg`, `formatWeight(kg, unit)`, `formatKcal`;
+   - `parseWeightText(text, unit)` → kg or `null` for "", "BW" or NaN.
+
+   Don't migrate existing callers yet (F7).
+4. **`lib/storage/`:**
+   - `keys.ts`: the registry (`key`, `scope`, `version`, `includeInBackup`, `owner`). Pre-register **every key in research E §1.4's table**.
+   - `kv.ts`: `get`/`set`/`remove`. `set` returns `{ok: true} | {ok: false, error}`; never swallow `QuotaExceededError`.
+   - `useStored.ts`: a `useSyncExternalStore` hook.
+   - `repo.ts`:
+     - `createRepo<T extends {id: string}>(key)` exposes async `list({from?, to?})`, `get`, `upsert`, `bulkUpsert`, `remove`, `subscribe`, plus a sync `snapshot()`. Writes reject when `kv.set` fails.
+     - `createSingleton<T>(key)` exposes `get`, `set`, `subscribe`, `snapshot`.
+     - `createRecordStore<T>(key)` holds a date-keyed map (for `dayFlags`).
+5. **Backup:** make `lib/devDataTransfer.ts` derive its allowlist from `keys.ts` (`includeInBackup`). Add a **"Download .json"** button to `app/dev/data-transfer/DevDataTransferClient.tsx`, keeping the textarea.
+6. **`lib/ai/models.ts`:** `ASSISTANT_MODEL = "claude-sonnet-4-6"` (unchanged) and `FOOD_PARSE_MODEL = "claude-opus-5-5"`. Point the 4 hard-coded sites at it: `app/api/assistant/route.ts:2880`, `app/api/assistant/extract-memory/route.ts` (model const), `lib/planSingleSessionWorkoutLLM.ts:10`, `evals/run.ts:22`.
+7. **`lib/api/guard.ts`:** `withPaidRoute({schema, maxBytes, subCall}, handler)`. It:
    - parses and validates the body with zod (add `zod` as a direct dependency);
    - **then** checks the daily cap;
    - requires `client_id`;
    - wraps cost logging;
    - returns generic errors.
 
-   New routes use it. Existing routes migrate in F8.
+   New routes use it.
 
 Acceptance:
-- [ ] Every function above has unit tests. `olsSlope` matches a hand-computed example, and its SE matches a reference (e.g. numpy or a worked example).
-- [ ] `liftTrend` tests (add 3 characterisation cases) still pass after the move.
-- [ ] The backup export includes every registered `includeInBackup` key.
+- [ ] Unit tests for every function. `olsSlope` and its SE match a hand-worked example. `robustSlope` ignores a single +3 kg outlier (it moves the slope by < 0.05 %/wk where OLS moves it ~0.3).
+- [ ] `liftTrend` behaviour is unchanged (3 characterisation tests added before the move).
+- [ ] **Backup test:** the exported key set ⊇ the old `APP_LOCAL_STORAGE_KEYS` − {`workoutFromTemplate`, `workoutSuggestedMuscle`} + {`assistantMemory`, `restTimerNotifySettings`, `volumeEnabledOptionalGroups`}. A pre-F3 export fixture imports losslessly.
+- [ ] A forced `QuotaExceededError` (mock) makes `upsert` reject.
 
 ### ★ P1 · Physique types and repositories
 M1 · S · depends on: F3
-Read first: `02-engine-spec.md` §1, §5.1, §8.1; `03-architecture.md` §3.1.
+Read first: `02-engine-spec.md` §1, §5.1, §8.1; `03-architecture.md` §2–3.1.
 
 Do:
-1. `lib/physique/types.ts` with every entity, `PhysiqueAnalysis`, `Verdict`, `Recommendation` and `RuleId` (a union of every rule id in 02 §7.3 and §8).
-2. `lib/physique/repos.ts`: one repo per key in 03 §3.1, all registered in `keys.ts` with `includeInBackup: true`.
-3. `lib/physique/profile.ts`: `getPhysiqueProfile()` reads `OnboardingProfile` (sex, age → birthYear, heightCm, units) and merges the physique-only fields. Defaults: `generalActivity` moderate, `proteinLevel` moderate, `dietType` balanced, `calorieFloor` standard, `checkInWeekday` 1 (Monday), `expenditureStartDate` = first weigh-in or food day.
+1. `lib/physique/types.ts`: every entity in 02 §1.1, plus `PhysiqueAnalysis`, `Verdict`, `Recommendation`, `RuleId` (every id in 02 §7.3 and §8.2), `PhysiqueProgram` (03 §3.1) and `DailyIntake` (`{date, kcal, proteinG, carbsG, fatG, status}`, derived from food entries and flags by `intake.ts`).
+2. `lib/physique/io/repos.ts`: the repos and singletons for each key in 03 §3.1, registered in `keys.ts` with `includeInBackup: true`.
+3. `lib/physique/io/profile.ts`: `getPhysiqueProfile()` merges `OnboardingProfile` (`sex`, `age`, `heightCm`, `units`) with the physique-only fields.
+   - **Defaults:** `generalActivity` moderate; `proteinLevel` moderate; `dietType` balanced; `checkInWeekday` 1; `sleepGoalH` 8; `age` 30 if missing.
+   - `expenditureStartDate` = the first day with both a weigh-in and logged food.
+   - It reports which required fields (`heightCm`, `sex`) are missing.
 
 Acceptance:
 - [ ] Repo round-trip tests: upsert, list by date range, remove, subscribe fires.
 - [ ] A backup export followed by an import restores physique data.
 
-### ★ P2 · Weight engine and synthetic fixtures
+### ★ P2 · Weight engine and the scenario generator
 M1 · M · depends on: P1
-Read first: `02-engine-spec.md` §2; `research/F-evidence-rules.md` §5; `research/A-macrofactor-nutrition.md` §G.3 and §G.6.
+Read first: `02-engine-spec.md` §1.2, §2, §8.4; `research/F-evidence-rules.md` §5; `research/A-macrofactor-nutrition.md` §G.3, §G.6.
 
 Do:
-1. `lib/physique/fixtures.ts` (a normal module, so both tests and the dev seed page can import it): a seeded PRNG plus `makeScenario({days, startKg, ratePctPerWeek, noiseSdKg: 0.5, phi: 0.5, weighInDays: "daily" | "4x" | "sparse", intakeKcal, intakeSd: 350, sleepH, sleepSd, lifts: [{name, startE1rm, slopePctPerWeek, perWeek}], events})`. It returns `{weighIns, foodDays, sleepNights, workouts}` in repo shapes.
-2. `lib/physique/weight.ts`: `interpolateDaily`, `trendSeries` (EMA α 0.10), `rateOverWindow(weighIns, endDate, days)` → `{ratePctPerWeek, se, seAdj, n, windowDays}`, `pickRateWindow` (02 §2.2), `isConfidentlyAbove/Below`, `phaseMaskActive`, `sanityCheck(newKg, trendKg)`.
+1. `lib/physique/fixtures.ts`: a normal module, so both tests and the dev pages can import it. It holds a seeded PRNG plus `makeScenario(spec)`, with the spec from 02 §8.4.
+   - **Noise:** `noiseSdKg` is the marginal SD (default 0.5); innovation SD = marginal × √(1 − φ²).
+   - **Returns:** `{profile, goal, program, weighIns, foodEntries, dayFlags, sleepNights, waist, workouts}` in repo shapes.
+   - **Workouts** are `StoredWorkout`s with weight strings in the scenario's unit, and are tagged `name: "[seed] …"` so "Clear" can remove them.
+   - The spec takes `trueTdeeKcal`. Weight moves by (intake − trueTDEE) / 7716 per day, plus noise and the water step, so the observed rate comes out of the energy balance.
+   - For this ticket, implement the weight, intake (`{meanKcal}` mode), sleep and lifts parts. `intake: "toTarget"` (closed loop) lands in P3.
+2. `lib/physique/weight.ts`:
+   - `interpolateDaily`;
+   - `trendSeries` (EMA α 0.10, ending at the last real weigh-in);
+   - `segmentStart(goalHistory, flags, now)` (02 §1.2);
+   - `rateOverWindow(weighIns, endDate, days)` → `{ratePctPerWeek, se, seAdj, margin, n, windowDays}` using `robustSlope`;
+   - `pickWindow(rule, …)` (02 §2.2 table);
+   - `isConfidentlyAbove/Below`;
+   - `sanityCheck(newKg, trendKg)` (3%).
 
 Acceptance:
-- [ ] On a −0.6 %/wk scenario with daily weigh-ins over 21 days, the estimated rate is within ±0.3 of the truth in ≥95% of 200 seeds.
-- [ ] The rate is null below 14 days or 5 weigh-ins.
-- [ ] The EMA impulse test is reproduced (it feeds the P3 impulse test).
+- [ ] Rate accuracy over 200 seeds at 85 kg and −0.6 %/wk with daily weigh-ins: a 28-day window is within ±0.4 %/wk in ≥95% of seeds, and a 21-day window within ±0.5 in ≥95%. Research F §5 predicts ±0.30 and ±0.45 at 95%.
+- [ ] The rate is null below 14 days or 5 weigh-ins, and the phase-start mask days are excluded from windows.
+- [ ] The trend reproduces research A §G.6's impulse response once expenditure lands (assert in P3).
 
-### ★ P3 · Intake, expenditure and targets
+### ★ U1 · UI primitives
+M1 · M · depends on: F1 · skills: `impeccable` (critique/polish only; see rule 3), `dataviz`, `run`
+Read first: `05-design.md` §1–2; `research/E-codebase-audit.md` §4.
+
+Do:
+1. Extract `STATE_COLOR`, the status icons and `useIsHydrated` from `app/page.tsx` and `app/signal/[key]/page.tsx` into `lib/ui/status.ts` and `lib/ui/useIsHydrated.ts`. Both pages import them, with no visual change.
+2. `components/charts/TimeSeriesChart.tsx`:
+   - time-based x axis;
+   - dots only on days with a real value;
+   - the trend line drawn continuously between the first and last real values;
+   - an optional dashed projection line and target band;
+   - tap a point for a tooltip;
+   - y axis via `lib/chartScale.ts`;
+   - works at 390 px wide;
+   - follows the `dataviz` mark and colour rules within this app's palette.
+3. `components/ui/Sheet.tsx`: a bottom sheet with focus trap, swipe or tap to close, and safe-area padding.
+4. `components/ui/NumberPad.tsx`: digits, decimal and backspace, with an optional ±step row.
+5. `app/dev/chart/page.tsx` (dev-only): renders the chart with a `makeScenario` series. If P2 isn't merged yet, use an inline 8-week series.
+
+Acceptance:
+- [ ] The home and signal pages look identical before and after (screenshots).
+- [ ] The chart renders an 8-week weight series at 390 px and 768 px (screenshots in `docs/plan/screens/U1/`).
+
+### ★ U2a · The Body page: logging and the trend chart
+M1 · L · depends on: P2, U1 · skills: `impeccable` (rule 3), `dataviz`, `run`
+Read first: `05-design.md` §3, §5; `01-product-spec.md` §2.
+
+This makes logging live before the judge exists. Build `/body` with:
+1. **A date switcher** (‹ date ›) at the top. Every logging control acts on the selected day, for backfilling.
+2. **Today strip:**
+   - **Weight:** NumberPad sheet prefilled with the last value, with ±0.1 steps; the sanity check runs on save.
+   - **Food:** day kcal and P/C/F totals. Tap opens a **quick-add sheet**: optional label, kcal, P, C, F via the NumberPad, plus a "Recent" row of the last 8 distinct entries for one-tap re-log. U4 later replaces this with the full day log.
+   - **Sleep:** sheet with bedtime and wake prefilled from the 7-day median (else 23:00 and 07:00) with ±15-minute steppers; "hours asleep" prefilled as time in bed − 20 min; wake-ups 0 / 1–2 / 3+.
+   - **Waist** (weekly, optional): NumberPad sheet showing the measuring protocol from 02 §1.1.
+3. **Weight chart:** `TimeSeriesChart` with raw dots and the trend line. Caption: "Trend 84.2 kg · −0.6 %/wk (21 d)", or "Early read · N more weigh-ins for a rate".
+4. A **verdict placeholder** that says "Calibrating" plus what's missing. U2b replaces it.
+5. **Save failures** show "Couldn't save. Export a backup" (from the kv `{ok: false}` result).
+6. **`app/dev/seed-physique/page.tsx`** (dev-only):
+   - **Seed** first triggers a backup download, then writes a 3-week scenario through the repos;
+   - **Clear physique data** removes the physique keys and the `[seed]` workouts.
+
+**Tap counting** excludes digit entry. Accepting a prefilled value or one ±step counts as one tap. The sanity confirmation doesn't count.
+
+Acceptance:
+- [ ] A weigh-in takes ≤3 taps from `/body`, a sleep entry ≤4, and a recent-food re-log ≤2.
+- [ ] Data persists through a reload and appears in a backup export.
+- [ ] Screenshots at 390 px in `docs/plan/screens/U2a/`: the empty state, and 3 weeks of seeded data.
+- [ ] `npm run build` passes.
+
+### ★ I1 · Navigation and the home card
+M1 · S · depends on: U2a · skills: `impeccable` (rule 3), `run`
+Read first: `05-design.md` §6; `PRODUCT.md`.
+
+Do:
+1. Add a **Body** tab to `components/BottomTabs.tsx`: 5 tabs (Home, Body, Templates, History, Profile), with a simple scale icon.
+2. In `app/page.tsx`, add a compact **Physique** card below the Signals row.
+   - Three mini stats: trend weight (and rate when available), kcal logged today, and last night's sleep.
+   - Tap → `/body`.
+   - **Don't import anything from P5 here.** U2b adds the status dot, verdict title and check-in badge.
+
+Start Workout stays the dominant element.
+
+Acceptance:
+- [ ] The home layout order is unchanged except for the new card.
+- [ ] Screenshots at 390 px (empty and seeded) in `docs/plan/screens/I1/`.
+
+### ★ P3 · Intake, expenditure, targets and the program
 M1 · L · depends on: P2
-Read first: `02-engine-spec.md` §3–5; `research/A-macrofactor-nutrition.md` §A1–A4, §B2–B6, §G.
+Read first: `02-engine-spec.md` §1, §3–5; `research/A-macrofactor-nutrition.md` §A1–A4, §B2–B6, §G.
 
 Do:
-1. `intake.ts`: day status, partial suggestion, intake means, `loggedShare`, adherence, protein and fat g/kg.
-2. `expenditure.ts`: `initialTdee` (equations, activity, sessions per week inferred from `StoredWorkout[]` over the last 4 weeks, goal correction) and `expenditureSeries` (02 §4.1 pipeline, holding/updating, predictive goal adjustment, maturity state).
-3. `targets.ts`: rate bands and `trainingStatus` (02 §5.2), `weeklyTarget` (§5.3), `macros` (§5.4), floors.
+1. `intake.ts`: `dailyIntake`, day status, partial suggestions (unresolved list), intake means, `loggedShare`, adherence against the target in effect each day (02 §3), protein and fat g/kg.
+2. `expenditure.ts`:
+   - `snapshotSeed` and `initialTdee` (02 §4.2);
+   - `expenditureSeries` (02 §4.1, including the trend ending at the last weigh-in and the predictive offset as a separate ramped term);
+   - the maturity state (02 §4.3).
+3. `targets.ts`:
+   - `rateBands(status)`, `validateRate` (02 §5.2, including the refused cases);
+   - `trainingStatus`: **in P3 use the `yearsTrainingBand` fallback only**; P4 adds lift-derived status;
+   - `weeklyTarget` (§5.3), `macros` (§5.4 with the category table and protein floor), `floors`.
+4. `program.ts`: `newProgram(goal, analysisInputs, now)` (unsmoothed), `checkInProgram` (capped), `refreshProgram`. A program history entry is recorded with its `source`.
+5. Extend `makeScenario` with `intake: "toTarget"` (closed loop through `checkInProgram`, weekly).
 
 Acceptance:
-- [ ] Every golden test in 02 §4.2 passes exactly (±1 kcal rounding).
-- [ ] Impulse test: within 15 kcal of research A §G.6 at each of the 6 points.
-- [ ] Stability: mean absolute daily change after day 30 ≤ 8 kcal on noisy fixtures.
-- [ ] Holding: 3 of 7 days logged → holding; resumes after 3 consecutive complete days.
-- [ ] Partial day: the suggestion fires at 0.49× median and not at 0.51×.
+- [ ] Every golden test in 02 §4.2 passes to ±1 kcal, including the impulse test within 15 kcal at each point. The impulse setup is +4/+3/+2 lb on 3 consecutive days ending L weeks before today, from steady state.
+- [ ] **Stability:** over 50 seeds and 120 days with intake SD 350, the mean absolute daily change after 30 updating days is ≤ 8 kcal at φ = 0 and ≤ 10 kcal at φ = 0.5. **Never change α or k to pass a test.**
+- [ ] **Holding:** 3 of 7 days logged → holding; it resumes after 3 consecutive complete days.
+- [ ] **Partial suggestion:** fires at 0.49 × median, not at 0.51 ×.
+- [ ] **Seed is fixed:** editing the profile after `expenditureStartDate` doesn't change past expenditure values.
+
+### ★ U3 · Goal setup
+M1 · M · depends on: P3, U1 · skills: `impeccable` (rule 3), `run`
+Read first: `05-design.md` §4; `02-engine-spec.md` §5; `research/A-macrofactor-nutrition.md` §B2, §B10.
+
+Do: build `/body/goal`:
+0. **Missing inputs.** If `heightCm` or `sex` is missing, ask for them first, and save them by merging into `OnboardingProfile`. Ask age (default 30) and the body-fat category (optional; "skip" is allowed).
+1. **Target weight.** NumberPad, prefilled with the trend (or the last weigh-in). Direction is derived and shown.
+2. **Rate.** A slider with the 02 §5.2 bands for the training status (the chip says "Intermediate · from your training years", editable). It shows, live:
+   - the weekly change in kg;
+   - an honest ETA;
+   - the starting kcal and protein from `newProgram`.
+
+   Out-of-band rates need an extra confirm. Refused rates are disabled, with the reason shown.
+3. **Safety screen** (stored in `PhysiqueProfile`):
+   - age < 18 → SAFE-0 (no deficit);
+   - "Are you pregnant, or have you had an eating disorder?" yes → maintenance plus referral copy (SAFE-5).
+4. **Confirm.** A summary and "Start today" (sets `phaseStartConfirmedAt`). It writes the goal and **the initial program** (unsmoothed). If the user just finished a cut of 8+ weeks and is choosing a gain, show DB-2's suggestion: run 2–4 weeks at maintenance first.
+
+Acceptance:
+- [ ] 82 → 90 kg, intermediate: default +0.25 %/wk; ETA ≈ 37 weeks (ln(90/82) / ln(1.0025) ≈ 37.3).
+- [ ] A rate that implies > 1.0 kg/wk, or a day-0 deficit > 30% of TDEE₀ or > 1,000 kcal, can't be saved.
+- [ ] After confirming, the Body page's food bars show targets.
+- [ ] Screenshots in `docs/plan/screens/U3/`.
 
 ### ★ P4 · Strength and sleep modules
 M1 · M · depends on: P2
 Read first: `02-engine-spec.md` §6, §7.1–7.3; `research/C-sleep-recovery.md` §5–6; `research/F-evidence-rules.md` §6–7.
 
 Do:
-1. `strength.ts`: `e1rmAdj(set)` (skips warm-ups once T1 exists; until then treats every set as working), `bestSessionE1rm`, `pickMainLifts(workouts, now)` (compound check via `lib/exerciseMetadataLibrary.ts` role/pattern, falling back to a name list), `liftChangeVsPhaseStart`, `strengthStatus` → `dropping | holding | rising | one-lift | unclear`, with the session exclusions (short sleep, deloads, rep-range change).
-   - Workout weights are strings in the display unit. Parse them through `lib/units.ts` to kg first.
-2. `sleep.ts`: night normalisation (manual only in M1; the HealthKit shape is stubbed for M3), `sleepStatus` (wearable vs manual thresholds), `debt7`, and the inputs for SLEEP-1/1i/2/3/OK.
+1. `strength.ts`:
+   - `e1rmAdj` and `bestSessionE1rm` (weights through `parseWeightText` with the `weightUnit` setting);
+   - `pickMainLifts` (02 §1.2);
+   - `deloadWeeks`, `repRangeChanges`;
+   - `liftChangeVsPhaseStart`, `strengthStatus`;
+   - `liftDerivedTrainingStatus` (02 §5.2). Wire it into `targets.trainingStatus` when it has enough data.
+2. `sleep.ts`: night normalisation (manual in M1; the HealthKit shape is stubbed for M3), `sleepStatus` (manual vs wearable thresholds, mixed rule), `acute`, `debt7`, `mean14h`, and the SLEEP-1 corroboration inputs.
 
 Acceptance:
-- [ ] Fixture tests cover: two lifts −6% → `dropping`; one lift −8% → `one-lift`; a drop inside cut days 0–13 → suppressed; a session after a 4.5 h night is excluded.
-- [ ] Sleep tests cover: manual 6.8 h → `short`; wearable 6.8 h → `ok`; 9 of 14 nights logged → `unknown`.
+- [ ] Fixture tests:
+  - two lifts with a −8% step at day 14 (5 weeks, 2 sessions/wk, CV 0.03) → `dropping` in ≥80% of seeds;
+  - one lift −8% → `one-lift`;
+  - a drop inside cut days 0–13 → suppressed;
+  - a session after a 4.5 h night → excluded;
+  - zero main lifts → `unclear`.
+- [ ] Sleep tests:
+  - manual 6.8 h → `short`;
+  - manual 6.4 h → `severe`;
+  - wearable 6.8 h → `ok`;
+  - 9 of 14 nights → `unknown`.
 
 ### ★ P5 · The judge, status and check-in plan
 M1 · L · depends on: P3, P4
 Read first: `02-engine-spec.md` §8–10; `research/F-evidence-rules.md` "Judge rules table" and "Must NOT claim".
 
 Do:
-1. `judge.ts`: `buildPhysiqueAnalysis({goal, profile, weighIns, foodDays, dayFlags, sleepNights, workouts, waist, program}, {now})`. Implement every rule in 02 §7.3 and §8.2, the primary-verdict ordering in §8.3, and recommendations as rate changes (amendment 1). Each verdict carries `evidenceIds`.
-2. `status.ts`: the home-tile `{state, status}` (02 §8.3 mapping).
-3. `checkIn.ts`: `buildCheckInPlan` (02 §9) and `applyCheckInAnswers` (returns `DayFlags` updates plus the accepted program).
-4. `evidence.ts`: an id → citation map built from research F's reference list.
-5. A copy linter test: verdict titles and details must not contain any banned phrase from 02 §10.
+1. `judge.ts`: `buildPhysiqueAnalysis(inputs, {today, tz})`.
+   - Implement every rule (02 §7.3, §8.2 incl. changes A–D).
+   - Apply suppression and ordering (§8.3), recommendation choice and direction checks (§8.2 A), and status = most severe.
+   - There is always exactly one primary.
+2. `status.ts`: the home-tile `{state, status}`.
+3. `checkIn.ts`: `buildCheckInPlan`, `applyCheckInAnswers` (returns `DayFlags` and `WaistEntry` writes plus the accepted program).
+4. `evidence.ts`: id → citation, built from research F's reference list.
+5. **Copy linter test:** no verdict copy contains a banned phrase (02 §10). "REM" matches only as a case-sensitive whole word.
 
 Acceptance:
-- [ ] Every rule has fire / near-miss / suppressed fixtures (02 §8.4).
-- [ ] End-to-end scenarios produce the expected primary verdict:
+- [ ] Every rule has fire, near-miss and suppressed/outranked fixtures (02 §8.4).
+- [ ] Scenarios, run over 200 seeds, produce the expected primary verdict in ≥80% of seeds (single-seed snapshot tests use frozen seeds):
 
-  | Scenario | Expected primary verdict |
+  | Scenario | Expected primary |
   |---|---|
-  | Cut on track | ON-TRACK (good) |
-  | Cut at −1.4 %/wk while eating to target, 2 lifts −6%, 28 days | LOSS-1 → change_rate to −0.75 |
-  | Cut on target, manual sleep 6.4 h over 14 nights, 2 lifts −3% | SLEEP-1 (blocks rate increases) |
-  | Eating 400 under target | ADH-1 |
-  | Lean bulk intermediate at +0.75 %/wk over 35 days, eating to target | GAIN-1 |
-  | 10 days of data | DATA (unknown) |
-  | Goal implies BMI < 18.5 | SAFE-4 |
+  | 85 kg, goal −0.6, intake toTarget, 6 weeks, lifts flat | ON-TRACK |
+  | 90 kg, goal −1.0 (confirmed), intake toTarget, **true TDEE set above the seed estimate** so the observed 28-day rate is ≈ −1.5, 35 d, 2 lifts −8% step at day 14 | LOSS-1 (LOSS-3 is also acceptable if the rate passes 1.5) with `change_rate` −1.0 → −0.6 |
+  | Same, but goal −0.6 with intake 500 kcal under target | ADH-1 |
+  | 85 kg, goal −0.6, toTarget, manual sleep 6.6 h (`short`) on 13 of 14 nights, 5 weeks of lifts with a −3% step on 2 lifts at day 21 of 35 | SLEEP-1 |
+  | 80 kg intermediate, goal +0.75 (confirmed), observed ≈ +0.75, toTarget, 42 d | GAIN-1 with `change_rate` 0.75 → 0.25 |
+  | 10 days of data | DATA-RATE (unknown) |
+  | Goal injected directly with a BMI < 18.5 target | SAFE-4 |
+  | No goal | NO-GOAL |
 
+- [ ] Direction-check tests: no recommendation ever makes a LOSS rule's goal more aggressive or a GAIN-1 goal faster.
 - [ ] The copy linter passes.
 
-### ★ U1 · UI primitives
-M1 · M · depends on: F1 · skills: `impeccable`, `dataviz`
-Read first: `05-design.md` §1–2; `research/E-codebase-audit.md` §4.
-
-Do:
-1. Extract `STATE_COLOR`, the status icons and `useIsHydrated` from `app/page.tsx` and `app/signal/[key]/page.tsx` into `lib/ui/status.ts` and `lib/ui/useIsHydrated.ts`. Both pages import them. No visual change.
-2. `components/charts/TimeSeriesChart.tsx`:
-   - time-based x axis;
-   - raw points (dots) and a smoothed line;
-   - an optional target band or line;
-   - gaps where data is missing;
-   - tap a point for a tooltip;
-   - y axis via `lib/chartScale.ts`;
-   - works at 390 px wide;
-   - follows the `dataviz` skill's mark and colour rules within this app's palette.
-3. `components/ui/Sheet.tsx`: a bottom sheet with focus trap, swipe or tap to close, and safe-area padding.
-4. `components/ui/NumberPad.tsx`: digits, decimal and backspace, with an optional ±step row.
-
-Acceptance:
-- [ ] The home and signal pages look identical before and after (screenshots).
-- [ ] The chart renders a seeded 8-week weight series at 390 px and 768 px (screenshots saved).
-
-### ★ U3 · Goal setup
-M1 · M · depends on: P3, U1 · skills: `impeccable`
-Read first: `05-design.md` §4; `02-engine-spec.md` §5; `research/A-macrofactor-nutrition.md` §B2, §B10.
-
-Do: build `/body/goal` as a 3-step flow.
-1. **Target weight.** Prefilled with the current trend. Direction (lose / maintain / gain) is derived and shown.
-2. **Rate.** A slider with the colour bands from 02 §5.2 for the user's training status (derived, editable). It shows, live: the weekly change in kg, the projected ETA date (honest, e.g. "about 32 weeks"), and the starting daily kcal and protein.
-3. **Confirm.** A summary and "Start today" (sets `phaseStartConfirmedAt`). Then a safety screen: "Are you pregnant, or have you had an eating disorder?" → yes routes to maintenance plus a professional referral (SAFE-5).
-
-Out-of-band rates need an explicit confirmation; SAFE rates are refused with an explanation.
-
-Acceptance:
-- [ ] The 82 → 90 kg intermediate example shows the default rate 0.325 %/wk and an ETA of ~28–30 weeks (ln(90/82) / ln(1.00325) ≈ 28.7).
-- [ ] A rate above 1.5 %/wk can't be saved.
-- [ ] The goal is stored and its history kept.
-
-### ★ U2a · The Body page: logging and the trend chart
-M1 · L · depends on: P2, U1 · skills: `impeccable`, `dataviz`, `run`
-Read first: `05-design.md` §3; `01-product-spec.md` §2.
-
-This makes logging live before the judge exists. Build `/body` with:
-1. **A date switcher** (‹ date ›) at the top. Every logging control acts on the selected day, for backfilling.
-2. **Today strip:**
-   - **Weight:** tap opens a NumberPad sheet, prefilled with the last value; the sanity check (P2) runs on save.
-   - **Food:** shows the day's kcal and P/C/F totals (thin bars once targets exist after P3). Tap opens a **quick-add sheet**: optional label, kcal, P, C, F via the NumberPad, and a "recent" row listing the last 8 distinct entries for one-tap re-log. U4 later replaces this with the full day log.
-   - **Sleep:** tap opens a sheet with bedtime and wake prefilled from the 7-day median (or 23:00/07:00), an "hours asleep" stepper prefilled as time in bed − 20 min, and 0 / 1–2 / 3+ wake-ups.
-3. **Weight chart:** `TimeSeriesChart` with raw dots and the trend line, and the caption "Trend 84.2 kg · −0.6 %/wk (21 d)". With too little data the caption reads "Early read · 6 more weigh-ins for a rate".
-4. A **placeholder verdict area** that says "Calibrating" plus what's missing. U2b fills it in.
-5. **`app/dev/seed-physique/page.tsx`** (dev only: `notFound()` when `NODE_ENV === "production"`, so it can never overwrite real data on the deployed app). It runs **a backup export first**, then writes 3 weeks of fixture weigh-ins, food and sleep through the repos, using the P2 generator. It also has a "Clear physique data" button. V1 adds more scenarios.
-
-Acceptance:
-- [ ] Logging a weigh-in takes ≤3 taps from `/body`, sleep ≤4, and a recent food ≤2.
-- [ ] Data persists through a reload and appears in a backup export.
-- [ ] Screenshots at 390 px: empty state, and 3 weeks of seeded weigh-ins.
-
 ### ★ U2b · The Body page: verdict, energy, strength and sleep
-M1 · M · depends on: P5, U2a, U3 · skills: `impeccable`, `run`
-Read first: `05-design.md` §3, §7.
+M1 · M · depends on: P5, U2a, U3 · skills: `impeccable` (rule 3), `run`
+Read first: `05-design.md` §3, §6, §7.
 
-Add to `/body`, reading everything from `buildPhysiqueAnalysis` (the page computes nothing itself):
-1. **Header:** goal summary ("→ 90.0 kg · lean gain · +0.33 %/wk") with a progress bar on trend weight. Without a goal, show a "Set your goal" prompt linking to `/body/goal`.
+Add to `/body` and Home, reading everything from `buildPhysiqueAnalysis` (pages compute nothing themselves):
+1. **Header:** goal summary with a progress bar on trend weight, or a "Set your goal" prompt.
 2. **Verdict card:**
-   - the primary verdict (status colour, title, one line);
+   - the primary verdict (status colour, title, detail with window and n);
    - up to 3 flag rows;
-   - the recommendation, with **Apply** for `change_rate` (it updates the goal; targets change at the next check-in, or "Apply now" starts a new program);
+   - the recommendation row. `change_rate` → **Apply**, which updates the goal through `validateRate` and starts the mask and cooldown. `refresh_targets` → **Update targets now**. `confirm_days` → links to those days.
    - **Ask why**, which opens the assistant with a prefilled prompt.
-3. **Energy card:** expenditure with its maturity state (02 §4.3), today's targets, and 14-day adherence.
-4. **Strength and sleep rows:** main lifts' change since the phase started, and the 14-night sleep mean and status.
-5. **Food bars** in the today strip now show targets.
-6. **Home insight priority** (`app/page.tsx`): if the physique `status.state` is `watch` or `attention`, the assistant insight card shows the physique verdict and its follow-up chips (Why? / What do I change? / Show the data) instead of the training key focus.
+3. **Energy card:** expenditure with its maturity state and ± (02 §4.3), today's targets, and 14-day adherence.
+4. **Strength and sleep rows:** main lifts' change since the phase started (or "No pre-cut baseline yet"), plus the 14-night mean, status and debt.
+5. **Home** (`app/page.tsx`):
+   - the Physique card gets the status dot, verdict title and "Check-in ready" badge;
+   - when the status is `watch` or `attention`, the assistant insight card shows the physique verdict with chips (Why? / What do I change? / Show the data) instead of the training key focus.
+6. **Seed page:** add "On-track cut", "LOSS-1" and "Cold start" buttons (8 weeks, using P5 scenarios).
 
 Acceptance:
-- [ ] Cold start shows honest states ("Calibrating · 6 more weigh-ins"), never a fake number.
-- [ ] Screenshots at 390 px for cold start, the seeded on-track cut and the seeded LOSS-1 scenario.
+- [ ] Cold start shows honest states, never a placeholder number.
+- [ ] Screenshots at 390 px in `docs/plan/screens/U2b/`: cold start, on-track cut, LOSS-1 (Body and Home).
+- [ ] `npm run build` passes.
+
+### ★ I2 · Assistant integration
+M1 · L · depends on: P5 · skills: `claude-api`
+Read first: `03-architecture.md` §4.1; `research/E-codebase-audit.md` §2.
+
+Do: 03 §4.1 steps 1–5, plus the routing extraction below. The home insight card is already done in U2b.
+- **Routing extraction.** Move `computeStrictIntentLock` and `applyStrictIntentLock` from `app/api/assistant/route.ts` (≈ lines 516–647) into `lib/assistantStrictIntentLock.ts`. Exporting extra names from a route file breaks `next build`, and the routing tests need to call them.
+- **Minimal edits to `route.ts`:**
+  - the contract field;
+  - the block push;
+  - the `STATIC_COACH_SYSTEM_PROMPT` addition (~line 1415);
+  - the cold-start condition;
+  - `analysisPreferredKinds`;
+  - the bench-timeline regex (~line 3133) must not catch physique phrasing.
+
+Acceptance:
+- [ ] Unit test: the block is ≤2,400 characters for the largest valid payload.
+- [ ] Routing test of `applyStrictIntentLock(classifyAssistantQuestionKind(m), computeStrictIntentLock(m))`:
+  - "how long until I hit 90kg?" and 10 more physique phrasings → `physique_progress`;
+  - 5 bench phrasings still route to bench.
+- [ ] Server test: the route rejects a malformed `physique` payload with 400, and accepts a valid one without recomputing the verdict.
+- [ ] With a key only, otherwise record "not run": with the LOSS-1 seed, "is my cut working?" gets a reply that leads with the verdict, cites only block numbers and doesn't say "losing muscle"; and a second identical request shows `cache_read_input_tokens > 0`.
+- [ ] `npm run build` passes.
+
+### ★ V1 · Seed scenarios and end-to-end check
+M1 · S · depends on: U2b, I1, I2 · skills: `run`
+Do:
+1. Add the remaining scenario buttons to the seed page: SLEEP-1, GAIN-1, SAFE-4 (injected goal), no goal.
+2. Use the `run` skill: start the dev server, seed each scenario, and screenshot `/` and `/body` at 390 px into `docs/plan/screens/V1/`. Add `/body/check-in` only if U5 is done.
+3. Write `docs/plan/M1-dogfood.md`:
+   - what to log daily (weigh-in on waking, food, sleep; waist weekly);
+   - when the first rate appears (~14 days) and when verdicts can fire (21–28 days);
+   - how to record a wrong verdict in STATUS.
+
+Acceptance:
+- [ ] Every scenario screenshot shows its expected verdict from P5.
+- [ ] `npm run check` and `npm run build` pass.
+- [ ] STATUS marks H5 as ready.
 
 ### U4 · Food day log
-M1 · M · depends on: U2a · skills: `impeccable`
+M1 · M · depends on: U2a · skills: `impeccable` (rule 3), `run`
 Read first: `research/A-macrofactor-nutrition.md` §D1–D8; `05-design.md` §5.
 
-Do: build `/body/food?date=`:
-- a timeline list (time, label, kcal, P/C/F) with swipe or tap to delete or edit;
-- **quick add** (label optional; kcal, P, C, F via the NumberPad);
-- **saved foods and recents:** one tap re-logs with the last serving, and any entry can be "Save as food";
-- **copy yesterday**;
-- **Edit Day** total override;
+Build `/body/food?date=`. Wrap `useSearchParams` in Suspense. It has:
+- a timeline (time, label, kcal, P/C/F) with edit and delete;
+- quick add;
+- saved foods and recents (one tap logs the last serving), and "Save as food" on any entry;
+- copy yesterday;
+- an Edit Day total override;
 - day flags: "Mark as fasting" and "This day is incomplete".
 
 Acceptance:
 - [ ] Re-logging a recent food takes ≤2 taps.
-- [ ] Day totals update the Body page live.
-- [ ] Flags change expenditure inputs (verified by a test through the engine).
+- [ ] Day totals update the Body page.
+- [ ] Flags change the expenditure inputs (an engine test).
+- [ ] `npm run build` passes.
 
 ### A1 · "Describe it": AI food estimate
 M1 · M · depends on: F3, U4 · skills: `claude-api`
@@ -272,81 +434,40 @@ Read first: `03-architecture.md` §5; `research/D-architecture-tooling.md` §4.2
 
 Do:
 1. Build `app/api/food/parse/route.ts` with `withPaidRoute`. Input: `{text ≤ 500 chars, client_id}`.
-2. Call `client.messages.parse` with a zod output schema (03 §5), the `FOOD_PARSE_MODEL`, effort `low`, and server-side fallbacks. Handle refusals. The system prompt says:
+2. Call `client.messages.parse` with a zod output schema (03 §5), `FOOD_PARSE_MODEL`, effort `low`, and server-side fallbacks. Handle `stop_reason: "refusal"`. The system prompt says:
    - estimate grams and macros per item using standard UK composition values;
-   - state assumptions;
+   - state assumptions, including raw vs cooked;
    - give confidence;
    - never invent brands.
-3. In the UI, add a "Describe it" text field in the food sheet → editable rows marked "estimate" → "Log all" or "Save as food".
+3. UI: a "Describe it" field in the food sheet → editable rows marked "est." → "Log all" or "Save as food".
 
 Acceptance:
-- [ ] Zod rejects malformed input.
-- [ ] A missing `client_id` → 400.
-- [ ] Cost is logged.
-- [ ] A recorded fixture test (mocked SDK) covers the happy path and a refusal.
-- [ ] Manual test: "200g chicken breast and 150g cooked rice" gives 400–560 kcal and 50–70 g protein, and the assumptions say whether the chicken was taken as raw or cooked.
+- [ ] Zod rejects malformed input; a missing `client_id` → 400; cost is logged.
+- [ ] A mocked-SDK test covers the happy path and a refusal.
+- [ ] With a key only, otherwise "not run": "200g chicken breast and 150g cooked rice" gives 400–560 kcal and 50–70 g protein, and the assumptions mention raw or cooked.
 
 ### U5 · Weekly check-in
-M1 · M · depends on: P5, U2b · skills: `impeccable`
+M1 · M · depends on: P5, U2b · skills: `impeccable` (rule 3), `run`
 Read first: `02-engine-spec.md` §9; `research/A-macrofactor-nutrition.md` §B8.
 
-Do: build `/body/check-in`:
-- a stepper that renders `CheckInPlan` modules;
-- answers are applied through `applyCheckInAnswers`;
+Build `/body/check-in`:
+- a stepper rendering the `CheckInPlan` modules;
+- answers applied through `applyCheckInAnswers`;
 - the program update shows old → new targets with **Accept** and **Keep current**;
-- a "Fast check-in" button.
-
-The Body header shows "Check-in ready" on or after the check-in weekday until it's done.
+- "Fast check-in".
 
 Acceptance:
 - [ ] Scenario tests: the partial-day module appears when expected, and confirming a day as partial changes the proposed target.
 - [ ] Declining keeps the targets.
-
-### ★ I1 · Navigation and home
-M1 · S · depends on: U2a · skills: `impeccable`
-Read first: `05-design.md` §6; `PRODUCT.md`.
-
-Do:
-1. Add a **Body** tab to `components/BottomTabs.tsx` (5 tabs: Home, Body, Templates, History, Profile), with a simple scale or body icon.
-2. In `app/page.tsx`, add a compact **Physique** card below the Signals row with 3 mini stats: trend weight (and rate once available), kcal logged today (vs target once P3 exists), and last night's sleep. When `buildPhysiqueAnalysis` exists (P5), the card also shows the status colour and verdict title. Guard it so the card works before P5 lands. Tap → `/body`.
-
-Start Workout stays the dominant element. (The home insight-card priority is done in U2b.)
-
-Acceptance:
-- [ ] The home layout order is unchanged except for the new card.
-- [ ] A screenshot at 390 px with no data and with seeded data.
-
-### ★ I2 · Assistant integration
-M1 · L · depends on: P5 · skills: `claude-api`
-Read first: `03-architecture.md` §4.1; `research/E-codebase-audit.md` §2.
-
-Do: all of 03 §4.1 steps 1–6.
-- Keep the edits to `app/api/assistant/route.ts` minimal and localised: contract field, block push, cold-start condition, routing exemption.
-- Put the logic in `lib/physique/assistantBlock.ts`, `lib/physique/payload.ts` and the routing module.
-
-Acceptance:
-- [ ] Unit test: the block is ≤600 tokens (approximated as ≤2,400 chars) for a full 84-day payload.
-- [ ] Unit test: `classifyAssistantQuestionKind("how long until I hit 90kg?")` → `physique_progress`. Add 10 more physique phrasings, and 5 bench phrasings that must still route to bench.
-- [ ] Manual: with the seeded LOSS-1 data, "is my cut working?" gives a reply that leads with the verdict, cites only numbers in the block, and doesn't say "losing muscle".
-- [ ] Prompt caching is still used (`cache_read_input_tokens > 0` on the second identical request, from the `[assistant-cache]` log).
+- [ ] Screenshots in `docs/plan/screens/U5/`.
 
 ### I3 · Physique evals
 M1 · S · depends on: I2
-Do: add the 5 cases in 03 §4.1 step 7 to `evals/cases.json`, with fixtures built by `lib/physique/fixtures.ts` and serialised. Run `npm run eval` if a key is available.
+Add the 5 cases from 03 §4.1 step 7 to `evals/cases.json`, with payloads built from `makeScenario` output and serialised. Run `npm run eval` only with a key.
+
 Acceptance:
 - [ ] The cases exist.
-- [ ] The eval run result is recorded in STATUS (or "not run: no key").
-
-### ★ V1 · Seed scenarios and end-to-end check
-M1 · S · depends on: U2b, I1, I2 · skills: `run`
-Do:
-1. Extend `app/dev/seed-physique/page.tsx` (created in U2a) with buttons for the fixture scenarios (on-track cut, LOSS-1, SLEEP-1, lean bulk too fast, cold start). Each writes 8 weeks of data through the repos, with **a backup export first**.
-2. Use the `run` skill: start the dev server, seed each scenario, and screenshot `/`, `/body` and `/body/check-in` at 390 px.
-3. Write `docs/plan/M1-dogfood.md`: what to log daily (weigh-in on waking, food, sleep), when the first verdict will appear (≈14–21 days), and how to report a wrong verdict (log it to STATUS with the date and screenshot).
-
-Acceptance:
-- [ ] The screenshots are committed under `docs/plan/screens/m1/`.
-- [ ] Every scenario shows the verdict expected in P5.
+- [ ] The run result, or "not run: no key", is recorded in STATUS.
 
 ---
 
@@ -369,7 +490,7 @@ Acceptance:
 
 ### F5 · Model migration
 M · skills: `claude-api` (run its `migrate` subcommand)
-- Move the assistant and memory-extraction routes to the model you choose (decision D3 in the README).
+- Move the assistant and memory-extraction routes to the model you choose (decision D3 in the README); the constants already live in `lib/ai/models.ts` (F3).
 - Add server-side fallbacks and refusal handling.
 - Re-run the evals and compare.
 

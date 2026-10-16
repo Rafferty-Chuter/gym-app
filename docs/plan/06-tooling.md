@@ -15,13 +15,13 @@ So anything we want in every session gets **vendored into the repo**.
 
 | Skill | Use it for | Tickets |
 |---|---|---|
-| `impeccable` (vendored in `.agents/skills`, symlinked into `.claude/skills`) | All UI work: shape, craft, critique, polish. Reads `PRODUCT.md`. | U1–U5, I1, N3 |
-| `dataviz` (built-in) | Before any chart, stat tile or KPI row | U1, U2 |
+| `impeccable` (vendored in `.agents/skills`, symlinked into `.claude/skills`) | All UI work. Reads `PRODUCT.md`. In autonomous runs, `05-design.md` is the approved brief: use critique, audit and polish, never `shape` or `teach` (which wait for a reply). | U1, U2a, U2b, U3, U4, U5, I1, N3 |
+| `dataviz` (built-in) | Before any chart, stat tile or KPI row | U1, U2a, U2b |
 | `run` (built-in) | Start the dev server, drive the app with Playwright, screenshot | every UI ticket, V1 |
 | `claude-api` (built-in) | Before touching any Anthropic SDK code; `migrate` subcommand for F5 | A1, I2, F5, N4 |
 | `session-start-hook` (built-in) | SessionStart hook so cloud sessions can run `npm ci` and tests | F1 |
 | `code-review` (built-in) | Review the diff before committing each ticket (`/code-review medium`) | every ticket |
-| `simplify` (built-in) | Clean-up pass on large tickets | P3, P5, U2, F4 |
+| `simplify` (built-in) | Clean-up pass on large tickets | P3, P5, U2a, U2b, F4 |
 | `security-review` (built-in) | Before S2 (auth), S5 (ingest webhook), X3 (consent) | M3, M7 |
 | `next-ticket` (project, `.claude/skills/next-ticket`) | Session protocol: pick, implement, verify and log a ticket | every session |
 | `skill-creator` (your claude.ai skill) | Optional: turn repeated patterns into project skills, e.g. an "engine rule" skill | later |

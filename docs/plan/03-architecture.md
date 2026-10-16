@@ -14,7 +14,7 @@ The technical decisions, module boundaries and data model. Research: `research/D
 | A4 | Local storage | **M1:** localStorage behind a repository seam (`lib/storage`). **M3:** IndexedDB (Dexie) + an outbox that syncs to Supabase. | M1 → M3 | The seam makes the move mechanical, and logging stays offline-first (gyms have bad signal). |
 | A5 | Food data | **M1:** quick add, saved foods, and a Claude text estimate (labelled as an estimate). **M4:** CoFID (UK) + USDA imported into Postgres; Open Food Facts for barcodes; Claude parses items + grams and the database supplies the macros. | M1 → M4 | LLM-only macro estimates have ~35% median error (research D §4.2). Grounding fixes that. |
 | A6 | AI models | One constants file, `lib/ai/models.ts`. New endpoints use `claude-opus-5-5` with structured outputs (`output_config.format` / `client.messages.parse`; supported by the installed `@anthropic-ai/sdk` 0.90). The existing assistant stays on `claude-sonnet-4-6` until ticket F5 migrates it. | M1 / M2 | Per the `claude-api` skill, Opus 5.5 is the default. **Cost is your call:** high-volume food parsing could use `claude-sonnet-5-5` or `claude-haiku-5-5` (decision D3 in README). |
-| A7 | The engine runs on both client and server | The client computes for the UI. The server **recomputes** from a bounded raw payload for the assistant and never trusts client verdicts. In M3+, the server reads the database instead. | M1 | Matches the existing pattern (`formatUserContextBlock`) and the audit's recommendation. |
+| A7 | Where the engine runs | **M1: the client computes `PhysiqueAnalysis` and sends it to the assistant.** The server validates it (zod, size caps) and formats it, and **doesn't recompute**. **M3+:** the server computes from the database. | M1 → M3 | One user and client-held data, so recomputing server-side from a truncated payload would only produce verdicts that contradict the Body page (review finding). Once data lives in Supabase, the server becomes the authority. |
 | A8 | Hosting | Vercel (existing), functions pinned to `lhr1`. | M3 | UK data residency for health data. |
 
 ---
@@ -23,18 +23,22 @@ The technical decisions, module boundaries and data model. Research: `research/D
 
 ```
 lib/
-  ai/models.ts                  model id constants (F5 moves the existing hard-coded ids here)
-  stats.ts                      olsSlope(x, y) → {slope, se}, ewma, median, mean, stdev, winsorize   (pure)
-  dates.ts                      localDateKey(date, tz), dayDiff, dateRange, weekday                 (pure)
-  units.ts                      kg↔lb, cm↔in, formatWeight/formatEnergy; one KG_PER_LB constant      (pure)
+  ai/models.ts                  model id constants (F3 points the 4 existing hard-coded sites here)
+  stats.ts                      olsSlope / robustSlope → {slope, intercept, se, n}, ewma, median, mad, mean, stdev, winsorize (pure)
+  dates.ts                      localDateKey(date, tz), addDays, dayDiff, dateRange, weekday; clientNow() → {today, tz}
+  units.ts                      kg↔lb, formatWeight/formatKcal, parseWeightText(text, unit); one KG_PER_LB constant (pure)
   storage/
     keys.ts                     registry: {key, scope, version, includeInBackup, owner}; drives devDataTransfer
     kv.ts                       safe JSON get/set/remove, SSR guard, change events, cross-tab bridge
     useStored.ts                useSyncExternalStore hook (replaces setState-in-effect providers over time)
-    repo.ts                     createRepo<T extends {id}>(key) → async list/get/upsert/remove/subscribe
-  physique/
-    types.ts                    entities from 02-engine-spec §1.1 + PhysiqueAnalysis
-    repos.ts                    weighIns, foodEntries, savedFoods, dayFlags, sleepNights, waist, goal, profile
+    repo.ts                     createRepo<T extends {id}>(key), createSingleton<T>(key), createRecordStore<T>(key); writes reject on quota errors
+  physique/                     pure engine (no storage, no clock); I/O lives only in physique/io/
+    types.ts                    entities from 02-engine-spec §1.1 + PhysiqueAnalysis + PhysiqueProgram + DailyIntake
+    io/repos.ts                 weighIns, foodEntries, savedFoods, dayFlags, sleepNights, waist, goal, program, profile
+    io/profile.ts               getPhysiqueProfile(): merges OnboardingProfile + physique fields; reports missing inputs
+    io/payload.ts               buildAssistantPhysiquePayload(analysis, repos, now) + its zod schema (shared with the route)
+    program.ts                  newProgram / checkInProgram / refreshProgram (02 §5.3)
+    fixtures.ts                 makeScenario(spec): seeded synthetic data (tests + dev pages)
     weight.ts                   interpolation, EMA trend, OLS rate + SE, phase mask, sanity check
     intake.ts                   day status, partial suggestion, intake means, adherence, macro averages
     expenditure.ts              initial estimate, daily pipeline, maturity state
@@ -44,10 +48,8 @@ lib/
     judge.ts                    buildPhysiqueAnalysis(input, {now}) → PhysiqueAnalysis (02 §8)
     checkIn.ts                  buildCheckInPlan(...) (02 §9)
     status.ts                   → {state, status} for the home tile (lib/signalStatus.ts contract)
-    assistantBlock.ts           formatPhysiqueContextBlock(analysis) → compact text (≤600 tokens)
-    payload.ts                  buildPhysiquePayload(repos, now) → bounded raw data for /api/assistant (zod schema shared)
+    assistantBlock.ts           formatPhysiqueContextBlock(payload) → compact text (≤2,400 chars)
     evidence.ts                 evidence ids → {title, citation, url} (from research F's reference list)
-    fixtures.ts                 seeded synthetic scenario generator (tests + dev seed page)
     __tests__/                  one test file per module
   ui/
     status.ts                   STATE_COLOR + status icons (extracted from app/page.tsx and app/signal/[key]/page.tsx)
@@ -61,7 +63,8 @@ app/
   body/goal/page.tsx            goal setup
   body/check-in/page.tsx        weekly check-in stepper
   body/food/page.tsx            day food log (timeline)
-  dev/seed-physique/page.tsx    seeds a realistic 8-week dataset for UI checks (dev only)
+  dev/seed-physique/page.tsx    scenario seeding + clear (dev only; notFound() in production)
+  dev/chart/page.tsx            chart playground (dev only)
   api/food/parse/route.ts       text → items + estimated macros (M1); M4 grounds them in the food database
 ```
 
@@ -85,7 +88,7 @@ The entities are listed in `02-engine-spec.md` §1.1. Storage keys (all register
 | `physique.v1.waist` | `WaistEntry[]` |
 | `physique.v1.goal` | `PhysiqueGoal \| null` (plus `goalHistory: PhysiqueGoal[]`) |
 | `physique.v1.profile` | `PhysiqueProfile` |
-| `physique.v1.program` | current targets + history of accepted check-ins |
+| `physique.v1.program` | `PhysiqueProgram` (02 §1.1): `{id, goalId, history: [{startDate, kcal, proteinG, fatG, carbsG, source, acceptedAt}]}`. Written by U3 (goal start), U5 (check-in) and U2b (apply/refresh). |
 
 **Budget:** around 100 bytes per food entry × 10 a day × 365 days ≈ 365 KB a year. That fits localStorage's ~5 MB until M3 moves storage to IndexedDB.
 
@@ -110,12 +113,15 @@ Food (M4): `foods_cofid`, `foods_usda`, `off_products` (kept separate for ODbL),
 
 ### 4.1 M1: minimal, before the route split
 
-1. **Contract.** Add `physique?: PhysiquePayload` to `AssistantBody`. Validate it with the zod schema from `lib/physique/payload.ts`, with these caps:
-   - 84 days of weigh-ins;
-   - 42 days of daily intake **totals** (not individual food entries);
-   - 28 nights of sleep;
-   - the goal and profile.
-2. **Server compute.** Call `buildPhysiqueAnalysis(payload + coachingContext.recentWorkouts, {now})`. `formatPhysiqueContextBlock` produces a block that is pushed **after USER CONTEXT and before USER MEMORY**, with **no new `cache_control`**: it rides the existing last-system-block breakpoint (`route.ts:2841-2848`).
+1. **Contract.** Add `physique?: AssistantPhysiquePayload` to `AssistantBody`. Build it on the client with `lib/physique/io/payload.ts`, and validate it on the server with the same zod schema (body ≤ 64 KB). It contains:
+   - `analysis`: the client's `PhysiqueAnalysis`, verbatim;
+   - `now: {today, tz}`;
+   - `recent`: compact facts for citation only:
+     - the last 14 days of weigh-ins and daily intake totals;
+     - the last 14 nights of sleep;
+     - the main lifts' last 3 e1RM values;
+     - the current goal and targets.
+2. **Server.** `formatPhysiqueContextBlock(payload)` produces a block that is pushed **after USER CONTEXT and before USER MEMORY**, with **no new `cache_control`**: it rides the existing last-system-block breakpoint (`route.ts:2841-2848`). The server **doesn't** recompute the verdict in M1 (A7).
 3. **Static prompt.** Add a `PHYSIQUE CONTEXT INTEGRATION` block to `STATIC_COACH_SYSTEM_PROMPT`, with no per-user interpolation (so the global cache still holds). It covers:
    - cite only numbers that appear in the block;
    - the verdict is decided, so explain it and don't re-judge it;
@@ -125,11 +131,12 @@ Food (M4): `foods_cofid`, `foods_usda`, `off_products` (kept separate for ODbL),
    - name confounders before blaming the plan.
 4. **Routing.**
    - Add a kind `physique_progress` to `lib/assistantQuestionRouting.ts` **before** the projection and timeline rules. It matches bodyweight, cut, bulk, calories, macros, deficit, surplus, sleep, "how long until X kg", "is it working".
-   - Exempt it from `computeStrictIntentLock`'s `\d{2,3} kg` timeline override.
+   - Move `computeStrictIntentLock` and `applyStrictIntentLock` out of `route.ts` into `lib/assistantStrictIntentLock.ts`. A route file may only export handlers, and the tests need these functions.
+   - Exempt `physique_progress` from the `\d{2,3} kg` timeline override, and from the bench-timeline regex (~`route.ts:3133`).
    - Map the new kind in `mapQuestionKindToLegacyIntent` and `analysisPreferredKinds`.
    - Give it a task template that answers from the physique block.
 5. **Cold start.** `hasWorkoutData` (`route.ts:3953`) and `buildLoggedTrainingPreamble` treat physique data as "has data".
-6. **Client.** `app/assistant/page.tsx` sends `buildPhysiquePayload(...)`. The home insight card (`app/page.tsx:408`) shows the physique verdict when its state is `watch` or `attention`.
+6. **Client.** `app/assistant/page.tsx` sends the payload. The home insight card is handled in U2b, not here.
 7. **Evals.** Add 5 cases to `evals/cases.json` with full physique fixtures:
    - cut on track;
    - LOSS-1;

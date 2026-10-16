@@ -15,10 +15,11 @@ A Next.js 16 (app router) + React 19 + Tailwind 4 web app. It started as an assi
 | Install | `npm ci` | |
 | Dev server | `npm run dev` | http://localhost:3000 |
 | Typecheck | `npx tsc --noEmit` | must pass |
-| Lint | `npx eslint` | baseline was 41 errors / 130 warnings before ticket F1; after F1, `npx eslint` must exit 0 |
+| Lint | `npx eslint` | baseline was 41 errors / 130 warnings before ticket F1; after F1 the old errors are frozen in `eslint-suppressions.json` and `npx eslint` must exit 0. If it reports "suppressions left that do not occur anymore", run `npx eslint --prune-suppressions` and commit; never re-run `--suppress-all` |
 | Volume rules script | `npx tsx scripts/test-volume-rules.ts` | 10/10 pass |
 | Unit tests | `npm test` | added in ticket F1 (vitest) |
 | Everything | `npm run check` | added in F1: tsc + eslint + tests |
+| Production build | `npm run build` | run before pushing UI or route changes (catches Next-only errors) |
 | LLM evals | `npm run eval` | needs the dev server running and `ANTHROPIC_API_KEY` in `.env.local`; spends money |
 
 Environment: `.env.local` (gitignored) holds `ANTHROPIC_API_KEY` (required) and `OPENAI_API_KEY` (only used by `/api/refine-target`).
@@ -33,7 +34,7 @@ Environment: `.env.local` (gitignored) holds `ANTHROPIC_API_KEY` (required) and 
 
 ## Rules
 
-1. **Engines are pure.** No localStorage, `window` or `Date.now()` inside engine code; pass `now` and data in. Every threshold is an exported constant with a one-line rationale and, for physique rules, a citation id from `docs/plan/02-engine-spec.md`.
+1. **Engines are pure.** No localStorage, `window` or `Date.now()` inside engine code. Pass data and `now = {today, tz}` in; the client supplies `now`, and the server never uses its own clock for user dates. In `lib/physique/`, only `lib/physique/io/*` may touch storage. Every threshold is an exported constant with a one-line rationale and, for physique rules, a tag (PUB/EVID/CAL/OURS) as in `docs/plan/02-engine-spec.md`.
 2. **The LLM never does the maths.** Numbers (trend weight, expenditure, targets, verdicts) come from the deterministic engine; the assistant explains them and must not contradict them.
 3. **Silence beats false positives.** Every verdict has a minimum-data gate. Below it, show an honest "Early read" or "Not enough data" state.
 4. **Canonical units in storage.** kg, cm, kcal, grams, minutes. Convert only for display, via `lib/units.ts` (ticket F3). Never rewrite stored records when the display unit changes.
@@ -58,9 +59,17 @@ Environment: `.env.local` (gitignored) holds `ANTHROPIC_API_KEY` (required) and 
 
 Short imperative subject, optionally prefixed with the ticket id (`P1.3: weight trend engine`). The body explains why, then lists `- file: change` bullets, then a "Schema impact:" paragraph if stored data changed. Commit after each ticket passes its checks.
 
+## Autonomous runs
+
+Follow "Rules for autonomous runs" at the top of `docs/plan/04-tickets.md`:
+- **Design brief.** `docs/plan/05-design.md` is the approved design brief, so never stop to ask for one. Use the `impeccable` skill's critique, audit and polish steps; don't run `shape` or `teach`.
+- **Missing keys.** Criteria that need an API key or human judgement are recorded as "not run" and don't block a ticket.
+- **Time box.** A ticket at 2× its size estimate ships its tested subset and logs the rest.
+- **Dev-only pages.** Seed and dev pages are dev-only and can never write to real user data.
+
 ## Before you say a ticket is done
 
-1. `npx tsc --noEmit` passes; `npx eslint` shows no new problems; `npm test` passes (once it exists).
+1. `npm run check` passes (before F1: `npx tsc --noEmit` passes and `npx eslint` shows no new problems). For UI or route changes, `npm run build` passes too.
 2. The ticket's acceptance criteria in `docs/plan/04-tickets.md` are each checked, with evidence (test name, screenshot path, or command output).
 3. UI changes are looked at in a real browser (use the `run` skill; Playwright and Chromium are preinstalled in cloud sessions). Check phone width (390px).
 4. `docs/plan/STATUS.md` is updated.

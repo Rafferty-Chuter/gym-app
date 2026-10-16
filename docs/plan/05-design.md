@@ -26,7 +26,7 @@ Reuse the existing language; don't invent a new one.
   - raw weigh-ins are small low-contrast dots;
   - trend weight is a 2 px mint line;
   - the goal projection is a dashed line from goal start at the goal rate;
-  - missing days are gaps, never interpolated in the line;
+  - dots appear only on days with a real weigh-in; the trend line runs continuously from the first to the last real weigh-in (02 §2.1), never beyond;
   - x axis is dates; y axis uses `computeNiceYAxis`;
   - tap a point for a tooltip with date, scale and trend.
 
@@ -38,22 +38,22 @@ Reuse the existing language; don't invent a new one.
 ```
 ┌────────────────────────────────────────┐
 │ ‹ Thu 16 Oct ›                Check-in │  date switcher (backfill) · badge when due
-│ → 90.0 kg · Lean gain · +0.33 %/wk     │  goal line
+│ → 90.0 kg · Lean gain · +0.25 %/wk     │  goal line
 │ ▓▓▓▓▓▓░░░░░░░░░░░░  82.4 → 90.0 (trend)│  progress on trend weight
 ├────────────────────────────────────────┤
 │ ● On track                             │  VERDICT CARD (status colour)
-│ Gaining 0.31 %/wk, lifts rising.       │  one line
+│ Gaining 0.24 %/wk (28 d), lifts rising.│  one line
 │ [Ask why]                              │  → assistant with prefilled prompt
 ├────────────────────────────────────────┤
 │ Weight   82.6 kg        [ + ]          │  TODAY STRIP: each row opens a sheet
-│ Food     1,840 / 2,950 kcal  P 120/170 │  thin bars
+│ Food     1,840 / 3,010 kcal  P 120/165 │  thin bars
 │ Sleep    7h 10m · last night           │
 ├────────────────────────────────────────┤
 │ [ weight chart: dots + trend + target ]│
-│ Trend 82.4 kg · +0.31 %/wk (21 days)   │
+│ Trend 82.4 kg · +0.24 %/wk (28 days)   │
 ├────────────────────────────────────────┤
-│ Maintenance ≈ 2,780 kcal · settling    │  ENERGY CARD (maturity state)
-│ Target 2,950 · P 170 · F 80 · C 365    │
+│ Maintenance ≈ 2,780 ± 400 · settling   │  ENERGY CARD (maturity state)
+│ Target 3,010 · P 165 · F 131 · C 293   │  (2,780 + 0.25% × 82.4 × 1,102; balanced split)
 │ Last 14 d: on target (−40 kcal/day)    │
 ├────────────────────────────────────────┤
 │ Lifts since phase start                │
@@ -75,10 +75,10 @@ Modelled on MacroFactor's goal wizard (research A §B2): direction → target an
 - **Step 1, target weight.** NumberPad, prefilled with the current trend. Shows "Lean gain" or "Cut" as derived.
 - **Step 2, rate.**
   - A slider with colour bands from `02-engine-spec.md` §5.2: green range, amber "faster than evidence suggests for lean gain", red/refused.
-  - A training-status chip ("Intermediate · from your lifts"), tappable to change.
-  - Updates live: "+0.27 kg/week · about 29 weeks · reach ~May 2027 · start at 2,950 kcal · 170 g protein".
+  - A training-status chip ("Intermediate · from your training years" in M1; "· from your lifts" once P4 derives it), tappable to change.
+  - Updates live: "+0.21 kg/week · about 37 weeks · reach ~July 2027 · start at about 3,000 kcal · 165 g protein".
 - **Step 3, confirm.** A summary, a "Start today" toggle (sets the phase start), then the safety question.
-- **Copy:** honest and calm. "Lean gains are slow: about 0.25 kg a week for most intermediates."
+- **Copy:** honest and calm. "Lean gains are slow: about 0.2 kg a week for most intermediates."
 
 ## 5. Food log (`/body/food`)
 
@@ -92,7 +92,7 @@ Modelled on MacroFactor's logger (research A §D1–D8), cut down for M1.
 ## 6. Home
 
 - **Order stays:** Start Workout → assistant insight → Signals → **Physique card** (new).
-- **Physique card:** status dot + verdict title, then a single row of 3 mini stats: `82.4 kg +0.31%/wk` · `1,840 / 2,950` · `7h05m`. Tap → `/body`.
+- **Physique card:** status dot + verdict title, then a single row of 3 mini stats: `82.4 kg +0.24%/wk` · `1,840 / 3,010` · `7h05m`. Tap → `/body`.
 - **Assistant insight:**
   - When physique status is watch or attention, the insight card shows the physique verdict with chips "Why?", "What do I change?" and "Show the data".
   - Otherwise it keeps the training key focus.
@@ -100,22 +100,31 @@ Modelled on MacroFactor's logger (research A §D1–D8), cut down for M1.
 
 ## 7. Copy library (start here; extend in P5)
 
-| Rule | Title | Detail (example numbers) |
-|---|---|---|
-| DATA | Calibrating | 6 more weigh-ins and 4 more logged days before the first read. |
-| ON-TRACK (cut) | On track | Losing 0.6 %/wk, lifts holding. |
-| ON-TRACK (gain) | On track | Gaining 0.31 %/wk, lifts rising. |
-| ADH-1 | Eat to target first | You've averaged 320 kcal under target over 14 days. Hit the target before we change the plan. |
-| LOSS-1 | Slow the cut | Losing 1.4 %/wk and squat and bench are down 6% since the cut began. Ease to 0.75 %/wk (about +250 kcal/day). |
-| LOSS-2 | Faster than needed | Losing 1.2 %/wk with lifts holding. No change unless this continues 2 more weeks. |
-| LOSS-6 | Fat loss has stalled | 28 days at −0.2 %/wk while eating to target. Move the rate to −0.5 %/wk (about −150 kcal/day). |
-| GAIN-1 | Gaining faster than a lean bulk needs | +0.75 %/wk over 5 weeks. The extra is mostly fat. Ease to 0.35 %/wk. |
-| SLEEP-1 | Fix sleep before cutting further | 6h04m average over 14 nights, and squat is down 4%. Hold calories; aim for lights-out 22:30. |
-| PRO-1 | Protein is low for a cut | 1.5 g/kg over the last 3 weeks; the target is 2.1. |
-| RECOMP-1 | Looks like recomposition | Scale flat, lifts up 3%, waist down 1.8 cm. No change needed. |
-| SAFE-3 | Let's pause the cut | What you described can be a sign of under-fuelling. Move to maintenance and talk to a GP or registered dietitian. |
+Every number in the copy comes from `PhysiqueAnalysis`. Verdicts cite their own window and n.
 
-Banned words: see `02-engine-spec.md` §10. Also never use "great job", "crushing it" or "!".
+| Rule | Title | Detail (example numbers) | Recommendation row |
+|---|---|---|---|
+| NO-GOAL | Set a goal | Set a target weight to get a verdict. | Set goal → |
+| DATA-RATE | Calibrating | 6 more weigh-ins for a first read on your rate. | — |
+| DATA-EXP | Calibrating | Maintenance estimate: day 9 of about 21. | — |
+| DATA-HOLD | Holding | Log 2 more days of food this week to resume updates. | — |
+| DATA-PARTIAL | Confirm two days | Tue and Thu look incomplete (640 and 900 kcal). | Confirm days → |
+| ON-TRACK (cut) | On track | Losing 0.6 %/wk over 28 days, lifts holding. | — |
+| ON-TRACK (gain) | On track | Gaining 0.24 %/wk over 28 days, lifts rising. | — |
+| NO-CHANGE | Nothing to change | Nothing to change this week. | — |
+| ADH-1 | Eat to target first | You've averaged 320 kcal under target over 14 days. Eat to target before we change your goal. | — |
+| LOSS-1 | Slow the cut | Losing 1.5 %/wk over 28 days, and squat and bench are down 8% since the cut began. A 1.0 %/wk goal is above the range that protects strength. | Ease goal to 0.6 %/wk (about +400 kcal/day) · Apply |
+| LOSS-1 (goal in range, coach lagging) | Losing faster than planned | Losing 1.3 %/wk over 28 days against a 0.6 goal, while eating to target. Your maintenance estimate is low. | Update targets now (+300 kcal/day) |
+| LOSS-2 | Faster than needed | Losing 1.2 %/wk over 21 days with lifts holding. No change unless this continues. | — |
+| LOSS-6 | Weight loss has stalled | −0.2 %/wk over 28 days against a −0.6 goal, while eating to target. Your maintenance estimate looks high. | Update targets now (−150 kcal/day) |
+| GAIN-1 | Gaining faster than a lean bulk needs | Gaining 0.75 %/wk over 6 weeks. In studies, gains this fast mostly add fat. | Ease goal to 0.25 %/wk (about −440 kcal/day) · Apply |
+| SLEEP-1 | Don't cut calories further | Sleep is averaging 6h04m over 14 nights, and squat and bench are down 3–4%. Get sleep back first. | Aim for +45–60 min a night (lights-out 22:30) |
+| PRO-1 | Protein is low for a cut | 1.5 g/kg over the last 3 weeks; your target is 2.1. | Aim for 165 g a day |
+| RECOMP-1 | Looks like recomposition | Scale flat over 28 days, lifts up 3%, waist down 2.4 cm. | — |
+| RECOMP-WAIST | Log your waist | Lifts are up while the scale is flat. A weekly waist measurement tells recomposition from a stall. | Log waist → |
+| SAFE-3 | Let's pause the cut | What you described can be a sign of under-fuelling. Move to maintenance and talk to a GP or registered dietitian. | — |
+
+**Banned phrases:** `02-engine-spec.md` §10 (the copy linter in P5 enforces them).
 
 ## 8. Reference queries (if Mobbin access is available)
 
