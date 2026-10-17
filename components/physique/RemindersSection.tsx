@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Caption, Row, RowGroup } from "@/components/physique/ui";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 import { useBodyData } from "@/lib/physique/io/bodyData";
@@ -31,9 +32,9 @@ function errorCopy(e: PushError | null | undefined): string | null {
 }
 
 /**
- * Profile → Reminders (Sprint 0, G5): one notification a day at a chosen
- * time, only when a day is missing. States what it does, the time, and
- * whether it is on. Nothing else.
+ * Profile → Reminders (G5, restyled in CL1): one notification a day at a
+ * chosen time, only when a day is missing. A switch, a time, and the
+ * exact reason when it cannot.
  */
 export default function RemindersSection() {
   const hydrated = useIsHydrated();
@@ -50,7 +51,7 @@ export default function RemindersSection() {
   const nowIso = () => new Date().toISOString();
 
   async function toggle() {
-    if (!now) return;
+    if (!now || busy) return;
     setBusy(true);
     if (enabled) await disableReminders();
     else await enableReminders(time, summary(), nowIso());
@@ -59,46 +60,43 @@ export default function RemindersSection() {
 
   const err = errorCopy(link?.lastError);
   const iosNote = support && support.ios && !support.standalone && !enabled ? errorCopy("needs_home_screen") : null;
-  const status = !hydrated ? " " : enabled ? `On · ${time}` : "Off";
 
   return (
-    <section className="mt-8 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5" aria-labelledby="reminders-heading">
-      <p id="reminders-heading" className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">
-        Reminders
+    <section className="flex flex-col gap-2" aria-label="Reminders">
+      <Caption>Reminders</Caption>
+      <RowGroup>
+        <Row
+          label="Daily reminder"
+          sub={enabled ? "On. Only when a day is missing." : "Off"}
+          value={
+            <button type="button" role="switch" aria-checked={enabled} aria-label={enabled ? "Turn reminders off" : "Turn reminders on"} onClick={toggle} disabled={!hydrated || busy || !now} className="relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50" style={{ background: enabled ? "#00e5b0" : "#2a2a2e" }}>
+              <span className="absolute top-0.5 h-6 w-6 rounded-full transition-transform" style={{ left: 2, background: enabled ? "#0a0a0b" : "#f2f2f0", transform: enabled ? "translateX(20px)" : "translateX(0)" }} />
+            </button>
+          }
+        />
+        <Row
+          label="Time"
+          sub="Monday's opens the week report."
+          value={
+            <input
+              type="time"
+              value={time}
+              step={900}
+              disabled={!hydrated || busy}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (/^\d{2}:\d{2}$/.test(v) && now) void setReminderTime(v, summary(), nowIso());
+              }}
+              className="h-9 rounded-[10px] px-2 text-[13px] outline-none"
+              style={{ background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" }}
+              aria-label="Reminder time"
+            />
+          }
+        />
+      </RowGroup>
+      <p className="text-[11px]" style={{ color: err || iosNote ? "#f5b544" : "#6f6f76" }}>
+        {err ?? iosNote ?? "It names the day and what is missing, nothing else."}
       </p>
-      <p className="text-sm text-zinc-400 mb-4">One notification a day, only when a day is missing. It names the day and what is missing, nothing else.</p>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-700/60 bg-zinc-900/60 px-4 py-3">
-          <span className="text-sm font-semibold text-white">Status</span>
-          <span className="text-sm text-zinc-300" style={{ fontVariantNumeric: "tabular-nums" }}>
-            {status}
-          </span>
-        </div>
-        <label className="flex items-center justify-between gap-3 rounded-xl border border-zinc-700/60 bg-zinc-900/60 px-4 py-3">
-          <span className="text-sm font-semibold text-white">Time</span>
-          <input
-            type="time"
-            value={time}
-            step={900}
-            disabled={!hydrated || busy}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (/^\d{2}:\d{2}$/.test(v) && now) void setReminderTime(v, summary(), nowIso());
-            }}
-            className="rounded-lg bg-zinc-800 px-2 py-1 text-sm text-white"
-            aria-label="Reminder time"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={toggle}
-          disabled={!hydrated || busy || !now}
-          className="flex w-full items-center justify-center rounded-xl border border-zinc-600/60 bg-zinc-800/60 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-zinc-700/60 disabled:opacity-50"
-        >
-          {busy ? "Working…" : enabled ? "Turn off" : "Turn on"}
-        </button>
-        {(err || iosNote) && <p className="text-xs text-zinc-400">{err ?? iosNote}</p>}
-      </div>
     </section>
   );
 }

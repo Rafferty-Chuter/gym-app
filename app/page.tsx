@@ -27,119 +27,14 @@ import { useNow } from "@/lib/ui/useToday";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import StaleSessionModal from "@/components/StaleSessionModal";
 import { useUnit } from "@/lib/unit-preference";
-import { useTrainingFocus, TRAINING_FOCUS_OPTIONS, type TrainingFocus } from "@/lib/trainingFocus";
-import { useExperienceLevel, EXPERIENCE_LEVEL_OPTIONS, type ExperienceLevel } from "@/lib/experienceLevel";
+import { useTrainingFocus } from "@/lib/trainingFocus";
+import { useExperienceLevel } from "@/lib/experienceLevel";
 import { usePriorityGoal } from "@/lib/priorityGoal";
-import { isOnboardingComplete, loadOnboardingProfile } from "@/lib/onboardingProfile";
 import {
   buildCoachStructuredAnalysis,
   EMPTY_COACH_STRUCTURED_ANALYSIS,
   type CoachStructuredAnalysis,
 } from "@/lib/coachStructuredAnalysis";
-
-type ProfileModalProps = {
-  focus: TrainingFocus;
-  setFocus: (f: TrainingFocus) => void;
-  experienceLevel: ExperienceLevel;
-  setExperienceLevel: (e: ExperienceLevel) => void;
-  unit: "kg" | "lb";
-  setUnit: (u: "kg" | "lb") => void;
-  onClose: () => void;
-};
-
-function ProfileModal({
-  focus,
-  setFocus,
-  experienceLevel,
-  setExperienceLevel,
-  unit,
-  setUnit,
-  onClose,
-}: ProfileModalProps) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="profile-modal-title"
-      onClick={onClose}
-    >
-      <div
-        className="rounded-2xl border border-white/8 bg-zinc-900 p-6 w-full max-w-sm shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="profile-modal-title" className="text-lg font-bold text-white mb-4">
-          Profile
-        </h2>
-        <p className="text-app-secondary text-sm mb-5">
-          Edit your training preferences. Used to tailor advice across the app.
-        </p>
-        <div className="space-y-4">
-          <div>
-            <label className="label-section block mb-2">Training focus</label>
-            <select
-              value={focus}
-              onChange={(e) => setFocus(e.target.value as TrainingFocus)}
-              className="input-app w-full px-3 py-2.5 text-sm"
-            >
-              {TRAINING_FOCUS_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label-section block mb-2">Experience level</label>
-            <select
-              value={experienceLevel}
-              onChange={(e) => setExperienceLevel(e.target.value as ExperienceLevel)}
-              className="input-app w-full px-3 py-2.5 text-sm"
-            >
-              {EXPERIENCE_LEVEL_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label-section block mb-2">Units</label>
-            <div className="flex gap-2">
-              {(["kg", "lb"] as const).map((u) => (
-                <button
-                  key={u}
-                  type="button"
-                  onClick={() => setUnit(u)}
-                  className={`flex-1 py-2.5 rounded-xl border text-sm font-semibold transition ${
-                    unit === u
-                      ? "border-[color:var(--color-accent)]/40 bg-[color:var(--color-accent)]/10 text-[color:var(--color-accent)]"
-                      : "border-white/10 bg-zinc-800/80 text-app-secondary hover:text-white"
-                  }`}
-                >
-                  {u}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <Link
-          href="/profile"
-          className="mt-5 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-colors"
-          style={{ background: "#141416", border: "1px solid #2a2a2e", color: "#f2f2f0" }}
-          aria-label="Open the profile page: reminders, import, export and coach profile"
-        >
-          <span className="font-semibold">Reminders, import and export</span>
-          <span aria-hidden style={{ color: "#6f6f76" }}>
-            →
-          </span>
-        </Link>
-        <div className="mt-4 flex justify-end">
-          <button type="button" onClick={onClose} className="btn-secondary">
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 
 type AssistantInsight = {
   text: string;
@@ -226,13 +121,11 @@ function useActiveWorkoutFlag(): boolean {
 
 export default function Home() {
   const router = useRouter();
-  const { unit, setUnit } = useUnit();
-  const { focus, setFocus } = useTrainingFocus();
-  const { experienceLevel, setExperienceLevel } = useExperienceLevel();
+  const { unit } = useUnit();
+  const { focus } = useTrainingFocus();
+  const { experienceLevel } = useExperienceLevel();
   const { goal } = usePriorityGoal();
-  const [profileOpen, setProfileOpen] = useState(false);
   const [workouts, setWorkouts] = useState<ReturnType<typeof getWorkoutHistory>>([]);
-  const [profileSetupNeeded, setProfileSetupNeeded] = useState(false);
   const hasMounted = useIsHydrated();
   const hasActive = useActiveWorkoutFlag();
   const { addWorkout } = useWorkoutStore();
@@ -314,19 +207,6 @@ export default function Home() {
     clearActiveWorkout();
   }
 
-  useEffect(() => {
-    function recheck() {
-      setProfileSetupNeeded(!isOnboardingComplete(loadOnboardingProfile()));
-    }
-    recheck();
-    window.addEventListener("onboardingProfileChanged", recheck);
-    window.addEventListener("focus", recheck);
-    return () => {
-      window.removeEventListener("onboardingProfileChanged", recheck);
-      window.removeEventListener("focus", recheck);
-    };
-  }, []);
-
   const coachAnalysis = useMemo(() => {
     if (workouts.length === 0) return EMPTY_COACH_STRUCTURED_ANALYSIS;
     return buildCoachStructuredAnalysis(workouts, {
@@ -405,37 +285,13 @@ export default function Home() {
           caption={hasMounted && now ? fullLocalDate(now.today) : " "}
           title="Today"
           secondary={
-            <button type="button" onClick={() => setProfileOpen(true)} className="h-9 rounded-full px-3 text-[13px] font-medium transition-colors active:bg-[#26262a]" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Open profile settings">
+            <Link href="/profile" className="flex h-9 items-center rounded-full px-3 text-[13px] font-medium transition-colors active:bg-[#26262a]" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Open profile">
               Profile
-            </button>
+            </Link>
           }
         />
 
-        {ASSISTANT_ENABLED && hasMounted && profileSetupNeeded && (
-          <Link
-            href="/profile"
-            className="mt-2 flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-[12px] transition-colors"
-            style={{ background: "#141416", border: "1px solid #2a2a2e", color: "#a3a3a8" }}
-            aria-label="Set up your coach profile — sharpens every assistant answer"
-          >
-            <span className="font-semibold">
-              Set up your coach profile <span className="opacity-70">· 60s, sharpens every answer</span>
-            </span>
-            <span aria-hidden>→</span>
-          </Link>
-        )}
 
-        {profileOpen && (
-          <ProfileModal
-            focus={focus}
-            setFocus={setFocus}
-            experienceLevel={experienceLevel}
-            setExperienceLevel={setExperienceLevel}
-            unit={unit}
-            setUnit={setUnit}
-            onClose={() => setProfileOpen(false)}
-          />
-        )}
 
         {staleSession && (
           <StaleSessionModal

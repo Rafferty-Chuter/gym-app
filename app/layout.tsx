@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gym AI — Your Intelligent Training Coach",
-  description: "AI-powered workout tracking and coaching",
+  title: "Gym AI",
+  description: "Food, weight, sleep and training in one place, with a plain read on whether the plan is working.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Gym AI", statusBarStyle: "black" },
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },

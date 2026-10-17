@@ -1146,7 +1146,7 @@ export default function SignalDetailPage() {
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
         <div className="pt-6 pb-1">
           <Link
-            href="/"
+            href="/train"
             className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-app-secondary hover:text-white transition"
           >
             <svg
@@ -1161,7 +1161,7 @@ export default function SignalDetailPage() {
             >
               <path d="M15 18l-6-6 6-6" />
             </svg>
-            <span>Home</span>
+            <span>Train</span>
           </Link>
         </div>
 

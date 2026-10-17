@@ -1,160 +1,107 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useUnit } from "@/lib/unit-preference";
-import {
-  deleteTemplateById,
-  duplicateTemplate,
-  getStoredTemplates,
-  type WorkoutTemplate,
-} from "@/lib/templateStorage";
+import PageHeader from "@/components/ui/PageHeader";
+import { SecondaryButton } from "@/components/physique/ui";
+import { deleteTemplateById, duplicateTemplate, getStoredTemplates, type WorkoutTemplate } from "@/lib/templateStorage";
 
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 
+/** Routines (CL1): the saved templates, each with Start, Edit, Duplicate and a two-tap Delete. */
 export default function TemplatesPage() {
   const router = useRouter();
-  const { unit, setUnit } = useUnit();
-  const [savedTemplates, setSavedTemplates] = useState<WorkoutTemplate[]>([]);
+  const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  function refreshTemplates() {
-    setSavedTemplates(getStoredTemplates());
+  function refresh() {
+    setTemplates(getStoredTemplates());
   }
-
   useEffect(() => {
-    refreshTemplates();
+    refresh();
   }, []);
 
-  function startWorkoutFromTemplate(template: WorkoutTemplate) {
+  function start(template: WorkoutTemplate) {
     if (typeof window === "undefined") return;
-    sessionStorage.setItem(
-      TEMPLATE_FOR_WORKOUT_KEY,
-      JSON.stringify({
-        templateId: template.id,
-        templateName: template.name,
-        exercises: template.exercises,
-      })
-    );
+    sessionStorage.setItem(TEMPLATE_FOR_WORKOUT_KEY, JSON.stringify({ templateId: template.id, templateName: template.name, exercises: template.exercises }));
     router.push("/workout");
   }
 
-  function deleteTemplate(templateId: string) {
-    deleteTemplateById(templateId);
-    refreshTemplates();
+  function remove(id: string) {
+    if (confirmDelete !== id) {
+      setConfirmDelete(id);
+      window.setTimeout(() => setConfirmDelete((c) => (c === id ? null : c)), 3000);
+      return;
+    }
+    deleteTemplateById(id);
+    setConfirmDelete(null);
+    refresh();
   }
 
-  function duplicateAndEdit(templateId: string) {
-    const newId = duplicateTemplate(templateId);
-    if (!newId) return;
-    router.push(`/templates/${encodeURIComponent(newId)}`);
+  function duplicate(id: string) {
+    const newId = duplicateTemplate(id);
+    if (newId) router.push(`/templates/${encodeURIComponent(newId)}`);
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
-      <div className="max-w-2xl mx-auto">
-        <div className="mb-6 flex flex-wrap items-center gap-4">
-          <h1 className="text-3xl font-bold text-white">Templates</h1>
-          <div className="ml-auto flex items-center gap-2 rounded-xl border border-teal-900/40 bg-zinc-900/70 p-1">
-            <button
-              type="button"
-              onClick={() => setUnit("kg")}
-              className={`px-3 py-1.5 text-xs rounded-lg transition ${unit === "kg" ? "bg-teal-500/35 text-white border border-teal-300/35" : "text-app-secondary hover:text-white"}`}
-            >
-              KG
-            </button>
-            <button
-              type="button"
-              onClick={() => setUnit("lb")}
-              className={`px-3 py-1.5 text-xs rounded-lg transition ${unit === "lb" ? "bg-teal-500/35 text-white border border-teal-300/35" : "text-app-secondary hover:text-white"}`}
-            >
-              LBS
-            </button>
-          </div>
-        </div>
+    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+      <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
+        <PageHeader caption="Train" title="Routines" action={{ label: "New routine", href: "/templates/new" }} />
 
-        <section className="card-app mb-6 border-zinc-800/70 bg-zinc-900/40">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <p className="text-white font-semibold">Template Library</p>
-              <p className="text-xs text-app-meta mt-1">Browse, edit, and launch workouts from your saved templates.</p>
-            </div>
-            <Link href="/templates/new" className="px-4 py-2 rounded-xl btn-primary text-sm shrink-0 self-start sm:self-auto">
-              Create New Template
-            </Link>
-          </div>
-        </section>
-
-        {savedTemplates.length === 0 ? (
-          <section className="card-app">
-            <p className="text-sm text-app-secondary">No templates yet. Create your first template to speed up training sessions.</p>
-          </section>
+        {templates.length === 0 ? (
+          <p className="rounded-[12px] px-4 py-3 text-[13px]" style={{ background: "#141416", color: "#a3a3a8" }}>
+            No routines yet. Build one and Start workout fills in the exercises, sets and rest.
+          </p>
         ) : (
-          <section>
-            <h2 className="text-xl font-bold text-white mb-4">Saved Templates</h2>
-            <ul className="space-y-3">
-              {savedTemplates.map((template) => (
-                <li key={template.id} className="card-app">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-lg font-bold text-white leading-snug line-clamp-2">
-                        {template.name}
-                      </h3>
-                      <p className="text-sm text-app-meta mt-1">{template.exercises.length} exercises</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2 shrink-0 justify-start sm:justify-end">
-                      <button
-                        type="button"
-                        onClick={() => startWorkoutFromTemplate(template)}
-                        className="px-3 py-2 rounded-xl btn-primary text-sm"
-                      >
-                        Start Workout
-                      </button>
-                      <Link
-                        href={`/templates/${encodeURIComponent(template.id)}`}
-                        className="px-3 py-2 rounded-xl btn-secondary text-sm"
-                      >
-                        Edit
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => duplicateAndEdit(template.id)}
-                        className="px-3 py-2 rounded-xl btn-secondary text-sm"
-                        aria-label={`Duplicate ${template.name}`}
-                      >
-                        Duplicate
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteTemplate(template.id)}
-                        className="px-3 py-2 rounded-xl border border-red-900/50 bg-red-950/25 text-sm text-red-200 hover:bg-red-900/40 transition"
-                      >
-                        Delete
-                      </button>
-                    </div>
+          <ul className="flex flex-col gap-2" aria-label="Routines">
+            {templates.map((t) => (
+              <li key={t.id} className="rounded-[12px] p-4" style={{ background: "#141416" }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
+                      {t.name}
+                    </h2>
+                    <p className="text-[12px]" style={{ color: "#6f6f76" }}>
+                      {t.exercises.length} {t.exercises.length === 1 ? "exercise" : "exercises"}
+                    </p>
                   </div>
-                  <ul className="space-y-1.5 text-sm text-app-secondary">
-                    {template.exercises.slice(0, 4).map((ex, i) => (
-                      <li key={`${template.id}-${ex.name}-${i}`} className="truncate">
-                        <span className="text-app-meta mr-2">{i + 1}.</span>
-                        <span className="text-white">{ex.name}</span>
-                        <span className="text-app-meta">
-                          {" "}
-                          · {ex.targetSets} set{ex.targetSets !== 1 ? "s" : ""} · {ex.restSec ?? 90}s rest
-                        </span>
-                      </li>
-                    ))}
-                    {template.exercises.length > 4 && (
-                      <li className="text-xs text-app-meta">+ {template.exercises.length - 4} more exercises</li>
-                    )}
-                  </ul>
-                </li>
-              ))}
-            </ul>
-          </section>
+                  <button type="button" onClick={() => start(t)} className="h-9 shrink-0 rounded-full px-4 text-[13px] font-semibold transition-colors active:bg-[#a3a3a8]" style={{ background: "#f2f2f0", color: "#0a0a0b" }} aria-label={`Start ${t.name}`}>
+                    Start
+                  </button>
+                </div>
+                <ul className="mt-3 flex flex-col gap-1 text-[13px]" style={{ color: "#a3a3a8" }}>
+                  {t.exercises.slice(0, 4).map((ex, i) => (
+                    <li key={`${t.id}-${ex.name}-${i}`} className="truncate" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ color: "#f2f2f0" }}>{ex.name}</span>
+                      {` · ${ex.targetSets} ${ex.targetSets === 1 ? "set" : "sets"} · ${ex.restSec ?? 90} s rest`}
+                    </li>
+                  ))}
+                  {t.exercises.length > 4 && (
+                    <li className="text-[12px]" style={{ color: "#6f6f76" }}>
+                      {t.exercises.length - 4} more
+                    </li>
+                  )}
+                </ul>
+                <div className="mt-3 flex items-center gap-2">
+                  <SecondaryButton small onClick={() => router.push(`/templates/${encodeURIComponent(t.id)}`)}>
+                    Edit
+                  </SecondaryButton>
+                  <SecondaryButton small onClick={() => duplicate(t.id)}>
+                    Duplicate
+                  </SecondaryButton>
+                  <button type="button" onClick={() => remove(t.id)} className="ml-auto h-9 rounded-full px-3 text-[13px] font-medium" style={{ color: confirmDelete === t.id ? "#0a0a0b" : "#f26d7d", background: confirmDelete === t.id ? "#f26d7d" : "transparent" }} aria-label={confirmDelete === t.id ? `Confirm delete ${t.name}` : `Delete ${t.name}`}>
+                    {confirmDelete === t.id ? "Delete?" : "Delete"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
+
+        <p className="pb-2 text-[11px]" style={{ color: "#6f6f76" }}>
+          A routine prefills the session. Everything stays editable once you start.
+        </p>
       </div>
     </main>
   );
 }
-

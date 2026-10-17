@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import Link from "next/link";
+import PageHeader from "@/components/ui/PageHeader";
 import { getWorkoutHistory } from "@/lib/trainingAnalysis";
 import { useWorkoutStore } from "@/lib/workout-store";
 import { useUnit } from "@/lib/unit-preference";
@@ -71,7 +71,7 @@ function sanitizeRepsInput(raw: string): string {
 
 export default function HistoryPage() {
   const { removeWorkoutAtIndex, replaceWorkoutAtIndex } = useWorkoutStore();
-  const { unit, setUnit } = useUnit();
+  const { unit } = useUnit();
   const [workouts, setWorkouts] = useState<WorkoutRow[]>([]);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
@@ -127,10 +127,9 @@ export default function HistoryPage() {
 
   function formatDateTime(isoString: string) {
     const date = new Date(isoString);
-    return date.toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    const day = date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
+    const time = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    return `${day} · ${time}`;
   }
 
   function workoutDisplayName(w: WorkoutRow) {
@@ -208,34 +207,13 @@ export default function HistoryPage() {
   }, [editDraft]);
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
-      <div className="max-w-2xl mx-auto">
-        <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Link href="/" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
-            ← Home
-          </Link>
-          <h1 className="text-3xl font-bold text-white">Workout History</h1>
-          <div className="ml-auto inline-flex items-center rounded-full border border-teal-900/40 bg-zinc-900/70 p-0.5">
-            {(["kg", "lb"] as const).map((u) => (
-              <button
-                key={u}
-                type="button"
-                onClick={() => setUnit(u)}
-                className={`min-w-[2.25rem] rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
-                  unit === u
-                    ? "bg-teal-500/25 text-teal-100 shadow-sm shadow-teal-950/30"
-                    : "text-app-tertiary hover:text-app-secondary"
-                }`}
-              >
-                {u}
-              </button>
-            ))}
-          </div>
-        </div>
+    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+      <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 sm:px-6">
+        <PageHeader caption="Train" title="History" />
 
         {workouts.length === 0 ? (
           <p className="text-app-secondary">
-            No completed workouts yet. Finish a workout on the Start Workout page to see it here.
+            No workouts yet. Finish one from Train and it shows here.
           </p>
         ) : (
           <ul className="space-y-3">
@@ -250,7 +228,7 @@ export default function HistoryPage() {
                 <li
                   key={workout.completedAt}
                   id={`workout-${i}`}
-                  className="card-app"
+                  className="rounded-[12px] bg-[var(--surface)] p-4"
                   style={{ scrollMarginTop: "5rem" }}
                 >
                   <div className="flex items-start gap-3">
@@ -284,14 +262,14 @@ export default function HistoryPage() {
                           <button
                             type="button"
                             onClick={saveEdit}
-                            className="text-xs font-semibold text-teal-100 px-2.5 py-1.5 rounded-lg border border-teal-500/45 bg-teal-500/15 hover:bg-teal-500/25 transition-colors"
+                            className="h-9 rounded-full bg-[var(--primary)] px-4 text-[13px] font-semibold text-[var(--text-on-primary)] transition-colors"
                           >
                             Save
                           </button>
                           <button
                             type="button"
                             onClick={cancelEdit}
-                            className="text-xs text-app-tertiary hover:text-white px-2 py-1.5 rounded-lg border border-transparent hover:border-white/15 hover:bg-white/5 transition-colors"
+                            className="h-9 rounded-full px-3 text-[13px] font-medium text-[var(--text-secondary)] transition-colors"
                           >
                             Cancel
                           </button>
@@ -305,7 +283,7 @@ export default function HistoryPage() {
                               setExpandedKey(key);
                               startEdit(workout);
                             }}
-                            className="text-xs text-teal-100/85 hover:text-teal-50 px-2 py-1.5 rounded-lg border border-teal-900/45 bg-teal-950/30 hover:bg-teal-900/40 transition-colors"
+                            className="h-9 rounded-full bg-[var(--surface-raised)] px-4 text-[13px] font-semibold text-[var(--text)] transition-colors"
                           >
                             Edit
                           </button>
@@ -315,7 +293,7 @@ export default function HistoryPage() {
                               e.stopPropagation();
                               setPendingDeleteIndex(workout.storageIndex);
                             }}
-                            className="text-xs text-app-tertiary hover:text-red-300 px-2 py-1.5 rounded-lg border border-transparent hover:border-red-900/40 hover:bg-red-950/25 transition-colors"
+                            className="h-9 rounded-full px-3 text-[13px] font-medium transition-colors" style={{ color: "var(--status-attention)" }}
                           >
                             Delete
                           </button>
@@ -325,7 +303,7 @@ export default function HistoryPage() {
                   </div>
 
                   {isOpen || isEditing ? (
-                    <div className="mt-3 pt-3 border-t border-teal-900/30">
+                    <div className="mt-3 pt-3 border-t border-[var(--border)]">
                       <p className="text-white font-semibold mb-2">{displayName}</p>
                       <p className="text-app-secondary text-sm mb-3">
                         {formatDateTime(workout.completedAt)}
@@ -414,7 +392,7 @@ export default function HistoryPage() {
                               <ul className="space-y-1 text-sm text-app-secondary">
                                 {ex.sets.map((s, setIdx) => (
                                   <li key={setIdx} className="tabular-nums">
-                                    {SET_TYPE_MARK[setTypeOf(s)] ? `${SET_TYPE_LABEL[setTypeOf(s)]} ` : `Set ${setIdx + 1} `}— {s.weight}{unit} × {s.reps}
+                                    {SET_TYPE_MARK[setTypeOf(s)] ? `${SET_TYPE_LABEL[setTypeOf(s)]} ` : `Set ${setIdx + 1} `}· {s.weight} {unit} × {s.reps}
                                     {s.notes?.trim() && (
                                       <p className="text-app-meta text-xs mt-0.5 pl-0">{s.notes.trim()}</p>
                                     )}
@@ -448,7 +426,7 @@ export default function HistoryPage() {
           onClick={() => setPendingDeleteIndex(null)}
         >
           <div
-            className="rounded-2xl border border-teal-950/50 bg-gradient-to-b from-zinc-900 to-teal-950/30 p-6 max-w-sm w-full shadow-xl"
+            className="w-full max-w-sm rounded-2xl bg-[var(--surface)] p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="delete-workout-title" className="text-white font-bold">Delete workout?</h2>
@@ -466,7 +444,7 @@ export default function HistoryPage() {
               <button
                 type="button"
                 onClick={confirmDelete}
-                className="px-3 py-2 rounded-xl text-sm font-semibold bg-red-950/80 text-red-200 border border-red-900/50 hover:bg-red-900/50 transition-colors"
+                className="h-10 rounded-full px-4 text-sm font-semibold text-[var(--text-on-primary)] transition-colors" style={{ background: "var(--status-attention)" }}
               >
                 Delete
               </button>

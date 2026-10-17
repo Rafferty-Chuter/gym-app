@@ -26,7 +26,7 @@ export const STORAGE_KEYS = [
   { key: "activeWorkout", scope: "local", version: 1, includeInBackup: true, owner: "lib/activeWorkout.ts" },
   { key: "userExerciseLibrary", scope: "local", version: 1, includeInBackup: true, owner: "lib/userExerciseLibrary.ts" },
   { key: "restTimerNotifySettings", scope: "local", version: 1, includeInBackup: true, owner: "lib/restTimerSettings.ts" },
-  { key: "volumeEnabledOptionalGroups", scope: "local", version: 1, includeInBackup: true, owner: "app/volume/page.tsx" },
+  { key: "volumeEnabledOptionalGroups", scope: "local", version: 1, includeInBackup: true, owner: "(legacy, unused since CL1)" },
   // ── Profile / prefs ──
   { key: "onboardingProfile", scope: "local", version: 1, includeInBackup: true, owner: "lib/onboardingProfile.ts" },
   { key: "userCoachingProfile", scope: "local", version: 1, includeInBackup: true, owner: "lib/userProfile.ts (legacy, read-only)" },

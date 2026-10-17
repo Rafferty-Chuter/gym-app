@@ -52,7 +52,7 @@ function IntegerStepper({
     <div
       role="group"
       aria-label={ariaLabel}
-      className="inline-flex items-center rounded-xl border border-zinc-700/80 bg-zinc-900/80 select-none"
+      className="inline-flex items-center rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] select-none"
     >
       <button
         type="button"
@@ -265,38 +265,38 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
 
   return (
     <>
-    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
-      <div className="max-w-2xl mx-auto">
+    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+      <div className="mx-auto max-w-2xl px-5 sm:px-6">
         <header className="mb-6">
           <Link href="/templates" className="text-app-secondary hover:text-white transition-colors text-sm font-medium">
-            ← Back to Templates
+            ‹ Routines
           </Link>
-          <h1 className="text-3xl font-bold text-white mt-2">{mode === "create" ? "Create Template" : "Edit Template"}</h1>
-          <p className="text-sm text-app-secondary mt-1">Build a reusable workout blueprint.</p>
+          <h1 className="mt-2 text-[34px] font-semibold leading-none tracking-[-0.02em]">{mode === "create" ? "New routine" : "Edit routine"}</h1>
+          <p className="text-sm text-app-secondary mt-1">Exercises, sets and rest, prefilled when you start it.</p>
         </header>
 
         <section className="card-app mb-4">
-          <h2 className="label-section mb-2">Template Details</h2>
+          <h2 className="label-section mb-2">Name</h2>
           <input
             type="text"
             value={templateName}
             onChange={(e) => setTemplateName(e.target.value)}
-            placeholder="Template name"
+            placeholder="Routine name"
             className="input-app w-full px-3 py-3 text-sm"
           />
         </section>
 
         <section className="card-app mb-4">
           <div className="flex items-center justify-between gap-2 mb-2">
-            <h2 className="label-section mb-0">Exercises in Template</h2>
+            <h2 className="label-section mb-0">Exercises</h2>
             {exercises.length > 1 && (
               <button
                 type="button"
                 onClick={() => setReorderMode((m) => !m)}
                 className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition ${
                   reorderMode
-                    ? "border-teal-500/45 bg-teal-500/15 text-teal-100"
-                    : "border-teal-900/45 bg-zinc-800/40 text-teal-100/85 hover:text-white hover:bg-zinc-700/45"
+                    ? "border-[var(--border-strong)] bg-[var(--surface-raised)] text-[var(--text)]"
+                    : "border-transparent bg-[var(--surface-raised)] text-[var(--text-secondary)]"
                 }`}
               >
                 {reorderMode ? "Done" : "Reorder"}
@@ -315,7 +315,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
                 const ex = exercises[i];
                 if (!ex) return null;
                 return (
-                  <div className="flex items-center gap-3 rounded-xl border border-teal-900/45 bg-zinc-900/85 px-3 py-3">
+                  <div className="flex items-center gap-3 rounded-xl bg-[var(--surface-raised)] px-3 py-3">
                     <DragHandle
                       attributes={handle.attributes}
                       listeners={handle.listeners}
@@ -335,7 +335,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
           ) : (
             <ul className="space-y-2">
               {exercises.map((ex, i) => (
-                <li key={exerciseIds[i] ?? `${ex.name}-${i}`} className="rounded-xl border border-teal-900/35 bg-zinc-900/70 p-3">
+                <li key={exerciseIds[i] ?? `${ex.name}-${i}`} className="rounded-xl bg-[var(--surface-raised)] p-3">
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-white leading-snug line-clamp-2">{ex.name}</p>
@@ -385,14 +385,14 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
                               setReplaceExerciseIndex(i);
                               setReplaceExerciseInput("");
                             }}
-                            className="rounded-lg border border-teal-900/40 bg-zinc-800/40 px-2 py-1 text-xs text-teal-100/85 hover:text-white hover:bg-teal-700/45 transition"
+                            className="rounded-lg bg-[var(--border)] px-2 py-1 text-xs text-[var(--text)] transition"
                           >
                             Replace
                           </button>
                           <button
                             type="button"
                             onClick={() => removeExercise(i)}
-                            className="rounded-lg border border-red-900/50 bg-red-950/25 px-2 py-1 text-xs text-red-200 hover:bg-red-900/35 transition"
+                            className="rounded-lg px-2 py-1 text-xs transition" style={{ color: "var(--status-attention)" }}
                           >
                             Remove
                           </button>
@@ -414,7 +414,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
               onRequestCreateExercise={openCreateExerciseFlow}
               placeholder="Search or type a movement"
               inputClassName="input-app w-full px-3 py-3 text-sm"
-              dropdownClassName="rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
+              dropdownClassName="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] max-h-72 overflow-y-auto"
               libraryRevision={userLibraryRevision}
             />
             <div className="flex flex-wrap items-end gap-3">
@@ -457,7 +457,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
           disabled={!canSave}
           className="w-full py-3 rounded-xl btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Save Template
+          Save routine
         </button>
       </div>
     </main>
@@ -481,7 +481,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
         }}
       >
         <div
-          className="w-full max-w-md rounded-2xl border border-teal-950/50 bg-gradient-to-b from-zinc-900 to-teal-950/30 shadow-xl p-5"
+          className="w-full max-w-md rounded-2xl bg-[var(--surface)] p-5"
           onClick={(e) => e.stopPropagation()}
         >
           <h2 id="replace-template-exercise-title" className="text-base font-semibold text-white mb-1">
@@ -497,7 +497,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
             onRequestCreateExercise={openCreateExerciseFlow}
             placeholder="Search or type a movement"
             inputClassName="input-app w-full p-3 text-sm"
-            dropdownClassName="mt-2 rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
+            dropdownClassName="mt-2 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] max-h-72 overflow-y-auto"
             libraryRevision={userLibraryRevision}
           />
           <div className="mt-3 flex gap-2 justify-end">

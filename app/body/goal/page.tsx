@@ -1,5 +1,6 @@
 "use client";
 
+import { BODY_FAT_OPTIONS, SEX_OPTIONS } from "@/lib/physique/profileOptions";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -29,18 +30,6 @@ const ADULT_AGE = 18;
 
 const STATUS_LABEL: Record<TrainingStatus, string> = { novice: "Novice", intermediate: "Intermediate", advanced: "Advanced" };
 const STATUS_ORDER: TrainingStatus[] = ["novice", "intermediate", "advanced"];
-const SEX_OPTIONS: Array<{ v: Sex; label: string }> = [
-  { v: "M", label: "Male" },
-  { v: "F", label: "Female" },
-  { v: "prefer_not_to_say", label: "Prefer not to say" },
-];
-const BODY_FAT_OPTIONS: Array<{ v: BodyFatCategory; label: string }> = [
-  { v: "lean", label: "Lean" },
-  { v: "athletic", label: "Athletic" },
-  { v: "average", label: "Average" },
-  { v: "above_average", label: "Above average" },
-  { v: "high", label: "High" },
-];
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function monthYear(date: string): string {
