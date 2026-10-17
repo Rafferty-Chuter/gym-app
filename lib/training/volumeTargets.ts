@@ -28,6 +28,8 @@ export const GROW_CEILING_ABOVE_MEV = 4;
 export const EMPHASISE_FLOOR_ABOVE_MEV = 2;
 /** On a cut the ceiling comes down: recovery is lower in a deficit. Inferred (research B §8). */
 export const CUT_MRV_FACTOR = 0.8;
+/** On a lean bulk Grow is allowed a little further up, since the surplus carries more volume (research B §5: push volume to the ceiling). Inferred. */
+export const BULK_GROW_CEILING_BONUS = 2;
 
 /** MV, MEV and MRV for a muscle: MV from RP, MEV and MRV seeded from the ranges the Volume signal already used. Read at call time, not module load, so import order never matters. */
 export function landmarks(group: MuscleGroup): Landmarks {
@@ -50,7 +52,8 @@ export function emphasisedCount(priorities: Priorities | null | undefined): numb
 /**
  * The weekly band of hard sets for a muscle at a priority:
  * Maintain sits between MV and MEV, Grow between MEV and a few sets
- * above it, Emphasise from a little above MEV up to MRV (lowered on a cut).
+ * above it (two more on a lean bulk), Emphasise from a little above MEV
+ * up to MRV (lowered on a cut).
  */
 export function targetBand(group: MuscleGroup, priority: Priority, phase: Phase = "maintain"): Band {
   const { mv, mev, mrv } = landmarks(group);
@@ -61,7 +64,7 @@ export function targetBand(group: MuscleGroup, priority: Priority, phase: Phase 
     case "emphasise":
       return { low: Math.min(mev + EMPHASISE_FLOOR_ABOVE_MEV, ceiling), high: ceiling };
     default:
-      return { low: mev, high: Math.min(mev + GROW_CEILING_ABOVE_MEV, ceiling) };
+      return { low: mev, high: Math.min(mev + GROW_CEILING_ABOVE_MEV + (phase === "lean_bulk" ? BULK_GROW_CEILING_BONUS : 0), ceiling) };
   }
 }
 
