@@ -19,7 +19,7 @@ function loadEnvLocal() {
 loadEnvLocal();
 
 const COACH_URL = process.env.COACH_URL ?? "http://localhost:3000/api/assistant";
-const SCORER_MODEL = "claude-sonnet-4-6";
+import { EVAL_SCORER_MODEL as SCORER_MODEL } from "../lib/ai/models";
 const CASES_PATH = join(process.cwd(), "evals/cases.json");
 const RESULTS_PATH = join(process.cwd(), "evals/results.json");
 const COACH_TIMEOUT_MS = 180_000;

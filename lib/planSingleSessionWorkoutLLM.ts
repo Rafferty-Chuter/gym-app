@@ -7,7 +7,7 @@ import { buildMuscleCoverageBriefForLLM } from "@/lib/muscleCoverageBriefForLLM"
 import type { MuscleRuleId } from "@/lib/trainingKnowledge/muscleRules";
 import type { SessionType } from "@/lib/sessionTemplates";
 
-const PLANNER_MODEL = "claude-sonnet-4-6";
+import { PLANNER_MODEL } from "@/lib/ai/models";
 const PLANNER_TOOL_NAME = "submit_planned_session";
 
 const SESSION_TYPES: SessionType[] = [

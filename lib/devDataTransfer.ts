@@ -2,28 +2,13 @@
  * Snapshot of known app localStorage keys for export/import (Profile → Data tools).
  * Keep in sync with keys used across the app.
  */
-export const APP_LOCAL_STORAGE_KEYS = [
-  "workoutHistory",
-  "workoutTemplates",
-  "userCoachingProfile",
-  "assistantThreadsV1",
-  "assistantActiveThreadIdV1",
-  "assistantUserId",
-  "assistantSelectiveMemoryV1",
-  "userExerciseLibrary",
-  "activeWorkout",
-  "weightUnit",
-  "priorityGoal",
-  "onboardingComplete",
-  "onboardingProfile",
-  "assistantClientId",
-  "experienceLevel",
-  "trainingFocus",
-  "workoutFromTemplate",
-  "workoutSuggestedMuscle",
-] as const;
+import { backupKeys } from "@/lib/storage/keys";
+import { kvRemove, kvSetRaw } from "@/lib/storage/kv";
 
-export type AppLocalStorageKey = (typeof APP_LOCAL_STORAGE_KEYS)[number];
+/** Derived from the storage registry (lib/storage/keys.ts): every local key flagged includeInBackup. */
+export const APP_LOCAL_STORAGE_KEYS: readonly string[] = backupKeys();
+
+export type AppLocalStorageKey = string;
 
 export type DevDataExportV1 = {
   v: 1;
@@ -38,6 +23,20 @@ export function isDevDataTransferExport(value: unknown): value is DevDataExportV
   if (value == null || typeof value !== "object") return false;
   const o = value as Record<string, unknown>;
   return o.v === 1 && typeof o.exportedAt === "string" && o.keys != null && typeof o.keys === "object";
+}
+
+/** Trigger a browser download of the snapshot as a .json file. */
+export function downloadAppLocalStorageSnapshot(): void {
+  const json = exportAppLocalStorageSnapshot();
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `gym-ai-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /** Build JSON string for copy/paste export. */
@@ -82,10 +81,11 @@ export function importAppLocalStorageSnapshot(jsonText: string): ImportResult {
     if (!Object.prototype.hasOwnProperty.call(keysObj, key)) continue;
     const v = keysObj[key];
     if (v === null || v === undefined) {
-      localStorage.removeItem(key);
+      kvRemove(key);
       restored.push(`${key} (removed)`);
     } else if (typeof v === "string") {
-      localStorage.setItem(key, v);
+      const result = kvSetRaw(key, v);
+      if (!result.ok) return { ok: false, error: `Could not write "${key}": ${result.error}.` };
       restored.push(key);
     } else {
       return { ok: false, error: `Key "${key}" must be a string or null, got ${typeof v}.` };

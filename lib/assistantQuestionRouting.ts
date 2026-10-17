@@ -9,6 +9,7 @@ import {
  * Keeps answers anchored: session vs exercise vs facts vs coaching vs volume vs memory.
  */
 export type AssistantQuestionKind =
+  | "physique_progress"
   | "memory_continuity"
   | "prior_answer_correction"
   | "single_session_construction"
@@ -103,6 +104,30 @@ export function shouldRoutePriorAnswerCorrection(
   );
 }
 
+/**
+ * Physique-layer questions (I2): bodyweight, cut/bulk, calories, macros,
+ * deficit, surplus, sleep, "how long until X kg", "is it working". They are
+ * answered from the PHYSIQUE CONTEXT block, so they are classified before the
+ * 1RM projection and timeline rules, which would otherwise catch "90 kg".
+ */
+export function isPhysiqueQuestion(message: string): boolean {
+  const t = message.trim().toLowerCase();
+  if (!t) return false;
+  const liftCue = /\b(bench|squat|deadlift|press|row|pull-?up|curl|1rm|e1rm|one rep max|rep max|pb|triple|single|set|sets|reps)\b/.test(t);
+  const bodyweightCue =
+    /\b(body ?weight|bodyweight|scale|weigh-?ins?|weigh myself|my weight|trend weight|lean|fat loss|body fat|waist)\b/.test(t) ||
+    /\b(cut|cutting|bulk|bulking|recomp|maintenance|maintain my weight|diet|dieting|deficit|surplus|calories?|kcal|macros?|protein|carbs?|fats?|tdee|expenditure|metabolism)\b/.test(t) ||
+    /\b(sleep|sleeping|slept|bedtime|nights?)\b/.test(t);
+  const targetWeightCue = /\b(until|till|to|reach|hit|get to|be|at)\s+(\d{2,3}(?:\.\d)?)\s*(kg|kgs|lb|lbs|kilos?|pounds?)\b/.test(t) && !liftCue;
+  const workingCue = /\b(is (my|the) (cut|bulk|diet|plan|deficit|surplus) working|is it working|am i (losing|gaining|dropping|putting on)|losing (weight|fat)|gaining (weight|muscle)|on track)\b/.test(t);
+  const rateCue = /\b\d(?:\.\d+)?\s*%\s*(a|per|each)\s*week\b/.test(t) || (/\brate\b/.test(t) && /\b(lose|gain|losing|gaining|cut|bulk)\b/.test(t));
+  if (targetWeightCue || workingCue || rateCue) return true;
+  if (!bodyweightCue) return false;
+  // "calories" or "sleep" next to a lift question still belongs to the training side when the lift is the subject.
+  if (liftCue && !/\b(cut|bulk|deficit|surplus|calories?|kcal|sleep|bodyweight|body weight|weigh)\b/.test(t)) return false;
+  return true;
+}
+
 export function classifyAssistantQuestionKind(
   message: string,
   opts?: { threadMessages?: AssistantThreadTurn[] | null }
@@ -113,6 +138,8 @@ export function classifyAssistantQuestionKind(
   if (shouldRoutePriorAnswerCorrection(message, opts?.threadMessages)) {
     return "prior_answer_correction";
   }
+
+  if (isPhysiqueQuestion(t)) return "physique_progress";
 
   const blockStructuredWorkout = userExplicitlyBlocksStructuredWorkoutGeneration(message);
 

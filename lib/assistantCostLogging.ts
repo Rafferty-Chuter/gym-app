@@ -3,14 +3,7 @@
 // Server-side only; never returned to the client.
 
 import { recordTokenUsage } from "@/lib/assistantDailyCap";
-
-// Anthropic Sonnet 4.6 list rates in USD per million tokens.
-const ANTHROPIC_SONNET_USD_PER_M = {
-  input: 3,
-  output: 15,
-  cache_read: 0.30,
-  cache_write: 3.75,
-} as const;
+import { ASSISTANT_MODEL, MODEL_RATES_USD_PER_M } from "@/lib/ai/models";
 
 // Conversion is logged with each line so the value can be re-derived if FX moves.
 export const ASSISTANT_COST_USD_TO_GBP = 0.79;
@@ -26,18 +19,20 @@ export type AnthropicUsageLike = {
 export type AssistantCostSubCall =
   | "chat"
   | "extract_memory"
-  | "plan_single_session";
+  | "plan_single_session"
+  | "food_parse";
 
-export function estimateAssistantCallCostGBP(usage: AnthropicUsageLike): number {
+export function estimateAssistantCallCostGBP(usage: AnthropicUsageLike, model: string = ASSISTANT_MODEL): number {
+  const rates = MODEL_RATES_USD_PER_M[model] ?? MODEL_RATES_USD_PER_M[ASSISTANT_MODEL];
   const inputTokens = usage.input_tokens ?? 0;
   const outputTokens = usage.output_tokens ?? 0;
   const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
   const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0;
   const usd =
-    (inputTokens / 1_000_000) * ANTHROPIC_SONNET_USD_PER_M.input +
-    (outputTokens / 1_000_000) * ANTHROPIC_SONNET_USD_PER_M.output +
-    (cacheReadTokens / 1_000_000) * ANTHROPIC_SONNET_USD_PER_M.cache_read +
-    (cacheWriteTokens / 1_000_000) * ANTHROPIC_SONNET_USD_PER_M.cache_write;
+    (inputTokens / 1_000_000) * rates.input +
+    (outputTokens / 1_000_000) * rates.output +
+    (cacheReadTokens / 1_000_000) * rates.cache_read +
+    (cacheWriteTokens / 1_000_000) * rates.cache_write;
   return usd * ASSISTANT_COST_USD_TO_GBP;
 }
 
@@ -72,7 +67,7 @@ export function logAssistantCallCost(args: {
     output_tokens: u.output_tokens ?? 0,
     cache_read_tokens: cacheReadTokens,
     cache_write_tokens: cacheWriteTokens,
-    cost_gbp: Number(estimateAssistantCallCostGBP(u).toFixed(6)),
+    cost_gbp: Number(estimateAssistantCallCostGBP(u, model).toFixed(6)),
     fx_usd_to_gbp: ASSISTANT_COST_USD_TO_GBP,
     latency_ms: Date.now() - startedAt,
   };

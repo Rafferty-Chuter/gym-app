@@ -16,6 +16,13 @@ import {
   type DraftWorkout,
 } from "@/lib/activeWorkout";
 import { useWorkoutStore } from "@/lib/workout-store";
+import { STATE_COLOR, type SignalState } from "@/lib/ui/status";
+import { SIGNAL_ICON } from "@/components/ui/SignalIcons";
+import PhysiqueHomeCard from "@/components/physique/PhysiqueHomeCard";
+import { askWhyPrompt } from "@/components/physique/VerdictCard";
+import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
+import { useNow } from "@/lib/ui/useToday";
+import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import StaleSessionModal from "@/components/StaleSessionModal";
 import { useUnit } from "@/lib/unit-preference";
 import { useTrainingFocus, TRAINING_FOCUS_OPTIONS, type TrainingFocus } from "@/lib/trainingFocus";
@@ -126,7 +133,7 @@ function ProfileModal({
   );
 }
 
-type IndicatorState = "good" | "watch" | "attention" | "unknown";
+type IndicatorState = SignalState;
 
 type Indicator = {
   key: "plateau" | "volume" | "progress";
@@ -142,111 +149,6 @@ const INDICATOR_WINDOW_LABEL: Record<Indicator["key"], string> = {
   plateau: "Per lift · last 6 sessions",
   volume: "Last 7 days",
   progress: "Per lift · last 6 sessions",
-};
-
-const STATE_COLOR: Record<
-  IndicatorState,
-  {
-    stroke: string;
-    iconBg: string;
-    iconBorder: string;
-    statusText: string;
-    statusBg: string;
-    statusBorder: string;
-  }
-> = {
-  good: {
-    stroke: "#00e5b0",
-    iconBg: "rgba(0,229,176,0.10)",
-    iconBorder: "rgba(0,229,176,0.30)",
-    statusText: "#00e5b0",
-    statusBg: "rgba(0,229,176,0.10)",
-    statusBorder: "rgba(0,229,176,0.30)",
-  },
-  watch: {
-    stroke: "#fbbf24",
-    iconBg: "rgba(251,191,36,0.10)",
-    iconBorder: "rgba(251,191,36,0.32)",
-    statusText: "#fbbf24",
-    statusBg: "rgba(251,191,36,0.10)",
-    statusBorder: "rgba(251,191,36,0.32)",
-  },
-  attention: {
-    stroke: "#fb7185",
-    iconBg: "rgba(251,113,133,0.10)",
-    iconBorder: "rgba(251,113,133,0.32)",
-    statusText: "#fb7185",
-    statusBg: "rgba(251,113,133,0.10)",
-    statusBorder: "rgba(251,113,133,0.32)",
-  },
-  unknown: {
-    stroke: "rgba(140,200,196,0.50)",
-    iconBg: "rgba(140,200,196,0.06)",
-    iconBorder: "rgba(140,200,196,0.18)",
-    statusText: "rgba(140,200,196,0.65)",
-    statusBg: "rgba(140,200,196,0.05)",
-    statusBorder: "rgba(140,200,196,0.16)",
-  },
-};
-
-function PlateauIcon({ color }: { color: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[22px] w-[22px]"
-      aria-hidden
-    >
-      <path d="M3 18 L8 11 L16 11 L21 18" />
-    </svg>
-  );
-}
-
-function VolumeIcon({ color }: { color: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[22px] w-[22px]"
-      aria-hidden
-    >
-      <line x1="6" y1="19" x2="6" y2="14" />
-      <line x1="12" y1="19" x2="12" y2="9" />
-      <line x1="18" y1="19" x2="18" y2="11" />
-    </svg>
-  );
-}
-
-function ProgressIcon({ color }: { color: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[22px] w-[22px]"
-      aria-hidden
-    >
-      <path d="M3 17 L9 11 L13 14 L21 6" />
-      <polyline points="15 6 21 6 21 12" />
-    </svg>
-  );
-}
-
-const INDICATOR_ICON: Record<Indicator["key"], React.ComponentType<{ color: string }>> = {
-  plateau: PlateauIcon,
-  volume: VolumeIcon,
-  progress: ProgressIcon,
 };
 
 function trimToOneLine(text: string, maxLen: number): string {
@@ -467,7 +369,7 @@ function IndicatorTile({
   onTap: () => void;
 }) {
   const c = STATE_COLOR[indicator.state];
-  const Icon = INDICATOR_ICON[indicator.key];
+  const Icon = SIGNAL_ICON[indicator.key];
   const windowLabel = INDICATOR_WINDOW_LABEL[indicator.key];
   return (
     <button
@@ -509,15 +411,6 @@ function IndicatorTile({
         </span>
       </div>
     </button>
-  );
-}
-
-const SUBSCRIBE_NOOP = () => () => {};
-function useIsHydrated(): boolean {
-  return useSyncExternalStore(
-    SUBSCRIBE_NOOP,
-    () => true,
-    () => false
   );
 }
 
@@ -710,6 +603,24 @@ export default function Home() {
     () => buildAssistantInsight(coachAnalysis, workouts.length),
     [coachAnalysis, workouts.length]
   );
+  // U2b: a watch or attention physique verdict takes the insight card over the training key focus.
+  const now = useNow();
+  const physique = usePhysiqueAnalysis(hasMounted ? now : null, unit === "lb" ? "lb" : "kg");
+  const physiqueInsight = useMemo(() => {
+    if (!physique || (physique.status.state !== "watch" && physique.status.state !== "attention")) return null;
+    const title = physique.verdict.title;
+    return {
+      text: `${title}. ${physique.verdict.detail}`,
+      prompt: askWhyPrompt(physique),
+      followUps: [
+        { label: "Why?", prompt: askWhyPrompt(physique) },
+        { label: "What do I change?", prompt: `My Body tab says "${title}". What exactly should I change this week, from my numbers?` },
+        { label: "Show the data", prompt: `Show me the numbers behind "${title}": weight trend and rate, intake against target, lifts and sleep.` },
+      ],
+      cold: false,
+    };
+  }, [physique]);
+  const shownInsight = physiqueInsight ?? insight;
 
   const ctaLabel = hasMounted && hasActive ? "Resume workout" : "Start workout";
   const ctaHref = hasMounted && hasActive ? "/workout" : "/workout/start";
@@ -741,11 +652,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white relative pb-28">
-      <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_85%_35%_at_50%_-5%,rgba(0,229,176,0.08),transparent_55%)]"
-        aria-hidden
-      />
-
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
 
         <div className="flex items-center justify-between gap-3 pt-4 pb-1">
@@ -797,11 +703,7 @@ export default function Home() {
           <Link
             href="/profile"
             className="mt-2 flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-[12px] transition-colors"
-            style={{
-              background: "rgba(0,229,176,0.06)",
-              border: "1px solid rgba(0,229,176,0.22)",
-              color: "rgba(0,229,176,0.95)",
-            }}
+            style={{ background: "#141416", border: "1px solid #2a2a2e", color: "#a3a3a8" }}
             aria-label="Set up your coach profile — sharpens every assistant answer"
           >
             <span className="font-semibold">
@@ -836,12 +738,8 @@ export default function Home() {
           <Link
             href={ctaHref}
             aria-label={ctaLabel}
-            className="block w-full rounded-2xl py-5 text-center text-xl font-black tracking-tight text-[color:var(--color-accent-foreground)] transition-all duration-150 hover:brightness-105 active:translate-y-[1px] active:scale-[0.995]"
-            style={{
-              background: "#00e5b0",
-              boxShadow:
-                "0 0 0 1px rgba(0,229,176,0.25), 0 14px 40px -10px rgba(0,229,176,0.50)",
-            }}
+            className="block w-full rounded-[12px] py-4 text-center text-[17px] font-semibold tracking-[-0.01em] transition-colors duration-150 hover:bg-white active:translate-y-[1px]"
+            style={{ background: "#f2f2f0", color: "#0a0a0b" }}
           >
             {ctaLabel}
           </Link>
@@ -852,28 +750,19 @@ export default function Home() {
             Assistant
           </h2>
           <article
-            className="rounded-3xl p-4 sm:p-5 transition-all duration-200"
-            style={{
-              background:
-                "linear-gradient(180deg, rgba(0,229,176,0.06) 0%, #0e1420 38%, #0e1420 100%)",
-              border: "1px solid rgba(0,229,176,0.22)",
-              boxShadow:
-                "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 14px 36px -14px rgba(0,229,176,0.22), 0 3px 10px rgba(0,0,0,0.45)",
-            }}
+            className="rounded-[12px] p-4 sm:p-5"
+            style={{ background: "#141416", border: "1px solid #2a2a2e" }}
           >
             <header className="flex items-center gap-2.5 mb-3">
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-full"
-                style={{
-                  background: "rgba(0,229,176,0.12)",
-                  border: "1px solid rgba(0,229,176,0.30)",
-                }}
+                style={{ background: "#1d1d20" }}
                 aria-hidden
               >
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#00e5b0"
+                  stroke="#a3a3a8"
                   strokeWidth="1.75"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -894,37 +783,33 @@ export default function Home() {
                   Assistant
                 </p>
                 <p className="text-[11px] font-medium text-home-tertiary">
-                  {insight.cold ? "Cold start" : "From your training"}
+                  {shownInsight.cold ? "Cold start" : physiqueInsight ? "From your Body tab" : "From your training"}
                 </p>
               </div>
             </header>
 
             <button
               type="button"
-              onClick={() => openAssistantWith(insight.prompt)}
+              onClick={() => openAssistantWith(shownInsight.prompt)}
               className="block w-full text-left rounded-xl -mx-1 px-1 py-1 transition-colors duration-150 hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
-              aria-label={`Ask the assistant about: ${insight.text}`}
+              aria-label={`Ask the assistant about: ${shownInsight.text}`}
             >
               <p
                 className="text-[16px] sm:text-[17px] font-semibold leading-snug text-white"
                 style={{ textWrap: "pretty" }}
               >
-                {insight.text}
+                {shownInsight.text}
               </p>
             </button>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              {insight.followUps.map((f) => (
+              {shownInsight.followUps.map((f) => (
                 <button
                   key={f.label}
                   type="button"
                   onClick={() => openAssistantWith(f.prompt)}
-                  className="rounded-full px-3 py-1.5 text-[12px] font-semibold tracking-tight transition-colors duration-150 active:scale-[0.97]"
-                  style={{
-                    background: "rgba(0,229,176,0.06)",
-                    border: "1px solid rgba(0,229,176,0.22)",
-                    color: "rgba(0,229,176,0.95)",
-                  }}
+                  className="rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 active:bg-[#26262a]"
+                  style={{ background: "#1d1d20", color: "#a3a3a8" }}
                 >
                   {f.label}
                 </button>
@@ -935,12 +820,8 @@ export default function Home() {
               type="button"
               onClick={openAssistantClean}
               aria-label="Open assistant with no preloaded message"
-              className="mt-3.5 flex items-center justify-center gap-2 w-full rounded-2xl py-3 text-[14px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
-              style={{
-                background: "rgba(0,229,176,0.12)",
-                border: "1px solid rgba(0,229,176,0.35)",
-                color: "#7ff2cf",
-              }}
+              className="mt-3.5 flex items-center justify-center gap-2 w-full rounded-[12px] py-3 text-[15px] font-semibold transition-colors duration-150 active:bg-[#26262a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3a3a40]"
+              style={{ background: "#1d1d20", color: "#f2f2f0" }}
             >
               <span>Open assistant</span>
               <svg
@@ -977,6 +858,13 @@ export default function Home() {
           ) : (
             <IndicatorSkeleton />
           )}
+        </section>
+
+        <section className="pt-5 pb-2" aria-labelledby="physique-heading">
+          <h2 id="physique-heading" className="label-section mb-2">
+            Body
+          </h2>
+          <PhysiqueHomeCard />
         </section>
 
       </div>

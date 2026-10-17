@@ -1,7 +1,7 @@
 ---
 register: product
 source: Sourced from Obsidian vault Product/Positioning.md and Decisions/2026-04-29-assistant-first-product-direction.md (vault is canonical for intent; this file mirrors it for the impeccable skill).
-last_synced: 2026-04-29
+last_synced: 2026-10-16
 ---
 
 # Product
@@ -30,6 +30,8 @@ A rules engine (`lib/coachStructuredAnalysis.ts → buildCoachStructuredAnalysis
 2. Feed the assistant as contextual grounding so it answers with reference to the user's actual training, not generic science.
 
 Logging is competitive infrastructure: if it's slower than Hevy, no one stays long enough to see the rest.
+
+**Physique layer (2026-10).** The product expands from a training diagnostic to a physique coach. The user sets a bodyweight goal ("90 kg, lean"). A deterministic physique engine (`lib/physique/*`) computes trend weight, rate, adaptive expenditure (modelled on MacroFactor), targets, and a single verdict that combines rate, adherence, lift performance and sleep. As with training signals, the engine decides and the assistant explains. The Body tab is the logging home for weight, food and sleep; Start Workout remains the dominant element on Home.
 
 ## Brand and tone
 
@@ -61,10 +63,14 @@ The product must not feel like:
 - **Glanceable, not interpretive, on the dashboard.** The three indicators say "where am I?" The assistant says "why, and what now?"
 - **Cold-start handled honestly.** No fake data, no premature insights. Empty state is a real state, designed deliberately.
 - **The audit pipeline (CSV import) is a separate AI surface from the chat assistant.** Different inputs, different output format, different failure mode. Out of scope for the home-screen rebuild.
+- **One judge, not four dashboards.** Weight, food, lifts and sleep feed one verdict with one recommended change. Never show four competing scores.
+- **Adherence before strategy.** If the user isn't eating to target, say that before changing the plan.
+- **Calibrating is a real state.** No expenditure, rate or verdict until the data supports it.
 
 ## Design implications
 
 - Logging UX must be at-or-faster than Hevy. The home Start Workout button is a load-bearing piece of that.
 - The assistant card on the home screen must always show something real from the user's data, never a generic "Chat with your coach" prompt. If there is no data yet, show an honest cold-start prompt that names what's missing.
 - The three indicators must be glanceable in under a second. Colour + icon + a short label. No prose, no charts on the home view (a chart can live in the indicator detail).
-- Bottom nav: Home, Log, History. The assistant lives on Home, not as a separate tab.
+- Bottom nav: Home, Body, Templates, History, Profile. The assistant lives on Home, not as a separate tab.
+- Visual direction (decided 2026-10-16): MacroFactor-style. Near-black with a faint warm tint, grey surface layers, white primary actions, colour reserved for status and data. Mint is the single accent. See `DESIGN.md`.
