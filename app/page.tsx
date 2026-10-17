@@ -21,6 +21,7 @@ import { SIGNAL_ICON } from "@/components/ui/SignalIcons";
 import PhysiqueHomeCard from "@/components/physique/PhysiqueHomeCard";
 import WeekReportLine from "@/components/physique/WeekReportLine";
 import TodayStrip from "@/components/physique/TodayStrip";
+import GapLines from "@/components/physique/GapLines";
 import { askWhyPrompt } from "@/components/physique/VerdictCard";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { useNow } from "@/lib/ui/useToday";
@@ -738,6 +739,9 @@ export default function Home() {
 
         <section className="pt-3" aria-label="Today">
           <TodayStrip />
+          <div className="mt-2">
+            <GapLines />
+          </div>
         </section>
 
         <section className="pt-3" aria-labelledby="physique-heading">

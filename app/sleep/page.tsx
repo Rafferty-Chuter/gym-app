@@ -15,6 +15,8 @@ import { sleepPrefill } from "@/lib/physique/dayTotals";
 import { bedtimePlan, nightWord, sleepContributors, sleepInsight, trendBars } from "@/lib/physique/sleepView";
 import PageHeader from "@/components/ui/PageHeader";
 import SleepSheet from "@/components/physique/SleepSheet";
+import GapRows from "@/components/physique/GapRows";
+import { findGaps, gapLines } from "@/lib/physique/gaps";
 import { Caption } from "@/components/physique/ui";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import SleepHero from "@/components/sleep/SleepHero";
@@ -73,7 +75,9 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
     const lastNight = byDate.get(today)?.night ?? null;
     const prefill = sleepPrefill(data.sleepNights);
     const read = analysis?.sleep ?? null;
+    const gapRows = gapLines(findGaps({ foodEntries: [], dayFlags: {}, weighIns: [], sleepNights: data.sleepNights }, today, ["sleep"]), today);
     return {
+      gapRows,
       byDate,
       nights,
       lastNight,
@@ -101,6 +105,8 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         <PageHeader caption={`Last night · ${longLocalDate(addDays(today, -1))} → ${longLocalDate(today)}`} title="Sleep" action={{ label: "Log sleep", onClick: () => setSheetDate(today) }} />
 
         <SleepHero night={model.lastNight} word={model.word} goalH={goalH} onLog={() => setSheetDate(today)} />
+
+        <GapRows lines={model.gapRows} onSelect={(l) => setSheetDate(l.date)} />
 
         {analysis && model.insight && <SleepInsight read={analysis.sleep} text={model.insight} />}
 

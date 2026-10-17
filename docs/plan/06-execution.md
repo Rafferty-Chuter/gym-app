@@ -9,7 +9,7 @@ The founder's call after T2: park the coach, make the app something that keeps a
 | # | Ticket | Size | What ships | Needs from the founder |
 |---|---|---|---|---|
 | 01 | **W1 Weekly report** | 1 | `lib/physique/weekReport.ts` (pure) and `/report`: for any Monday-to-Sunday week, weight trend and rate, expenditure move, intake average and days logged against target, protein, sessions and hard sets per muscle, main-lift e1RM changes, sleep mean and debt, the week's verdict, and every gap (unlogged food days, missing weigh-ins, missing nights) as a list with one-tap fixes. Numbers and the engine's words only. A line on Home opens the latest report. | — |
-| 02 | **W2 Gaps stated plainly** | 0.5 | On Home, Food, Body and Sleep: "Thursday has no food logged" with mark partial / fasting / copy a day; missed weigh-ins and nights the same way. No streaks, no nudges. | — |
+| 02 | **W2 Gaps stated plainly** (done 2026-10-17) | 0.5 | On Home, Food, Body and Sleep: "Thursday has no food logged" with log / copy a day / fasting or a total; missed weigh-ins and nights open their sheet on that day. No streaks, no nudges. | — |
 | 03 | **S5 Apple Health auto-upload** (built 2026-10-17, awaiting keys) | 1.5 | Health Auto Export pushes sleep, HRV, resting HR and weight to `/api/ingest/hae`; a device token the user pastes once; the app pulls new nights on open; manual logging stays as the fallback. Needs a server store. | **H3:** create a Supabase project (free tier) and add its URL and service key to Vercel. Health Auto Export Premium (about £7 a year). |
 | 04 | **G5 Reminders** | 0.5 | Web push that fires only on a gap and says only what is missing. | — |
 | 05 | **S1 to S3 Accounts and sync** | 3 | Since the Supabase project exists: sign-in, row-level security, local-first sync. | — |
@@ -49,7 +49,7 @@ Goal: data that survives a phone change, logging that costs nothing to keep up, 
 | B8 | **Billing** | 2 | Stripe on the web; App Store subscriptions once native. Free: logging and trends. Paid: the coach, Describe, Apple Health, sync. Two-week trial. | Stripe account; pricing decision. |
 | B9 | **AI cost control** | 0.5 | Per-plan daily caps, a cheaper model for Describe, cost per user on a dashboard. | — |
 | B10 | **Legal and privacy** | 1 | Privacy policy, terms, UK GDPR for health data, delete-my-account that works, Anthropic as a processor. | Read and approve the texts. |
-| B11 | **Native wrapper** | 2 | Capacitor around the web app for the App Store and Play Store; push and Health access. | Apple Developer account (£79/yr), Google Play account. |
+| B11 | **Native wrapper** (pulled forward; parked 2026-10-17 until the founder says go) | 2 | Capacitor around the web app for the App Store and Play Store; push and Health access. Notes from the first pass: `npx cap add ios` works from Linux with Capacitor 8 (Swift Package Manager, no CocoaPods); the shell loads the production URL so web and native ship together; a small Swift HealthKit plugin feeds `mergeSamples` so Health Auto Export is no longer needed on native; the build, signing and upload run on the founder's Mac with Xcode. | Apple Developer account (£79/yr) enrolled first: the identity check takes 1 to 3 days. Xcode on the Mac. Google Play account later. |
 | B12 | **Reliability** | 1.5 | Error reporting, uptime check, staging environment, tests on every push, GitHub → Vercel deploys fixed. | — |
 
 **Decision gate B (founder):** the price. Proposal: £6.99 a month, £49.99 a year, two-week trial.

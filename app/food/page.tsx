@@ -22,6 +22,9 @@ import AddFoodBar from "@/components/food/AddFoodBar";
 import LoggerSheet, { type LoggerOpen } from "@/components/food/LoggerSheet";
 import EntrySheet from "@/components/food/EntrySheet";
 import EditDaySheet from "@/components/food/EditDaySheet";
+import GapSheet, { type CopySource } from "@/components/food/GapSheet";
+import GapRows from "@/components/physique/GapRows";
+import { findGaps, gapLines } from "@/lib/physique/gaps";
 import { ErrorLine, PrimaryButton, SecondaryButton } from "@/components/physique/ui";
 import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import type { FoodEntry } from "@/lib/physique/types";
@@ -35,7 +38,17 @@ export default function FoodPage() {
   return <FoodContent now={now} unit={unit === "lb" ? "lb" : "kg"} />;
 }
 
-type DayAction = { kind: "copy"; to: LocalDate } | { kind: "clear" } | { kind: "edit" } | null;
+type DayAction = { kind: "copy"; to: LocalDate } | { kind: "clear" } | { kind: "edit" } | { kind: "gap"; date: LocalDate } | null;
+
+/** `/food?date=YYYY-MM-DD` selects that day; a past unlogged day also opens the gap sheet (Home and the week report link here). Client only. */
+function dateFromQuery(today: LocalDate): LocalDate | null {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search).get("date");
+  return q && /^\d{4}-\d{2}-\d{2}$/.test(q) && q <= today ? q : null;
+}
+
+/** Days with entries near a gap, nearest first, for the copy option. OURS. */
+const COPY_SOURCE_DAYS = 14;
 
 function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const today = now.today;
@@ -44,14 +57,16 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const prefs = useFoodPrefs();
   const expenditure = useExpenditure(now);
   const analysis = usePhysiqueAnalysis(now, unit);
-  const [date, setDate] = useState<LocalDate>(() => {
-    const q = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date");
-    return q && /^\d{4}-\d{2}-\d{2}$/.test(q) && q <= today ? q : today;
-  });
+  const [date, setDate] = useState<LocalDate>(() => dateFromQuery(today) ?? today);
   const [logger, setLogger] = useState<LoggerOpen>(null);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const [energyLine, setEnergyLine] = useState<EnergyLine>("expenditure");
-  const [dayAction, setDayAction] = useState<DayAction>(null);
+  const [dayAction, setDayAction] = useState<DayAction>(() => {
+    const q = dateFromQuery(today);
+    if (!q || q >= today) return null;
+    const status = dailyIntake(q, data.foodEntries.filter((e) => e.date === q), data.dayFlags[q]).status;
+    return status === "unlogged" ? { kind: "gap", date: q } : null;
+  });
   const [actionError, setActionError] = useState<string | null>(null);
 
   const week = useMemo(() => weekDates(date), [date]);
@@ -75,13 +90,23 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
     const weekRows = weekTotals(week, data.foodEntries, data.dayFlags, data.program, today);
     const logged = new Set(weekRows.filter((d) => d.logged).map((d) => d.date));
     const energy = energyBalance(expenditure?.intake ?? [], expenditure?.series ?? [], data.program, energyLine, today);
-    return { timeline, totals, flags, dayNote, target, weekRows, logged, energy };
+    const gapRows = gapLines(findGaps({ foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: [], sleepNights: [] }, today, ["food"]), today);
+    return { timeline, totals, flags, dayNote, target, weekRows, logged, energy, gapRows };
   }, [data, date, tz, prefs.hourStart, prefs.hourEnd, week, today, expenditure, energyLine]);
 
   const nowIso = () => new Date().toISOString();
   const isToday = date === today;
   const caption = isToday ? `Today · ${longLocalDate(today)}` : date === addDays(today, -1) ? `Yesterday · ${longLocalDate(date)}` : longLocalDate(date);
   const editingLive = editing ? (data.foodEntries.find((e) => e.id === editing.id) ?? null) : null;
+  const gapDate = dayAction?.kind === "gap" ? dayAction.date : null;
+  const copySources = useMemo<CopySource[]>(() => {
+    if (!gapDate) return [];
+    const from = addDays(gapDate, -COPY_SOURCE_DAYS);
+    const counts = new Map<LocalDate, number>();
+    for (const e of data.foodEntries) if (e.date >= from && e.date <= today && e.date !== gapDate) counts.set(e.date, (counts.get(e.date) ?? 0) + 1);
+    const dist = (d: LocalDate) => Math.abs(Date.parse(d) - Date.parse(gapDate));
+    return [...counts.entries()].map(([d, n]) => ({ date: d, entries: n })).sort((a, b) => dist(a.date) - dist(b.date) || (a.date < b.date ? -1 : 1));
+  }, [gapDate, data.foodEntries, today]);
 
   async function runDayAction() {
     if (!dayAction) return;
@@ -97,6 +122,8 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         <PageHeader caption={caption} title="Food" action={{ label: "Add food", onClick: () => setLogger({}) }} />
 
         <WeekStrip dates={week} selected={date} today={today} logged={model.logged} onSelect={setDate} onPrevWeek={() => setDate(addDays(date, -7))} onNextWeek={() => setDate((d) => (addDays(d, 7) > today ? today : addDays(d, 7)))} />
+
+        <GapRows lines={model.gapRows} onSelect={(l) => setDayAction({ kind: "gap", date: l.date })} />
 
         <FoodWidgets
           date={date}
@@ -156,6 +183,31 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           const a = await setDayStatus(date, status === "complete" ? null : status);
           if (!a.ok) return a;
           return setDayOverride(date, status === "fasting" ? null : overrideKcal);
+        }}
+      />
+
+      <GapSheet
+        date={gapDate}
+        today={today}
+        onClose={() => setDayAction(null)}
+        sources={copySources}
+        onLog={() => {
+          if (gapDate) setDate(gapDate);
+          setDayAction(null);
+          setLogger({});
+        }}
+        onCopy={async (from) => {
+          if (!gapDate) return { ok: true as const };
+          const r = await copyDay(from, gapDate, nowIso(), tz);
+          if (r.ok) {
+            setDate(gapDate);
+            setDayAction(null);
+          }
+          return r;
+        }}
+        onEditDay={() => {
+          if (gapDate) setDate(gapDate);
+          setDayAction({ kind: "edit" });
         }}
       />
 
