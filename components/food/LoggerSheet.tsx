@@ -9,10 +9,12 @@ import { hourLabel, localClock, macroKcal } from "@/lib/physique/food/timeline";
 import { filterSaved } from "@/lib/physique/food/goTos";
 import FoodSearch from "@/components/food/FoodSearch";
 import SavedFoodRow, { PlusButton } from "@/components/food/SavedFoodRow";
+import RecipeCard from "@/components/food/RecipeCard";
+import { eatenMacros, recipeConfidence, servingLabel, type Recipe } from "@/lib/food/recipe";
 import { getClientId } from "@/lib/ui/clientId";
 import type { FoodInput } from "@/lib/physique/io/foodData";
 import type { SaveResult } from "@/lib/physique/io/bodyData";
-import type { ParsedFoodItem } from "@/lib/physique/food/parseSchema";
+import type { FoodParseResponse, ParsedFoodItem } from "@/lib/physique/food/parseSchema";
 import type { FoodEntry, SavedFood } from "@/lib/physique/types";
 import type { LocalDate } from "@/lib/dates";
 
@@ -85,6 +87,8 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   const [items, setItems] = useState<ParsedFoodItem[] | null>(null);
   const [describeStatus, setDescribeStatus] = useState<"idle" | "loading" | "error" | "unavailable" | "limit">("idle");
   const [editing, setEditing] = useState<number | null>(null);
+  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [eating, setEating] = useState(1);
 
   // Saved
   const [query, setQuery] = useState("");
@@ -142,6 +146,7 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
     if (!t) return;
     setDescribeStatus("loading");
     setItems(null);
+    setRecipe(null);
     try {
       const res = await fetch("/api/food/parse", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_id: getClientId(), text: t }) });
       if (res.status === 503) {
@@ -153,11 +158,33 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
         return;
       }
       if (!res.ok) throw new Error(String(res.status));
-      const json = (await res.json()) as { items?: ParsedFoodItem[] };
-      setItems(json.items ?? []);
+      const json = (await res.json()) as Partial<FoodParseResponse>;
+      if (json.recipe && json.recipe.ingredients.length > 0) {
+        setRecipe(json.recipe);
+        setEating(1);
+      } else {
+        setItems(json.items ?? []);
+      }
       setDescribeStatus("idle");
     } catch {
       setDescribeStatus("error");
+    }
+  }
+
+  async function logRecipe() {
+    if (!recipe || recipe.ingredients.length === 0) return;
+    const m = eatenMacros(recipe.ingredients, recipe.servings, eating);
+    const ok = await log({
+      label: recipe.name.trim() || "Recipe",
+      ...m,
+      serving: servingLabel(eating, recipe.servings),
+      method: "ai_text",
+      confidence: recipeConfidence(recipe.ingredients),
+      recipe: { servings: recipe.servings, ingredients: recipe.ingredients },
+    });
+    if (ok) {
+      setRecipe(null);
+      setText("");
     }
   }
 
@@ -208,6 +235,13 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
           Quick add
         </PrimaryButton>
       </div>
+    ) : tab === "describe" && recipe && recipe.ingredients.length > 0 ? (
+      <div className="flex flex-col gap-2">
+        <ErrorLine text={error} />
+        <PrimaryButton onClick={logRecipe} disabled={busy}>
+          Log {Number.isInteger(eating) ? eating : eating.toFixed(1)} {eating === 1 ? "serving" : "servings"} · {n(eatenMacros(recipe.ingredients, recipe.servings, eating).kcal)} kcal
+        </PrimaryButton>
+      </div>
     ) : tab === "describe" && items && items.length > 0 ? (
       <div className="flex flex-col gap-2">
         <ErrorLine text={error} />
@@ -256,9 +290,9 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="What did you eat? Amounts help: 2 eggs on toast with butter, a flat white"
-              rows={3}
-              maxLength={600}
+              placeholder="What did you eat? 2 eggs on toast with butter. Or a recipe with amounts and how many it makes. Or an order: chicken katsu curry from Wagamama"
+              rows={4}
+              maxLength={2000}
               className="w-full resize-none rounded-[12px] px-3 py-2.5 text-[15px] outline-none focus:ring-1"
               style={inputStyle}
               aria-label="Describe what you ate"
@@ -284,6 +318,12 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
             {items && items.length === 0 && (
               <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
                 Nothing recognisable in that. Try naming the foods.
+              </p>
+            )}
+            {recipe && recipe.ingredients.length > 0 && <RecipeCard recipe={recipe} onChange={setRecipe} eating={eating} onEating={setEating} />}
+            {recipe && recipe.ingredients.length === 0 && (
+              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+                Every ingredient was dropped. Describe it again or quick add the total.
               </p>
             )}
             {items && items.length > 0 && (

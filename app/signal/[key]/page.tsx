@@ -108,7 +108,7 @@ function pickMostTrackedExercise(
 function formatDateLabel(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   } catch {
     return "";
   }
@@ -591,10 +591,10 @@ function buildVolumeContent(
     let explanation: string;
     if (mostMusclesLow && isLowFrequencyWeek) {
       const sessionWord = weeklyWorkouts.length === 1 ? "session" : "sessions";
-      explanation = `Most muscles are below the productive volume range — but you've only logged ${weeklyWorkouts.length} ${sessionWord} this week. Volume will catch up with normal frequency.`;
+      explanation = `Most muscles are below the productive volume range, but you have only logged ${weeklyWorkouts.length} ${sessionWord} this week. Volume will catch up with normal frequency.`;
     } else if (mostMusclesLow) {
       explanation =
-        "Most muscles are below the productive volume range. Either training intensity is high enough that the lower volume is sufficient, or volume should come up — see the breakdown below.";
+        "Most muscles are below the productive volume range. Either training intensity is high enough that the lower volume is sufficient, or volume should come up. See the breakdown below.";
     } else if (lowEntries.length > 0) {
       explanation = lowEntries[0].summary;
     } else if (lowRows.length > 0) {
@@ -859,7 +859,7 @@ function ProgressDetailView({
                 : ""
             }`
           : selectedItem.trend === "flat"
-            ? "is flat — estimated 1RM has barely moved"
+            ? "is flat: estimated 1RM has barely moved"
             : "doesn't have enough recent data to read";
     const window =
       selectedItem.trend === "insufficient"

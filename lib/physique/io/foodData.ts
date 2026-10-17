@@ -6,6 +6,7 @@
  * error instead of throwing. Keeps `bodyData.ts` unchanged.
  */
 
+import { perServing, servingLabel } from "@/lib/food/recipe";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
 import { foodEntriesRepo, newId, savedFoodsRepo } from "@/lib/physique/io/repos";
@@ -63,6 +64,8 @@ export type FoodInput = {
   serving?: string;
   method?: FoodMethod;
   confidence?: FoodEntry["confidence"];
+  /** Present when the log is servings of a recipe; the saved food keeps one serving and the ingredients. */
+  recipe?: SavedFood["recipe"];
 };
 
 function clean(food: FoodInput) {
@@ -71,14 +74,14 @@ function clean(food: FoodInput) {
 }
 
 /** Remember a logged food for Recent and Saved; a same-label-and-kcal match is reused. */
-async function rememberSaved(food: ReturnType<typeof clean>, serving: string | undefined, nowIso: string, savedFoodId?: string): Promise<string> {
+async function rememberSaved(food: ReturnType<typeof clean>, serving: string | undefined, nowIso: string, savedFoodId?: string, recipe?: SavedFood["recipe"]): Promise<string> {
   const saved = savedFoodsRepo.snapshot();
   const match =
     (savedFoodId ? saved.find((s) => s.id === savedFoodId) : undefined) ??
     saved.find((s) => s.label.toLowerCase() === food.label.toLowerCase() && s.kcal === food.kcal);
   const next: SavedFood = match
-    ? { ...match, lastUsedAt: nowIso, useCount: match.useCount + 1, serving: serving ?? match.serving }
-    : { id: newId(), ...food, serving, lastUsedAt: nowIso, useCount: 1, schemaVersion: 1 };
+    ? { ...match, lastUsedAt: nowIso, useCount: match.useCount + 1, serving: serving ?? match.serving, ...(recipe ? { recipe } : {}) }
+    : { id: newId(), ...food, serving, lastUsedAt: nowIso, useCount: 1, schemaVersion: 1, ...(recipe ? { recipe } : {}) };
   await savedFoodsRepo.upsert(next);
   return next.id;
 }
@@ -87,7 +90,10 @@ async function rememberSaved(food: ReturnType<typeof clean>, serving: string | u
 export async function logFood(date: LocalDate, food: FoodInput, nowIso: string, savedFoodId?: string): Promise<SaveResult> {
   return attempt(async () => {
     const base = clean(food);
-    const id = await rememberSaved(base, food.serving, nowIso, savedFoodId);
+    // A recipe is remembered as one serving, whatever was eaten this time.
+    const savedBase = food.recipe ? clean({ ...food, ...perServing(food.recipe.ingredients, food.recipe.servings) }) : base;
+    const savedServing = food.recipe ? servingLabel(1, food.recipe.servings) : food.serving;
+    const id = await rememberSaved(savedBase, savedServing, nowIso, savedFoodId, food.recipe);
     const entry: FoodEntry = {
       id: newId(),
       date,

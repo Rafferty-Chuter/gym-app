@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import PageHeader from "@/components/ui/PageHeader";
+import { Caption, ErrorLine, PrimaryButton, Row, RowGroup } from "@/components/physique/ui";
 import { useUnit } from "@/lib/unit-preference";
 import {
   commitImportedWorkouts,
@@ -17,7 +18,7 @@ type FormatChoice = "auto" | "hevy" | "strong" | "repcount";
 function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   } catch {
     return iso;
   }
@@ -122,71 +123,68 @@ export default function ImportCsvPage() {
     return parseResult.workouts.slice(-5).reverse();
   }, [parseResult]);
 
+  const selectClass = "h-9 max-w-[200px] rounded-[10px] px-2 text-[13px] outline-none";
+  const selectStyle = { background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" };
+
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-6 pb-28">
-      <div className="mx-auto max-w-2xl">
-        <Link href="/profile" className="text-sm font-medium text-app-secondary hover:text-white transition-colors">
-          ← Profile
-        </Link>
-        <h1 className="mt-2 text-3xl font-bold text-white">Import CSV</h1>
-        <p className="mt-1 text-sm text-app-secondary">
-          Bring in workout history from Hevy, Strong or Rep Count. Paste the CSV or pick a file.
+    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+      <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
+        <PageHeader caption="Profile" captionHref="/profile" title="Import CSV" />
+        <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+          Workout history from Hevy, Strong or Rep Count. Pick the file or paste the CSV.
         </p>
 
-        <section className="mt-6 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Format</label>
-              <select
-                value={formatChoice}
-                onChange={(e) => setFormatChoice(e.target.value as FormatChoice)}
-                className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"
-              >
-                <option value="auto">Auto-detect</option>
-                <option value="hevy">Hevy</option>
-                <option value="strong">Strong</option>
-                <option value="repcount">Rep Count</option>
-              </select>
-            </div>
-            {(formatChoice === "repcount" || formatChoice === "auto") && (
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Weights in the file are</label>
-                <select
-                  value={sourceUnit}
-                  onChange={(e) => setSourceUnit(e.target.value as "kg" | "lb")}
-                  className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"
-                >
-                  <option value="kg">kg</option>
-                  <option value="lb">lb</option>
+        <section className="flex flex-col gap-2" aria-label="File settings">
+          <Caption>File</Caption>
+          <RowGroup>
+            <Row
+              label="Format"
+              value={
+                <select value={formatChoice} onChange={(e) => setFormatChoice(e.target.value as FormatChoice)} className={selectClass} style={selectStyle} aria-label="Format">
+                  <option value="auto">Auto-detect</option>
+                  <option value="hevy">Hevy</option>
+                  <option value="strong">Strong</option>
+                  <option value="repcount">Rep Count</option>
                 </select>
-                <p className="mt-1 text-[11px] text-zinc-500">Rep Count only. Hevy and Strong files say their unit.</p>
-              </div>
+              }
+            />
+            {(formatChoice === "repcount" || formatChoice === "auto") && (
+              <Row
+                label="Weights in the file"
+                sub="Rep Count only. Hevy and Strong say their unit."
+                value={
+                  <select value={sourceUnit} onChange={(e) => setSourceUnit(e.target.value as "kg" | "lb")} className={selectClass} style={selectStyle} aria-label="Weights in the file are">
+                    <option value="kg">kg</option>
+                    <option value="lb">lb</option>
+                  </select>
+                }
+              />
             )}
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Mode</label>
-              <select
-                value={mode}
-                onChange={(e) => setMode(e.target.value as CommitMode)}
-                className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"
-              >
-                <option value="append">Append (skip duplicates)</option>
-                <option value="replace">Replace all history</option>
-              </select>
-            </div>
-          </div>
-
-          <p className="mt-3 text-[11px] text-zinc-500">
-            Weights will be saved in <span className="font-semibold text-zinc-300">{unit}</span> (matches your current unit). Change it from Profile if needed.
+            <Row
+              label="Mode"
+              value={
+                <select value={mode} onChange={(e) => setMode(e.target.value as CommitMode)} className={selectClass} style={selectStyle} aria-label="Mode">
+                  <option value="append">Append, skip duplicates</option>
+                  <option value="replace">Replace all history</option>
+                </select>
+              }
+            />
+          </RowGroup>
+          <p className="text-[11px]" style={{ color: "#6f6f76" }}>
+            Weights are saved in {unit}, your current unit. Change it under Profile first if the file uses the other.
           </p>
+        </section>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 hover:border-teal-500/50">
-              <span>Choose file</span>
+        <section className="flex flex-col gap-2" aria-label="CSV">
+          <div className="flex items-center gap-3">
+            <label className="inline-flex h-9 cursor-pointer items-center rounded-full px-4 text-[13px] font-semibold" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+              Choose file
               <input type="file" accept=".csv,text/csv" onChange={handleFile} className="hidden" />
             </label>
-            <span className="text-xs text-zinc-500">or paste below</span>
+            <span className="text-[12px]" style={{ color: "#6f6f76" }}>
+              or paste below
+            </span>
           </div>
-
           <textarea
             value={text}
             onChange={(e) => {
@@ -195,75 +193,51 @@ export default function ImportCsvPage() {
               setStatus(null);
               setError(null);
             }}
-            rows={10}
-            placeholder="Paste CSV here…"
-            className="mt-3 block w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-100"
+            rows={8}
+            placeholder="Paste the CSV here"
+            className="w-full rounded-[12px] px-3 py-2.5 font-mono text-[12px] outline-none focus:ring-1"
+            style={{ background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" }}
+            aria-label="CSV text"
           />
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handlePreview}
-              className="rounded-lg border border-teal-500/40 bg-teal-950/40 px-4 py-2 text-sm font-bold text-teal-100 hover:bg-teal-900/50 transition-colors"
-            >
+          {parseResult?.ok ? (
+            <PrimaryButton onClick={handleCommit}>{mode === "replace" ? "Replace history" : "Import"}</PrimaryButton>
+          ) : (
+            <PrimaryButton onClick={handlePreview} disabled={!text.trim()}>
               Preview
-            </button>
-            <button
-              type="button"
-              onClick={handleCommit}
-              disabled={!parseResult || !parseResult.ok}
-              className="rounded-lg border border-emerald-500/40 bg-emerald-950/40 px-4 py-2 text-sm font-bold text-emerald-100 hover:bg-emerald-900/50 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-            >
-              {mode === "replace" ? "Replace history" : "Import"}
-            </button>
-          </div>
-
-          {error && (
-            <p className="mt-3 rounded-md border border-red-500/40 bg-red-950/30 px-3 py-2 text-xs text-red-200">
-              {error}
-            </p>
+            </PrimaryButton>
           )}
+          <ErrorLine text={error} />
           {status && (
-            <p className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-100">
+            <p className="text-[13px]" style={{ color: "#00e5b0" }} aria-live="polite">
               {status}
             </p>
           )}
         </section>
 
         {parseResult?.ok && previewSummary && (
-          <section className="mt-6 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Preview</p>
-            <p className="mt-1 text-sm text-white">
-              {previewSummary.workouts} workout{previewSummary.workouts === 1 ? "" : "s"} ·{" "}
-              {previewSummary.exercises} exercise entries · {previewSummary.sets} sets
-            </p>
-            <p className="mt-1 text-xs text-zinc-400">
-              Range: {formatDate(previewSummary.first)} → {formatDate(previewSummary.last)} · Format:{" "}
-              <span className="font-semibold text-zinc-200">{parseResult.format}</span>
-              {parseResult.skippedRows > 0 && (
-                <> · Skipped {parseResult.skippedRows} row{parseResult.skippedRows === 1 ? "" : "s"} {parseResult.format === "repcount" ? "with no reps logged (planned sets)" : "(warmups, missing data)"}</>
-              )}
-            </p>
-
-            <div className="mt-4 space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                Latest {sampleWorkouts.length} session{sampleWorkouts.length === 1 ? "" : "s"}
-              </p>
+          <section className="flex flex-col gap-2" aria-label="Preview">
+            <Caption>Preview</Caption>
+            <RowGroup>
+              <Row label="Workouts" sub={`${previewSummary.exercises} exercise entries · ${previewSummary.sets} sets`} value={previewSummary.workouts} />
+              <Row label="Range" value={`${formatDate(previewSummary.first)} to ${formatDate(previewSummary.last)}`} />
+              <Row
+                label="Format"
+                sub={
+                  parseResult.skippedRows > 0
+                    ? `Skipped ${parseResult.skippedRows} ${parseResult.skippedRows === 1 ? "row" : "rows"} ${parseResult.format === "repcount" ? "with no reps logged (planned sets)" : "(warm-ups, missing data)"}`
+                    : undefined
+                }
+                value={parseResult.format === "repcount" ? "Rep Count" : parseResult.format === "hevy" ? "Hevy" : parseResult.format === "strong" ? "Strong" : parseResult.format}
+              />
+            </RowGroup>
+            <Caption>
+              Latest {sampleWorkouts.length} {sampleWorkouts.length === 1 ? "session" : "sessions"}
+            </Caption>
+            <RowGroup>
               {sampleWorkouts.map((w, i) => (
-                <div key={i} className="rounded-md border border-zinc-800 bg-black/30 px-3 py-2">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-sm font-semibold text-white">
-                      {w.name?.trim() || "Untitled session"}
-                    </p>
-                    <p className="text-[11px] tabular-nums text-zinc-500">{formatDate(w.completedAt)}</p>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-zinc-500">
-                    {w.exercises.length} exercise{w.exercises.length === 1 ? "" : "s"} ·{" "}
-                    {w.exercises.reduce((s, e) => s + e.sets.length, 0)} sets
-                  </p>
-                </div>
+                <Row key={`${w.completedAt}-${i}`} label={w.name?.trim() || "Untitled session"} sub={`${w.exercises.length} ${w.exercises.length === 1 ? "exercise" : "exercises"} · ${w.exercises.reduce((t, e) => t + e.sets.length, 0)} sets`} value={<span className="text-[13px] font-medium" style={{ color: "#a3a3a8" }}>{formatDate(w.completedAt)}</span>} />
               ))}
-            </div>
+            </RowGroup>
           </section>
         )}
       </div>

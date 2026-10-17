@@ -118,7 +118,7 @@ function TrainContent({ now }: { now: Now }) {
           <div className="mb-2 flex items-center justify-between">
             <Caption>Latest routines</Caption>
             <Link href="/templates" className="text-[12px] font-medium" style={{ color: "#a3a3a8" }}>
-              All templates ›
+              All routines ›
             </Link>
           </div>
           {templates.length > 0 ? (
@@ -203,7 +203,7 @@ function TrainContent({ now }: { now: Now }) {
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="truncate text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>{w.name?.trim() || "Workout"}</span>
                       <span className="shrink-0 text-[11px]" style={{ color: "#6f6f76" }}>
-                        {Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                        {Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", "")}
                       </span>
                     </div>
                     <div className="mt-1 flex gap-4 text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>

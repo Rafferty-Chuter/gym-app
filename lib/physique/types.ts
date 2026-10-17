@@ -6,6 +6,7 @@
  */
 
 import type { LocalDate, Now } from "@/lib/dates";
+import type { RecipeIngredient } from "@/lib/food/recipe";
 
 export type { LocalDate, Now };
 
@@ -53,6 +54,8 @@ export type SavedFood = {
   serving?: string;
   /** Starred in the logger's Saved tab (R2). */
   favourite?: boolean;
+  /** When the food is a recipe (M4b): what it makes and what went in, so a serving can be re-logged or edited. The macros above are one serving. */
+  recipe?: { servings: number; ingredients: RecipeIngredient[] };
   lastUsedAt: string;
   useCount: number;
   schemaVersion: 1;
