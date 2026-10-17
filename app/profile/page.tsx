@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import RemindersSection from "@/components/physique/RemindersSection";
 import Link from "next/link";
 import { useUnit } from "@/lib/unit-preference";
 import { downloadAllWorkoutsCsv } from "@/lib/exportWorkoutsCsv";
@@ -123,6 +124,8 @@ export default function ProfilePage() {
             </label>
           </div>
         </section>
+
+        <RemindersSection />
 
         <section className="mt-8 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">Data &amp; feedback</p>

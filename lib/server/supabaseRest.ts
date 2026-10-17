@@ -92,3 +92,60 @@ export async function listSamples(cfg: SupabaseConfig, deviceHash: string, since
   if (!res.ok) throw new Error(`samples read failed: ${res.status}`);
   return (await res.json()) as SampleRow[];
 }
+
+// ── Reminders (Sprint 0, G5) ──
+
+export type PushDeviceRow = {
+  device_hash: string;
+  subscription: unknown;
+  tz: string;
+  reminder_hhmm: string;
+  summary: unknown;
+  summary_at: string | null;
+  health_hash: string | null;
+  last_run_day: string | null;
+  failures: number;
+};
+
+/** Create or replace this device's push row. */
+export async function upsertPushDevice(cfg: SupabaseConfig, row: Partial<PushDeviceRow> & { device_hash: string }): Promise<void> {
+  const res = await fetch(`${cfg.url}/rest/v1/push_devices?on_conflict=device_hash`, {
+    method: "POST",
+    headers: headers(cfg, { Prefer: "resolution=merge-duplicates,return=minimal" }),
+    body: JSON.stringify([{ ...row, updated_at: new Date().toISOString() }]),
+  });
+  if (!res.ok) throw new Error(`push device upsert failed: ${res.status}`);
+}
+
+/** Patch one device; false when no row matched. */
+export async function patchPushDevice(cfg: SupabaseConfig, deviceHash: string, patch: Partial<PushDeviceRow>): Promise<boolean> {
+  const res = await fetch(`${cfg.url}/rest/v1/push_devices?device_hash=eq.${encodeURIComponent(deviceHash)}`, {
+    method: "PATCH",
+    headers: headers(cfg, { Prefer: "return=representation" }),
+    body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`push device patch failed: ${res.status}`);
+  const rows = (await res.json()) as unknown[];
+  return rows.length > 0;
+}
+
+export async function deletePushDevice(cfg: SupabaseConfig, deviceHash: string): Promise<void> {
+  const res = await fetch(`${cfg.url}/rest/v1/push_devices?device_hash=eq.${encodeURIComponent(deviceHash)}`, { method: "DELETE", headers: headers(cfg, { Prefer: "return=minimal" }) });
+  if (!res.ok) throw new Error(`push device delete failed: ${res.status}`);
+}
+
+/** Every registered device, oldest first, capped. */
+export async function listPushDevices(cfg: SupabaseConfig, limit = 1000): Promise<PushDeviceRow[]> {
+  const params = new URLSearchParams({ select: "device_hash,subscription,tz,reminder_hhmm,summary,summary_at,health_hash,last_run_day,failures", order: "created_at.asc", limit: String(limit) });
+  const res = await fetch(`${cfg.url}/rest/v1/push_devices?${params.toString()}`, { headers: headers(cfg) });
+  if (!res.ok) throw new Error(`push devices read failed: ${res.status}`);
+  return (await res.json()) as PushDeviceRow[];
+}
+
+/** Days with a sleep or weight sample from Apple Health, from `fromDay` on. */
+export async function listHealthDays(cfg: SupabaseConfig, healthHash: string, fromDay: string): Promise<Array<{ metric: string; day: string }>> {
+  const params = new URLSearchParams({ device_hash: `eq.${healthHash}`, metric: "in.(sleep,weight)", day: `gte.${fromDay}`, select: "metric,day", limit: "100" });
+  const res = await fetch(`${cfg.url}/rest/v1/health_samples?${params.toString()}`, { headers: headers(cfg) });
+  if (!res.ok) throw new Error(`health days read failed: ${res.status}`);
+  return (await res.json()) as Array<{ metric: string; day: string }>;
+}

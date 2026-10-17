@@ -35,7 +35,7 @@ export function useHealthLink(): HealthLink | null {
   return useSingleton(healthLinkStore);
 }
 
-function randomToken(): string {
+export function randomToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   let s = "";
