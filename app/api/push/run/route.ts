@@ -14,7 +14,7 @@
 import { NextResponse } from "next/server";
 import { addDays, dayDiff } from "@/lib/dates";
 import { GAP_LOOKBACK_DAYS } from "@/lib/physique/gaps";
-import { SUMMARY_MAX_AGE_DAYS, dueNow, gapsFromSummary, reminderMessage, withLoggedDays } from "@/lib/physique/reminder";
+import { SUMMARY_MAX_AGE_DAYS, dueNow, gapsFromSummary, isReportDay, reminderMessage, withLoggedDays } from "@/lib/physique/reminder";
 import { deletePushDevice, listHealthDays, listPushDevices, patchPushDevice, supabaseConfig, type PushDeviceRow } from "@/lib/server/supabaseRest";
 import { cronAuthorized, sendPush, vapidConfig, type PushSubscriptionJson } from "@/lib/server/push";
 import { asSummary } from "@/lib/server/pushSchemas";
@@ -51,7 +51,7 @@ async function runDevice(cfg: NonNullable<ReturnType<typeof supabaseConfig>>, va
     const rows = await listHealthDays(cfg, d.health_hash, addDays(day, -(GAP_LOOKBACK_DAYS + 1)));
     merged = withLoggedDays(summary, { sleep: rows.filter((r) => r.metric === "sleep").map((r) => r.day), weight: rows.filter((r) => r.metric === "weight").map((r) => r.day) });
   }
-  const message = reminderMessage(gapsFromSummary(merged, day), day);
+  const message = reminderMessage(gapsFromSummary(merged, day), day, { weekly: isReportDay(day) });
   if (!message) {
     report.quiet++;
     await patchPushDevice(cfg, d.device_hash, { last_run_day: day });

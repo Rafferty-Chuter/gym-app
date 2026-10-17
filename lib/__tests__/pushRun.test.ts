@@ -120,6 +120,15 @@ describe("GET /api/push/run", () => {
     expect(sent[0].payload.body).toBe("Wednesday has no sleep logged\nMonday has no sleep logged\nSunday has no sleep logged\n2 more");
   });
 
+  it("on a Monday sends the week report even when nothing is missing", async () => {
+    vi.setSystemTime(new Date("2026-10-19T08:10:00.000Z")); // Monday 09:10 in London
+    const week = ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18"];
+    devices = [device({ summary_at: "2026-10-19T07:00:00.000Z", summary: { logged: { food: week, weight: week, sleep: [] }, first: { food: "2026-09-01", weight: "2026-10-01", sleep: null } } })];
+    const res = await GET(req());
+    expect(await res.json()).toMatchObject({ due: 1, sent: 1, quiet: 0 });
+    expect(sent[0].payload).toEqual({ title: "Week report · 12 to 18 Oct", body: "Nothing missing", url: "/report?week=2026-10-12", tag: "gaps" });
+  });
+
   it("drops a device the push service says is gone, and one with a stale summary says nothing", async () => {
     devices = [device(), device({ device_hash: "d2", summary_at: "2026-09-01T07:00:00.000Z" })];
     sendStatus = 410;

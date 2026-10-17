@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addDays } from "@/lib/dates";
 import { findGaps, gapWindow } from "@/lib/physique/gaps";
-import { REMINDER_WINDOW_MIN, buildGapSummary, dueNow, gapsFromSummary, localClock, reminderMessage, summaryKey, withLoggedDays } from "@/lib/physique/reminder";
+import { REMINDER_WINDOW_MIN, buildGapSummary, dueNow, gapsFromSummary, isReportDay, localClock, reminderMessage, shortRange, summaryKey, withLoggedDays } from "@/lib/physique/reminder";
 import type { DayFlags, FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
 
 const today = "2026-10-16"; // Friday
@@ -59,5 +59,19 @@ describe("reminder", () => {
     expect(m?.title).toBe("Not logged");
     expect(m?.body).toBe("Yesterday has no food logged\nYesterday has no weigh-in\nTuesday has no food logged\n4 more");
     expect(m?.url).toBe(`/food?date=${addDays(today, -1)}`);
+  });
+
+  it("on Monday sends the week report whatever the gaps", () => {
+    const monday = "2026-10-19";
+    expect(isReportDay(monday)).toBe(true);
+    expect(isReportDay(today)).toBe(false);
+    expect(shortRange("2026-10-12", "2026-10-18")).toBe("12 to 18 Oct");
+    expect(shortRange("2026-09-28", "2026-10-04")).toBe("28 Sep to 4 Oct");
+    const quiet = reminderMessage([], monday, { weekly: true });
+    expect(quiet).toEqual({ title: "Week report · 12 to 18 Oct", body: "Nothing missing", url: "/report?week=2026-10-12" });
+    const gaps = findGaps({ foodEntries: [food("2026-10-01"), food("2026-10-17"), food(monday)], dayFlags: {}, weighIns: [], sleepNights: [] }, monday);
+    const m = reminderMessage(gaps, monday, { weekly: true });
+    expect(m?.body).toBe("6 gaps\nYesterday has no food logged\nFriday has no food logged\nThursday has no food logged\n3 more");
+    expect(m?.url).toBe("/report?week=2026-10-12");
   });
 });

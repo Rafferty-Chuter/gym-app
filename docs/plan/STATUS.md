@@ -97,6 +97,8 @@ Record wrong or surprising verdicts here: date · what the app said · what you 
 ## Decisions changed
 | Date | Decision | From → to | Why |
 |---|---|---|---|
+| 2026-10-17 | Signals row and the Focus control leave Home | Three tiles and the units / Focus header → one "Analysis" row group on Train (`lib/trainSignals.ts`, same rules, each row opens its signal page); Home keeps the three tiles, the verdict, the report line, the gaps and Start workout; units stay in the Profile box | Old visual layer, vague words, repeated what the verdict, report and Train already say. The founder wants the trends reachable, so they moved rather than went. |
+| 2026-10-17 | Week report pushed on Monday | The daily reminder on a Monday becomes "Week report · 12 to 18 Oct" with the gap count, opening `/report` for last week | Founder asked whether to email the report; in the app is better while data lives on the phone, and one push a week brings people to it. |
 | 2026-10-17 | Assistant parked | Chat card on Home, "Ask why" on the verdict, "Ask the assistant" on signal pages, the coach CTA on lifts and the coach-profile banner → hidden behind `ASSISTANT_ENABLED = false` in `lib/features.ts`; `/assistant` sends to Home | The founder and a friend disliked the wording. The engine, report and gap lists do the explaining for now; the chat returns once the rest is solid. Route, API, prompts and tests untouched. |
 
 ## Review notes (2026-10-16)

@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 import { useWorkouts } from "@/lib/physique/io/workouts";
@@ -11,7 +12,12 @@ import { localDateKey, addDays, type Now } from "@/lib/dates";
 import { useUnit } from "@/lib/unit-preference";
 import { parseWeightText } from "@/lib/units";
 import PageHeader from "@/components/ui/PageHeader";
-import { Caption } from "@/components/physique/ui";
+import { Caption, Chevron, Row, RowGroup, StatusDot } from "@/components/physique/ui";
+import { useTrainingFocus } from "@/lib/trainingFocus";
+import { useExperienceLevel } from "@/lib/experienceLevel";
+import { usePriorityGoal } from "@/lib/priorityGoal";
+import { buildCoachStructuredAnalysis, EMPTY_COACH_STRUCTURED_ANALYSIS } from "@/lib/coachStructuredAnalysis";
+import { buildIndicators, INDICATOR_DOT_COLOR, INDICATOR_WINDOW_LABEL } from "@/lib/trainSignals";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
 /** Hevy's home, in our language: Start workout, latest routines, the week, volume, and the recent feed. */
@@ -56,6 +62,10 @@ function TrainContent({ now }: { now: Now }) {
   const { unit: rawUnit } = useUnit();
   const unit = rawUnit === "lb" ? "lb" : "kg";
   const templates = useMemo(() => getStoredTemplates().slice(0, 4), []);
+  const router = useRouter();
+  const { focus } = useTrainingFocus();
+  const { experienceLevel } = useExperienceLevel();
+  const { goal } = usePriorityGoal();
 
   const model = useMemo(() => {
     const today = now.today;
@@ -74,8 +84,19 @@ function TrainContent({ now }: { now: Now }) {
     const weekCount = week.reduce((n, d) => n + d.n, 0);
     const weekVolume = week.reduce((n, d) => n + d.volume, 0);
     const recent = [...workouts].sort((a, b) => (a.completedAt < b.completedAt ? 1 : -1)).slice(0, 5);
-    return { week, weekCount, weekVolume, recent };
+    const weekSets = workouts.reduce((n, w) => {
+      const d = workoutDay(w, now.tz);
+      return d && d >= from && d <= today ? n + setCount(w) : n;
+    }, 0);
+    return { week, weekCount, weekVolume, recent, weekSets };
   }, [workouts, now, unit]);
+
+  // The three training reads (plateau, volume, progress), from the same rules as their signal pages.
+  const indicators = useMemo(() => {
+    const list = [...workouts]; // the rules take a mutable array; the store hands out a readonly one
+    const coach = list.length === 0 ? EMPTY_COACH_STRUCTURED_ANALYSIS : buildCoachStructuredAnalysis(list, { focus, experienceLevel, goal, unit });
+    return buildIndicators(coach, list, model.weekSets, model.weekCount);
+  }, [workouts, focus, experienceLevel, goal, unit, model.weekSets, model.weekCount]);
 
   const maxVol = Math.max(1, ...model.week.map((d) => d.volume));
   const fmtVol = (kg: number) => (kg >= 1000 ? `${(kg / 1000).toFixed(1)}k kg` : `${Math.round(kg)} kg`);
@@ -137,6 +158,30 @@ function TrainContent({ now }: { now: Now }) {
               </div>
             ))}
           </div>
+        </section>
+
+        <section aria-label="Analysis">
+          <div className="mb-2">
+            <Caption>Analysis</Caption>
+          </div>
+          <RowGroup>
+            {indicators.map((ind) => (
+              <Row
+                key={ind.key}
+                label={ind.label}
+                sub={`${INDICATOR_WINDOW_LABEL[ind.key]} · ${ind.context}`}
+                value={
+                  <span className="flex items-center gap-2">
+                    <StatusDot color={INDICATOR_DOT_COLOR[ind.state]} />
+                    {ind.status}
+                  </span>
+                }
+                trailing={<Chevron />}
+                onClick={() => router.push(`/signal/${ind.key}`)}
+                ariaLabel={`${ind.label}: ${ind.status}. ${ind.context} Open`}
+              />
+            ))}
+          </RowGroup>
         </section>
 
         <section aria-label="Recent workouts">

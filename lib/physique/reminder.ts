@@ -12,7 +12,7 @@
  * else. No streaks, no encouragement, no second notification.
  */
 
-import { addDays, dateRange, isLocalDate, type LocalDate } from "@/lib/dates";
+import { addDays, dateRange, isLocalDate, weekday, type LocalDate } from "@/lib/dates";
 import { GAP_LOOKBACK_DAYS, findGaps, gapHref, gapLines, type Gap, type GapInputs } from "@/lib/physique/gaps";
 import { dailyIntake, entriesByDate } from "@/lib/physique/intake";
 import { weighInsByDate } from "@/lib/physique/weight";
@@ -128,11 +128,36 @@ export function dueNow(d: DueInput, nowIso: string): { due: boolean; day: LocalD
 
 export type ReminderMessage = { title: string; body: string; url: string };
 
-/** The notification, or null when nothing is missing (then nothing is sent). */
-export function reminderMessage(gaps: readonly Gap[], today: LocalDate): ReminderMessage | null {
+/** Monday: the one day the reminder opens last week's report instead of a gap. OURS. */
+export function isReportDay(day: LocalDate): boolean {
+  return weekday(day) === 1;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "12 to 18 Oct", or "28 Sep to 4 Oct" across a month end. */
+export function shortRange(start: LocalDate, end: LocalDate): string {
+  const d = (k: LocalDate) => Number(k.slice(8, 10));
+  const m = (k: LocalDate) => MONTHS[Number(k.slice(5, 7)) - 1] ?? "";
+  return m(start) === m(end) ? `${d(start)} to ${d(end)} ${m(end)}` : `${d(start)} ${m(start)} to ${d(end)} ${m(end)}`;
+}
+
+/**
+ * The notification, or null when nothing is missing (then nothing is sent).
+ * On the report day the week report goes out whatever the gaps: its title
+ * names the week, its body the gap count and the first sentences, and it
+ * opens the report. The gap sentences keep the same rules on both days.
+ */
+export function reminderMessage(gaps: readonly Gap[], today: LocalDate, opts: { weekly?: boolean } = {}): ReminderMessage | null {
   const lines = gapLines(gaps, today);
-  if (lines.length === 0) return null;
   const shown = lines.slice(0, REMINDER_MAX_LINES).map((l) => l.text);
   const more = lines.length - shown.length;
-  return { title: "Not logged", body: more > 0 ? `${shown.join("\n")}\n${more} more` : shown.join("\n"), url: gapHref(lines[0]) };
+  const sentences = more > 0 ? `${shown.join("\n")}\n${more} more` : shown.join("\n");
+  if (opts.weekly) {
+    const start = addDays(today, -7);
+    const count = lines.length === 0 ? "Nothing missing" : `${lines.length} ${lines.length === 1 ? "gap" : "gaps"}`;
+    return { title: `Week report · ${shortRange(start, addDays(today, -1))}`, body: lines.length === 0 ? count : `${count}\n${sentences}`, url: `/report?week=${start}` };
+  }
+  if (lines.length === 0) return null;
+  return { title: "Not logged", body: sentences, url: gapHref(lines[0]) };
 }
