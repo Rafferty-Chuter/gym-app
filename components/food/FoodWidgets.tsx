@@ -1,5 +1,6 @@
 "use client";
 
+import { MacroBars, NutritionRing } from "@/components/food/NutritionRing";
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
@@ -76,16 +77,6 @@ export default function FoodWidgets(props: Props) {
     el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
   }
 
-  const macros = [
-    { key: "proteinG", label: "P", value: totals.proteinG, target: target?.proteinG ?? null, color: PROTEIN_COLOR },
-    { key: "fatG", label: "F", value: totals.fatG, target: target?.fatG ?? null, color: FAT_COLOR },
-    { key: "carbsG", label: "C", value: totals.carbsG, target: target?.carbsG ?? null, color: CARBS_COLOR },
-  ] as const;
-
-  const kcalLeft = target ? target.kcal - totals.kcal : null;
-  const hero = target ? (remaining ? Math.max(0, Math.round(kcalLeft ?? 0)) : Math.round(totals.kcal)) : Math.round(totals.kcal);
-  const heroWord = target ? (remaining ? (kcalLeft != null && kcalLeft < 0 ? "over" : "left") : "eaten") : "kcal";
-  const overBy = kcalLeft != null && kcalLeft < 0 ? Math.round(-kcalLeft) : 0;
   const selectedWeek = week.find((d) => d.date === date) ?? null;
 
   return (
@@ -93,48 +84,9 @@ export default function FoodWidgets(props: Props) {
       <div ref={scroller} onScroll={onScroll} className="-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 sm:-mx-6 sm:px-6" style={{ scrollbarWidth: "none", scrollSnapType: "x mandatory", scrollPaddingInline: 20 }} aria-roledescription="carousel">
         {/* Today */}
         <Card ariaLabel={isToday ? "Today" : "Selected day"}>
-          <div className="my-auto flex items-end justify-between gap-2">
-            <div className="flex min-w-[60px] flex-col">
-              <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
-                {remaining ? "Eaten" : "Left"}
-              </span>
-              <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
-                {target ? n(remaining ? totals.kcal : Math.max(0, kcalLeft ?? 0)) : "–"}
-              </span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[40px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
-                {remaining && overBy > 0 ? n(overBy) : n(hero)}
-              </span>
-              <span className="mt-1 text-[12px]" style={{ color: "#a3a3a8" }}>
-                {heroWord}
-              </span>
-            </div>
-            <div className="flex min-w-[60px] flex-col items-end">
-              <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
-                Target
-              </span>
-              <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
-                {target ? n(target.kcal) : "–"}
-              </span>
-            </div>
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            {macros.map((m) => {
-              const shown = m.target != null && remaining ? Math.max(0, m.target - m.value) : m.value;
-              const pct = m.target && m.target > 0 ? Math.min(1, m.value / m.target) : 0;
-              return (
-                <div key={m.key} className="flex flex-col gap-1.5">
-                  <div className="h-1 w-full overflow-hidden rounded-full" style={{ background: "#1d1d20" }} aria-hidden>
-                    <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: m.color, transition: "width 150ms" }} />
-                  </div>
-                  <span className="text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
-                    <span style={{ color: m.color }}>{m.label}</span> {Math.round(shown)}
-                    {m.target != null ? ` / ${m.target}` : ""} g
-                  </span>
-                </div>
-              );
-            })}
+          <NutritionRing eatenKcal={totals.kcal} targetKcal={target?.kcal ?? null} view={view} onToggleView={() => onViewChange(remaining ? "consumed" : "remaining")} />
+          <div className="mt-4">
+            <MacroBars totals={totals} target={target} view={view} />
           </div>
           {!target && (
             <p className="mt-3 text-[12px]" style={{ color: "#6f6f76" }}>

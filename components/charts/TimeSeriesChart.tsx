@@ -68,6 +68,17 @@ export function shortLocalDate(date: LocalDate): string {
   return `${d} ${MONTHS[m - 1] ?? ""}`;
 }
 
+const DAYS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** "Saturday 17 October" for a page caption. */
+export function fullLocalDate(date: LocalDate): string {
+  const y = Number(date.slice(0, 4));
+  const m = Number(date.slice(5, 7));
+  const d = Number(date.slice(8, 10));
+  return `${DAYS_LONG[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d} ${MONTHS_LONG[m - 1] ?? ""}`;
+}
+
 /** "Thu 16 Oct 2026" style label for tooltips. */
 export function longLocalDate(date: LocalDate): string {
   const y = Number(date.slice(0, 4));

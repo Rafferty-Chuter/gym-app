@@ -17,6 +17,8 @@ import { useWorkoutStore } from "@/lib/workout-store";
 import PhysiqueHomeCard from "@/components/physique/PhysiqueHomeCard";
 import WeekReportLine from "@/components/physique/WeekReportLine";
 import TodayStrip from "@/components/physique/TodayStrip";
+import PageHeader from "@/components/ui/PageHeader";
+import { fullLocalDate } from "@/components/charts/TimeSeriesChart";
 import GapLines from "@/components/physique/GapLines";
 import { askWhyPrompt } from "@/components/physique/VerdictCard";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
@@ -398,11 +400,15 @@ export default function Home() {
     <main className="min-h-screen bg-zinc-950 text-white relative pb-28">
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
 
-        <div className="flex items-center justify-end pt-4 pb-1">
-          <button type="button" onClick={() => setProfileOpen(true)} className="text-[12px] font-medium text-home-tertiary hover:text-home-secondary transition" aria-label="Open profile settings">
-            Profile
-          </button>
-        </div>
+        <PageHeader
+          caption={hasMounted && now ? fullLocalDate(now.today) : " "}
+          title="Today"
+          secondary={
+            <button type="button" onClick={() => setProfileOpen(true)} className="h-9 rounded-full px-3 text-[13px] font-medium transition-colors active:bg-[#26262a]" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Open profile settings">
+              Profile
+            </button>
+          }
+        />
 
         {ASSISTANT_ENABLED && hasMounted && profileSetupNeeded && (
           <Link
@@ -439,7 +445,7 @@ export default function Home() {
           />
         )}
 
-        <section className="pt-3" aria-label="Today">
+        <section aria-label="Today">
           <TodayStrip />
           <div className="mt-2">
             <GapLines />
