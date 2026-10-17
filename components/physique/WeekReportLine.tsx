@@ -22,10 +22,10 @@ export default function WeekReportLine() {
     if (!hydrated || !now) return null;
     const start = defaultReportWeek(now.today);
     const r = buildWeekReport({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, program: data.program, goal: data.goal, weightUnit: "kg", expenditure: null }, start, now);
-    return { start, end: r.end, complete: r.complete, gaps: r.gaps.length, days: r.daysCovered };
+    return { start, end: r.end, complete: r.complete, gaps: r.gaps.length, days: r.daysCovered, hasData: r.hasData };
   }, [hydrated, now, data, workouts]);
   if (!model) return <div className="h-[44px] rounded-[12px]" style={{ background: "#141416" }} aria-hidden />;
-  const gapWord = model.gaps === 0 ? "nothing missing" : `${model.gaps} ${model.gaps === 1 ? "gap" : "gaps"}`;
+  const gapWord = !model.hasData ? "nothing logged yet" : model.gaps === 0 ? "nothing missing" : `${model.gaps} ${model.gaps === 1 ? "gap" : "gaps"}`;
   return (
     <Link href={`/report?week=${model.start}`} className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3 transition-colors active:bg-[#1d1d20]" style={{ background: "#141416" }} aria-label={`Week report ${shortLocalDate(model.start)} to ${shortLocalDate(model.end)}, ${gapWord}. Open`}>
       <span className="flex min-w-0 flex-col">

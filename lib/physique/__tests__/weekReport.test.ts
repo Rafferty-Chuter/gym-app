@@ -84,6 +84,20 @@ describe("weekReport", () => {
     expect(r.food.meanKcal).toBeNull();
     expect(r.training.sessions).toBe(0);
     expect(r.sleep.meanH).toBeNull();
-    expect(r.gaps).toHaveLength(21);
+    expect(r.gaps).toEqual([]); // nothing ever logged is not 21 gaps
+    expect(r.hasData).toBe(false);
+  });
+
+  it("counts gaps only from each kind's first record", () => {
+    const base = (date: string) => ({ date, loggedAt: `${date}T08:00:00.000Z`, source: "manual" as const, schemaVersion: 1 as const });
+    const r = buildWeekReport(
+      { ...inputs, weighIns: [{ ...base("2026-10-07"), id: "w1", kg: 82 }], foodEntries: [], sleepNights: [{ ...base("2026-10-09"), id: "n1", asleepMin: 420 }], workouts: [], expenditure: null, verdict: null },
+      "2026-10-05",
+      { today: "2026-10-17", tz: "UTC" }
+    );
+    expect(r.hasData).toBe(true);
+    expect(r.weight.missing).toEqual(["2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11"]);
+    expect(r.sleep.missing).toEqual(["2026-10-10", "2026-10-11"]);
+    expect(r.food.unlogged).toEqual([]);
   });
 });

@@ -58,7 +58,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const expenditure = useExpenditure(now);
   const analysis = usePhysiqueAnalysis(now, unit);
   const [date, setDate] = useState<LocalDate>(() => dateFromQuery(today) ?? today);
-  const [logger, setLogger] = useState<LoggerOpen>(null);
+  const [logger, setLogger] = useState<LoggerOpen>(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("log") === "1" ? {} : null));
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const [energyLine, setEnergyLine] = useState<EnergyLine>("expenditure");
   const [dayAction, setDayAction] = useState<DayAction>(() => {

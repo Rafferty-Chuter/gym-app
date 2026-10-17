@@ -96,6 +96,8 @@ export type WeekReport = {
   };
   verdict: WeekVerdict | null;
   gaps: WeekGap[];
+  /** False when the week holds no food, weigh-in, night or workout at all. */
+  hasData: boolean;
 };
 
 /** The Monday of the week containing `date`. */
@@ -110,6 +112,13 @@ export function reportWeekStart(date: LocalDate): LocalDate {
 export function defaultReportWeek(today: LocalDate): LocalDate {
   const start = weekStart(today);
   return dayDiff(start, today) + 1 >= 3 ? start : addDays(start, -7);
+}
+
+/** A kind has gaps only from its first record onward, as the gap lists do (lib/physique/gaps.ts). */
+function earliest(dates: Iterable<LocalDate>): LocalDate | null {
+  let first: LocalDate | null = null;
+  for (const d of dates) if (first == null || d < first) first = d;
+  return first;
 }
 
 function round1(n: number): number {
@@ -141,7 +150,8 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   const seg = segmentStart({ goal: inputs.goal, dayFlags: inputs.dayFlags, today: through });
   const rate = daysCovered > 0 ? displayRate(inputs.weighIns, through, seg, inputs.dayFlags) : null;
   const weighDates = weighInsByDate(inputs.weighIns);
-  const weighMissing = days.filter((d) => !weighDates.has(d));
+  const firstWeigh = earliest(weighDates.keys());
+  const weighMissing = days.filter((d) => firstWeigh != null && d >= firstWeigh && !weighDates.has(d));
 
   // ── Expenditure ──
   const expWeek = (inputs.expenditure ?? []).filter((p) => p.date >= start && p.date <= through);
@@ -155,7 +165,8 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   const target = targetInEffect(inputs.program, through);
   const meanKcal = counted.length ? Math.round(counted.reduce((s, d) => s + d.kcal, 0) / counted.length) : null;
   const meanProteinG = completeDays.length ? Math.round(completeDays.reduce((s, d) => s + d.proteinG, 0) / completeDays.length) : null;
-  const unlogged = intake.filter((d) => d.status === "unlogged").map((d) => d.date);
+  const firstFood = earliest([...inputs.foodEntries.map((e) => e.date), ...Object.values(inputs.dayFlags).filter((f) => f.status === "fasting" || typeof f.kcalOverride === "number").map((f) => f.date)]);
+  const unlogged = intake.filter((d) => d.status === "unlogged" && firstFood != null && d.date >= firstFood).map((d) => d.date);
 
   // ── Training ──
   const weekWorkouts = inputs.workouts.filter((w) => {
@@ -187,7 +198,8 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   const goalH = clampSleepGoal(inputs.sleepGoalH);
   const byDate = nightsByDate(inputs.sleepNights);
   const nights: NormalizedNight[] = days.map((d) => byDate.get(d)).filter((n): n is NormalizedNight => n != null && n.valid);
-  const sleepMissing = days.filter((d) => !byDate.has(d));
+  const firstNight = earliest(byDate.keys());
+  const sleepMissing = days.filter((d) => firstNight != null && d >= firstNight && !byDate.has(d));
   const meanH = nights.length ? round1(nights.reduce((s, n) => s + n.asleepH, 0) / nights.length) : null;
   const debtH = nights.length ? round1(nights.reduce((s, n) => s + Math.max(0, goalH - n.asleepH), 0)) : null;
   const acuteH = thresholdsForWindow(nights).acuteH;
@@ -238,5 +250,6 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
     sleep: { nights: nights.length, missing: sleepMissing, meanH, debtH, goalH, shortNights },
     verdict: inputs.verdict ?? null,
     gaps,
+    hasData: counted.length + intake.filter((d) => d.status === "partial").length > 0 || days.some((d) => weighDates.has(d)) || nights.length > 0 || weekWorkouts.length > 0,
   };
 }

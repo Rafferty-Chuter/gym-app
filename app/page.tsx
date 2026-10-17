@@ -20,6 +20,7 @@ import TodayStrip from "@/components/physique/TodayStrip";
 import PageHeader from "@/components/ui/PageHeader";
 import { fullLocalDate } from "@/components/charts/TimeSeriesChart";
 import GapLines from "@/components/physique/GapLines";
+import GetStarted from "@/components/physique/GetStarted";
 import { askWhyPrompt } from "@/components/physique/VerdictCard";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { useNow } from "@/lib/ui/useToday";
@@ -444,6 +445,10 @@ export default function Home() {
             onClose={() => setStaleSession(null)}
           />
         )}
+
+        <div className="mb-3">
+          <GetStarted />
+        </div>
 
         <section aria-label="Today">
           <TodayStrip />
