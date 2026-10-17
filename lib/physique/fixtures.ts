@@ -3,24 +3,29 @@
  * Spec: docs/plan/02-engine-spec.md §8.4.
  *
  * Deterministic for a given `seed`. Produces repo-shaped records.
+ * `intake: "toTarget"` is a closed loop: the program comes from
+ * `newProgram` at goal start and is revised weekly through
+ * `checkInProgram`, and the intake follows the target in effect.
  */
 
 import { addDays, weekday, type LocalDate } from "@/lib/dates";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
+import { ENERGY_DENSITY_KCAL_PER_KG, snapshotSeed } from "@/lib/physique/expenditure";
+import { checkInProgram, newProgram, targetInEffect, type ProgramInputs } from "@/lib/physique/program";
 import type {
   DayEvent,
   DayFlags,
   FoodEntry,
   PhysiqueGoal,
   PhysiqueProfile,
+  PhysiqueProgram,
   SleepNight,
   TrainingStatus,
   WaistEntry,
   WeighIn,
 } from "@/lib/physique/types";
 
-/** kcal per kg of weight change. PUB (MacroFactor V3), same for gain and loss. */
-export const ENERGY_DENSITY_KCAL_PER_KG = 7716;
+export { ENERGY_DENSITY_KCAL_PER_KG };
 
 // ── PRNG ──
 
@@ -42,6 +47,9 @@ export function gaussian(rand: () => number): number {
   while (v === 0) v = rand();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
+
+/** Separate stream for closed-loop intake noise, so the weight noise is the same in both intake modes. */
+const INTAKE_STREAM_SALT = 0x5bd1e995;
 
 // ── Spec ──
 
@@ -68,8 +76,14 @@ export type ScenarioSpec = {
   bodyweightKg: number;
   /** When set, weight moves by (intake − trueTDEE)/7716 per day. Otherwise the goal rate drives the drift. */
   trueTdeeKcal?: number;
+  /**
+   * `{meanKcal}` eats a fixed mean. `"toTarget"` eats the program's target in effect
+   * (plus N(0, `intakeSdKcal`)), with `targetKcal ?? trueTdeeKcal` before the goal starts.
+   */
   intake?: { meanKcal: number; sdKcal?: number } | "toTarget";
-  /** Used to generate targets in "toTarget" mode (P3). Ignored otherwise. */
+  /** Intake noise SD in "toTarget" mode. Default 350. */
+  intakeSdKcal?: number;
+  /** Pre-goal (maintenance) intake in "toTarget" mode when `trueTdeeKcal` is unset. */
   targetKcal?: number;
   goal?: { ratePctPerWeek: number; targetKg?: number; trainingStatus?: TrainingStatus; confirmed?: boolean } | null;
   /** Marginal SD of the AR(1) weight noise. Innovation SD = sd·√(1−φ²). */
@@ -95,6 +109,8 @@ export type Scenario = {
   today: LocalDate;
   goal: PhysiqueGoal | null;
   profile: PhysiqueProfile;
+  /** The program built by the closed loop ("toTarget" with a goal); null otherwise. */
+  program: PhysiqueProgram | null;
   weighIns: WeighIn[];
   foodEntries: FoodEntry[];
   dayFlags: Record<string, DayFlags>;
@@ -109,6 +125,7 @@ export type Scenario = {
 };
 
 const DEFAULT_START: LocalDate = "2026-08-01";
+const DEFAULT_INTAKE_SD = 350;
 
 export function makeScenario(input: ScenarioSpec): Scenario {
   const seed = input.seed ?? 1;
@@ -141,29 +158,88 @@ export function makeScenario(input: ScenarioSpec): Scenario {
       }
     : null;
 
+  // Day flags (needed before the day loop so partial/fasting days shape the food log).
+  const dayFlags: Record<string, DayFlags> = {};
+  const flagsByDay = new Map<number, "partial" | "fasting">();
+  for (const f of input.flags ?? []) {
+    flagsByDay.set(f.day, f.status);
+    const date = addDays(startDate, f.day);
+    dayFlags[date] = { ...(dayFlags[date] ?? { date }), status: f.status };
+  }
+  for (const e of input.events ?? []) {
+    const date = addDays(startDate, e.day);
+    const cur = dayFlags[date] ?? { date };
+    dayFlags[date] = { ...cur, events: [...(cur.events ?? []), e.event] };
+  }
+
+  // Profile, with the expenditure seed fixed at the start date (02 §4.2), as the app stores it.
+  const baseProfile: PhysiqueProfile = {
+    generalActivity: "moderate",
+    checkInWeekday: 1,
+    proteinLevel: "moderate",
+    dietType: "balanced",
+    sleepGoalH: 8,
+    sex: "M",
+    age: 30,
+    heightCm: 180,
+    expenditureStartDate: startDate,
+    schemaVersion: 1,
+    ...(input.profile ?? {}),
+  };
+  const expenditureSeed =
+    baseProfile.expenditureSeed ??
+    snapshotSeed({
+      profile: baseProfile,
+      goals: goal ? [goal] : [],
+      startDate: baseProfile.expenditureStartDate ?? startDate,
+      onboarding: { bodyweightKg: bw0 },
+    }) ??
+    undefined;
+  const profile: PhysiqueProfile = { ...baseProfile, expenditureSeed };
+
   // Water step at phase start.
   const defaultWater = goal ? (goal.type === "lose" ? -1.2 : goal.type === "gain" ? 0.8 : 0) : 0;
   const waterKg = input.waterStepKg ?? defaultWater;
   const waterDays = input.waterStepDays ?? 5;
 
-  // Intake per day.
+  // Intake: fixed-mean mode draws every day up front (keeps the draw order of earlier seeds).
   const intakeSpec = input.intake ?? { meanKcal: input.trueTdeeKcal ?? 2800 };
+  const closedLoop = intakeSpec === "toTarget";
+  const intakeRand = closedLoop ? mulberry32((seed ^ INTAKE_STREAM_SALT) >>> 0) : rand;
+  const intakeSd = closedLoop ? (input.intakeSdKcal ?? DEFAULT_INTAKE_SD) : (intakeSpec.sdKcal ?? DEFAULT_INTAKE_SD);
   const intakeKcal: number[] = [];
-  for (let d = 0; d < days; d++) {
-    if (intakeSpec === "toTarget") {
-      // P3 closes the loop; until then, eat at the provided target (or TDEE).
-      const target = input.targetKcal ?? input.trueTdeeKcal ?? 2800;
-      intakeKcal.push(Math.max(800, Math.round(target + gaussian(rand) * 350)));
-    } else {
-      intakeKcal.push(Math.max(800, Math.round(intakeSpec.meanKcal + gaussian(rand) * (intakeSpec.sdKcal ?? 350))));
-    }
+  if (!closedLoop) {
+    for (let d = 0; d < days; d++) intakeKcal.push(Math.max(800, Math.round(intakeSpec.meanKcal + gaussian(rand) * intakeSd)));
   }
+  const maintenanceKcal = input.trueTdeeKcal ?? input.targetKcal ?? 2800;
 
-  // True weight path.
+  // Day loop: target → intake → true weight → weigh-in → food entry.
   const trueKg: number[] = [];
+  const weighIns: WeighIn[] = [];
+  const foodEntries: FoodEntry[] = [];
+  const mode = input.weighInDays ?? "daily";
+  const now = (today: LocalDate) => ({ today, tz: "UTC" });
+  const inputsSoFar = (): ProgramInputs => ({ profile, weighIns, foodEntries, dayFlags, goals: goal ? [goal] : [] });
+  let program: PhysiqueProgram | null = null;
   let kg = bw0;
+  let eps = gaussian(rand) * sd;
   for (let d = 0; d < days; d++) {
+    const date = addDays(startDate, d);
     const inPhase = goal ? d >= goalStartDay : false;
+
+    if (closedLoop) {
+      let target = maintenanceKcal;
+      if (goal && inPhase) {
+        if (d === goalStartDay) {
+          program = newProgram(goal, inputsSoFar(), now(date))?.program ?? null;
+        } else if (program && weekday(date) === profile.checkInWeekday) {
+          program = checkInProgram(program, goal, inputsSoFar(), now(date))?.program ?? program;
+        }
+        target = targetInEffect(program, date)?.kcal ?? maintenanceKcal;
+      }
+      intakeKcal.push(Math.max(800, Math.round(target + gaussian(intakeRand) * intakeSd)));
+    }
+
     let delta = 0;
     if (input.trueTdeeKcal !== undefined) {
       delta = (intakeKcal[d] - input.trueTdeeKcal) / ENERGY_DENSITY_KCAL_PER_KG;
@@ -177,63 +253,39 @@ export function makeScenario(input: ScenarioSpec): Scenario {
       water = (waterKg * k) / waterDays;
     }
     trueKg.push(kg + water);
-  }
 
-  // AR(1) noise and weigh-ins.
-  const weighIns: WeighIn[] = [];
-  let eps = gaussian(rand) * sd;
-  for (let d = 0; d < days; d++) {
     eps = phi * eps + gaussian(rand) * innovationSd;
-    const date = addDays(startDate, d);
-    const mode = input.weighInDays ?? "daily";
     const wd = weekday(date);
-    const log =
-      mode === "daily" ? true : mode === "4x" ? wd === 0 || wd === 1 || wd === 3 || wd === 5 : d % 3 === 0;
-    if (!log) continue;
-    weighIns.push({
-      id: `seed-w-${seed}-${d}`,
-      date,
-      loggedAt: `${date}T07:05:00.000Z`,
-      source: "seed",
-      schemaVersion: 1,
-      kg: Math.round((trueKg[d] + eps) * 10) / 10,
-    });
-  }
+    const log = mode === "daily" ? true : mode === "4x" ? wd === 0 || wd === 1 || wd === 3 || wd === 5 : d % 3 === 0;
+    if (log) {
+      weighIns.push({
+        id: `seed-w-${seed}-${d}`,
+        date,
+        loggedAt: `${date}T07:05:00.000Z`,
+        source: "seed",
+        schemaVersion: 1,
+        kg: Math.round((trueKg[d] + eps) * 10) / 10,
+      });
+    }
 
-  // Food entries: one summary entry per day, split 30/45/25 P/C/F by kcal.
-  const foodEntries: FoodEntry[] = [];
-  const flagsByDay = new Map<number, "partial" | "fasting">();
-  for (const f of input.flags ?? []) flagsByDay.set(f.day, f.status);
-  for (let d = 0; d < days; d++) {
+    // Food: one summary entry per day, split 30/45/25 P/C/F by kcal.
     const status = flagsByDay.get(d);
-    if (status === "fasting") continue;
-    const kcal = status === "partial" ? Math.round(intakeKcal[d] * 0.3) : intakeKcal[d];
-    const date = addDays(startDate, d);
-    foodEntries.push({
-      id: `seed-f-${seed}-${d}`,
-      date,
-      loggedAt: `${date}T19:30:00.000Z`,
-      source: "seed",
-      schemaVersion: 1,
-      label: "Day total",
-      kcal,
-      proteinG: Math.round((kcal * 0.3) / 4),
-      carbsG: Math.round((kcal * 0.45) / 4),
-      fatG: Math.round((kcal * 0.25) / 9),
-      method: "quick",
-    });
-  }
-
-  // Day flags.
-  const dayFlags: Record<string, DayFlags> = {};
-  for (const f of input.flags ?? []) {
-    const date = addDays(startDate, f.day);
-    dayFlags[date] = { ...(dayFlags[date] ?? { date }), status: f.status };
-  }
-  for (const e of input.events ?? []) {
-    const date = addDays(startDate, e.day);
-    const cur = dayFlags[date] ?? { date };
-    dayFlags[date] = { ...cur, events: [...(cur.events ?? []), e.event] };
+    if (status !== "fasting") {
+      const kcal = status === "partial" ? Math.round(intakeKcal[d] * 0.3) : intakeKcal[d];
+      foodEntries.push({
+        id: `seed-f-${seed}-${d}`,
+        date,
+        loggedAt: `${date}T19:30:00.000Z`,
+        source: "seed",
+        schemaVersion: 1,
+        label: "Day total",
+        kcal,
+        proteinG: Math.round((kcal * 0.3) / 4),
+        carbsG: Math.round((kcal * 0.45) / 4),
+        fatG: Math.round((kcal * 0.25) / 9),
+        method: "quick",
+      });
+    }
   }
 
   // Sleep.
@@ -303,20 +355,6 @@ export function makeScenario(input: ScenarioSpec): Scenario {
   }
   for (const w of [...byDate.values()].sort((a, b) => (a.completedAt < b.completedAt ? -1 : 1))) workouts.push(w);
 
-  const profile: PhysiqueProfile = {
-    generalActivity: "moderate",
-    checkInWeekday: 1,
-    proteinLevel: "moderate",
-    dietType: "balanced",
-    sleepGoalH: 8,
-    sex: "M",
-    age: 30,
-    heightCm: 180,
-    expenditureStartDate: startDate,
-    schemaVersion: 1,
-    ...(input.profile ?? {}),
-  };
-
   return {
     spec: { ...input, seed, startDate, days, preDays },
     startDate,
@@ -324,6 +362,7 @@ export function makeScenario(input: ScenarioSpec): Scenario {
     today: endDate,
     goal,
     profile,
+    program,
     weighIns,
     foodEntries,
     dayFlags,

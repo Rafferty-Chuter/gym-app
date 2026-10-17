@@ -107,6 +107,26 @@ export type GeneralActivity = "low" | "moderate" | "high";
 export type ProteinLevel = "low" | "moderate" | "high" | "extra";
 export type DietType = "balanced" | "lowCarb";
 
+/**
+ * The expenditure seed, snapshotted once at `expenditureStartDate` (02 §4.2).
+ * Stored on the profile so later profile or goal edits never rewrite past
+ * expenditure. `lib/physique/expenditure.ts` builds and consumes it.
+ */
+export type ExpenditureSeed = {
+  date: LocalDate;
+  sex: Sex;
+  age: number;
+  heightCm: number;
+  weightKg: number;
+  bodyFatPctMeasured?: number;
+  generalActivity: GeneralActivity;
+  sessionsPerWeek: number;
+  /** Signed %BW/wk of the goal active on the seed date; 0 when none. */
+  goalRatePctPerWeek: number;
+  manualInitialTdee?: number;
+  schemaVersion: 1;
+};
+
 export type PhysiqueProfile = {
   sex?: Sex;
   age?: number;
@@ -116,6 +136,8 @@ export type PhysiqueProfile = {
   generalActivity: GeneralActivity;
   manualInitialTdee?: number;
   expenditureStartDate?: LocalDate;
+  /** Fixed once at `expenditureStartDate`; see `ExpenditureSeed`. */
+  expenditureSeed?: ExpenditureSeed;
   /** 0 = Sunday … 6 = Saturday. */
   checkInWeekday: number;
   proteinLevel: ProteinLevel;
@@ -175,9 +197,30 @@ export type ExpenditureState = "holding" | "calibrating" | "settling" | "stable"
 
 export type ExpenditurePoint = {
   date: LocalDate;
+  /** Displayed expenditure: `base + offset`, rounded. */
   tdee: number;
   state: "holding" | "updating";
+  /** Why a holding day holds: the first week, or a logging pause (02 §4.1). */
+  holdReason?: "warmup" | "paused";
   trendKg: number | null;
+  /** The EMA term before the predictive goal offset. */
+  base: number;
+  /** The predictive goal adjustment in effect on this day (02 §4.1). */
+  offset: number;
+  /** The observed expenditure this day moved toward (updating days only). */
+  obs?: number;
+  /** Updating days so far, including this one. */
+  updatingDays: number;
+};
+
+/** What the UI shows about expenditure confidence (02 §4.3). */
+export type ExpenditureMaturity = {
+  state: ExpenditureState;
+  kcal: number | null;
+  updatingDays: number;
+  plusMinus: 400 | 300 | null;
+  /** While holding: what it takes to resume (3 consecutive complete days plus a weigh-in). */
+  resume: { foodDaysNeeded: number; weighInNeeded: boolean } | null;
 };
 
 // ── Judge ──
