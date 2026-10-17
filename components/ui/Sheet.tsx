@@ -20,6 +20,12 @@ type Props = {
   footer?: ReactNode;
   /** Mark the close affordance; `aria-label` for the scrim button. */
   closeLabel?: string;
+  /** Custom header under the grabber (replaces `title`). */
+  header?: ReactNode;
+  /** Full height (92dvh) rather than content height: the food logger. */
+  full?: boolean;
+  /** Accessible name when `header` replaces the title. */
+  ariaLabel?: string;
 };
 
 /** Swipe distance (px) on the header that dismisses the sheet. */
@@ -27,7 +33,7 @@ const SWIPE_CLOSE_PX = 80;
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
-export default function Sheet({ open, onClose, title, children, footer, closeLabel = "Close" }: Props) {
+export default function Sheet({ open, onClose, title, children, footer, closeLabel = "Close", header, full = false, ariaLabel }: Props) {
   const mounted = useIsHydrated();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
@@ -103,6 +109,7 @@ export default function Sheet({ open, onClose, title, children, footer, closeLab
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
+        aria-label={!title ? ariaLabel : undefined}
         tabIndex={-1}
         className="sheet-panel absolute inset-x-0 bottom-0 mx-auto flex max-h-[92dvh] w-full max-w-[560px] flex-col outline-none"
         style={{
@@ -114,12 +121,15 @@ export default function Sheet({ open, onClose, title, children, footer, closeLab
           transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
           transition: isDragging ? "none" : "transform 200ms cubic-bezier(0.16, 1, 0.3, 1)",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          height: full ? "92dvh" : undefined,
         }}
       >
         <div
           className="shrink-0 px-5 pt-2"
           style={{ touchAction: "none" }}
           onPointerDown={(e) => {
+            // Controls in the header (close, time chip) must keep their click: capturing the pointer would swallow it.
+            if ((e.target as Element).closest("button, a, input, textarea, select")) return;
             dragStart.current = e.clientY;
             setIsDragging(true);
             (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
@@ -147,6 +157,7 @@ export default function Sheet({ open, onClose, title, children, footer, closeLab
               {title}
             </h2>
           )}
+          {header}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4 pt-1">{children}</div>
         {footer && <div className="shrink-0 px-5 pb-6 pt-2">{footer}</div>}

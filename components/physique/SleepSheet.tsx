@@ -4,6 +4,7 @@ import { useState } from "react";
 import Sheet from "@/components/ui/Sheet";
 import { PrimaryButton, ErrorLine } from "@/components/physique/ui";
 import { ASLEEP_OFFSET_MIN, formatClock, formatHoursMin, minutesInBed, parseClock } from "@/lib/physique/dayTotals";
+import { SLEEP_GOAL_RANGE_H, clampSleepGoal } from "@/lib/physique/sleep";
 import type { SleepInput } from "@/lib/physique/io/bodyData";
 import type { SleepNight } from "@/lib/physique/types";
 
@@ -14,35 +15,49 @@ type Props = {
   existing: SleepNight | null;
   dateLabel: string;
   onSave: (input: SleepInput) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** The profile's sleep goal; with `onGoalChange`, shows a goal row (7–9 h, ±30 min) that saves on each tap. */
+  goalH?: number;
+  onGoalChange?: (h: number) => void | Promise<void>;
 };
 
-/** Sleep entry: bedtime and wake with ±15 min steppers, hours asleep prefilled, wake-ups. ≤4 taps. */
+/** Sleep entry: bedtime and wake with ±15 min steppers, hours asleep prefilled, wake-ups, optional goal row. ≤4 taps. */
 export default function SleepSheet(props: Props) {
   return props.open ? <Inner key={props.dateLabel} {...props} /> : null;
 }
 
 const STEP_MIN = 15;
+/** Goal stepper size. OURS: half-hour steps across the 7–9 h range. */
+const GOAL_STEP_H = 0.5;
 const WAKEUPS: Array<{ v: NonNullable<SleepNight["wakeups"]>; label: string }> = [
   { v: "0", label: "0" },
   { v: "1-2", label: "1–2" },
   { v: "3+", label: "3+" },
 ];
 
-function Inner({ onClose, prefill, existing, dateLabel, onSave }: Props) {
+function Inner({ onClose, prefill, existing, dateLabel, onSave, goalH, onGoalChange }: Props) {
   const [bed, setBed] = useState(existing?.bedtime ?? prefill.bedtime);
   const [wake, setWake] = useState(existing?.wakeTime ?? prefill.wakeTime);
   const [asleepTouched, setAsleepTouched] = useState(existing != null);
   const [asleep, setAsleep] = useState(existing?.asleepMin ?? Math.max(0, minutesInBed(prefill.bedtime, prefill.wakeTime) - ASLEEP_OFFSET_MIN));
   const [wakeups, setWakeups] = useState<SleepNight["wakeups"]>(existing?.wakeups);
+  const [goal, setGoal] = useState(clampSleepGoal(goalH));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const inBed = minutesInBed(bed, wake);
   const asleepShown = asleepTouched ? Math.min(asleep, inBed) : Math.max(0, inBed - ASLEEP_OFFSET_MIN);
+  const showGoal = goalH !== undefined && onGoalChange !== undefined;
 
   function shift(setter: (v: string) => void, current: string, delta: number) {
     const m = parseClock(current) ?? 0;
     setter(formatClock(m + delta));
+  }
+
+  function stepGoal(delta: number) {
+    const next = clampSleepGoal(Math.round((goal + delta) * 2) / 2);
+    if (next === goal) return;
+    setGoal(next);
+    void onGoalChange?.(next);
   }
 
   async function save() {
@@ -108,12 +123,44 @@ function Inner({ onClose, prefill, existing, dateLabel, onSave }: Props) {
           })}
         </div>
       </div>
+      {showGoal && (
+        <div className="mt-3" style={{ borderTop: "1px solid #2a2a2e" }}>
+          <Stepper
+            label="Sleep goal"
+            value={formatHoursMin(goal * 60)}
+            sub={`${SLEEP_GOAL_RANGE_H.min} to ${SLEEP_GOAL_RANGE_H.max} h · saved to your profile`}
+            stepText="30 minutes"
+            onMinus={() => stepGoal(-GOAL_STEP_H)}
+            onPlus={() => stepGoal(GOAL_STEP_H)}
+            minusDisabled={goal <= SLEEP_GOAL_RANGE_H.min}
+            plusDisabled={goal >= SLEEP_GOAL_RANGE_H.max}
+          />
+        </div>
+      )}
     </Sheet>
   );
 }
 
-function Stepper({ label, value, sub, onMinus, onPlus }: { label: string; value: string; sub?: string; onMinus: () => void; onPlus: () => void }) {
-  const btn = "flex h-11 w-11 items-center justify-center rounded-[12px] text-[20px] font-semibold transition-colors active:bg-[#26262a]";
+function Stepper({
+  label,
+  value,
+  sub,
+  stepText = "15 minutes",
+  onMinus,
+  onPlus,
+  minusDisabled,
+  plusDisabled,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  stepText?: string;
+  onMinus: () => void;
+  onPlus: () => void;
+  minusDisabled?: boolean;
+  plusDisabled?: boolean;
+}) {
+  const btn = "flex h-11 w-11 items-center justify-center rounded-[12px] text-[20px] font-semibold transition-colors active:bg-[#26262a] disabled:opacity-40";
   return (
     <div className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid #2a2a2e" }}>
       <div className="flex flex-col">
@@ -127,13 +174,13 @@ function Stepper({ label, value, sub, onMinus, onPlus }: { label: string; value:
         )}
       </div>
       <div className="flex items-center gap-2">
-        <button type="button" onClick={onMinus} className={btn} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`${label} earlier by 15 minutes`}>
+        <button type="button" onClick={onMinus} disabled={minusDisabled} className={btn} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`${label} earlier by ${stepText}`}>
           −
         </button>
         <span className="w-[72px] text-center text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
           {value}
         </span>
-        <button type="button" onClick={onPlus} className={btn} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`${label} later by 15 minutes`}>
+        <button type="button" onClick={onPlus} disabled={plusDisabled} className={btn} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`${label} later by ${stepText}`}>
           +
         </button>
       </div>

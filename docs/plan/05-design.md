@@ -135,3 +135,68 @@ Run these with `platform: "ios"`, `output_destination: "code"`:
 - "WHOOP sleep detail screen with hours vs need"
 - "Oura readiness contributors list"
 - "Hevy workout logging set rows with previous column"
+
+---
+
+## 9. Rev 2 · The redesign (17 Oct 2026)
+
+Approved direction after the first dogfood look: "not clear, can't say why". Diagnosis: the Body tab did five jobs on one page, logging rows looked like information rows, food had no screen and sleep had none. The fix is MacroFactor's and Bevel's rule: **one tab answers one question**, and each tab owns its own "+". Reference screens: `research/G-reference-screens.md`. Rule from the founder: if unsure, don't change it. Everything below is grounded in a reference screen or in §1 principles.
+
+### 9.1 Navigation
+
+Tab bar: **Home · Food · Body · Sleep · Train**. Templates and History live inside Train. Profile is a round button in the Home header. Each tab's primary log action is a white round **+** at the top right of its header (MacroFactor's Scale Weight page): Food → the logger, Body → weigh-in, Sleep → last night, Train → Start workout (the hero, not a +).
+
+### 9.2 Page header
+
+MacroFactor's caption-over-title: an 11px tracked caption (the date or the goal) above the page title in `hero` size (34px/600, title case, never uppercase), with the + on the right. Pages scroll under a plain `bg` header with a hairline when stuck.
+
+### 9.3 Home
+
+1. **Today strip**: three tiles, Weight · Food · Sleep. Each shows today's value ("81.1 kg", "1,840 / 3,010", "7h 10m") or its action ("Weigh in", "Log food", "Log sleep") and taps straight into that log sheet. Bevel's three rings and MacroFactor's Habits, without rings.
+2. **Verdict line** (unchanged component).
+3. **Start workout** (white, the only primary button above the fold).
+4. Assistant insight card, quieter; takes the physique verdict when watch/attention (as now).
+5. Signals, with quiet pills.
+
+### 9.4 Food (MacroFactor Dashboard + Food Log, merged)
+
+- Header: caption "TODAY · FRI 17 OCT", title "Food", +. A **week strip** of seven day pills under it (weekday letter + day number, a dot under logged days, the selected day filled white); tapping switches the day.
+- **Widget carousel** (horizontal scroll-snap, page dots):
+  1. *Today*: remaining kcal large ("1,170 left"), consumed and target either side, three thin macro bars (P / F / C) with "113 / 137 g".
+  2. *Energy balance*: 30 intake bars against a dotted expenditure line, the three-term row "avg intake − expenditure = difference", an Expenditure / Targets toggle.
+  3. *Week*: seven columns of four mini bars (kcal, P, F, C) with grey target ticks that turn white when met; the selected day outlined, its numbers on the right.
+  A Consumed / Remaining pill toggle sits under the carousel.
+- **Timeline**: hour rows from 06:00 to 23:00 (the range is a setting), a small + next to each hour, entries as rows (name · "640 kcal · 45P 12F 60C · 1 bowl" · edit pencil), hour totals on the hour row. Timeline actions: Copy day, Clear day, Hide empty hours.
+- **Add food bar**: a search-style pill ("Add a food") pinned above the tab bar; opens the logger.
+- **Logger sheet** (full height): header × · time chip · "539 / 2,041" pill · ↓. Tabs: **Recent · Quick add · Describe · Saved**. Recent shows go-tos for this hour, then latest, each with a + that logs the last serving in one tap. Quick add: kcal, P, F, C, optional name, with "Macro sum is 480 kcal" under the kcal field; the NumberPad, not the system keyboard. Describe: text → AI estimate landing as editable rows (needs the API key; otherwise says so). Saved: favourites and saved meals.
+- **Energy page** (`/food/energy`): MacroFactor's Expenditure page. Headline pair "Average 2,780 kcal · Difference −35 kcal" over the range; chart with the ± band, updating/holding markers, range pills 1W 1M 3M 6M All; "Expenditure changes" table (3-, 7-, 14-, 30-day deltas, "Waiting" until there is data); Current expenditure and Current strategy tiles; **Targets history**: each program entry with its one-sentence reason. This is "the maintenance adjustment".
+- Macro colours (DESIGN.md): kcal blue, protein red, fat yellow, carbs green, muted; used only in nutrition charts and bars. Going over is never red.
+
+### 9.5 Body (MacroFactor Scale Weight + Weight Trend + Goal Progress, plus the verdict)
+
+- Header: caption is the goal ("78.0 KG · CUT · −0.60 %/WK", taps into the goal), title "Body", + weigh-in.
+- Verdict line.
+- Hero: trend weight ("81.1 kg") with the rate and window beside it; the chart with **range pills** (1W 1M 3M 6M All) and a legend row (Trend · Scale · Goal).
+- **Goal progress**: MacroFactor's waterfall, one bar per week (toward the goal light, away dark, remaining grey) and "2.9 of 7.0 kg · about 12 weeks left".
+- Lifts since phase start; Waist; **Entries** by month (value, date, edit) for the last 30 days.
+- The energy card moves to Food.
+
+### 9.6 Sleep (Bevel's Sleep tab, no percentage score)
+
+- Header: caption "LAST NIGHT · THU → FRI", title "Sleep", + log.
+- Hero: hours asleep large ("7h 10m") with a word (Short / OK / Good) and the need ("of 8h 00m"). Two tiles: **Time in bed** and **Asleep**, with bed → wake under them.
+- One-sentence insight from the engine's sleep read (rule copy, no AI).
+- **Contributors** (label · word · thin bar): Duration vs goal, Efficiency (asleep ÷ in bed), Wake-ups, Consistency (bedtime spread over 7 nights), Debt (7 days vs goal). Words only, never a score.
+- **Bedtime planner**: "Wake up at 07:00 ›" (stepper) → "Lights out by 22:45 for 8 h"; "Tonight's sleep needed" = goal plus a share of the debt, clamped 7–9.5 h.
+- Trends: 14 nights as bars with the goal line; the nights list (date, hours, bed → wake, tap to edit).
+
+### 9.7 Train (Hevy's home + feed)
+
+Start workout (white hero), Latest routines (template cards), "N workouts · last 7 days" with day circles, Volume bars, then the recent workouts feed (name, date, Time / Volume / Sets, first three exercises). Templates and History keep their routes and are linked from here. Hevy-style set logging (PREVIOUS column, completed-row tint, rest timer ±15 s, plate calculator) is ticket R5 and touches the sacred logger last.
+
+### 9.8 Logging to the smallest detail
+
+- Weight sheet: date with a dropdown, delete, optional body-fat %, the value prefilled with the last entry, Save in one tap (MacroFactor's sheet).
+- Food: Recent before typing, one-tap + per row, macro-sum hint, Edit day total, Copy day.
+- Sleep: prefilled from the last 7 nights, ±15 min steppers, wake-ups, a sleep-goal setting.
+- Every sheet: the NumberPad, never the system keyboard, for numbers.

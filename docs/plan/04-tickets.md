@@ -471,6 +471,52 @@ Acceptance:
 
 ---
 
+## M1.5 — Redesign (rev 2, see `05-design.md` §9 and `research/G-reference-screens.md`)
+
+Order: R1 → R2 → R3 → R4 → R5. Each ticket: screenshots at 390 px in `docs/plan/screens/<id>/`, `npm run check` and `npm run build` pass, STATUS updated. Engine untouched. If a reference screen doesn't cover a decision, keep the current behaviour.
+
+### R1 · Structure: tabs, Home, Body, Train
+M · depends on: V1 · skills: `impeccable` (critique/polish), `run`
+Do:
+1. `components/BottomTabs.tsx`: Home · Food · Body · Sleep · Train. Profile becomes a round button in the Home header. `/templates` and `/history` stay as routes.
+2. `components/ui/PageHeader.tsx`: caption over title with the round + (05 §9.2).
+3. Home per 05 §9.3: Today strip (three tiles tapping into the log sheets), verdict, Start workout, insight, Signals.
+4. Body per 05 §9.5: header with the goal caption, verdict, trend hero, chart with range pills and legend, goal-progress waterfall, lifts, waist, entries by month. The energy card leaves this page.
+5. `/train`: Start workout hero, latest routines, "N workouts · last 7 days", volume bars, recent workouts feed.
+Acceptance:
+- [ ] Every log action is reachable in one tap from Home and from its tab.
+- [ ] The Body page has one hero number and one chart.
+- [ ] Screenshots: Home, Body, Train (empty and seeded).
+
+### R2 · Food tab, logger and energy page
+L · depends on: R1 · skills: `impeccable`, `dataviz`, `run`
+Do: 05 §9.4 in full. New files under `app/food/`, `components/food/`, `lib/physique/food/` (pure helpers: day totals by hour, week totals, 30-day energy balance series, hourly go-tos). The quick-add sheet from U2a is replaced by the logger sheet. `/food/energy` is the expenditure page.
+Acceptance:
+- [x] Re-logging a recent food is 2 taps; quick add is open → kcal → Quick add.
+- [x] The week strip, carousel and timeline render seeded data at 390 px without horizontal page scroll.
+- [x] The energy page shows the ± band, range pills, the changes table and the targets history.
+- [x] Screenshots: Food (empty, seeded), logger tabs, energy page.
+
+### R3 · Sleep tab
+M · depends on: R1 · skills: `impeccable`, `dataviz`, `run`
+Do: 05 §9.6 in full. New files under `app/sleep/`, `components/sleep/`, `lib/physique/sleepView.ts` (pure: contributors, consistency, planner). Sleep goal setting stored on the profile (`sleepGoalH`, clamped 7–9).
+Acceptance:
+- [x] Contributors never show a number as a score; words only.
+- [x] The planner's lights-out time follows the wake time and goal.
+- [x] Screenshots: Sleep (empty, 3 nights, 14 nights).
+
+### R4 · Logging polish
+S · depends on: R2, R3
+Do: 05 §9.8: weight sheet with date dropdown, delete and optional body fat; quick-add macro-sum hint and Edit day; sleep sheet goal; every sheet on the NumberPad.
+Acceptance:
+- [x] Tap counts: weigh-in 2, sleep 2, recent food 2, quick add 3 (plus digits).
+
+### R5 · Workout logger polish (Hevy)
+M · depends on: R1 · touches `app/workout/page.tsx` (sacred: small, serial edits)
+Do: PREVIOUS column with last session's set, completed-row tint, rest timer bar with −15 / +15 / Skip, plate calculator sheet. No change to data shapes.
+Acceptance:
+- [x] Logging a set is still one tap per set; characterisation of stored workouts unchanged.
+
 ## M2 — Hardening (do before M3; tickets can run in any order once M1 is done)
 
 ### F4 · Split `app/api/assistant/route.ts`

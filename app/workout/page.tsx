@@ -37,6 +37,8 @@ import {
 } from "@/lib/userExerciseLibrary";
 import { getCompletedLoggedSets } from "@/lib/completedSets";
 import { getTemplateById } from "@/lib/templateStorage";
+import RestBar from "@/components/workout/RestBar";
+import PlateCalculator from "@/components/workout/PlateCalculator";
 
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
@@ -428,6 +430,8 @@ export default function WorkoutPage() {
   const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
   // Long-press to reveal per-row edit/delete actions — replaces always-on trailing icons.
   const [setActionMenuKey, setSetActionMenuKey] = useState<string | null>(null);
+  /** R5: the plate calculator sheet, opened from a set's long-press menu with that set's weight. */
+  const [plateCalcWeight, setPlateCalcWeight] = useState<number | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressFiredRef = useRef<boolean>(false);
   const [restAdjustExerciseId, setRestAdjustExerciseId] = useState<number | null>(null);
@@ -657,6 +661,27 @@ export default function WorkoutPage() {
         remainingSec: 0,
       },
     }));
+  }
+
+  /** R5: −15 / +15 on a running rest moves its end time; the bar's progress keeps the new total. */
+  function nudgeRunningRest(exerciseId: number, deltaSec: number) {
+    setRestByExercise((prev) => {
+      const t = prev[exerciseId];
+      if (!t || !t.timerRunning || typeof t.timerTargetEndAt !== "number") return prev;
+      const now = Date.now();
+      const targetEnd = Math.max(now, t.timerTargetEndAt + deltaSec * 1000);
+      const remainingSec = Math.max(0, Math.ceil((targetEnd - now) / 1000));
+      return {
+        ...prev,
+        [exerciseId]: {
+          ...t,
+          timerRunning: remainingSec > 0,
+          restDurationSec: Math.max(0, t.restDurationSec + deltaSec),
+          timerTargetEndAt: targetEnd,
+          remainingSec,
+        },
+      };
+    });
   }
 
   function adjustExerciseRest(exerciseId: number, delta: number) {
@@ -1665,9 +1690,12 @@ export default function WorkoutPage() {
                         return (
                           <div className="overflow-x-auto -mx-0.5 px-0.5">
                             <div className="min-w-[min(100%,20rem)]">
-                            <div className="mb-1 grid grid-cols-[1.125rem_minmax(4.75rem,1.4fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center px-0.5">
+                            <div className="mb-1 grid grid-cols-[1.125rem_minmax(3.25rem,0.8fr)_minmax(4.25rem,1.3fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center px-0.5">
                               <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 text-center">
                                 #
+                              </span>
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 pl-0.5">
+                                Previous
                               </span>
                               <span className="text-[9px] font-medium uppercase tracking-wide text-teal-200/60 pl-0.5">
                                 Weight
@@ -1729,13 +1757,13 @@ export default function WorkoutPage() {
                                             </div>
                                           )}
                                           <div
-                                            className={`grid grid-cols-[1.125rem_minmax(4.75rem,1.4fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center rounded-lg py-0.5 ${
+                                            className={`grid grid-cols-[1.125rem_minmax(3.25rem,0.8fr)_minmax(4.25rem,1.3fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center rounded-lg py-0.5 ${
                                               isNext
                                                 ? "ring-1 ring-[color:var(--color-accent)]/55 bg-zinc-800/45 shadow-[inset_3px_0_0_0_rgba(45,212,191,0.55),inset_0_0_0_1px_rgba(45,212,191,0.14)]"
                                                 : isDraft
                                                   ? "border border-dashed border-teal-700/35 bg-zinc-800/15"
                                                   : ""
-                                            } ${isDraft && !isDone ? "[&_input]:text-zinc-300" : ""} ${isDone ? "opacity-[0.78]" : ""}`}
+                                            } ${isDraft && !isDone ? "[&_input]:text-zinc-300" : ""} ${isDone ? "bg-[rgba(0,229,176,0.08)]" : ""}`}
                                             role="button"
                                             tabIndex={0}
                                             onClick={(e) => {
@@ -1809,6 +1837,20 @@ export default function WorkoutPage() {
                                             <span className="text-center text-[11px] text-teal-200/75 tabular-nums font-semibold">
                                               {index + 1}
                                             </span>
+                                            {/* R5 (Hevy): last session's set; tapping it fills an empty row. */}
+                                            <button
+                                              type="button"
+                                              disabled={!prevWeightStr && !prevRepsStr}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (prevWeightStr && (set.weight ?? "").trim() === "") updateSetValue(exercise.id, index, "weight", prevWeightStr);
+                                                if (prevRepsStr && (set.reps ?? "").trim() === "") updateSetValue(exercise.id, index, "reps", prevRepsStr);
+                                              }}
+                                              className="h-9 min-w-0 truncate rounded-lg px-1 text-left text-[11px] tabular-nums text-zinc-500 disabled:cursor-default"
+                                              aria-label={prevWeightStr || prevRepsStr ? `Previous set ${prevWeightStr ?? "—"} ${unit} × ${prevRepsStr ?? "—"}. Use it` : "No previous set"}
+                                            >
+                                              {prevWeightStr || prevRepsStr ? `${prevWeightStr ?? "—"} × ${prevRepsStr ?? "—"}` : "—"}
+                                            </button>
                                             <div className={logInputShell}>
                                               <input
                                                 ref={(el) => {
@@ -1971,6 +2013,17 @@ export default function WorkoutPage() {
                                                 className="flex-1 rounded-md border border-teal-700/30 bg-zinc-800/55 px-2 py-2 text-[12px] font-semibold text-teal-100 transition hover:bg-zinc-800 active:scale-[0.98]"
                                               >
                                                 {hasNote ? "Edit note" : "Add note"}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setSetActionMenuKey(null);
+                                                  const w = parseFloat((set.weight ?? "").trim() || (prevWeightStr ?? ""));
+                                                  setPlateCalcWeight(Number.isFinite(w) ? w : 0);
+                                                }}
+                                                className="flex-1 rounded-md border border-teal-700/30 bg-zinc-800/55 px-2 py-2 text-[12px] font-semibold text-teal-100 transition hover:bg-zinc-800 active:scale-[0.98]"
+                                              >
+                                                Plates
                                               </button>
                                               <button
                                                 type="button"
@@ -2370,6 +2423,28 @@ export default function WorkoutPage() {
             </div>
           );
         })()}
+
+      {/* R5 (Hevy): the running rest as a bottom bar with −15 / +15 / Skip. */}
+      {(() => {
+        let active: { id: number; t: RestTimerState } | null = null;
+        for (const [k, t] of Object.entries(restByExercise)) {
+          if (!t.timerRunning || t.remainingSec <= 0) continue;
+          if (!active || (t.timerStartedAt ?? 0) > (active.t.timerStartedAt ?? 0)) active = { id: Number(k), t };
+        }
+        const found = active;
+        if (!found) return null;
+        const name = exercises.find((e) => e.id === found.id)?.name?.trim() || "Rest";
+        return (
+          <RestBar
+            exerciseName={name}
+            remainingSec={found.t.remainingSec}
+            totalSec={found.t.restDurationSec}
+            onAdjust={(d) => nudgeRunningRest(found.id, d)}
+            onSkip={() => resetExerciseRest(found.id)}
+          />
+        );
+      })()}
+      <PlateCalculator weight={plateCalcWeight} unit={unit === "lb" ? "lb" : "kg"} onClose={() => setPlateCalcWeight(null)} />
     </main>
   );
 }
