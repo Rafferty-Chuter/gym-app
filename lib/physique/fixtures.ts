@@ -83,6 +83,13 @@ export type ScenarioSpec = {
   intake?: { meanKcal: number; sdKcal?: number } | "toTarget";
   /** Intake noise SD in "toTarget" mode. Default 350. */
   intakeSdKcal?: number;
+  /** "toTarget" only: a persistent offset from the target in effect (−500 = eats 500 kcal under target). Default 0. */
+  intakeOffsetKcal?: number;
+  /**
+   * First day index with food entries (default 0). Earlier days are eaten but
+   * never logged, so expenditure holds at the seed until logging starts.
+   */
+  foodLogFromDay?: number;
   /** Pre-goal (maintenance) intake in "toTarget" mode when `trueTdeeKcal` is unset. */
   targetKcal?: number;
   goal?: { ratePctPerWeek: number; targetKg?: number; trainingStatus?: TrainingStatus; confirmed?: boolean } | null;
@@ -237,7 +244,7 @@ export function makeScenario(input: ScenarioSpec): Scenario {
         }
         target = targetInEffect(program, date)?.kcal ?? maintenanceKcal;
       }
-      intakeKcal.push(Math.max(800, Math.round(target + gaussian(intakeRand) * intakeSd)));
+      intakeKcal.push(Math.max(800, Math.round(target + (input.intakeOffsetKcal ?? 0) + gaussian(intakeRand) * intakeSd)));
     }
 
     let delta = 0;
@@ -270,7 +277,7 @@ export function makeScenario(input: ScenarioSpec): Scenario {
 
     // Food: one summary entry per day, split 30/45/25 P/C/F by kcal.
     const status = flagsByDay.get(d);
-    if (status !== "fasting") {
+    if (status !== "fasting" && d >= (input.foodLogFromDay ?? 0)) {
       const kcal = status === "partial" ? Math.round(intakeKcal[d] * 0.3) : intakeKcal[d];
       foodEntries.push({
         id: `seed-f-${seed}-${d}`,

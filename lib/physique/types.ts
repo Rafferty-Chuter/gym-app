@@ -143,10 +143,13 @@ export type PhysiqueProfile = {
   proteinLevel: ProteinLevel;
   dietType: DietType;
   sleepGoalH: number;
-  /** Safety screen answers (U3). */
-  safety?: { pregnantOrEdHistory?: boolean; answeredAt?: string };
+  /** Safety screen answers (U3). `redFlags` feeds SAFE-3 (research F §9); nothing writes it in M1. */
+  safety?: { pregnantOrEdHistory?: boolean; answeredAt?: string; redFlags?: SafetyRedFlag[] };
   schemaVersion: 1;
 };
+
+/** User-reported under-fuelling signs (research F SAFE-3). */
+export type SafetyRedFlag = "missed_periods" | "low_libido" | "dizziness" | "recurrent_illness" | "low_mood";
 
 export type ProgramSource = "goal_start" | "check_in" | "refresh" | "apply_now";
 
@@ -316,7 +319,15 @@ export type PhysiqueAnalysis = {
   expenditure: { kcal: number | null; state: ExpenditureState; plusMinus: 400 | 300 | null };
   targets: ProgramTargets | null;
   adherence: { deltaKcal: number | null; onTarget: boolean | null; proteinGPerKg: number | null; daysLogged: number };
-  strength: { status: StrengthStatus; lifts: Array<{ name: string; changePct: number | null }>; baselineMissing: boolean };
+  strength: {
+    status: StrengthStatus;
+    lifts: Array<{ name: string; changePct: number | null }>;
+    baselineMissing: boolean;
+    /** STR-OK: ≥2 lifts read and every one above −3%. */
+    strOk: boolean;
+    mainLifts: number;
+    liftsRead: number;
+  };
   sleep: {
     mean14h: number | null;
     nightsLogged14: number;
@@ -325,12 +336,20 @@ export type PhysiqueAnalysis = {
     source: "manual" | "wearable" | "mixed" | null;
     debt7h: number | null;
     lastNightH: number | null;
+    /** SLEEP-OK (02 §7.3): lifts are dropping while sleep is `ok`, so sleep is not to blame. */
+    sleepOk: boolean;
   };
+  /** Training status today (02 §5.2): from lifts when the data gate passes, else onboarding, else the default. */
+  training: { status: TrainingStatus; source: "lifts" | "onboarding" | "default"; medianSlopePctPerWeek: number | null };
   goal: PhysiqueGoal | null;
   verdict: Verdict;
   flags: Verdict[];
   recommendation: Recommendation | null;
+  /** The recommendation row's copy (05-design §7), null when there is no recommendation. */
+  recommendationLabel: string | null;
   status: { state: SignalState; label: string };
   /** True from the check-in weekday until the check-in is done. */
   checkInDue: boolean;
+  /** Every rule that fired before suppression, and what removed the suppressed ones (02 §8.3). */
+  rules: { fired: RuleId[]; suppressed: Array<{ id: RuleId; by: string }> };
 };
