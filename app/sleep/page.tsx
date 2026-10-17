@@ -13,6 +13,7 @@ import { savePhysiqueProfile } from "@/lib/physique/io/profile";
 import { SLEEP_WINDOW_NIGHTS, clampSleepGoal, nightsByDate } from "@/lib/physique/sleep";
 import { sleepPrefill } from "@/lib/physique/dayTotals";
 import { bedtimePlan, nightWord, sleepContributors, sleepInsight, trendBars } from "@/lib/physique/sleepView";
+import { recoveryRead } from "@/lib/physique/recovery";
 import PageHeader from "@/components/ui/PageHeader";
 import SleepSheet from "@/components/physique/SleepSheet";
 import GapRows from "@/components/physique/GapRows";
@@ -20,6 +21,7 @@ import { findGaps, gapLines } from "@/lib/physique/gaps";
 import { Caption } from "@/components/physique/ui";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import SleepHero from "@/components/sleep/SleepHero";
+import RecoveryRow from "@/components/sleep/RecoveryRow";
 import SleepInsight from "@/components/sleep/SleepInsight";
 import SleepContributors from "@/components/sleep/SleepContributors";
 import BedtimePlanner from "@/components/sleep/BedtimePlanner";
@@ -87,6 +89,7 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
       plan: bedtimePlan(wakeSetting ?? prefill.wakeTime, goalH, read?.debt7h ?? null),
       bars: trendBars(data.sleepNights, now),
       insight: read ? sleepInsight(read, goalH) : null,
+      recovery: recoveryRead(data.sleepNights, today, read ? read.status === "short" || read.status === "severe" : false),
     };
   }, [data.sleepNights, today, now, goalH, wakeSetting, analysis]);
 
@@ -105,6 +108,8 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         <PageHeader caption={`Last night · ${longLocalDate(addDays(today, -1))} → ${longLocalDate(today)}`} title="Sleep" action={{ label: "Log sleep", onClick: () => setSheetDate(today) }} />
 
         <SleepHero night={model.lastNight} word={model.word} goalH={goalH} onLog={() => setSheetDate(today)} />
+
+        <RecoveryRow read={model.recovery} />
 
         <GapRows lines={model.gapRows} onSelect={(l) => setSheetDate(l.date)} />
 

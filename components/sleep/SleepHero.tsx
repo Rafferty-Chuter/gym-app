@@ -2,6 +2,8 @@
 
 import { SecondaryButton } from "@/components/physique/ui";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
+import { stageSplit } from "@/lib/physique/recovery";
+import StageBar from "@/components/sleep/StageBar";
 import type { NightWord } from "@/lib/physique/sleepView";
 import type { SleepNight } from "@/lib/physique/types";
 import { STATUS_HEX } from "@/lib/ui/status";
@@ -37,6 +39,7 @@ export default function SleepHero({ night, word, goalH, onLog }: { night: SleepN
   }
   const inBed = night.inBedMin ?? null;
   const span = night.bedtime && night.wakeTime ? `${night.bedtime} → ${night.wakeTime}` : null;
+  const split = stageSplit(night);
   return (
     <section aria-label="Last night" className="flex flex-col gap-4">
       <div>
@@ -58,6 +61,7 @@ export default function SleepHero({ night, word, goalH, onLog }: { night: SleepN
         <Tile label="Time in bed" value={inBed != null ? formatHoursMin(inBed) : "Not logged"} sub={span} dim={inBed == null} />
         <Tile label="Asleep" value={formatHoursMin(night.asleepMin)} sub={night.wakeups ? WAKEUPS_COPY[night.wakeups] : null} />
       </div>
+      {split && <StageBar split={split} />}
     </section>
   );
 }

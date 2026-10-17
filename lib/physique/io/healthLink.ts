@@ -98,6 +98,15 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
       if (bedtime) n.bedtime = bedtime;
       const wake = str(v.wakeTime);
       if (wake) n.wakeTime = wake;
+      const st = v.stages && typeof v.stages === "object" ? (v.stages as Record<string, unknown>) : null;
+      if (st) {
+        const stages: NonNullable<SleepNight["stages"]> = {};
+        for (const k of ["coreMin", "deepMin", "remMin", "awakeMin"] as const) {
+          const m = num(st[k]);
+          if (m != null && m >= 0) stages[k] = Math.round(m);
+        }
+        if (Object.keys(stages).length > 0) n.stages = stages;
+      }
       nights.set(s.day, n);
     } else if (s.metric === "hrv") {
       const ms = num(v.value);

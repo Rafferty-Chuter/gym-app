@@ -90,6 +90,8 @@ export type SleepNight = Record_ & {
   hrvMs?: number;
   hrvMethod?: "sdnn" | "rmssd";
   restingHr?: number;
+  /** S6: stage minutes from the wearable, shown and never scored (research C §4.2). */
+  stages?: { coreMin?: number; deepMin?: number; remMin?: number; awakeMin?: number };
 };
 
 export type WaistEntry = Record_ & { cm: number };

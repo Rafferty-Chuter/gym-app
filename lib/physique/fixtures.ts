@@ -100,7 +100,14 @@ export type ScenarioSpec = {
   /** Water shift at phase start. Default −1.2 kg over 5 days on a cut, +0.8 on a bulk, 0 otherwise. */
   waterStepKg?: number;
   waterStepDays?: number;
-  sleep?: { meanH: number; sdH?: number; source?: "manual" | "healthkit"; loggedShare?: number } | null;
+  sleep?: {
+    meanH: number;
+    sdH?: number;
+    source?: "manual" | "healthkit";
+    loggedShare?: number;
+    /** S6, healthkit only: HRV (sdnn, lognormal), resting HR and a stage split on every night; the drop lowers HRV and raises RHR from `dropFromDay`. */
+    hrv?: { meanMs: number; sdPct?: number; rhrBpm?: number; dropFromDay?: number; dropPct?: number; rhrRiseBpm?: number };
+  } | null;
   lifts?: LiftSpec[];
   events?: Array<{ day: number; event: DayEvent }>;
   waist?: { startCm: number; changeCm: number } | null;
@@ -303,18 +310,30 @@ export function makeScenario(input: ScenarioSpec): Scenario {
       if (rand() > (s.loggedShare ?? 1)) continue;
       const h = Math.min(11, Math.max(3, s.meanH + gaussian(rand) * (s.sdH ?? 0.6)));
       const date = addDays(startDate, d);
-      sleepNights.push({
+      const asleepMin = Math.round(h * 60);
+      const nightRecord: SleepNight = {
         id: `seed-s-${seed}-${d}`,
         date,
         loggedAt: `${date}T07:10:00.000Z`,
         source: s.source === "healthkit" ? "healthkit" : "seed",
         schemaVersion: 1,
-        asleepMin: Math.round(h * 60),
-        inBedMin: Math.round(h * 60 + 25),
+        asleepMin,
+        inBedMin: asleepMin + 25,
         bedtime: "23:00",
         wakeTime: "07:00",
         wakeups: "1-2",
-      });
+      };
+      if (s.source === "healthkit" && s.hrv) {
+        const dropping = s.hrv.dropFromDay != null && d >= s.hrv.dropFromDay;
+        const hrvMs = s.hrv.meanMs * Math.exp((gaussian(rand) * (s.hrv.sdPct ?? 10)) / 100) * (dropping ? 1 - (s.hrv.dropPct ?? 15) / 100 : 1);
+        nightRecord.hrvMs = Math.round(hrvMs * 10) / 10;
+        nightRecord.hrvMethod = "sdnn";
+        nightRecord.restingHr = Math.round((s.hrv.rhrBpm ?? 52) + gaussian(rand) * 1.5 + (dropping ? (s.hrv.rhrRiseBpm ?? 0) : 0));
+        const deepMin = Math.round(asleepMin * Math.min(0.25, Math.max(0.1, 0.17 + gaussian(rand) * 0.03)));
+        const remMin = Math.round(asleepMin * Math.min(0.3, Math.max(0.12, 0.22 + gaussian(rand) * 0.03)));
+        nightRecord.stages = { deepMin, remMin, coreMin: asleepMin - deepMin - remMin, awakeMin: Math.round(asleepMin * 0.05) };
+      }
+      sleepNights.push(nightRecord);
     }
   }
 

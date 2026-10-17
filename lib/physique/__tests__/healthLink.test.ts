@@ -14,7 +14,7 @@ describe("mergeSamples", () => {
 
   it("makes one healthkit night per wake date with HRV and RHR attached, and one weigh-in per day", async () => {
     const r = await mergeSamples([
-      { metric: "sleep", day: "2026-10-15", value: { asleepMin: 426, inBedMin: 456, bedtime: "23:10", wakeTime: "07:05", stages: {} }, source: "Apple Watch", received_at: at },
+      { metric: "sleep", day: "2026-10-15", value: { asleepMin: 426, inBedMin: 456, bedtime: "23:10", wakeTime: "07:05", stages: { coreMin: 240, deepMin: 70, remMin: 95, awakeMin: 21 } }, source: "Apple Watch", received_at: at },
       { metric: "hrv", day: "2026-10-15", value: { value: 48.3, at: "2026-10-15T03:10:00" }, source: null, received_at: at },
       { metric: "rhr", day: "2026-10-15", value: { value: 52, at: "2026-10-15T00:00:00" }, source: null, received_at: at },
       { metric: "hrv", day: "2026-10-14", value: { value: 50, at: "2026-10-14T03:10:00" }, source: null, received_at: at },
@@ -24,7 +24,7 @@ describe("mergeSamples", () => {
     expect(r).toEqual({ nights: 1, weighIns: 1 });
     const nights = sleepNightsRepo.snapshot();
     expect(nights).toHaveLength(1);
-    expect(nights[0]).toMatchObject({ id: "hk-2026-10-15", date: "2026-10-15", source: "healthkit", asleepMin: 426, inBedMin: 456, bedtime: "23:10", wakeTime: "07:05", hrvMs: 48.3, hrvMethod: "sdnn", restingHr: 52 });
+    expect(nights[0]).toMatchObject({ id: "hk-2026-10-15", date: "2026-10-15", source: "healthkit", asleepMin: 426, inBedMin: 456, bedtime: "23:10", wakeTime: "07:05", hrvMs: 48.3, hrvMethod: "sdnn", restingHr: 52, stages: { coreMin: 240, deepMin: 70, remMin: 95, awakeMin: 21 } });
     const w = weighInsRepo.snapshot();
     expect(w).toHaveLength(1);
     expect(w[0]).toMatchObject({ id: "hk-w-2026-10-15", kg: 82.4, bodyFatPct: 15.2, source: "healthkit", loggedAt: "2026-10-15T07:02:00Z" });
