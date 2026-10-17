@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import { useUnit } from "@/lib/unit-preference";
 import { useNow } from "@/lib/ui/useToday";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
-import { deleteWeighIn, saveFoodEntry, saveSleepNight, saveWeighIn, useBodyData, type QuickFood, type SleepInput } from "@/lib/physique/io/bodyData";
-import { dayTotals, formatHoursMin, recentFoods, sleepPrefill } from "@/lib/physique/dayTotals";
+import { deleteWeighIn, saveSleepNight, saveWeighIn, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
+import { logFood, removeSavedFood, toggleFavourite, type FoodInput } from "@/lib/physique/io/foodData";
+import { dayTotals, formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { latestTrend } from "@/lib/physique/weight";
 import { targetInEffect } from "@/lib/physique/intake";
 import { formatWeight } from "@/lib/units";
 import WeightSheet from "@/components/physique/WeightSheet";
-import FoodQuickAddSheet from "@/components/physique/FoodQuickAddSheet";
+import LoggerSheet from "@/components/food/LoggerSheet";
 import SleepSheet from "@/components/physique/SleepSheet";
 import type { LocalDate } from "@/lib/dates";
 
@@ -89,7 +90,20 @@ export default function TodayStrip() {
             onSave={(kg, d) => saveWeighIn(d, kg, nowIso())}
             onDelete={async () => (day.onDate ? deleteWeighIn(day.onDate.id) : { ok: true as const })}
           />
-          <FoodQuickAddSheet open={sheet === "food"} onClose={() => setSheet(null)} recent={recentFoods(data.savedFoods, 8)} dateLabel="today" onSave={(food: QuickFood, savedFoodId?: string) => saveFoodEntry(today, food, nowIso(), savedFoodId)} />
+          <LoggerSheet
+            state={sheet === "food" ? {} : null}
+            onClose={() => setSheet(null)}
+            date={today}
+            today={today}
+            tz={now.tz}
+            consumedKcal={day.totals.kcal}
+            targetKcal={day.target?.kcal ?? null}
+            entries={data.foodEntries}
+            saved={data.savedFoods}
+            onLog={(food: FoodInput, savedFoodId?: string) => logFood(today, food, nowIso(), savedFoodId)}
+            onToggleFavourite={toggleFavourite}
+            onRemoveSaved={removeSavedFood}
+          />
           <SleepSheet open={sheet === "sleep"} onClose={() => setSheet(null)} prefill={sleepPrefill(data.sleepNights)} existing={day.night} dateLabel="today" onSave={(input: SleepInput) => saveSleepNight(today, input, nowIso())} />
         </>
       )}

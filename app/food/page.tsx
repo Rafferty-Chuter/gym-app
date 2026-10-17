@@ -4,18 +4,28 @@ import { useMemo, useState } from "react";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
-import type { Now } from "@/lib/dates";
-import { deleteFoodEntry, saveFoodEntry, useBodyData, type QuickFood } from "@/lib/physique/io/bodyData";
+import { addDays, type LocalDate, type Now } from "@/lib/dates";
+import { useBodyData } from "@/lib/physique/io/bodyData";
+import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
-import { dayTotals, recentFoods } from "@/lib/physique/dayTotals";
+import { clearDay, copyDay, logFood, removeFoodEntry, removeSavedFood, setFoodPrefs, toggleFavourite, updateFoodEntry, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
+import { dayTimeline } from "@/lib/physique/food/timeline";
+import { weekDates, weekTotals } from "@/lib/physique/food/week";
+import { energyBalance, type EnergyLine } from "@/lib/physique/food/energy";
 import { targetInEffect } from "@/lib/physique/intake";
 import PageHeader from "@/components/ui/PageHeader";
-import FoodQuickAddSheet from "@/components/physique/FoodQuickAddSheet";
-import EnergyCard from "@/components/physique/EnergyCard";
-import { Caption, MacroBar } from "@/components/physique/ui";
-import { longLocalDate } from "@/components/charts/TimeSeriesChart";
+import Sheet from "@/components/ui/Sheet";
+import WeekStrip from "@/components/food/WeekStrip";
+import FoodWidgets, { type FoodView } from "@/components/food/FoodWidgets";
+import FoodTimeline from "@/components/food/FoodTimeline";
+import AddFoodBar from "@/components/food/AddFoodBar";
+import LoggerSheet, { type LoggerOpen } from "@/components/food/LoggerSheet";
+import EntrySheet from "@/components/food/EntrySheet";
+import { ErrorLine, PrimaryButton, SecondaryButton } from "@/components/physique/ui";
+import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
+import type { FoodEntry } from "@/lib/physique/types";
 
-/** R1 placeholder for the Food tab: today's totals, entries and the energy card. R2 brings the timeline, widgets and logger. */
+/** Food tab (05-design §9.4): week strip, widget carousel, hour timeline, add-food bar and the logger. */
 export default function FoodPage() {
   const hydrated = useIsHydrated();
   const now = useNow();
@@ -24,84 +34,136 @@ export default function FoodPage() {
   return <FoodContent now={now} unit={unit === "lb" ? "lb" : "kg"} />;
 }
 
+type DayAction = { kind: "copy"; to: LocalDate } | { kind: "clear" } | null;
+
 function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const today = now.today;
+  const tz = now.tz;
   const data = useBodyData();
+  const prefs = useFoodPrefs();
+  const expenditure = useExpenditure(now);
   const analysis = usePhysiqueAnalysis(now, unit);
-  const [open, setOpen] = useState(false);
-  const day = useMemo(() => {
-    const entries = data.foodEntries.filter((e) => e.date === today).sort((a, b) => (a.loggedAt < b.loggedAt ? -1 : 1));
-    return { entries, totals: dayTotals(data.foodEntries, today), target: targetInEffect(data.program, today) };
-  }, [data, today]);
+  const [date, setDate] = useState<LocalDate>(today);
+  const [logger, setLogger] = useState<LoggerOpen>(null);
+  const [editing, setEditing] = useState<FoodEntry | null>(null);
+  const [energyLine, setEnergyLine] = useState<EnergyLine>("expenditure");
+  const [dayAction, setDayAction] = useState<DayAction>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const week = useMemo(() => weekDates(date), [date]);
+  const model = useMemo(() => {
+    const timeline = dayTimeline(data.foodEntries, date, tz, { start: prefs.hourStart, end: prefs.hourEnd });
+    const target = targetInEffect(data.program, date);
+    const weekRows = weekTotals(week, data.foodEntries, data.dayFlags, data.program, today);
+    const logged = new Set(weekRows.filter((d) => d.logged).map((d) => d.date));
+    const energy = energyBalance(expenditure?.intake ?? [], expenditure?.series ?? [], data.program, energyLine, today);
+    return { timeline, target, weekRows, logged, energy };
+  }, [data, date, tz, prefs.hourStart, prefs.hourEnd, week, today, expenditure, energyLine]);
+
   const nowIso = () => new Date().toISOString();
-  const left = day.target ? Math.max(0, Math.round(day.target.kcal - day.totals.kcal)) : null;
+  const isToday = date === today;
+  const caption = isToday ? `Today · ${longLocalDate(today)}` : date === addDays(today, -1) ? `Yesterday · ${longLocalDate(date)}` : longLocalDate(date);
+  const editingLive = editing ? (data.foodEntries.find((e) => e.id === editing.id) ?? null) : null;
+
+  async function runDayAction() {
+    if (!dayAction) return;
+    setActionError(null);
+    const r = dayAction.kind === "copy" ? await copyDay(date, dayAction.to, nowIso(), tz) : await clearDay(date);
+    if (r.ok) setDayAction(null);
+    else setActionError(r.error);
+  }
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
-      <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <PageHeader caption={`Today · ${longLocalDate(today)}`} title="Food" action={{ label: "Add food", onClick: () => setOpen(true) }} />
+    <main className="min-h-screen pb-40" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+      <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 sm:px-6">
+        <PageHeader caption={caption} title="Food" action={{ label: "Add food", onClick: () => setLogger({}) }} />
 
-        <section className="rounded-[12px] p-4" style={{ background: "#141416" }} aria-label="Today's nutrition">
-          <div className="flex items-end justify-between gap-3">
-            <div className="flex flex-col">
-              <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
-                {left != null ? left.toLocaleString("en-GB") : Math.round(day.totals.kcal).toLocaleString("en-GB")}
-              </span>
-              <span className="mt-1 text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
-                {left != null ? `kcal left · ${Math.round(day.totals.kcal).toLocaleString("en-GB")} of ${day.target!.kcal.toLocaleString("en-GB")}` : day.totals.entries > 0 ? "kcal today · set a goal for targets" : "nothing logged yet"}
-              </span>
-            </div>
-            <Caption>{day.totals.entries} {day.totals.entries === 1 ? "entry" : "entries"}</Caption>
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            {(
-              [
-                { label: "Protein", v: day.totals.proteinG, t: day.target?.proteinG ?? null, c: "#e8736f" },
-                { label: "Fat", v: day.totals.fatG, t: day.target?.fatG ?? null, c: "#f0c36a" },
-                { label: "Carbs", v: day.totals.carbsG, t: day.target?.carbsG ?? null, c: "#6fcf9f" },
-              ] as const
-            ).map((m) => (
-              <div key={m.label} className="flex flex-col gap-1.5">
-                <span className="text-[11px] font-medium" style={{ color: "#6f6f76" }}>{m.label}</span>
-                <MacroBar value={m.v} target={m.t} color={m.c} />
-                <span className="text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
-                  {Math.round(m.v)}{m.t != null ? ` / ${m.t}` : ""} g
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
+        <WeekStrip dates={week} selected={date} today={today} logged={model.logged} onSelect={setDate} onPrevWeek={() => setDate(addDays(date, -7))} onNextWeek={() => setDate((d) => (addDays(d, 7) > today ? today : addDays(d, 7)))} />
 
-        {day.entries.length > 0 ? (
-          <ul className="divide-y divide-[#2a2a2e] overflow-hidden rounded-[12px]" style={{ background: "#141416" }} aria-label="Entries">
-            {day.entries.map((e) => (
-              <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-[15px]" style={{ color: "#f2f2f0" }}>{e.label}</span>
-                  <span className="text-[11px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
-                    {e.loggedAt.slice(11, 16)} · P {Math.round(e.proteinG)} · F {Math.round(e.fatG)} · C {Math.round(e.carbsG)} g{e.method === "ai_text" ? " · est." : ""}
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-3">
-                  <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>{Math.round(e.kcal)}</span>
-                  <button type="button" onClick={() => void deleteFoodEntry(e.id)} className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "#1d1d20", color: "#a3a3a8" }} aria-label={`Remove ${e.label}`}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="h-3.5 w-3.5" aria-hidden>
-                      <path d="M6 6l12 12M18 6L6 18" />
-                    </svg>
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
-            Nothing logged today. Tap + to add a food; recents re-log in one tap.
-          </p>
-        )}
+        <FoodWidgets
+          date={date}
+          today={today}
+          totals={model.timeline.totals}
+          target={model.target}
+          view={prefs.view}
+          onViewChange={(view: FoodView) => void setFoodPrefs({ view })}
+          energy={model.energy}
+          energyLine={energyLine}
+          onEnergyLineChange={setEnergyLine}
+          expenditureState={analysis?.expenditure.state ?? null}
+          week={model.weekRows}
+          onSelectDay={setDate}
+        />
 
-        {analysis && <EnergyCard analysis={analysis} />}
+        <FoodTimeline
+          timeline={model.timeline}
+          tz={tz}
+          hideEmpty={prefs.hideEmptyHours}
+          onAddAt={(hour) => setLogger({ hour })}
+          onEdit={setEditing}
+          onCopyDay={() => setDayAction({ kind: "copy", to: isToday ? addDays(today, -1) : today })}
+          onClearDay={() => setDayAction({ kind: "clear" })}
+          onToggleHideEmpty={() => void setFoodPrefs({ hideEmptyHours: !prefs.hideEmptyHours })}
+        />
       </div>
-      <FoodQuickAddSheet open={open} onClose={() => setOpen(false)} recent={recentFoods(data.savedFoods, 8)} dateLabel="today" onSave={(food: QuickFood, savedFoodId?: string) => saveFoodEntry(today, food, nowIso(), savedFoodId)} />
+
+      <AddFoodBar onOpen={() => setLogger({})} onDescribe={() => setLogger({ tab: "describe" })} />
+
+      <LoggerSheet
+        state={logger}
+        onClose={() => setLogger(null)}
+        date={date}
+        today={today}
+        tz={tz}
+        consumedKcal={model.timeline.totals.kcal}
+        targetKcal={model.target?.kcal ?? null}
+        entries={data.foodEntries}
+        saved={data.savedFoods}
+        onLog={(food: FoodInput, savedFoodId?: string) => logFood(date, food, nowIso(), savedFoodId)}
+        onToggleFavourite={toggleFavourite}
+        onRemoveSaved={removeSavedFood}
+      />
+
+      <EntrySheet entry={editingLive} tz={tz} onClose={() => setEditing(null)} onSave={(patch) => (editingLive ? updateFoodEntry(editingLive.id, patch) : Promise.resolve({ ok: true as const }))} onRemove={() => (editingLive ? removeFoodEntry(editingLive.id) : Promise.resolve({ ok: true as const }))} />
+
+      <Sheet open={dayAction != null} onClose={() => setDayAction(null)} title={dayAction?.kind === "copy" ? "Copy day" : "Clear day"}>
+        {dayAction?.kind === "copy" && (
+          <div className="flex flex-col gap-3">
+            <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              Copy the {model.timeline.entries} {model.timeline.entries === 1 ? "entry" : "entries"} from {shortLocalDate(date)}, with their times, onto:
+            </p>
+            <div className="flex items-center justify-between rounded-[12px] px-3 py-2" style={{ background: "#1d1d20" }}>
+              <button type="button" onClick={() => setDayAction({ kind: "copy", to: addDays(dayAction.to, -1) })} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "#a3a3a8" }} aria-label="Earlier day">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
+                  <path d="M15 6l-6 6 6 6" />
+                </svg>
+              </button>
+              <span className="text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+                {dayAction.to === today ? "Today" : dayAction.to === addDays(today, -1) ? "Yesterday" : dayAction.to === addDays(today, 1) ? "Tomorrow" : longLocalDate(dayAction.to)}
+              </span>
+              <button type="button" onClick={() => setDayAction({ kind: "copy", to: addDays(dayAction.to, 1) })} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "#a3a3a8" }} aria-label="Later day">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+            </div>
+            <ErrorLine text={actionError} />
+            <PrimaryButton onClick={runDayAction} disabled={dayAction.to === date}>
+              Copy
+            </PrimaryButton>
+          </div>
+        )}
+        {dayAction?.kind === "clear" && (
+          <div className="flex flex-col gap-3">
+            <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              Remove all {model.timeline.entries} {model.timeline.entries === 1 ? "entry" : "entries"} from {shortLocalDate(date)}. This cannot be undone.
+            </p>
+            <ErrorLine text={actionError} />
+            <PrimaryButton onClick={runDayAction}>Clear day</PrimaryButton>
+            <SecondaryButton onClick={() => setDayAction(null)}>Keep them</SecondaryButton>
+          </div>
+        )}
+      </Sheet>
     </main>
   );
 }

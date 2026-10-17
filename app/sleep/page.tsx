@@ -4,90 +4,118 @@ import { useMemo, useState } from "react";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
-import { addDays, type Now } from "@/lib/dates";
+import { useSingleton } from "@/lib/storage/useStored";
+import { addDays, type LocalDate, type Now } from "@/lib/dates";
 import { saveSleepNight, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
-import { formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
+import { profileStore } from "@/lib/physique/io/repos";
+import { savePhysiqueProfile } from "@/lib/physique/io/profile";
+import { SLEEP_WINDOW_NIGHTS, clampSleepGoal, nightsByDate } from "@/lib/physique/sleep";
+import { sleepPrefill } from "@/lib/physique/dayTotals";
+import { bedtimePlan, nightWord, sleepContributors, sleepInsight, trendBars } from "@/lib/physique/sleepView";
 import PageHeader from "@/components/ui/PageHeader";
 import SleepSheet from "@/components/physique/SleepSheet";
 import { Caption } from "@/components/physique/ui";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
-import { STATUS_HEX } from "@/lib/ui/status";
+import SleepHero from "@/components/sleep/SleepHero";
+import SleepInsight from "@/components/sleep/SleepInsight";
+import SleepContributors from "@/components/sleep/SleepContributors";
+import BedtimePlanner from "@/components/sleep/BedtimePlanner";
+import SleepTrend from "@/components/sleep/SleepTrend";
+import NightsList from "@/components/sleep/NightsList";
 
-const WORD = { severe: "Very short", short: "Short", ok: "OK", unknown: "Not enough nights" } as const;
-
-/** R1 placeholder for the Sleep tab: last night, the 14-night read and the nights list. R3 brings contributors and the planner. */
+/** The Sleep tab (05-design §9.6): last night, the engine's read, contributors, the planner, 14 nights and the list. */
 export default function SleepPage() {
   const hydrated = useIsHydrated();
   const now = useNow();
   const { unit } = useUnit();
-  if (!hydrated || !now) return <main className="min-h-screen" style={{ background: "#0a0a0b" }} />;
+  if (!hydrated || !now) return <Shell />;
   return <SleepContent now={now} unit={unit === "lb" ? "lb" : "kg"} />;
+}
+
+function Shell() {
+  return (
+    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+      <div className="mx-auto max-w-2xl px-5 pt-5 sm:px-6">
+        <div className="h-11 rounded-[12px]" style={{ background: "#141416" }} />
+      </div>
+    </main>
+  );
 }
 
 function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const today = now.today;
   const data = useBodyData();
   const analysis = usePhysiqueAnalysis(now, unit);
-  const [open, setOpen] = useState(false);
-  const nights = useMemo(() => [...data.sleepNights].filter((n) => n.date <= today).sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 14), [data.sleepNights, today]);
-  const lastNight = nights.find((n) => n.date === today) ?? null;
-  const s = analysis?.sleep ?? null;
-  const color = s ? (s.status === "severe" ? STATUS_HEX.attention : s.status === "short" ? STATUS_HEX.watch : s.status === "ok" ? STATUS_HEX.good : "#6f6f76") : "#6f6f76";
+  const profile = useSingleton(profileStore);
+  const goalH = clampSleepGoal(profile?.sleepGoalH);
+  const wakeSetting = profile?.wakeTimeHHMM;
+  const [sheetDate, setSheetDate] = useState<LocalDate | null>(null);
+
+  const model = useMemo(() => {
+    const byDate = nightsByDate(data.sleepNights);
+    const from = addDays(today, -(SLEEP_WINDOW_NIGHTS - 1));
+    const nights = [...byDate.values()]
+      .filter((n) => n.date >= from && n.date <= today)
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .map((n) => n.night);
+    const lastNight = byDate.get(today)?.night ?? null;
+    const prefill = sleepPrefill(data.sleepNights);
+    const read = analysis?.sleep ?? null;
+    return {
+      byDate,
+      nights,
+      lastNight,
+      prefill,
+      word: lastNight ? nightWord(lastNight.asleepMin / 60, goalH) : null,
+      contributors: sleepContributors(data.sleepNights, now, goalH),
+      plan: bedtimePlan(wakeSetting ?? prefill.wakeTime, goalH, read?.debt7h ?? null),
+      bars: trendBars(data.sleepNights, now),
+      insight: read ? sleepInsight(read, goalH) : null,
+    };
+  }, [data.sleepNights, today, now, goalH, wakeSetting, analysis]);
+
   const nowIso = () => new Date().toISOString();
+  async function saveProfile(patch: { sleepGoalH?: number; wakeTimeHHMM?: string }) {
+    try {
+      await savePhysiqueProfile(patch);
+    } catch {
+      // Storage full or blocked: the planner keeps showing the derived values.
+    }
+  }
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <PageHeader caption={`Last night · ${longLocalDate(addDays(today, -1))} → ${longLocalDate(today)}`} title="Sleep" action={{ label: "Log sleep", onClick: () => setOpen(true) }} />
+        <PageHeader caption={`Last night · ${longLocalDate(addDays(today, -1))} → ${longLocalDate(today)}`} title="Sleep" action={{ label: "Log sleep", onClick: () => setSheetDate(today) }} />
 
-        <section className="rounded-[12px] p-4" style={{ background: "#141416" }} aria-label="Last night">
-          <div className="flex items-end justify-between gap-3">
-            <div className="flex flex-col">
-              <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: lastNight ? "#f2f2f0" : "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
-                {lastNight ? formatHoursMin(lastNight.asleepMin) : "–"}
-              </span>
-              <span className="mt-1 text-[12px]" style={{ color: "#a3a3a8" }}>
-                {lastNight ? `asleep${lastNight.bedtime && lastNight.wakeTime ? ` · ${lastNight.bedtime} → ${lastNight.wakeTime}` : ""}` : "Not logged yet"}
-              </span>
-            </div>
-            {s && (
-              <span className="text-[13px] font-semibold" style={{ color }}>
-                {s.mean14h != null ? `${WORD[s.status]} · ${formatHoursMin(s.mean14h * 60)} avg` : WORD[s.status]}
-              </span>
-            )}
-          </div>
-          {s && s.mean14h != null && (
-            <p className="mt-3 text-[13px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
-              {s.nightsLogged14} of 14 nights logged{s.debt7h != null && s.debt7h > 0.5 ? ` · ${s.debt7h.toFixed(1)} h behind this week` : ""}
-            </p>
-          )}
-        </section>
+        <SleepHero night={model.lastNight} word={model.word} goalH={goalH} onLog={() => setSheetDate(today)} />
 
-        {nights.length > 0 ? (
-          <section aria-label="Nights">
-            <div className="mb-2">
-              <Caption>Last 14 nights</Caption>
-            </div>
-            <ul className="divide-y divide-[#2a2a2e] overflow-hidden rounded-[12px]" style={{ background: "#141416" }}>
-              {nights.map((n) => (
-                <li key={n.id} className="flex items-center justify-between px-4 py-3">
-                  <span className="flex flex-col">
-                    <span className="text-[15px]" style={{ color: "#f2f2f0" }}>{longLocalDate(n.date)}</span>
-                    <span className="text-[11px]" style={{ color: "#6f6f76" }}>{n.bedtime && n.wakeTime ? `${n.bedtime} → ${n.wakeTime}` : n.source}</span>
-                  </span>
-                  <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>{formatHoursMin(n.asleepMin)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : (
-          <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
-            Log last night with +. Ten of fourteen nights give a sleep read.
-          </p>
-        )}
+        {analysis && model.insight && <SleepInsight read={analysis.sleep} text={model.insight} />}
+
+        {model.nights.length > 0 && <SleepContributors items={model.contributors} />}
+
+        <BedtimePlanner plan={model.plan} onWakeChange={(hhmm) => void saveProfile({ wakeTimeHHMM: hhmm })} />
+
+        {model.nights.length > 0 && <SleepTrend bars={model.bars} goalH={goalH} />}
+
+        <NightsList nights={model.nights} today={today} onEdit={(n) => setSheetDate(n.date)} />
+
+        <div className="pb-2">
+          <Caption>Logged values stay on this device. Export a backup from Profile.</Caption>
+        </div>
       </div>
-      <SleepSheet open={open} onClose={() => setOpen(false)} prefill={sleepPrefill(data.sleepNights)} existing={lastNight} dateLabel="today" onSave={(input: SleepInput) => saveSleepNight(today, input, nowIso())} />
+
+      <SleepSheet
+        open={sheetDate !== null}
+        onClose={() => setSheetDate(null)}
+        prefill={model.prefill}
+        existing={sheetDate ? (model.byDate.get(sheetDate)?.night ?? null) : null}
+        dateLabel={!sheetDate || sheetDate === today ? "today" : longLocalDate(sheetDate)}
+        onSave={(input: SleepInput) => saveSleepNight(sheetDate ?? today, input, nowIso())}
+        goalH={goalH}
+        onGoalChange={(h) => saveProfile({ sleepGoalH: h })}
+      />
     </main>
   );
 }

@@ -32,6 +32,10 @@ export type FoodEntry = Record_ & {
   method: FoodMethod;
   confidence?: "high" | "medium" | "low";
   savedFoodId?: string;
+  /** Local meal time `HH:MM` (R2). When absent the timeline uses `loggedAt`. */
+  time?: string;
+  /** Free-text serving description ("1 bowl", "150 g"). */
+  serving?: string;
 };
 
 export type SavedFood = {
@@ -43,6 +47,8 @@ export type SavedFood = {
   fatG: number;
   /** Free-text serving description shown on re-log ("1 scoop", "150 g"). */
   serving?: string;
+  /** Starred in the logger's Saved tab (R2). */
+  favourite?: boolean;
   lastUsedAt: string;
   useCount: number;
   schemaVersion: 1;
@@ -143,6 +149,8 @@ export type PhysiqueProfile = {
   proteinLevel: ProteinLevel;
   dietType: DietType;
   sleepGoalH: number;
+  /** Planner wake time, "HH:MM" local (R3). Unset means the median wake of the last 7 nights. */
+  wakeTimeHHMM?: string;
   /** Safety screen answers (U3). `redFlags` feeds SAFE-3 (research F §9); nothing writes it in M1. */
   safety?: { pregnantOrEdHistory?: boolean; answeredAt?: string; redFlags?: SafetyRedFlag[] };
   schemaVersion: 1;
