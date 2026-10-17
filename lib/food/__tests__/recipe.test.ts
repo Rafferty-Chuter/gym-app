@@ -16,8 +16,11 @@ describe("ingredient matching", () => {
   });
 
   it("finds generic UK foods and declines near misses", () => {
-    expect(matchIngredient(items, "beef mince raw")?.name).toMatch(/^Beef, mince/);
+    expect(matchIngredient(items, "beef mince raw")?.name).toBe("Beef, mince, raw");
     expect(matchIngredient(items, "banana")?.name).toMatch(/^Bananas/);
+    // The dried row, not the boiled spaghetti that also carries the word "dried".
+    expect(matchIngredient(items, "pasta dried")?.name).toMatch(/dried, raw$/);
+    expect(matchIngredient(items, "pasta dried")?.name).not.toMatch(/boiled/);
     expect(matchIngredient(items, "zzzz unknown sauce")).toBeNull();
   });
 

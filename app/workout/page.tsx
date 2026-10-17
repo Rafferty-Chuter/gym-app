@@ -1,4 +1,5 @@
 "use client";
+import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import {
   useState,
   useEffect,
@@ -589,6 +590,7 @@ export default function WorkoutPage() {
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
   )[0];
 
+  const hydrated = useIsHydrated();
   const recentExerciseHint = useMemo(() => {
     const exs = lastLoggedWorkout?.exercises ?? [];
     const seen = new Set<string>();
@@ -1541,7 +1543,7 @@ export default function WorkoutPage() {
                   dropdownClassName="rounded-xl border border-teal-900/40 bg-zinc-900/90 max-h-72 overflow-y-auto"
                   libraryRevision={userLibraryRevision}
                 />
-                {recentExerciseHint.length > 0 && (
+                {hydrated && recentExerciseHint.length > 0 && (
                   <p className="text-[11px] text-app-meta/90 leading-snug px-0.5">
                     Recent: {recentExerciseHint.join(", ")}
                   </p>

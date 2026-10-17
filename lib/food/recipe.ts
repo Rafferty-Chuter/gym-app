@@ -49,12 +49,27 @@ export function acceptMatch(lookup: string, name: string): boolean {
   return q.every((w) => have.has(w));
 }
 
-/** The first of the top three search hits that passes `acceptMatch`, or null. */
+/** How many search hits are considered for an ingredient. OURS. */
+export const MATCH_CANDIDATES = 5;
+
+/**
+ * Of the top search hits that pass `acceptMatch`, the one whose name adds
+ * the fewest words beyond the lookup wins, so "pasta dried" takes
+ * "Pasta, white, dried, raw" over "Pasta, white, spaghetti, dried,
+ * boiled in unsalted water" and "beef mince" takes the plain mince row
+ * over "extra lean". Ties keep the search order. Null when nothing passes.
+ */
 export function matchIngredient(items: readonly FoodItem[], lookup: string): FoodItem | null {
   const q = lookup.trim();
   if (!q) return null;
-  for (const hit of searchFoods(items, q, 3)) if (acceptMatch(q, hit.name)) return hit;
-  return null;
+  const qWords = new Set(normalise(q));
+  let best: { item: FoodItem; extra: number } | null = null;
+  for (const hit of searchFoods(items, q, MATCH_CANDIDATES)) {
+    if (!acceptMatch(q, hit.name)) continue;
+    const extra = normalise(hit.name).filter((w) => !qWords.has(w)).length;
+    if (!best || extra < best.extra) best = { item: hit, extra };
+  }
+  return best?.item ?? null;
 }
 
 /** Base-list numbers when the lookup matches, otherwise the model's estimate, marked as such. */

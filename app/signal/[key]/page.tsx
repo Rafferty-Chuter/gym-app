@@ -1138,11 +1138,7 @@ export default function SignalDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white relative pb-28">
-      <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_85%_35%_at_50%_-5%,rgba(0,229,176,0.06),transparent_55%)]"
-        aria-hidden
-      />
+    <main className="relative min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
         <div className="pt-6 pb-1">
           <Link
