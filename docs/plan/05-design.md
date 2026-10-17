@@ -181,6 +181,8 @@ MacroFactor's caption-over-title: an 11px tracked caption (the date or the goal)
 - Lifts since phase start; Waist; **Entries** by month (value, date, edit) for the last 30 days.
 - The energy card moves to Food.
 
+- **Moving ETA** (added after R5): the Goal progress card ends with "ETA Fri 25 Dec · 2 weeks behind plan" from the trend's observed rate, with the likely window from the rate margin under it; the header caption carries the short form. Early read shows the planned date and what it needs; a trend moving away shows no date. Never a countdown, never red.
+
 ### 9.6 Sleep (Bevel's Sleep tab, no percentage score)
 
 - Header: caption "LAST NIGHT · THU → FRI", title "Sleep", + log.

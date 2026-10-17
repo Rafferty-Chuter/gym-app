@@ -15,11 +15,12 @@ import WeightSheet from "@/components/physique/WeightSheet";
 import WaistSheet from "@/components/physique/WaistSheet";
 import WeightChartCard, { formatRate } from "@/components/physique/WeightChartCard";
 import GoalProgress from "@/components/physique/GoalProgress";
+import { goalEta } from "@/lib/physique/goalEta";
 import VerdictCard from "@/components/physique/VerdictCard";
 import StrengthSleepRows from "@/components/physique/StrengthSleepRows";
 import WeightEntries from "@/components/physique/WeightEntries";
 import { Caption, Chevron, Row, RowGroup } from "@/components/physique/ui";
-import { longLocalDate } from "@/components/charts/TimeSeriesChart";
+import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 
 type SheetKind = "weight" | "waist" | null;
 
@@ -66,8 +67,10 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
   const nowIso = () => new Date().toISOString();
   const goal = analysis?.goal ?? data.goal;
+  const eta = goalEta(goal, data.weighIns, data.dayFlags, today);
+  const etaWord = eta ? (eta.reached ? "reached" : eta.date ? `ETA ${shortLocalDate(eta.date)}` : null) : null;
   const caption = goal
-    ? `${formatWeight(goal.targetKg, unit)} · ${goal.type === "lose" ? "Cut" : goal.type === "gain" ? "Lean gain" : "Maintain"}${goal.type === "maintain" ? "" : ` · ${formatRate(goal.ratePctPerWeek)}`}`
+    ? `${formatWeight(goal.targetKg, unit)} · ${goal.type === "lose" ? "Cut" : goal.type === "gain" ? "Lean gain" : "Maintain"}${goal.type === "maintain" ? "" : ` · ${formatRate(goal.ratePctPerWeek)}`}${etaWord ? ` · ${etaWord}` : ""}`
     : "No goal yet";
 
   return (
@@ -95,7 +98,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         <WeightChartCard weighIns={data.weighIns} goal={data.goal} dayFlags={data.dayFlags} today={today} unit={unit} hero />
 
-        <GoalProgress goal={data.goal} weighIns={data.weighIns} today={today} unit={unit} />
+        <GoalProgress goal={data.goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} />
 
         {analysis && <StrengthSleepRows analysis={analysis} showSleep={false} />}
 
