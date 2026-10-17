@@ -16,7 +16,9 @@ import SleepSheet from "@/components/physique/SleepSheet";
 import WaistSheet from "@/components/physique/WaistSheet";
 import WeightChartCard from "@/components/physique/WeightChartCard";
 import VerdictPlaceholder, { type CalibratingItem } from "@/components/physique/VerdictPlaceholder";
-import { Caption, Chevron, PlusGlyph, Row, RowGroup } from "@/components/physique/ui";
+import { Caption, Chevron, MacroBar, PlusGlyph, Row, RowGroup } from "@/components/physique/ui";
+import { targetInEffect } from "@/lib/physique/intake";
+import Link from "next/link";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 
 type SheetKind = "weight" | "food" | "sleep" | "waist" | null;
@@ -52,7 +54,8 @@ function BodyContent({ today, unit }: { today: LocalDate; unit: WeightUnit }) {
     const lastWeighIn = [...data.weighIns].filter((w) => w.date <= date).at(-1) ?? data.weighIns.at(-1) ?? null;
     const lastWaist = data.waist.at(-1) ?? null;
     const trend = latestTrend(data.weighIns);
-    return { weighIn, totals, night, lastWeighIn, lastWaist, trend };
+    const target = targetInEffect(data.program, date);
+    return { weighIn, totals, night, lastWeighIn, lastWaist, trend, target };
   }, [data, date]);
 
   const calibrating = useMemo<CalibratingItem[]>(() => {
@@ -81,10 +84,13 @@ function BodyContent({ today, unit }: { today: LocalDate; unit: WeightUnit }) {
         <DateSwitcher date={date} today={today} onChange={setSelected} />
 
         {goalLine && (
-          <div className="flex items-center gap-2 text-[13px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
-            <span aria-hidden>→</span>
-            <span>{goalLine}</span>
-          </div>
+          <Link href="/body/goal" className="flex items-center justify-between gap-2 text-[13px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }} aria-label={`Goal ${goalLine}. Edit goal`}>
+            <span className="flex items-center gap-2">
+              <span aria-hidden>→</span>
+              <span>{goalLine}</span>
+            </span>
+            <Chevron />
+          </Link>
         )}
 
         <VerdictPlaceholder hasGoal={data.goal != null} items={calibrating} />
@@ -101,11 +107,40 @@ function BodyContent({ today, unit }: { today: LocalDate; unit: WeightUnit }) {
             />
             <Row
               label="Food"
-              sub={day.totals.entries > 0 ? `P ${Math.round(day.totals.proteinG)} · C ${Math.round(day.totals.carbsG)} · F ${Math.round(day.totals.fatG)} g · ${day.totals.entries} ${day.totals.entries === 1 ? "entry" : "entries"}` : undefined}
-              value={day.totals.entries > 0 ? `${Math.round(day.totals.kcal).toLocaleString("en-GB")} kcal` : <span style={{ color: "#6f6f76" }}>Add</span>}
+              below={
+                day.target ? (
+                  <span className="grid grid-cols-[3fr_1fr_1fr_1fr] gap-1.5" aria-hidden>
+                    <MacroBar value={day.totals.kcal} target={day.target.kcal} color="#f2f2f0" />
+                    <MacroBar value={day.totals.proteinG} target={day.target.proteinG} color="#f2f2f0" />
+                    <MacroBar value={day.totals.carbsG} target={day.target.carbsG} color="#a3a3a8" />
+                    <MacroBar value={day.totals.fatG} target={day.target.fatG} color="#6f6f76" />
+                  </span>
+                ) : undefined
+              }
+              sub={
+                day.target ? (
+                  `P ${Math.round(day.totals.proteinG)}/${day.target.proteinG} · C ${Math.round(day.totals.carbsG)}/${day.target.carbsG} · F ${Math.round(day.totals.fatG)}/${day.target.fatG} g`
+                ) : day.totals.entries > 0 ? (
+                  `P ${Math.round(day.totals.proteinG)} · C ${Math.round(day.totals.carbsG)} · F ${Math.round(day.totals.fatG)} g · ${day.totals.entries} ${day.totals.entries === 1 ? "entry" : "entries"}`
+                ) : undefined
+              }
+              value={
+                day.target ? (
+                  <span>
+                    {Math.round(day.totals.kcal).toLocaleString("en-GB")}
+                    <span className="text-[13px] font-medium" style={{ color: "#6f6f76" }}>
+                      {" "}/ {day.target.kcal.toLocaleString("en-GB")}
+                    </span>
+                  </span>
+                ) : day.totals.entries > 0 ? (
+                  `${Math.round(day.totals.kcal).toLocaleString("en-GB")} kcal`
+                ) : (
+                  <span style={{ color: "#6f6f76" }}>Add</span>
+                )
+              }
               trailing={<PlusGlyph />}
               onClick={() => setSheet("food")}
-              ariaLabel={`Food for ${dateLabel}, ${Math.round(day.totals.kcal)} kcal. Add food`}
+              ariaLabel={`Food for ${dateLabel}, ${Math.round(day.totals.kcal)} kcal${day.target ? ` of ${day.target.kcal}` : ""}. Add food`}
             />
             <Row
               label="Sleep"

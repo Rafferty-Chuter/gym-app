@@ -33,28 +33,31 @@ export function SecondaryButton({ children, onClick, disabled, small }: { childr
 }
 
 /** A 56px row: label left, value right, optional trailing control. */
-export function Row({ label, value, sub, onClick, trailing, ariaLabel }: { label: string; value: ReactNode; sub?: ReactNode; onClick?: () => void; trailing?: ReactNode; ariaLabel?: string }) {
+export function Row({ label, value, sub, below, onClick, trailing, ariaLabel }: { label: string; value: ReactNode; sub?: ReactNode; /** Full-width content under the label/value line (bars). */ below?: ReactNode; onClick?: () => void; trailing?: ReactNode; ariaLabel?: string }) {
   const inner = (
     <>
-      <div className="flex min-w-0 flex-col">
-        <span className="text-[15px]" style={{ color: "#a3a3a8" }}>
-          {label}
-        </span>
-        {sub && (
-          <span className="mt-0.5 text-[11px] font-medium tracking-[0.02em]" style={{ color: "#6f6f76" }}>
-            {sub}
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col">
+          <span className="text-[15px]" style={{ color: "#a3a3a8" }}>
+            {label}
           </span>
-        )}
+          {sub && (
+            <span className="mt-0.5 text-[11px] font-medium tracking-[0.02em]" style={{ color: "#6f6f76" }}>
+              {sub}
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="whitespace-nowrap text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+            {value}
+          </span>
+          {trailing}
+        </div>
       </div>
-      <div className="flex items-center gap-3">
-        <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
-          {value}
-        </span>
-        {trailing}
-      </div>
+      {below && <div className="w-full pb-1 pt-2">{below}</div>}
     </>
   );
-  const cls = "flex min-h-[56px] w-full items-center justify-between gap-3 px-4 py-2 text-left";
+  const cls = "flex min-h-[56px] w-full flex-col items-stretch justify-center px-4 py-2 text-left";
   if (!onClick) return <div className={cls}>{inner}</div>;
   return (
     <button type="button" onClick={onClick} className={`${cls} transition-colors active:bg-[#1d1d20]`} aria-label={ariaLabel}>

@@ -213,3 +213,33 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .sheet-panel, .sheet-scrim { animation: none; }
 }
+
+/* ── Rate slider (goal setup): white thumb over flat colour bands ── */
+.rate-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  margin: 0;
+}
+.rate-slider:focus-visible { outline: none; }
+.rate-slider::-webkit-slider-runnable-track { height: 44px; background: transparent; }
+.rate-slider::-moz-range-track { height: 44px; background: transparent; }
+.rate-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--primary);
+  border: 2px solid var(--background);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+.rate-slider::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--primary);
+  border: 2px solid var(--background);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}

@@ -13,6 +13,7 @@ import {
   foodEntriesRepo,
   goalStore,
   newId,
+  programStore,
   savedFoodsRepo,
   sleepNightsRepo,
   waistRepo,
@@ -44,9 +45,10 @@ export function useBodyData() {
   const waist = useRepo(waistRepo);
   const dayFlags = useRecordStore(dayFlagsStore);
   const goal = useSingleton(goalStore);
+  const program = useSingleton(programStore);
   return useMemo(
-    () => ({ weighIns, foodEntries, savedFoods, sleepNights, waist, dayFlags, goal }),
-    [weighIns, foodEntries, savedFoods, sleepNights, waist, dayFlags, goal]
+    () => ({ weighIns, foodEntries, savedFoods, sleepNights, waist, dayFlags, goal, program }),
+    [weighIns, foodEntries, savedFoods, sleepNights, waist, dayFlags, goal, program]
   );
 }
 

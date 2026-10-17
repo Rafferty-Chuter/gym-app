@@ -6,7 +6,7 @@ import { Caption } from "@/components/physique/ui";
 import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
 import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import type { PhysiqueGoal, WeighIn, DayFlags } from "@/lib/physique/types";
-import { displayRate, latestTrend, segmentStart, trendSeries, weighInsByDate, weighInsNeededForRate } from "@/lib/physique/weight";
+import { displayRate, latestTrend, MIN_DAYS_FOR_RATE, segmentStart, trendSeries, weighInsByDate, weighInsNeededForRate } from "@/lib/physique/weight";
 
 /** Days shown on the Body page chart (8 weeks). OURS. */
 export const CHART_WINDOW_DAYS = 56;
@@ -36,6 +36,8 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit 
     const seg = segmentStart({ goal, dayFlags, today });
     const rate = displayRate(weighIns, today, seg, dayFlags);
     const needed = weighInsNeededForRate(weighIns, today);
+    // With a fresh phase the mask, not the count, is what blocks the first read.
+    const maskDaysLeft = seg ? Math.max(0, dayDiff(today, addDays(seg, MIN_DAYS_FOR_RATE - 1))) : 0;
     const inWindow = [...raw.keys()].filter((d) => d >= from && d <= today).length;
     const projection =
       goal && goal.type !== "maintain" && goal.startDate <= today
@@ -50,13 +52,15 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit 
             };
           })()
         : null;
-    return { points, latest, rate, needed, inWindow, projection };
+    return { points, latest, rate, needed, inWindow, projection, maskDaysLeft };
   }, [weighIns, goal, dayFlags, today, unit]);
 
   const caption = model.latest
     ? model.rate
       ? `Trend ${formatWeight(model.latest.trendKg, unit)} · ${formatRate(model.rate.result.ratePctPerWeek)} (${model.rate.windowDays} d)`
-      : `Trend ${formatWeight(model.latest.trendKg, unit)} · Early read · ${model.needed} more weigh-in${model.needed === 1 ? "" : "s"} for a rate`
+      : model.needed > 0
+        ? `Trend ${formatWeight(model.latest.trendKg, unit)} · Early read · ${model.needed} more weigh-in${model.needed === 1 ? "" : "s"} for a rate`
+        : `Trend ${formatWeight(model.latest.trendKg, unit)} · Early read · first rate read in ${model.maskDaysLeft} day${model.maskDaysLeft === 1 ? "" : "s"}`
     : "Log a weigh-in to start the trend.";
 
   return (
