@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { makeScenario, type ScenarioSpec } from "@/lib/physique/fixtures";
+import { makeScenario, type LiftSpec, type ScenarioSpec } from "@/lib/physique/fixtures";
 import { addDays } from "@/lib/dates";
 import { useNow } from "@/lib/ui/useToday";
 import { downloadAppLocalStorageSnapshot } from "@/lib/devDataTransfer";
@@ -28,160 +28,117 @@ const SEED_TAG = "[seed]";
 type Preset = { id: string; label: string; spec: (today: string) => ScenarioSpec };
 
 /**
- * Scenario presets. The P5 rows (on-track, LOSS-1, SLEEP-1, GAIN-1) follow
- * the table in 04-tickets.md §P5: `preDays` gives the lifts a pre-phase
- * baseline and `manualInitialTdee` pins the seed so the coach can be made
- * to lag or lead the true expenditure.
+ * Scenario presets. The P5 rows mirror `lib/physique/__tests__/judgeHelpers.ts`
+ * (the ticket's scenario table) with `startDate` moved so the data ends
+ * today. `preDays` gives the lifts a pre-phase baseline; `manualInitialTdee`
+ * pins the expenditure seed so the coach can be made to lag the true TDEE.
  */
+const SLEEP_OK = { meanH: 7.3, sdH: 0.5, loggedShare: 0.9 } as const;
+const FLAT_LIFTS: LiftSpec[] = [
+  { name: "Squat", startE1rm: 150, profile: "linear", changePct: 0, perWeek: 2, cv: 0.03 },
+  { name: "Bench Press", startE1rm: 110, profile: "linear", changePct: 0, perWeek: 2, cv: 0.03 },
+];
+function stepLifts(changePct: number, atDay: number, cv: number): LiftSpec[] {
+  return [
+    { name: "Squat", startE1rm: 150, profile: "step", changePct, atDay, perWeek: 2, cv },
+    { name: "Bench Press", startE1rm: 110, profile: "step", changePct, atDay, perWeek: 2, cv },
+  ];
+}
+function startFor(today: string, days: number) {
+  return addDays(today, -(days - 1));
+}
+
 const PRESETS: Preset[] = [
   {
+    id: "ontrack",
+    label: "ON-TRACK · 85 kg cut at −0.6, eats to target, 6 weeks, lifts flat",
+    spec: (today) => ({ seed: 31, days: 63, preDays: 21, startDate: startFor(today, 63), bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6, targetKg: 78 }, lifts: FLAT_LIFTS, sleep: SLEEP_OK, waist: { startCm: 86, changeCm: -2 } }),
+  },
+  {
+    id: "loss1",
+    label: "LOSS-1 · 90 kg at −1.0 goal, coach seeded low, losing ≈1.5, two lifts −8%",
+    spec: (today) => {
+      const startDate = startFor(today, 56);
+      return {
+        seed: 41,
+        days: 56,
+        preDays: 21,
+        startDate,
+        bodyweightKg: 90,
+        trueTdeeKcal: 3500,
+        intake: "toTarget",
+        goal: { ratePctPerWeek: -1.0, confirmed: true, targetKg: 75 },
+        foodLogFromDay: 21,
+        profile: { manualInitialTdee: 2400, expenditureStartDate: addDays(startDate, 21) },
+        lifts: stepLifts(-8, 35, 0.03),
+        sleep: SLEEP_OK,
+      };
+    },
+  },
+  {
+    id: "adh1",
+    label: "ADH-1 · same cut at −0.6, eating 500 kcal under target",
+    spec: (today) => {
+      const startDate = startFor(today, 56);
+      return {
+        seed: 43,
+        days: 56,
+        preDays: 21,
+        startDate,
+        bodyweightKg: 90,
+        trueTdeeKcal: 3500,
+        intake: "toTarget",
+        intakeOffsetKcal: -500,
+        goal: { ratePctPerWeek: -0.6, confirmed: true, targetKg: 75 },
+        foodLogFromDay: 21,
+        profile: { manualInitialTdee: 2800, expenditureStartDate: addDays(startDate, 21) },
+        lifts: stepLifts(-8, 35, 0.03),
+        sleep: SLEEP_OK,
+      };
+    },
+  },
+  {
+    id: "sleep1",
+    label: "SLEEP-1 · 85 kg cut, 6.6 h on 13 of 14 nights, two lifts −3%",
+    spec: (today) => ({ seed: 51, days: 42, preDays: 7, startDate: startFor(today, 42), bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6, targetKg: 78 }, sleep: { meanH: 6.6, sdH: 0.4, source: "manual", loggedShare: 13 / 14 }, lifts: stepLifts(-3, 28, 0) }),
+  },
+  {
+    id: "gain1",
+    label: "GAIN-1 · 80 kg intermediate at +0.75, 8 weeks",
+    spec: (today) => ({ seed: 61, days: 77, preDays: 21, startDate: startFor(today, 77), bodyweightKg: 80, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: 0.75, confirmed: true, trainingStatus: "intermediate", targetKg: 88 }, sleep: SLEEP_OK, lifts: [
+      { name: "Squat", startE1rm: 140, profile: "linear", changePct: 4, perWeek: 2, cv: 0.03 },
+      { name: "Bench Press", startE1rm: 100, profile: "linear", changePct: 3, perWeek: 2, cv: 0.03 },
+    ] }),
+  },
+  {
+    id: "data-rate",
+    label: "DATA-RATE · 10 days of data",
+    spec: (today) => ({ seed: 71, days: 10, startDate: startFor(today, 10), bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6, targetKg: 78 }, sleep: SLEEP_OK }),
+  },
+  {
+    id: "safe4",
+    label: "SAFE-4 · goal injected with a BMI < 18.5 target (58 kg)",
+    spec: (today) => ({ seed: 81, days: 30, startDate: startFor(today, 30), bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6, targetKg: 58 }, sleep: SLEEP_OK }),
+  },
+  {
+    id: "nogoal",
+    label: "NO-GOAL · 30 days of logging, no goal",
+    spec: (today) => ({ seed: 91, days: 30, startDate: startFor(today, 30), bodyweightKg: 85, trueTdeeKcal: 2800, goal: null, sleep: SLEEP_OK }),
+  },
+  {
     id: "cut-3w",
-    label: "3 weeks · cut on track (85 kg, −0.6 %/wk)",
+    label: "Early read · 3 weeks of a cut (fixed intake)",
     spec: (today) => ({
       seed: 11,
       days: 21,
-      startDate: addDays(today, -20),
+      startDate: startFor(today, 21),
       bodyweightKg: 85,
       trueTdeeKcal: 2800,
       intake: { meanKcal: 2250, sdKcal: 250 },
       goal: { ratePctPerWeek: -0.6, targetKg: 80 },
-      sleep: { meanH: 7.2, sdH: 0.5, loggedShare: 0.9 },
-      lifts: [
-        { name: "Squat", startE1rm: 150, profile: "linear", changePct: 1, perWeek: 2, cv: 0.03 },
-        { name: "Bench Press", startE1rm: 110, profile: "linear", changePct: 0.5, perWeek: 2, cv: 0.03 },
-      ],
+      sleep: SLEEP_OK,
+      lifts: FLAT_LIFTS,
       waist: { startCm: 86, changeCm: -1 },
-    }),
-  },
-  {
-    id: "ontrack-8w",
-    label: "8 weeks · on-track cut (85 kg, −0.6 %/wk, eats to target)",
-    spec: (today) => ({
-      seed: 31,
-      preDays: 14,
-      days: 70,
-      startDate: addDays(today, -69),
-      bodyweightKg: 85,
-      trueTdeeKcal: 2800,
-      intake: "toTarget",
-      goal: { ratePctPerWeek: -0.6, targetKg: 78, confirmed: true },
-      sleep: { meanH: 7.3, sdH: 0.5, loggedShare: 0.9 },
-      lifts: [
-        { name: "Squat", startE1rm: 150, profile: "linear", changePct: 0, perWeek: 2, cv: 0.03 },
-        { name: "Bench Press", startE1rm: 110, profile: "linear", changePct: 0, perWeek: 2, cv: 0.03 },
-        { name: "Romanian Deadlift", startE1rm: 160, profile: "linear", changePct: 0, perWeek: 1, cv: 0.03 },
-      ],
-      waist: { startCm: 86, changeCm: -2.5 },
-      profile: { manualInitialTdee: 2800 },
-    }),
-  },
-  {
-    id: "loss1-8w",
-    label: "8 weeks · LOSS-1 (90 kg, −1.0 goal, losing ≈1.5, two lifts −8%)",
-    spec: (today) => ({
-      seed: 41,
-      preDays: 21,
-      days: 56,
-      startDate: addDays(today, -55),
-      bodyweightKg: 90,
-      trueTdeeKcal: 3300,
-      intake: "toTarget",
-      goal: { ratePctPerWeek: -1.0, targetKg: 80, confirmed: true },
-      sleep: { meanH: 7.3, sdH: 0.5, loggedShare: 0.9 },
-      lifts: [
-        { name: "Squat", startE1rm: 160, profile: "step", changePct: -8, atDay: 35, perWeek: 2, cv: 0.03 },
-        { name: "Bench Press", startE1rm: 115, profile: "step", changePct: -8, atDay: 35, perWeek: 2, cv: 0.03 },
-      ],
-      profile: { manualInitialTdee: 2800 },
-    }),
-  },
-  {
-    id: "sleep1-5w",
-    label: "5 weeks · SLEEP-1 (85 kg cut, 6.6 h nights, two lifts −3%)",
-    spec: (today) => ({
-      seed: 51,
-      preDays: 21,
-      days: 56,
-      startDate: addDays(today, -55),
-      bodyweightKg: 85,
-      trueTdeeKcal: 2800,
-      intake: "toTarget",
-      goal: { ratePctPerWeek: -0.6, targetKg: 78, confirmed: true },
-      sleep: { meanH: 6.6, sdH: 0.2, loggedShare: 0.93 },
-      lifts: [
-        { name: "Squat", startE1rm: 150, profile: "step", changePct: -3, atDay: 42, perWeek: 2, cv: 0.02 },
-        { name: "Bench Press", startE1rm: 110, profile: "step", changePct: -3, atDay: 42, perWeek: 2, cv: 0.02 },
-      ],
-      profile: { manualInitialTdee: 2800 },
-    }),
-  },
-  {
-    id: "gain1-6w",
-    label: "6 weeks · GAIN-1 (80 kg intermediate, +0.75 %/wk)",
-    spec: (today) => ({
-      seed: 61,
-      preDays: 14,
-      days: 56,
-      startDate: addDays(today, -55),
-      bodyweightKg: 80,
-      trueTdeeKcal: 2900,
-      intake: "toTarget",
-      goal: { ratePctPerWeek: 0.75, targetKg: 88, trainingStatus: "intermediate", confirmed: true },
-      sleep: { meanH: 7.4, sdH: 0.5, loggedShare: 0.85 },
-      lifts: [
-        { name: "Squat", startE1rm: 140, profile: "linear", changePct: 3, perWeek: 2, cv: 0.03 },
-        { name: "Bench Press", startE1rm: 100, profile: "linear", changePct: 2, perWeek: 2, cv: 0.03 },
-      ],
-      profile: { manualInitialTdee: 2900 },
-    }),
-  },
-  {
-    id: "gain-6w",
-    label: "6 weeks · lean gain (80 kg, +0.25 %/wk)",
-    spec: (today) => ({
-      seed: 23,
-      days: 42,
-      startDate: addDays(today, -41),
-      bodyweightKg: 80,
-      trueTdeeKcal: 2900,
-      intake: { meanKcal: 3150, sdKcal: 250 },
-      goal: { ratePctPerWeek: 0.25, targetKg: 86, trainingStatus: "intermediate" },
-      sleep: { meanH: 7.4, sdH: 0.5, loggedShare: 0.85 },
-      lifts: [
-        { name: "Squat", startE1rm: 140, profile: "linear", changePct: 3, perWeek: 2, cv: 0.03 },
-        { name: "Bench Press", startE1rm: 100, profile: "linear", changePct: 2, perWeek: 2, cv: 0.03 },
-        { name: "Romanian Deadlift", startE1rm: 160, profile: "linear", changePct: 1, perWeek: 1, cv: 0.03 },
-      ],
-      waist: { startCm: 82, changeCm: 0.5 },
-    }),
-  },
-  {
-    id: "safe4",
-    label: "SAFE-4 · goal injected with a BMI < 18.5 target (180 cm → 58 kg)",
-    spec: (today) => ({
-      seed: 71,
-      days: 28,
-      startDate: addDays(today, -27),
-      bodyweightKg: 62,
-      trueTdeeKcal: 2300,
-      intake: { meanKcal: 1800, sdKcal: 200 },
-      goal: { ratePctPerWeek: -0.6, targetKg: 58, confirmed: true },
-      sleep: { meanH: 7.2, sdH: 0.5, loggedShare: 0.9 },
-      profile: { heightCm: 180, manualInitialTdee: 2300 },
-    }),
-  },
-  {
-    id: "nogoal-3w",
-    label: "3 weeks · logging, no goal",
-    spec: (today) => ({
-      seed: 81,
-      days: 21,
-      startDate: addDays(today, -20),
-      bodyweightKg: 85,
-      trueTdeeKcal: 2800,
-      intake: { meanKcal: 2800, sdKcal: 300 },
-      goal: null,
-      sleep: { meanH: 7.2, sdH: 0.5, loggedShare: 0.8 },
     }),
   },
 ];
