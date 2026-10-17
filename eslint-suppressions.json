@@ -1,9 +1,4 @@
 {
-  "app/components/OnboardingGate.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "app/history/page.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 3
@@ -12,16 +7,6 @@
   "app/templates/page.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
-    }
-  },
-  "app/volume/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "app/workout/page.tsx": {
-    "react-hooks/purity": {
-      "count": 2
     }
   },
   "app/workout/start/page.tsx": {
@@ -37,11 +22,6 @@
   "components/CreateExerciseModal.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
-    }
-  },
-  "components/LiftProgressionSection.tsx": {
-    "react-hooks/rules-of-hooks": {
-      "count": 2
     }
   },
   "lib/assistantExplanation.ts": {
