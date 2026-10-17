@@ -19,7 +19,7 @@ export type StateColor = {
   chartFill: string;
 };
 
-/** Tile, pill and chart colours per state (unchanged from the Signals UI). */
+/** Tile, pill and chart colours per state (good/watch/attention as the Signals UI had them). */
 export const STATE_COLOR: Record<SignalState, StateColor> = {
   good: {
     stroke: "#00e5b0",
@@ -51,15 +51,16 @@ export const STATE_COLOR: Record<SignalState, StateColor> = {
     chartLine: "#fb7185",
     chartFill: "rgba(251,113,133,0.10)",
   },
+  // Unknown is a neutral grey (DESIGN.md status-unknown), not a tinted teal.
   unknown: {
-    stroke: "rgba(140,200,196,0.50)",
-    iconBg: "rgba(140,200,196,0.06)",
-    iconBorder: "rgba(140,200,196,0.18)",
-    statusText: "rgba(140,200,196,0.65)",
-    statusBg: "rgba(140,200,196,0.05)",
-    statusBorder: "rgba(140,200,196,0.16)",
-    chartLine: "rgba(140,200,196,0.50)",
-    chartFill: "rgba(140,200,196,0.06)",
+    stroke: "#6f6f76",
+    iconBg: "rgba(111,111,118,0.10)",
+    iconBorder: "rgba(111,111,118,0.28)",
+    statusText: "#a3a3a8",
+    statusBg: "rgba(111,111,118,0.10)",
+    statusBorder: "rgba(111,111,118,0.28)",
+    chartLine: "#6f6f76",
+    chartFill: "rgba(111,111,118,0.08)",
   },
 };
 

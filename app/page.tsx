@@ -18,6 +18,7 @@ import {
 import { useWorkoutStore } from "@/lib/workout-store";
 import { STATE_COLOR, type SignalState } from "@/lib/ui/status";
 import { SIGNAL_ICON } from "@/components/ui/SignalIcons";
+import PhysiqueHomeCard from "@/components/physique/PhysiqueHomeCard";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import StaleSessionModal from "@/components/StaleSessionModal";
 import { useUnit } from "@/lib/unit-preference";
@@ -630,11 +631,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white relative pb-28">
-      <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_85%_35%_at_50%_-5%,rgba(0,229,176,0.08),transparent_55%)]"
-        aria-hidden
-      />
-
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
 
         <div className="flex items-center justify-between gap-3 pt-4 pb-1">
@@ -686,11 +682,7 @@ export default function Home() {
           <Link
             href="/profile"
             className="mt-2 flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-[12px] transition-colors"
-            style={{
-              background: "rgba(0,229,176,0.06)",
-              border: "1px solid rgba(0,229,176,0.22)",
-              color: "rgba(0,229,176,0.95)",
-            }}
+            style={{ background: "#141416", border: "1px solid #2a2a2e", color: "#a3a3a8" }}
             aria-label="Set up your coach profile — sharpens every assistant answer"
           >
             <span className="font-semibold">
@@ -725,12 +717,8 @@ export default function Home() {
           <Link
             href={ctaHref}
             aria-label={ctaLabel}
-            className="block w-full rounded-2xl py-5 text-center text-xl font-black tracking-tight text-[color:var(--color-accent-foreground)] transition-all duration-150 hover:brightness-105 active:translate-y-[1px] active:scale-[0.995]"
-            style={{
-              background: "#00e5b0",
-              boxShadow:
-                "0 0 0 1px rgba(0,229,176,0.25), 0 14px 40px -10px rgba(0,229,176,0.50)",
-            }}
+            className="block w-full rounded-[12px] py-4 text-center text-[17px] font-semibold tracking-[-0.01em] transition-colors duration-150 hover:bg-white active:translate-y-[1px]"
+            style={{ background: "#f2f2f0", color: "#0a0a0b" }}
           >
             {ctaLabel}
           </Link>
@@ -741,28 +729,19 @@ export default function Home() {
             Assistant
           </h2>
           <article
-            className="rounded-3xl p-4 sm:p-5 transition-all duration-200"
-            style={{
-              background:
-                "linear-gradient(180deg, rgba(0,229,176,0.06) 0%, #0e1420 38%, #0e1420 100%)",
-              border: "1px solid rgba(0,229,176,0.22)",
-              boxShadow:
-                "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 14px 36px -14px rgba(0,229,176,0.22), 0 3px 10px rgba(0,0,0,0.45)",
-            }}
+            className="rounded-[12px] p-4 sm:p-5"
+            style={{ background: "#141416", border: "1px solid #2a2a2e" }}
           >
             <header className="flex items-center gap-2.5 mb-3">
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-full"
-                style={{
-                  background: "rgba(0,229,176,0.12)",
-                  border: "1px solid rgba(0,229,176,0.30)",
-                }}
+                style={{ background: "#1d1d20" }}
                 aria-hidden
               >
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#00e5b0"
+                  stroke="#a3a3a8"
                   strokeWidth="1.75"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -808,12 +787,8 @@ export default function Home() {
                   key={f.label}
                   type="button"
                   onClick={() => openAssistantWith(f.prompt)}
-                  className="rounded-full px-3 py-1.5 text-[12px] font-semibold tracking-tight transition-colors duration-150 active:scale-[0.97]"
-                  style={{
-                    background: "rgba(0,229,176,0.06)",
-                    border: "1px solid rgba(0,229,176,0.22)",
-                    color: "rgba(0,229,176,0.95)",
-                  }}
+                  className="rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 active:bg-[#26262a]"
+                  style={{ background: "#1d1d20", color: "#a3a3a8" }}
                 >
                   {f.label}
                 </button>
@@ -824,12 +799,8 @@ export default function Home() {
               type="button"
               onClick={openAssistantClean}
               aria-label="Open assistant with no preloaded message"
-              className="mt-3.5 flex items-center justify-center gap-2 w-full rounded-2xl py-3 text-[14px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
-              style={{
-                background: "rgba(0,229,176,0.12)",
-                border: "1px solid rgba(0,229,176,0.35)",
-                color: "#7ff2cf",
-              }}
+              className="mt-3.5 flex items-center justify-center gap-2 w-full rounded-[12px] py-3 text-[15px] font-semibold transition-colors duration-150 active:bg-[#26262a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3a3a40]"
+              style={{ background: "#1d1d20", color: "#f2f2f0" }}
             >
               <span>Open assistant</span>
               <svg
@@ -866,6 +837,13 @@ export default function Home() {
           ) : (
             <IndicatorSkeleton />
           )}
+        </section>
+
+        <section className="pt-5 pb-2" aria-labelledby="physique-heading">
+          <h2 id="physique-heading" className="label-section mb-2">
+            Body
+          </h2>
+          <PhysiqueHomeCard />
         </section>
 
       </div>
