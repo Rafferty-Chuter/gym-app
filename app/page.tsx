@@ -126,7 +126,18 @@ function ProfileModal({
             </div>
           </div>
         </div>
-        <div className="mt-6 flex justify-end">
+        <Link
+          href="/profile"
+          className="mt-5 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-colors"
+          style={{ background: "#141416", border: "1px solid #2a2a2e", color: "#f2f2f0" }}
+          aria-label="Open the profile page: reminders, import, export and coach profile"
+        >
+          <span className="font-semibold">Reminders, import and export</span>
+          <span aria-hidden style={{ color: "#6f6f76" }}>
+            →
+          </span>
+        </Link>
+        <div className="mt-4 flex justify-end">
           <button type="button" onClick={onClose} className="btn-secondary">
             Done
           </button>
