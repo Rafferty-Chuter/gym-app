@@ -4,9 +4,9 @@ import Link from "next/link";
 import { getWorkoutHistory } from "@/lib/trainingAnalysis";
 import { useWorkoutStore } from "@/lib/workout-store";
 import { useUnit } from "@/lib/unit-preference";
-import { countCompletedLoggedSets } from "@/lib/completedSets";
+import { countCompletedLoggedSets, SET_TYPE_LABEL, SET_TYPE_MARK, setTypeOf, type SetType } from "@/lib/completedSets";
 
-type HistorySet = { weight: string; reps: string; notes?: string };
+type HistorySet = { weight: string; reps: string; notes?: string; rir?: number; type?: SetType };
 type HistoryExercise = {
   exerciseId?: string;
   name: string;
@@ -37,7 +37,7 @@ function mapStoredToRows(stored: ReturnType<typeof getWorkoutHistory>): WorkoutR
         w.exercises?.map((ex) => ({
           name: ex.name,
           restSec: ex.restSec,
-          sets: ex.sets?.map((s) => ({ weight: String(s.weight), reps: String(s.reps), notes: s.notes })) ?? [],
+          sets: ex.sets?.map((s) => ({ weight: String(s.weight), reps: String(s.reps), notes: s.notes, ...(typeof s.rir === "number" ? { rir: s.rir } : {}), ...(s.type && s.type !== "working" ? { type: s.type } : {}) })) ?? [],
         })) ?? [],
     }))
     .sort((a, b) => {
@@ -146,7 +146,7 @@ export default function HistoryPage() {
       exerciseId: ex.exerciseId,
       name: ex.name,
       restSec: ex.restSec,
-      sets: ex.sets.map((s) => ({ weight: s.weight, reps: s.reps, notes: s.notes })),
+      sets: ex.sets.map((s) => ({ ...s })),
     }));
     setEditingIndex(workout.storageIndex);
     setEditDraft(draft);
@@ -414,7 +414,7 @@ export default function HistoryPage() {
                               <ul className="space-y-1 text-sm text-app-secondary">
                                 {ex.sets.map((s, setIdx) => (
                                   <li key={setIdx} className="tabular-nums">
-                                    Set {setIdx + 1} — {s.weight}{unit} × {s.reps}
+                                    {SET_TYPE_MARK[setTypeOf(s)] ? `${SET_TYPE_LABEL[setTypeOf(s)]} ` : `Set ${setIdx + 1} `}— {s.weight}{unit} × {s.reps}
                                     {s.notes?.trim() && (
                                       <p className="text-app-meta text-xs mt-0.5 pl-0">{s.notes.trim()}</p>
                                     )}

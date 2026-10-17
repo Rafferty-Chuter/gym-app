@@ -243,6 +243,7 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
     latestE1rm: 0,
     slopePerSession: 0,
     windowChangePct: 0,
+    slopePctPerWeek: null,
   };
   const tm = trendMeta(status ?? fallbackStatus);
 

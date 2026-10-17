@@ -35,7 +35,7 @@ import {
   userRecordToExercise,
   type UserExerciseRecord,
 } from "@/lib/userExerciseLibrary";
-import { getCompletedLoggedSets } from "@/lib/completedSets";
+import { getCompletedLoggedSets, nextSetType, SET_TYPE_LABEL, SET_TYPE_MARK, setTypeOf, type SetType } from "@/lib/completedSets";
 import { getTemplateById } from "@/lib/templateStorage";
 import RestBar from "@/components/workout/RestBar";
 import PlateCalculator from "@/components/workout/PlateCalculator";
@@ -64,7 +64,7 @@ type StoredWorkout = {
   exercises: {
     exerciseId?: string;
     name: string;
-    sets: { weight: string; reps: string; notes?: string; rir?: number }[];
+    sets: { weight: string; reps: string; notes?: string; rir?: number; type?: SetType }[];
   }[];
 };
 
@@ -422,7 +422,7 @@ export default function WorkoutPage() {
       id: number;
       exerciseId?: string;
       name: string;
-      sets: { weight: string; reps: string; done?: boolean; notes?: string; rir?: number }[];
+      sets: { weight: string; reps: string; done?: boolean; notes?: string; rir?: number; type?: SetType }[];
       targetSets?: number;
       restSec: number;
     }[]
@@ -987,6 +987,7 @@ export default function WorkoutPage() {
           done: s.done,
           notes: s.notes,
           ...(typeof s.rir === "number" && Number.isFinite(s.rir) ? { rir: s.rir } : {}),
+          ...(s.type && s.type !== "working" ? { type: s.type } : {}),
         })),
         targetSets: ex.targetSets,
         restSec: ex.restSec ?? 90,
@@ -1093,13 +1094,14 @@ export default function WorkoutPage() {
         // Drafts — values entered but not confirmed — never enter the trend
         // data layer the AI / Signals / Plateau / Volume / Progress read from.
         const confirmedSetsOnly = sets.filter((s) => s.done === true);
-        const completedSets = getCompletedLoggedSets(confirmedSetsOnly).map(({ weight, reps, notes, rir }) => {
-          const out: { weight: string; reps: string; notes?: string; rir?: number } = {
+        const completedSets = getCompletedLoggedSets(confirmedSetsOnly).map(({ weight, reps, notes, rir, type }) => {
+          const out: { weight: string; reps: string; notes?: string; rir?: number; type?: SetType } = {
             weight: String(weight ?? ""),
             reps: String(reps ?? ""),
           };
           if (notes?.trim()) out.notes = notes.trim();
           if (typeof rir === "number" && Number.isFinite(rir)) out.rir = rir;
+          if (type && type !== "working") out.type = type;
           return out;
         });
         return {
@@ -1332,6 +1334,24 @@ export default function WorkoutPage() {
         if (!Number.isFinite(n)) return { ...exercise, sets };
         const clamped = Math.max(0, Math.min(5, n));
         sets[setIndex] = { ...cur, rir: clamped };
+        return { ...exercise, sets };
+      })
+    );
+  }
+
+  /** T1: tap the set number to cycle working → warm-up → drop → failure. */
+  function cycleSetType(exerciseId: number, setIndex: number) {
+    setExercises((prev) =>
+      prev.map((exercise) => {
+        if (exercise.id !== exerciseId) return exercise;
+        const sets = [...exercise.sets];
+        const current = sets[setIndex];
+        if (!current) return exercise;
+        const next = nextSetType(setTypeOf(current));
+        const updated = { ...current };
+        if (next === "working") delete updated.type;
+        else updated.type = next;
+        sets[setIndex] = updated;
         return { ...exercise, sets };
       })
     );
@@ -1834,9 +1854,25 @@ export default function WorkoutPage() {
                                               }
                                             }}
                                           >
-                                            <span className="text-center text-[11px] text-teal-200/75 tabular-nums font-semibold">
-                                              {index + 1}
-                                            </span>
+                                            {(() => {
+                                              const t = setTypeOf(set);
+                                              const mark = SET_TYPE_MARK[t];
+                                              return (
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    cycleSetType(exercise.id, index);
+                                                  }}
+                                                  className="h-9 w-full rounded-md text-center text-[11px] tabular-nums font-semibold touch-manipulation"
+                                                  style={{ color: t === "working" ? undefined : t === "warmup" ? "#6f6f76" : t === "drop" ? "#a3a3a8" : "#f2f2f0" }}
+                                                  aria-label={`Set ${index + 1}, ${SET_TYPE_LABEL[t].toLowerCase()}. Change set type`}
+                                                  title={SET_TYPE_LABEL[t]}
+                                                >
+                                                  <span className={t === "working" ? "text-teal-200/75" : ""}>{mark || index + 1}</span>
+                                                </button>
+                                              );
+                                            })()}
                                             {/* R5 (Hevy): last session's set; tapping it fills an empty row. */}
                                             <button
                                               type="button"

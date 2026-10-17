@@ -1,6 +1,6 @@
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import { resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
-import { countCompletedLoggedSets } from "@/lib/completedSets";
+import { countHardSets } from "@/lib/completedSets";
 import type { MuscleGroupId } from "@/lib/muscleGroupRules";
 import { MUSCLE_GROUP_RULES } from "@/lib/muscleGroupRules";
 import { mapExerciseToMuscleStimulus } from "@/lib/muscleGroupMapper";
@@ -35,7 +35,7 @@ export function estimateWeeklyMuscleVolumeFromWorkouts(params: {
     if (!w?.completedAt) continue;
     if (!isWithinLast7Days(w.completedAt, nowMs)) continue;
     for (const ex of w.exercises ?? []) {
-      const setCount = countCompletedLoggedSets(ex.sets ?? []);
+      const setCount = countHardSets(ex.sets ?? []);
       if (!setCount) continue;
 
       const meta = resolveLoggedExerciseMeta({ name: ex.name });

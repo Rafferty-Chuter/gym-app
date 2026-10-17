@@ -346,6 +346,7 @@ With no category, protein = 2.0 g/kg BWref on a cut and 1.8 g/kg otherwise. The 
 - RIR defaults to 0 when missing.
 - Use only working sets with `reps + RIR ≤ 12` and `loadKg > 0`.
 - Take the **best** e1RM_adj per session.
+- Set types (M5 T1, `lib/completedSets.ts`): a set with no `type` is working. **Warm-ups** never count (not volume, e1RM or PRs). **Drop sets** count for volume but not e1RM. **Failure** sets count for both and are RIR 0 whatever was typed. RIR stays optional on every set: progression tracking needs the change in e1RM, not its level, and a lifter's habitual RIR is stable enough for the trend to hold; marking the top set "to failure" is the one-tap way to make it exact.
 
 This is the **only** e1RM function for physique and (from M5) training. It lives in `lib/physique/strength.ts`. `lib/liftTrend.ts` keeps its current behaviour until T2 migrates it.
 

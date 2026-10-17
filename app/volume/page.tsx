@@ -9,7 +9,7 @@ import {
   OPTIONAL_DETAILED_MUSCLE_GROUPS,
   type DetailedMuscleGroup,
 } from "@/lib/trainingMetrics";
-import { countCompletedLoggedSets } from "@/lib/completedSets";
+import { countHardSets } from "@/lib/completedSets";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 const ENABLED_OPTIONAL_KEY = "volumeEnabledOptionalGroups";
@@ -91,7 +91,7 @@ function computeVolume(
     for (const ex of workout.exercises ?? []) {
       const buckets = getDetailedMuscleGroupsForLoggedExercise(ex, { enabledOptional });
       if (buckets.length === 0) continue;
-      const sets = countCompletedLoggedSets(ex.sets);
+      const sets = countHardSets(ex.sets);
       for (const b of buckets) {
         if (b in counts) counts[b] += sets;
       }

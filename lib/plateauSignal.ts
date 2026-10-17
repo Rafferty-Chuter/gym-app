@@ -14,17 +14,10 @@
  * the detail page can pick the right copy variant.
  */
 
+import { classifyE1rmSeries, recentE1rmSeries } from "@/lib/liftTrend";
 import {
-  classifyE1rmSeries,
-  TREND_WINDOW,
-} from "@/lib/liftTrend";
-import {
-  estimateE1RM,
-  exerciseKey,
-  getBestSet,
   getUniqueExerciseNames,
 } from "@/lib/trainingMetrics";
-import { getCompletedLoggedSets } from "@/lib/completedSets";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
 export type PlateauKind = "flat" | "net-flat-with-variance" | "declining";
@@ -46,33 +39,11 @@ const FLAT_VARIANCE_PCT = 0.01;
 /** Minimum sessions to claim a plateau at all (matches P0.1 PLATEAU_MIN_FLAT_SESSIONS). */
 const MIN_SESSIONS_FOR_PLATEAU = 4;
 
-/** Extract the last TREND_WINDOW heaviest-set e1RMs for an exercise, oldest → newest. */
-function extractRecentE1rmSeries(
-  workouts: readonly StoredWorkout[],
-  exerciseName: string
-): number[] {
-  const key = exerciseKey(exerciseName);
-  const sortedDesc = [...workouts].sort(
-    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  );
-  const newest: number[] = [];
-  for (const w of sortedDesc) {
-    const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
-    const completedSets = getCompletedLoggedSets(ex?.sets ?? []);
-    if (!completedSets.length) continue;
-    const best = getBestSet(completedSets);
-    if (!best) continue;
-    newest.push(estimateE1RM(best.weight, best.reps));
-    if (newest.length >= TREND_WINDOW) break;
-  }
-  return newest.reverse();
-}
-
 export function detectPlateauForLift(
   workouts: readonly StoredWorkout[],
   exerciseName: string
 ): PlateauDetection | null {
-  const series = extractRecentE1rmSeries(workouts, exerciseName);
+  const series = recentE1rmSeries(workouts, exerciseName);
   if (series.length < MIN_SESSIONS_FOR_PLATEAU) return null;
 
   const startingE1rm = series[0];

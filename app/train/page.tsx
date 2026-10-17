@@ -6,7 +6,7 @@ import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 import { useWorkouts } from "@/lib/physique/io/workouts";
 import { getStoredTemplates } from "@/lib/templateStorage";
-import { getCompletedLoggedSets } from "@/lib/completedSets";
+import { getHardSets } from "@/lib/completedSets";
 import { localDateKey, addDays, type Now } from "@/lib/dates";
 import { useUnit } from "@/lib/unit-preference";
 import { parseWeightText } from "@/lib/units";
@@ -32,7 +32,7 @@ function workoutDay(w: StoredWorkout, tz: string): string | null {
 function volumeKg(w: StoredWorkout, unit: "kg" | "lb"): number {
   let total = 0;
   for (const ex of w.exercises) {
-    for (const s of getCompletedLoggedSets(ex.sets)) {
+    for (const s of getHardSets(ex.sets)) {
       const kg = parseWeightText(s.weight, unit);
       const reps = Number(s.reps);
       if (kg != null && Number.isFinite(reps)) total += kg * reps;
@@ -42,7 +42,7 @@ function volumeKg(w: StoredWorkout, unit: "kg" | "lb"): number {
 }
 
 function setCount(w: StoredWorkout): number {
-  return w.exercises.reduce((n, ex) => n + getCompletedLoggedSets(ex.sets).length, 0);
+  return w.exercises.reduce((n, ex) => n + getHardSets(ex.sets).length, 0);
 }
 
 function formatDuration(sec: number | undefined): string | null {
@@ -169,7 +169,7 @@ function TrainContent({ now }: { now: Now }) {
                     <ul className="mt-2 flex flex-col gap-0.5">
                       {w.exercises.slice(0, 3).map((ex, i) => (
                         <li key={i} className="text-[13px]" style={{ color: "#a3a3a8" }}>
-                          {getCompletedLoggedSets(ex.sets).length} × {ex.name}
+                          {getHardSets(ex.sets).length} × {ex.name}
                         </li>
                       ))}
                       {w.exercises.length > 3 && (
