@@ -13,6 +13,7 @@ import {
   type UserExerciseRecord,
 } from "@/lib/userExerciseLibrary";
 import type { TemplateExercise, WorkoutTemplate } from "@/lib/templateStorage";
+import { RIR_MAX, RIR_MIN, normaliseTargets, parseRepRange, repRangeText, targetsForExercise } from "@/lib/training/targets";
 import { upsertTemplate } from "@/lib/templateStorage";
 
 type Props = {
@@ -155,6 +156,7 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
         name: matched.name,
         targetSets,
         restSec,
+        ...targetsForExercise(matched.name),
       },
     ]);
     setExerciseIds((prev) => [...prev, newSyntheticExerciseId()]);
@@ -246,6 +248,11 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
   function removeExercise(index: number) {
     setExercises((prev) => prev.filter((_, i) => i !== index));
     setExerciseIds((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  /** Targets for a row, falling back to the role default for routines saved before T3. */
+  function targetsOf(ex: TemplateExercise) {
+    return normaliseTargets(ex, targetsForExercise(ex.name));
   }
 
   function updateExercise(index: number, patch: Partial<TemplateExercise>) {
@@ -375,6 +382,32 @@ export default function TemplateEditorForm({ mode, initialTemplate }: Props) {
                                 className="input-app w-full !px-2 !py-2 text-sm"
                               />
                             </label>
+                            <label className="block w-[84px]">
+                              <span className="text-[11px] text-app-meta mb-1 block">Reps</span>
+                              <input
+                                key={`${ex.repMin ?? "x"}-${ex.repMax ?? "x"}`}
+                                type="text"
+                                inputMode="numeric"
+                                defaultValue={repRangeText(targetsOf(ex))}
+                                onBlur={(e) => {
+                                  const r = parseRepRange(e.target.value);
+                                  if (r) updateExercise(i, r);
+                                  else e.target.value = repRangeText(targetsOf(ex));
+                                }}
+                                className="input-app w-full !px-2 !py-2 text-sm"
+                                aria-label={`${ex.name} rep range`}
+                              />
+                            </label>
+                            <div>
+                              <span className="text-[11px] text-app-meta mb-1 block">RIR</span>
+                              <IntegerStepper
+                                value={targetsOf(ex).rir}
+                                onChange={(next) => updateExercise(i, { rir: next })}
+                                min={RIR_MIN}
+                                max={RIR_MAX}
+                                ariaLabel={`${ex.name} reps in reserve`}
+                              />
+                            </div>
                           </div>
                         </div>
 

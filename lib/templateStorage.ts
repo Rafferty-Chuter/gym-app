@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_TARGETS, normaliseTargets, targetsForExercise } from "@/lib/training/targets";
 import { getExerciseByName } from "@/lib/exerciseLibrary";
 
 export const TEMPLATE_STORAGE_KEY = "workoutTemplates";
@@ -9,6 +10,10 @@ export type TemplateExercise = {
   name: string;
   targetSets: number;
   restSec?: number;
+  /** Rep range and RIR per set (T3). Filled from the movement's role when a stored routine has none. */
+  repMin?: number;
+  repMax?: number;
+  rir?: number;
 };
 
 export type WorkoutTemplate = {
@@ -38,15 +43,17 @@ function normalizeTemplate(
     exercises: (Array.isArray(raw.exercises) ? raw.exercises : []).map((ex) => {
       if (typeof ex === "string") {
         const byName = getExerciseByName(ex);
+        const name = byName?.name ?? ex;
         return {
           ...(byName ? { exerciseId: byName.id } : {}),
-          name: byName?.name ?? ex,
+          name,
           targetSets: 3,
           restSec: 90,
+          ...targetsForExercise(name),
         };
       }
       if (!ex || typeof ex !== "object" || !("name" in ex)) {
-        return { name: "Exercise", targetSets: 3, restSec: 90 };
+        return { name: "Exercise", targetSets: 3, restSec: 90, ...DEFAULT_TARGETS };
       }
       const e = ex as Record<string, unknown>;
       const rawName = String(e.name ?? "Exercise");
@@ -61,11 +68,13 @@ function normalizeTemplate(
         typeof e.exerciseId === "string" && e.exerciseId.trim()
           ? e.exerciseId.trim()
           : byName?.id;
+      const name = byName?.name ?? rawName;
       return {
         ...(exerciseId ? { exerciseId } : {}),
-        name: byName?.name ?? rawName,
+        name,
         targetSets,
         restSec,
+        ...normaliseTargets(e, targetsForExercise(name)),
       };
     }),
   };

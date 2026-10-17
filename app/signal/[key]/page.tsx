@@ -160,8 +160,7 @@ function LineChart({
       <div
         className="rounded-2xl flex items-center justify-center"
         style={{
-          background: "rgba(255,255,255,0.018)",
-          border: "1px solid rgba(255,255,255,0.05)",
+          background: "#141416",
           height: H,
         }}
       >
@@ -208,8 +207,7 @@ function LineChart({
       ref={containerRef}
       className="rounded-2xl px-3 py-3 sm:px-4 sm:py-4"
       style={{
-        background: "rgba(255,255,255,0.018)",
-        border: "1px solid rgba(255,255,255,0.05)",
+        background: "#141416",
       }}
     >
       <svg
@@ -234,7 +232,7 @@ function LineChart({
                 x={padding.l - 8}
                 y={y + 3.5}
                 fontSize="10"
-                fill="rgba(140,200,196,0.55)"
+                fill="#6f6f76"
                 textAnchor="end"
               >
                 {Number.isInteger(v) ? String(v) : v.toFixed(1)}
@@ -301,7 +299,7 @@ function LineChart({
               x={points[0].x}
               y={H - 10}
               fontSize="10"
-              fill="rgba(140,200,196,0.55)"
+              fill="#6f6f76"
               textAnchor="start"
             >
               {formatDateLabel(points[0].completedAt)}
@@ -311,7 +309,7 @@ function LineChart({
                 x={points[points.length - 1].x}
                 y={H - 10}
                 fontSize="10"
-                fill="rgba(140,200,196,0.55)"
+                fill="#6f6f76"
                 textAnchor="end"
               >
                 {formatDateLabel(points[points.length - 1].completedAt)}
@@ -364,8 +362,7 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
       <div
         className="rounded-2xl flex items-center justify-center"
         style={{
-          background: "rgba(255,255,255,0.018)",
-          border: "1px solid rgba(255,255,255,0.05)",
+          background: "#141416",
           height: 200,
         }}
       >
@@ -378,8 +375,7 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
     <div
       className="rounded-2xl px-4 py-4"
       style={{
-        background: "rgba(255,255,255,0.018)",
-        border: "1px solid rgba(255,255,255,0.05)",
+        background: "#141416",
       }}
     >
       <ul className="space-y-3">
@@ -393,7 +389,7 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
               </span>
               <div
                 className="flex-1 h-2.5 rounded-full overflow-hidden"
-                style={{ background: "rgba(255,255,255,0.04)" }}
+                style={{ background: "#2a2a2e" }}
               >
                 <div
                   className="h-full rounded-full"
@@ -877,8 +873,7 @@ function ProgressDetailView({
           <div
             className="rounded-2xl flex items-center justify-center text-center px-6"
             style={{
-              background: "rgba(255,255,255,0.018)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              background: "#141416",
               minHeight: 220,
             }}
           >
@@ -946,8 +941,7 @@ function ProgressDetailView({
         <div
           className="rounded-2xl overflow-hidden"
           style={{
-            background: "rgba(255,255,255,0.018)",
-            border: "1px solid rgba(255,255,255,0.05)",
+            background: "#141416",
             maxHeight: 256,
             overflowY: "auto",
           }}
@@ -957,7 +951,7 @@ function ProgressDetailView({
               No exercises match &ldquo;{search.trim()}&rdquo;.
             </p>
           ) : (
-            <ul className="divide-y divide-white/[0.05]">
+            <ul className="divide-y divide-[#2a2a2e]">
               {filtered.map((item) => {
                 const isSelected = item.name === selected;
                 const trendState = EXERCISE_TREND_STATE[item.trend];
@@ -968,21 +962,13 @@ function ProgressDetailView({
                       type="button"
                       onClick={() => setUserSelection(item.name)}
                       aria-pressed={isSelected}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-white/[0.025] focus-visible:outline-none focus-visible:bg-white/[0.035]"
-                      style={
-                        isSelected
-                          ? { background: "rgba(0,229,176,0.06)" }
-                          : undefined
-                      }
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 focus-visible:outline-none active:bg-[#1d1d20]"
+                      style={isSelected ? { background: "#1d1d20" } : undefined}
                     >
                       <div className="flex-1 min-w-0">
                         <p
                           className="text-[14px] font-semibold tracking-tight leading-tight truncate"
-                          style={{
-                            color: isSelected
-                              ? "rgba(255,255,255,0.96)"
-                              : "rgba(240,250,248,0.92)",
-                          }}
+                          style={{ color: "#f2f2f0" }}
                         >
                           {item.name}
                         </p>
@@ -990,14 +976,7 @@ function ProgressDetailView({
                           {item.frequency} session{item.frequency === 1 ? "" : "s"} logged
                         </p>
                       </div>
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide shrink-0"
-                        style={{
-                          background: tc.statusBg,
-                          border: `1px solid ${tc.statusBorder}`,
-                          color: tc.statusText,
-                        }}
-                      >
+                      <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-medium" style={{ color: tc.statusText }}>
                         <TrendArrowIcon trend={item.trend} color={tc.statusText} />
                         {EXERCISE_TREND_LABEL[item.trend]}
                       </span>
@@ -1118,7 +1097,6 @@ export default function SignalDetailPage() {
     : staticContent!.status;
 
   const c = STATE_COLOR[headerState];
-  const Icon = SIGNAL_ICON[key];
 
   function openAssistantWithPrompt(prompt: string) {
     if (typeof window !== "undefined") {
@@ -1161,40 +1139,17 @@ export default function SignalDetailPage() {
           </Link>
         </div>
 
-        <header className="pt-5 pb-5">
-          <div className="flex items-center gap-3">
-            <span
-              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl"
-              style={{
-                background: c.iconBg,
-                border: `1px solid ${c.iconBorder}`,
-              }}
-              aria-hidden
-            >
-              <Icon color={c.stroke} />
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-home-tertiary">
-                Signal
-              </p>
-              <h1 className="text-[26px] font-black tracking-tight text-white leading-tight">
-                {LABEL[key]}
-              </h1>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-home-tertiary/80">
-                {SIGNAL_WINDOW_LABEL[key]}
-              </p>
-            </div>
-            <span
-              className="inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-bold tracking-wide"
-              style={{
-                background: c.statusBg,
-                border: `1px solid ${c.statusBorder}`,
-                color: c.statusText,
-              }}
-            >
-              {headerStatus}
-            </span>
-          </div>
+        <header className="pt-4 pb-5">
+          <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+            {SIGNAL_WINDOW_LABEL[key]}
+          </p>
+          <h1 className="mt-1 text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "#f2f2f0" }}>
+            {LABEL[key]}
+          </h1>
+          <p className="mt-3 flex items-center gap-2 text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+            <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: c.statusText }} aria-hidden />
+            {headerStatus}
+          </p>
         </header>
 
         {isProgress ? (
@@ -1208,8 +1163,7 @@ export default function SignalDetailPage() {
             <div
               className="rounded-2xl"
               style={{
-                background: "rgba(255,255,255,0.018)",
-                border: "1px solid rgba(255,255,255,0.05)",
+                background: "#141416",
                 height: 320,
               }}
             />
@@ -1220,8 +1174,7 @@ export default function SignalDetailPage() {
               <div
                 className="rounded-2xl"
                 style={{
-                  background: "rgba(255,255,255,0.018)",
-                  border: "1px solid rgba(255,255,255,0.05)",
+                  background: "#141416",
                   height: 200,
                 }}
               />
