@@ -19,6 +19,7 @@ import { useWorkoutStore } from "@/lib/workout-store";
 import { STATE_COLOR, type SignalState } from "@/lib/ui/status";
 import { SIGNAL_ICON } from "@/components/ui/SignalIcons";
 import PhysiqueHomeCard from "@/components/physique/PhysiqueHomeCard";
+import WeekReportLine from "@/components/physique/WeekReportLine";
 import TodayStrip from "@/components/physique/TodayStrip";
 import { askWhyPrompt } from "@/components/physique/VerdictCard";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
@@ -744,6 +745,9 @@ export default function Home() {
             Body
           </h2>
           <PhysiqueHomeCard />
+          <div className="mt-2">
+            <WeekReportLine />
+          </div>
         </section>
 
         <section className="pt-3 pb-1">

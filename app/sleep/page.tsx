@@ -50,7 +50,10 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const profile = useSingleton(profileStore);
   const goalH = clampSleepGoal(profile?.sleepGoalH);
   const wakeSetting = profile?.wakeTimeHHMM;
-  const [sheetDate, setSheetDate] = useState<LocalDate | null>(null);
+  const [sheetDate, setSheetDate] = useState<LocalDate | null>(() => {
+    const q = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date");
+    return q && /^\d{4}-\d{2}-\d{2}$/.test(q) && q <= today ? q : null;
+  });
 
   const model = useMemo(() => {
     const byDate = nightsByDate(data.sleepNights);

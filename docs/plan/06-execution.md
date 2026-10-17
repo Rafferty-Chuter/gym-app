@@ -2,6 +2,20 @@
 
 Agreed 2026-10-17 after M1, R1–R6, T1 and T2 shipped. Three sprints, each ending in a PR to main, a production deploy on both URLs, and one decision only the founder can make. Tickets keep their ids from `04-tickets.md`; sizes are focused days of Claude's work. Every ticket ends with `npm run check`, `npm run build`, phone-width screenshots, a STATUS row, a commit and a push.
 
+## Sprint 0 · Organised and clear (added 2026-10-17, runs before Sprint A)
+
+The founder's call after T2: park the coach, make the app something that keeps a lifter organised and clear on its own, with plain words and no motivational copy.
+
+| # | Ticket | Size | What ships | Needs from the founder |
+|---|---|---|---|---|
+| 01 | **W1 Weekly report** | 1 | `lib/physique/weekReport.ts` (pure) and `/report`: for any Monday-to-Sunday week, weight trend and rate, expenditure move, intake average and days logged against target, protein, sessions and hard sets per muscle, main-lift e1RM changes, sleep mean and debt, the week's verdict, and every gap (unlogged food days, missing weigh-ins, missing nights) as a list with one-tap fixes. Numbers and the engine's words only. A line on Home opens the latest report. | — |
+| 02 | **W2 Gaps stated plainly** | 0.5 | On Home, Food, Body and Sleep: "Thursday has no food logged" with mark partial / fasting / copy a day; missed weigh-ins and nights the same way. No streaks, no nudges. | — |
+| 03 | **S5 Apple Health auto-upload** | 1.5 | Health Auto Export pushes sleep, HRV, resting HR and weight to `/api/ingest/hae`; a device token the user pastes once; the app pulls new nights on open; manual logging stays as the fallback. Needs a server store. | **H3:** create a Supabase project (free tier) and add its URL and service key to Vercel. Health Auto Export Premium (about £7 a year). |
+| 04 | **G5 Reminders** | 0.5 | Web push that fires only on a gap and says only what is missing. | — |
+| 05 | **S1 to S3 Accounts and sync** | 3 | Since the Supabase project exists: sign-in, row-level security, local-first sync. | — |
+
+Sprint A (the coach) resumes after Sprint 0.
+
 ## Sprint A · The coach (what makes it worth paying for)
 
 Goal: after this sprint the app tells a natural intermediate lifter what to do next session, this week and this phase, from food, training and sleep together.
