@@ -662,7 +662,7 @@ function decisionToText(
         : `Your goal lift is not getting enough specific exposure. Increase it to 1–2 sessions per week to drive further adaptation.`;
     case "reduce_fatigue":
       return ex
-        ? `${ex} is being pushed very hard right now — most recent sets are very close to failure. Ease off one notch so recovery can keep up.`
+        ? `${ex} is being pushed very hard right now: most recent sets are very close to failure. Ease off one notch so recovery can keep up.`
         : `Effort is very high across recent sets. Leave a rep or two in reserve on some work so fatigue doesn’t stack.`;
     case "maintain_current_plan":
       return ex
@@ -670,8 +670,8 @@ function decisionToText(
         : `Current training is working well. Keep the plan and continue small progression steps.`;
     case "gather_more_data":
       return ex
-        ? `Log 1–2 more ${ex} sessions before making a bigger adjustment — we need a clearer read first.`
-        : `Log 1–2 more sessions before making a bigger adjustment — the trend needs another data point or two.`;
+        ? `Log 1–2 more ${ex} sessions before making a bigger adjustment: we need a clearer read first.`
+        : `Log 1–2 more sessions before making a bigger adjustment: the trend needs another data point or two.`;
     default: {
       const _exhaustive: never = decision.type;
       return _exhaustive;
@@ -843,7 +843,7 @@ export function buildCoachStructuredAnalysis(
       const legSummary =
         lowerBodyPriority === "Required"
           ? `${legsSets === 0 ? "Leg work is missing this week." : "Leg work is light this week."} For an overall muscle-building goal, lower-body work should still be part of the week.`
-          : `${legsSets === 0 ? "Leg work is missing this week." : "Leg work is light this week."} For your goal, lower-body work still matters—keep it flexible this week.`;
+          : `${legsSets === 0 ? "Leg work is missing this week." : "Leg work is light this week."} For your goal, lower-body work still matters:keep it flexible this week.`;
 
       const existingIdx = volumeBalance.findIndex((v) => v.label.toLowerCase() === "legs");
       if (existingIdx >= 0) volumeBalance[existingIdx] = { label: "Legs", summary: legSummary };

@@ -1,6 +1,9 @@
 "use client";
 import { targetLabel, targetsForExercise } from "@/lib/training/targets";
-import { suggestNext, suggestionLabel, type ExerciseSession, type Phase } from "@/lib/training/progression";
+import { equipmentFor, suggestNext, suggestionLabel, type ExerciseSession, type Phase } from "@/lib/training/progression";
+import { DELOAD_DAYS, deloadSets, deloadSuggestion, type DeloadRecord } from "@/lib/training/deload";
+import { deloadStore } from "@/lib/physique/io/deload";
+import { addDays, localDateKey, type LocalDate } from "@/lib/dates";
 import { goalStore } from "@/lib/physique/io/repos";
 import { useSingleton } from "@/lib/storage/useStored";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
@@ -199,12 +202,30 @@ function sanitizeRirInput(raw: string): string {
   return d;
 }
 
+/** Today's local date on the phone; the logger is client-only. */
+function todayLocal(): LocalDate {
+  return localDateKey(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone);
+}
+
+/** Whether a stored deload covers a date. */
+function isDeloadActive(record: DeloadRecord | null, today: LocalDate): boolean {
+  if (!record) return false;
+  return record.startDate <= today && today <= addDays(record.startDate, DELOAD_DAYS - 1);
+}
+
+/** The same read at mount time, for the routine prefill. */
+function deloadActiveNow(): boolean {
+  return isDeloadActive(deloadStore.snapshot(), todayLocal());
+}
+
 export default function WorkoutPage() {
   const router = useRouter();
   const { addWorkout } = useWorkoutStore();
   const { unit } = useUnit();
   const goal = useSingleton(goalStore);
   const phase: Phase = goal?.type === "lose" ? "cut" : goal?.type === "gain" ? "lean_bulk" : "maintain";
+  const deloadRecord = useSingleton(deloadStore);
+  const deloadActive = isDeloadActive(deloadRecord, todayLocal());
   const [exerciseName, setExerciseName] = useState("");
   const [exercises, setExercises] = useState<
     {
@@ -574,15 +595,15 @@ export default function WorkoutPage() {
         ex.repMin != null && ex.repMax != null && ex.rir != null
           ? { repMin: ex.repMin, repMax: ex.repMax, rir: ex.rir }
           : targetsForExercise(ex.name);
-      targetMap[ex.name] = suggestionLabel(
-        suggestNext({ name: ex.name, targets, sessions: getSessionsForExercise({ exerciseId: ex.exerciseId, name: ex.name }), unit, phase }),
-        unit
-      );
+      const raw = suggestNext({ name: ex.name, targets, sessions: getSessionsForExercise({ exerciseId: ex.exerciseId, name: ex.name }), unit, phase });
+      const s = deloadActive ? deloadSuggestion(raw, equipmentFor(ex.name)) : raw;
+      const label = suggestionLabel(s, unit);
+      targetMap[ex.name] = label && deloadActive && s.kind === "next" ? `${label.replace(/^Next/, "Deload")} · RIR ${s.rir}+` : label;
     }
     setLastPerformance(lastMap);
     setNextTarget(targetMap);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exercises.map((e) => `${e.name}:${e.repMin}-${e.repMax}@${e.rir}`).join(","), unit, phase]);
+  }, [exercises.map((e) => `${e.name}:${e.repMin}-${e.repMax}@${e.rir}`).join(","), unit, phase, deloadActive]);
 
   useEffect(() => {
     if (typeof window === "undefined" || loadHandledRef.current) return;
@@ -653,7 +674,7 @@ export default function WorkoutPage() {
               Number.isFinite(Number(t.repMin)) && Number.isFinite(Number(t.repMax)) && Number.isFinite(Number(t.rir))
                 ? { repMin: Number(t.repMin), repMax: Number(t.repMax), rir: Number(t.rir) }
                 : {};
-            const plannedSets = targetSets ?? 0;
+            const plannedSets = targetSets != null && deloadActiveNow() ? deloadSets(targetSets) : (targetSets ?? 0);
             const sets = Array.from(
               { length: Math.max(0, plannedSets) },
               () =>

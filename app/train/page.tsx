@@ -12,12 +12,14 @@ import { localDateKey, addDays, type Now } from "@/lib/dates";
 import { useUnit } from "@/lib/unit-preference";
 import { parseWeightText } from "@/lib/units";
 import PageHeader from "@/components/ui/PageHeader";
-import { Caption, Chevron, Row, RowGroup, StatusDot } from "@/components/physique/ui";
+import { Caption, Chevron, Row, RowGroup, SecondaryButton, StatusDot } from "@/components/physique/ui";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
 import { usePriorityGoal } from "@/lib/priorityGoal";
 import { buildCoachStructuredAnalysis, EMPTY_COACH_STRUCTURED_ANALYSIS } from "@/lib/coachStructuredAnalysis";
 import { bandsFor } from "@/lib/training/volumeTargets";
+import { deloadLine, readDeload } from "@/lib/training/deload";
+import { endDeload, startDeload, useDeload } from "@/lib/physique/io/deload";
 import type { Phase } from "@/lib/training/progression";
 import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
 import { goalStore } from "@/lib/physique/io/repos";
@@ -74,6 +76,12 @@ function TrainContent({ now }: { now: Now }) {
   const priorities = useMusclePriorities();
   const physiqueGoal = useSingleton(goalStore);
   const phase: Phase = physiqueGoal?.type === "lose" ? "cut" : physiqueGoal?.type === "gain" ? "lean_bulk" : "maintain";
+  const deloadRecord = useDeload();
+  const deload = useMemo(
+    () => readDeload({ workouts: [...workouts], unit, now, status: physiqueGoal?.trainingStatusAtCreation ?? "intermediate", record: deloadRecord }),
+    [workouts, unit, now, physiqueGoal?.trainingStatusAtCreation, deloadRecord]
+  );
+  const deloadText = deloadLine(deload);
 
   const model = useMemo(() => {
     const today = now.today;
@@ -146,6 +154,22 @@ function TrainContent({ now }: { now: Now }) {
             </Link>
           )}
         </section>
+
+        {deloadText && (
+          <section className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3" style={{ background: "#141416" }} aria-label="Deload">
+            <div className="flex min-w-0 flex-col">
+              <span className="text-[15px]" style={{ color: "#f2f2f0" }}>
+                {deloadText}
+              </span>
+              <span className="text-[11px]" style={{ color: "#6f6f76" }}>
+                {deload.state === "active" ? "Half the sets, loads 10 % lighter, four in reserve. Trends skip this week." : "A week at half the sets and lighter loads, then the block restarts."}
+              </span>
+            </div>
+            <SecondaryButton small onClick={() => void (deload.state === "active" ? endDeload(now.today) : startDeload(now.today, deload.state === "due" ? deload.reason : "manual", new Date().toISOString()))}>
+              {deload.state === "active" ? "End" : "Start"}
+            </SecondaryButton>
+          </section>
+        )}
 
         <section className="rounded-[12px] p-4" style={{ background: "#141416" }} aria-label="This week">
           <div className="flex items-baseline justify-between">
