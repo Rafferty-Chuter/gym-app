@@ -5,6 +5,8 @@ import { Caption } from "@/components/physique/ui";
 import { goalProgress } from "@/lib/physique/goalProgress";
 import { goalEta } from "@/lib/physique/goalEta";
 import GoalEtaLine from "@/components/physique/GoalEtaLine";
+import PhaseStrip from "@/components/physique/PhaseStrip";
+import { phasePlan } from "@/lib/physique/phasePlan";
 import type { DayFlags, PhysiqueGoal, WeighIn } from "@/lib/physique/types";
 import { formatWeight, type WeightUnit } from "@/lib/units";
 import type { LocalDate } from "@/lib/dates";
@@ -13,6 +15,7 @@ import type { LocalDate } from "@/lib/dates";
 export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, unit }: { goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags?: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit }) {
   const p = useMemo(() => goalProgress(goal, weighIns, today), [goal, weighIns, today]);
   const eta = useMemo(() => goalEta(goal, weighIns, dayFlags, today), [goal, weighIns, dayFlags, today]);
+  const plan = useMemo(() => phasePlan(goal, p, eta, today), [goal, p, eta, today]);
   if (!p) return null;
   const maxKg = Math.max(p.totalKg, ...p.weeks.map((w) => Math.abs(w.deltaKg)), 0.1);
   const h = 56;
@@ -40,6 +43,7 @@ export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, uni
         {formatWeight(p.doneKg, unit)} of {formatWeight(p.totalKg, unit)} · {formatWeight(p.remainingKg, unit)} to go
       </p>
       {eta && <GoalEtaLine eta={eta} />}
+      {plan && <PhaseStrip plan={plan} today={today} unit={unit} />}
     </section>
   );
 }
