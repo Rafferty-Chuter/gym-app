@@ -31,6 +31,7 @@ Environment: `.env.local` (gitignored) holds `ANTHROPIC_API_KEY` (required) and 
 - The rules engine pattern to copy is `lib/liftTrend.ts`, `lib/plateauSignal.ts` and `lib/signalStatus.ts`: one canonical module per verdict, exported threshold constants with rationale comments, pure functions, `{state, status}` results.
 - Storage is browser localStorage (21 keys). The full key registry is in `docs/plan/research/E-codebase-audit.md` §1.4. New data goes through `lib/storage/` once ticket F3 lands.
 - Physique code goes in `lib/physique/` (pure engine), `components/physique/` and `app/body/`. See `docs/plan/03-architecture.md`.
+- Food database code is `lib/food/` (pure: the CoFID base list in `data/cofid.json`, search ranking, portions, the Open Food Facts mapping) and `lib/server/off.ts` for the upstream calls. Rebuild the base list with `scripts/build-cofid.ts`; see `lib/food/data/README.md` for the licence.
 
 ## Rules
 

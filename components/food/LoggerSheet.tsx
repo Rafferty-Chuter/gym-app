@@ -6,7 +6,9 @@ import MacroPad, { EMPTY_MACROS, macroNumbers, macrosToValues, type MacroField, 
 import TimeChip from "@/components/food/TimeChip";
 import { ErrorLine, PrimaryButton } from "@/components/physique/ui";
 import { hourLabel, localClock, macroKcal } from "@/lib/physique/food/timeline";
-import { filterSaved, recentLists } from "@/lib/physique/food/goTos";
+import { filterSaved } from "@/lib/physique/food/goTos";
+import FoodSearch from "@/components/food/FoodSearch";
+import SavedFoodRow, { PlusButton } from "@/components/food/SavedFoodRow";
 import { getClientId } from "@/lib/ui/clientId";
 import type { FoodInput } from "@/lib/physique/io/foodData";
 import type { SaveResult } from "@/lib/physique/io/bodyData";
@@ -14,7 +16,7 @@ import type { ParsedFoodItem } from "@/lib/physique/food/parseSchema";
 import type { FoodEntry, SavedFood } from "@/lib/physique/types";
 import type { LocalDate } from "@/lib/dates";
 
-export type LoggerTab = "recent" | "quick" | "describe" | "saved";
+export type LoggerTab = "search" | "quick" | "describe" | "saved";
 
 export type LoggerOpen = { tab?: LoggerTab; hour?: number } | null;
 
@@ -34,7 +36,7 @@ type Props = {
 };
 
 const TABS: ReadonlyArray<{ id: LoggerTab; label: string }> = [
-  { id: "recent", label: "Recent" },
+  { id: "search", label: "Search" },
   { id: "quick", label: "Quick add" },
   { id: "describe", label: "Describe" },
   { id: "saved", label: "Saved" },
@@ -49,16 +51,18 @@ const TOAST_MS = 2500;
 
 /**
  * The logger sheet (05-design §9.4): full height, header × · time chip ·
- * "539 / 2,041" · ↓, tabs Recent · Quick add · Describe · Saved. Stays
- * open after a log so several foods go in without reopening.
+ * "539 / 2,041" · ↓, tabs Search · Quick add · Describe · Saved. Search
+ * (M4) opens on the go-tos and latest foods, then the UK base list and
+ * products as you type. Stays open after a log so several foods go in
+ * without reopening.
  */
 export default function LoggerSheet(props: Props) {
   const { state } = props;
-  return state ? <Inner key={`${props.date}-${state.hour ?? "now"}-${state.tab ?? "recent"}`} {...props} state={state} /> : null;
+  return state ? <Inner key={`${props.date}-${state.hour ?? "now"}-${state.tab ?? "search"}`} {...props} state={state} /> : null;
 }
 
 function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entries, saved, onLog, onToggleFavourite, onRemoveSaved }: Props & { state: NonNullable<LoggerOpen> }) {
-  const [tab, setTab] = useState<LoggerTab>(state.tab ?? "recent");
+  const [tab, setTab] = useState<LoggerTab>(state.tab ?? "search");
   const [time, setTime] = useState<string>(() => {
     if (state.hour != null) return hourLabel(state.hour);
     if (date === today) return localClock(new Date().toISOString(), tz) ?? "12:00";
@@ -92,7 +96,6 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
     return () => clearTimeout(t);
   }, [toast]);
 
-  const recent = useMemo(() => recentLists(entries, saved, hour, today, tz), [entries, saved, hour, today, tz]);
   const savedList = useMemo(() => filterSaved(saved, query), [saved, query]);
 
   async function log(food: FoodInput, savedFoodId?: string) {
@@ -216,27 +219,8 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
       <ErrorLine text={error} />
     ) : undefined;
 
-  const plus = (onClick: () => void, label: string) => (
-    <button type="button" onClick={onClick} disabled={busy} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors active:bg-[#a3a3a8] disabled:opacity-40" style={{ background: "#f2f2f0", color: "#0a0a0b" }} aria-label={label}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" className="h-4 w-4" aria-hidden>
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-    </button>
-  );
-
-  const foodRow = (s: SavedFood, trailing: React.ReactNode) => (
-    <li key={s.id} className="flex items-center gap-2">
-      <button type="button" onClick={() => prefill(s)} className="flex min-w-0 flex-1 flex-col rounded-[12px] px-3 py-2.5 text-left transition-colors active:bg-[#1d1d20]" aria-label={`${s.label}, ${n(s.kcal)} kcal. Adjust before logging`}>
-        <span className="truncate text-[15px]" style={{ color: "#f2f2f0" }}>
-          {s.label}
-        </span>
-        <span className="truncate text-[11px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
-          {n(s.kcal)} kcal · {Math.round(s.proteinG)}P {Math.round(s.fatG)}F {Math.round(s.carbsG)}C{s.serving ? ` · ${s.serving}` : ""}
-        </span>
-      </button>
-      {trailing}
-    </li>
-  );
+  const plus = (onClick: () => void, label: string) => <PlusButton onClick={onClick} label={label} disabled={busy} />;
+  const foodRow = (f: SavedFood, trailing: React.ReactNode) => <SavedFoodRow key={f.id} food={f} onPrefill={prefill} trailing={trailing} />;
 
   return (
     <Sheet open onClose={onClose} header={header} full ariaLabel="Log food" footer={footer}>
@@ -255,30 +239,7 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
           {toast ?? " "}
         </p>
 
-        {tab === "recent" && (
-          <div className="flex flex-col gap-4">
-            {recent.goTos.length > 0 && (
-              <section aria-label={`Go-tos for ${hourLabel(hour)}`}>
-                <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
-                  Go-tos for {hourLabel(hour)}
-                </p>
-                <ul className="flex flex-col">{recent.goTos.map((s) => foodRow(s, plus(() => logSaved(s), `Log ${s.label}`)))}</ul>
-              </section>
-            )}
-            <section aria-label="Latest">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
-                Latest
-              </p>
-              {recent.latest.length === 0 && recent.goTos.length === 0 ? (
-                <p className="py-4 text-[13px]" style={{ color: "#6f6f76" }}>
-                  Nothing logged yet. Quick add a food and it will show here for one-tap re-logging.
-                </p>
-              ) : (
-                <ul className="flex flex-col">{recent.latest.map((s) => foodRow(s, plus(() => logSaved(s), `Log ${s.label}`)))}</ul>
-              )}
-            </section>
-          </div>
-        )}
+        {tab === "search" && <FoodSearch hour={hour} today={today} tz={tz} entries={entries} saved={saved} busy={busy} onLog={log} onPrefill={prefill} />}
 
         {tab === "quick" && (
           <div className="flex flex-col gap-3">

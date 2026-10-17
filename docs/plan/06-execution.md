@@ -44,7 +44,7 @@ Goal: data that survives a phone change, logging that costs nothing to keep up, 
 | B3 | **S3 Local-first sync** | 1.5 | localStorage stays the source of truth on device; a sync layer reconciles with Supabase; works offline. | — |
 | B4 | **S4 + S7 Import and backups** | 1 | Import the browser's data into the account; MacroFactor and Hevy CSV import; export and restore. | — |
 | B5 | **S5 + S6 Apple Health** | 2 | Health Auto Export ingest for sleep, HRV, resting HR and weight; the recovery rules that need wearable data. | **H4:** install Health Auto Export and point it at the endpoint. |
-| B6 | **M4 Food database** | 3–5 | Open Food Facts barcode lookup, a curated UK base list, Describe for the rest, serving sizes, favourites. | — |
+| B6 | **M4 Food database** (pulled forward, done 2026-10-17) | 3–5 | CoFID (the UK government dataset, 2,726 generic foods, offline) as the base list with household portions, Open Food Facts for UK products by name and barcode, Describe for the rest, recents and saved foods. | — |
 | B7 | **Onboarding** | 1 | Goal, body, training days, first template in under three minutes; empty states that say the next action. | — |
 | B8 | **Billing** | 2 | Stripe on the web; App Store subscriptions once native. Free: logging and trends. Paid: the coach, Describe, Apple Health, sync. Two-week trial. | Stripe account; pricing decision. |
 | B9 | **AI cost control** | 0.5 | Per-plan daily caps, a cheaper model for Describe, cost per user on a dashboard. | — |
