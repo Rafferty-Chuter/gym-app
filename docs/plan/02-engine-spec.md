@@ -569,7 +569,7 @@ Copied from MacroFactor's module order (research A §B8) and delivered through t
    6. **Waist:** optional, weekly, using the §1.1 protocol.
    7. **Program update:** old → new targets (§5.3).
    8. **Judge verdict and recommendation**, if any.
-2. The UI renders the plan as a stepper on `/body/check-in`; the assistant can also walk the user through it.
+2. The UI renders the plan as one screen, `/review` (G3): three reads for last week, the plan's questions, then one decision built from the program update, the judge's rate or refresh recommendation and a due deload. The assistant can also walk the user through it.
 3. Answers become `DayFlags` and `WaistEntry`, and the engine recomputes.
 4. **Accept** or **keep current**. Declining keeps the targets.
 5. **Fast check-in** is one tap: accept the program update, skip the questions.

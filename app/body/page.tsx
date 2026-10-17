@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
@@ -53,6 +54,7 @@ function dateFromQuery(): LocalDate | null {
 
 function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const today = now.today;
+  const router = useRouter();
   const data = useBodyData();
   const analysis = usePhysiqueAnalysis(now, unit);
   const [sheet, setSheet] = useState<SheetKind>(() => (dateFromQuery() ? "weight" : null));
@@ -92,6 +94,11 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           }}
         />
 
+        {analysis?.checkInDue && (
+          <RowGroup>
+            <Row label="Review" sub="Last week in three reads, then one decision" value={<span style={{ color: "#00e5b0" }}>Ready</span>} trailing={<Chevron />} onClick={() => router.push("/review")} ariaLabel="Open the review" />
+          </RowGroup>
+        )}
         {analysis && <VerdictCard analysis={analysis} now={now} unit={unit} />}
         {analysis && !analysis.goal && (
           <Link href="/body/goal" className="inline-flex h-[36px] w-fit items-center rounded-[12px] px-3 text-[13px] font-semibold" style={{ background: "#1d1d20", color: "#f2f2f0" }}>

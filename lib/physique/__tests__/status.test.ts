@@ -26,10 +26,10 @@ describe("status (02 §8.3 step 4)", () => {
     expect(mostSevere("watch", "attention")).toBe("attention");
   });
 
-  it("home tile: the analysis state with a short label, 'Check-in ready' while a check-in is due", () => {
+  it("home tile: the analysis state with a short label, 'Review ready' while the review is due", () => {
     expect(physiqueSignalStatus(null)).toEqual({ state: "unknown", status: "No data yet" });
     const a = analyse(fixedCut({ deficit: 1400, lifts: stepLifts(-8, 35, 0) }));
     expect(physiqueSignalStatus({ ...a, checkInDue: false })).toEqual({ state: "watch", status: "Slow the cut" });
-    expect(physiqueSignalStatus({ ...a, checkInDue: true })).toEqual({ state: "watch", status: "Check-in ready" });
+    expect(physiqueSignalStatus({ ...a, checkInDue: true })).toEqual({ state: "watch", status: "Review ready" });
   });
 });

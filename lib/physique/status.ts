@@ -74,11 +74,11 @@ export type PhysiqueSignalStatus = { state: SignalState; status: string };
 
 /**
  * The Body tile's `{state, status}`: the analysis's state and a short
- * label. "Check-in ready" takes the label (not the state) while a check-in
- * is due, so the dot still reflects the verdict.
+ * label. "Review ready" takes the label (not the state) while the week's
+ * review is due, so the dot still reflects the verdict.
  */
 export function physiqueSignalStatus(analysis: PhysiqueAnalysis | null | undefined): PhysiqueSignalStatus {
   if (!analysis) return { state: "unknown", status: "No data yet" };
-  if (analysis.checkInDue) return { state: analysis.status.state, status: "Check-in ready" };
+  if (analysis.checkInDue) return { state: analysis.status.state, status: "Review ready" };
   return { state: analysis.status.state, status: analysis.status.label };
 }
