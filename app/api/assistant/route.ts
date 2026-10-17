@@ -31,7 +31,8 @@ import {
   type AssistantThreadTurn,
 } from "@/lib/assistantQuestionRouting";
 import { applyStrictIntentLock, computeStrictIntentLock } from "@/lib/assistantStrictIntentLock";
-import { PHYSIQUE_CONTEXT_INTEGRATION_BLOCK } from "@/lib/assistantPhysiqueContext";
+import { PHYSIQUE_CONTEXT_INTEGRATION_BLOCK, formatPhysiqueContextBlock, validatePhysiquePayload } from "@/lib/assistantPhysiqueContext";
+import type { AssistantPhysiquePayload } from "@/lib/physique/payload";
 import {
   classifyWorkoutArtefactIntent,
   detectConstructionResponseMode,
@@ -218,6 +219,13 @@ export type AssistantBody = {
    * Surfaced to the model as a third system content block when present.
    */
   userMemory?: ExtractedMemoryFact[];
+  /**
+   * Physique payload (I2): the client's PhysiqueAnalysis verbatim plus compact
+   * recent facts. Validated with `validatePhysiquePayload`; rendered as the
+   * PHYSIQUE CONTEXT system block after USER CONTEXT. The server never
+   * recomputes the verdict.
+   */
+  physique?: AssistantPhysiquePayload;
   /** Rolling window of recent chat turns for thread continuity (client-owned). */
   recentConversationMemory?: RecentConversationTurn[];
   /** Client-owned conversation subject locking: exercise topic to anchor follow-ups. */
@@ -820,12 +828,19 @@ function formatCoachReviewBriefFromContext(ctx: unknown): string {
 
 function buildLoggedTrainingPreamble(params: {
   hasWorkoutData: boolean;
+  /** The request carries a PHYSIQUE CONTEXT block (I2): body data counts as data for physique questions. */
+  hasPhysiqueData?: boolean;
   totalWorkouts: number;
   recentDigest: string;
   recentCount: number;
   coachingContext: unknown;
 }): string {
   if (!params.hasWorkoutData) {
+    const physiqueNote = params.hasPhysiqueData
+      ? `
+
+PHYSIQUE DATA PRESENT: the user does track bodyweight, food and sleep in the Body tab (see the PHYSIQUE CONTEXT system block). Questions about weight, calories, expenditure, sleep or whether their plan is working are answered from that block, with its verdict and numbers. The cold-start rules above apply to training programming only.`
+      : "";
     return `=== LOGGED TRAINING STATUS — COLD START (NO DATA) ===
 The user has 0 completed workouts logged in this app. The whole value of this Coach is personalised guidance from logged training; with no data, you cannot personalise.
 
@@ -845,7 +860,7 @@ Option B — give a deliberately minimal direct answer + flag what's missing (pr
 - Answer the specific question briefly using general evidence-based principles, clearly framed as general — not personalised.
 - Then in one short line, name what would let you personalise: "once you log a few sessions, or tell me your current routine and goal, I can tailor this to you specifically."
 
-Either way: invite them to log a session or share their current routine so the Coach can switch on. The first impression should make clear that this Coach gets sharper with data, not that it produces generic plans on demand.`;
+Either way: invite them to log a session or share their current routine so the Coach can switch on. The first impression should make clear that this Coach gets sharper with data, not that it produces generic plans on demand.${physiqueNote}`;
   }
 
   const ctx = params.coachingContext as Partial<CoachingContext> | null | undefined;
@@ -1470,6 +1485,8 @@ async function getAssistantReply(
   clientId: string | undefined,
   /** Self-reported user profile (13 fields). Rendered as a cached USER PROFILE system block. */
   onboardingProfile: OnboardingProfile | undefined,
+  /** PHYSIQUE CONTEXT block (I2), already validated and formatted; null when the client sent none. */
+  physiqueBlock: string | null,
   /** When set, streams the model's reply by invoking onDelta for each text delta. */
   onDelta?: (delta: string) => void
 ): Promise<string> {
@@ -2111,6 +2128,23 @@ User question:
 ${message}
 
 Reply: coach-like progression roadmap, practical and specific.`;
+      } else if (questionKind === "physique_progress") {
+        input = `
+You are answering a physique question (bodyweight, rate of change, calories, macros, expenditure, sleep, or whether the plan is working).
+
+${routingPreamble}
+
+Hard rules:
+- Answer from the PHYSIQUE CONTEXT system block. Lead with its verdict, then the two strongest numbers behind it (with their window and n), then one action.
+- Cite only numbers that appear in that block. Never compute rates, targets, calories, protein or dates yourself; if a number is missing, say it isn't available yet and what logging would produce it.
+- The verdict is decided: explain it, don't re-judge it. Name confounders before blaming the plan.
+- Do not route this into bench or 1RM projections; training data is supporting context only.
+- If there is no PHYSIQUE CONTEXT block, say the Body tab is where weight, food and sleep get tracked, then answer generally and hedge.
+
+User question:
+${message}
+
+FORMAT HINT (physique): 3–6 short sentences, no headings, no exclamation marks.`;
       } else if (questionKind === "projection_estimate") {
         input = `
 You are answering a projection / estimate question (e.g. 1RM, timelines, working weights).
@@ -2685,6 +2719,10 @@ ${benchEstimateBlock}`.trim();
     type: "text",
     text: userContextBlock,
   });
+  // PHYSIQUE CONTEXT rides the last system breakpoint: no cache_control of its own.
+  if (physiqueBlock) {
+    systemBlocks.push({ type: "text", text: physiqueBlock });
+  }
   if (userMemoryBlock) {
     systemBlocks.push({ type: "text", text: userMemoryBlock });
   }
@@ -3516,6 +3554,15 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    let physiqueBlock: string | null = null;
+    if (body.physique !== undefined && body.physique !== null) {
+      const physiqueValidation = validatePhysiquePayload(body.physique);
+      if (!physiqueValidation.ok) {
+        return NextResponse.json({ error: physiqueValidation.error }, { status: 400 });
+      }
+      physiqueBlock = formatPhysiqueContextBlock(physiqueValidation.payload);
+    }
+    const hasPhysiqueData = physiqueBlock != null;
 
     const trimmedMessage = message.trim();
     const forceDynamicProgrammeDebug = true;
@@ -3878,6 +3925,7 @@ export async function POST(request: NextRequest) {
     );
     const loggedDataPreamble = buildLoggedTrainingPreamble({
       hasWorkoutData,
+      hasPhysiqueData,
       totalWorkouts: Number(trainingSummary.totalWorkouts) || 0,
       recentDigest: recentDigest.text,
       recentCount: recentDigest.count,
@@ -3972,6 +4020,7 @@ export async function POST(request: NextRequest) {
       thread_id,
       client_id,
       onboardingProfile,
+      physiqueBlock,
     ] as const;
 
     if (wantsStream) {
