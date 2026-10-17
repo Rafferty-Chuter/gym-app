@@ -14,6 +14,7 @@ import { getExerciseById, getExerciseByName, type ExerciseRole } from "@/lib/exe
 import { mean, median, olsSlope } from "@/lib/stats";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import { parseWeightText, type WeightUnit } from "@/lib/units";
+import { countHardSets, setTypeOf, type SetType } from "@/lib/completedSets";
 import { nightsByDate, sessionSleepExclusion, type NormalizedNight, type SessionSleepExclusion } from "@/lib/physique/sleep";
 import type { PhysiqueGoal, SleepNight, StrengthStatus, TrainingStatus } from "@/lib/physique/types";
 
@@ -62,7 +63,7 @@ export const TRAINING_STATUS_INTERMEDIATE_SLOPE = 0.5;
 
 // ── e1RM ──
 
-export type LoggedSet = { weight?: string | number | null; reps?: string | number | null; rir?: number | null };
+export type LoggedSet = { weight?: string | number | null; reps?: string | number | null; rir?: number | null; type?: SetType | string | null };
 
 /** `loadKg × (1 + (reps + RIR) / 30)`; RIR defaults to 0 (02 §6.1). */
 export function e1rmAdj(loadKg: number, reps: number, rir = 0): number {
@@ -91,11 +92,14 @@ function isCompletedSet(set: LoggedSet): boolean {
  * NaN are skipped), reps > 0 and reps + RIR ≤ 12. Null otherwise.
  */
 export function parseWorkingSet(set: LoggedSet, unit: WeightUnit): ParsedSet | null {
+  // T1: warm-ups and drop sets never feed e1RM; a failure set is RIR 0 whatever was typed.
+  const type = setTypeOf(set);
+  if (type === "warmup" || type === "drop") return null;
   const loadKg = parseWeightText(set.weight, unit);
   if (loadKg === null) return null;
   const reps = parseReps(set.reps);
   if (reps === null || reps <= 0) return null;
-  const rir = typeof set.rir === "number" && Number.isFinite(set.rir) && set.rir > 0 ? set.rir : 0;
+  const rir = type === "failure" ? 0 : typeof set.rir === "number" && Number.isFinite(set.rir) && set.rir > 0 ? set.rir : 0;
   if (reps + rir > MAX_REPS_PLUS_RIR) return null;
   return { loadKg, reps, rir, e1rm: e1rmAdj(loadKg, reps, rir) };
 }
@@ -239,7 +243,7 @@ export type DeloadWeek = {
   baselineSets: number;
 };
 
-/** Completed sets per 7-day block ending today; index 0 is the block ending today. */
+/** Hard (non-warm-up) completed sets per 7-day block ending today; index 0 is the block ending today. */
 export function weeklySetCounts(workouts: readonly StoredWorkout[], now: Now): number[] {
   const counts: number[] = [];
   for (const w of workouts) {
@@ -247,7 +251,7 @@ export function weeklySetCounts(workouts: readonly StoredWorkout[], now: Now): n
     if (!date || date > now.today) continue;
     const block = weekBlock(date, now.today);
     while (counts.length <= block) counts.push(0);
-    for (const ex of w.exercises ?? []) counts[block] += (ex.sets ?? []).filter(isCompletedSet).length;
+    for (const ex of w.exercises ?? []) counts[block] += countHardSets(ex.sets ?? []);
   }
   return counts;
 }

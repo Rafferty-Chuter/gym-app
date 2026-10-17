@@ -15,11 +15,14 @@ import WeightSheet from "@/components/physique/WeightSheet";
 import WaistSheet from "@/components/physique/WaistSheet";
 import WeightChartCard, { formatRate } from "@/components/physique/WeightChartCard";
 import GoalProgress from "@/components/physique/GoalProgress";
+import { goalEta } from "@/lib/physique/goalEta";
+import { findGaps, gapLines } from "@/lib/physique/gaps";
+import GapRows from "@/components/physique/GapRows";
 import VerdictCard from "@/components/physique/VerdictCard";
 import StrengthSleepRows from "@/components/physique/StrengthSleepRows";
 import WeightEntries from "@/components/physique/WeightEntries";
 import { Caption, Chevron, Row, RowGroup } from "@/components/physique/ui";
-import { longLocalDate } from "@/components/charts/TimeSeriesChart";
+import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 
 type SheetKind = "weight" | "waist" | null;
 
@@ -61,13 +64,16 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     const lastWeighIn = data.weighIns.at(-1) ?? null;
     const lastWaist = data.waist.at(-1) ?? null;
     const trend = latestTrend(data.weighIns);
-    return { onDate, lastWeighIn, lastWaist, trend };
-  }, [data, wDate]);
+    const gapRows = gapLines(findGaps({ foodEntries: [], dayFlags: {}, weighIns: data.weighIns, sleepNights: [] }, today, ["weight"]), today);
+    return { onDate, lastWeighIn, lastWaist, trend, gapRows };
+  }, [data, wDate, today]);
 
   const nowIso = () => new Date().toISOString();
   const goal = analysis?.goal ?? data.goal;
+  const eta = goalEta(goal, data.weighIns, data.dayFlags, today);
+  const etaWord = eta ? (eta.reached ? "reached" : eta.date ? `ETA ${shortLocalDate(eta.date)}` : null) : null;
   const caption = goal
-    ? `${formatWeight(goal.targetKg, unit)} · ${goal.type === "lose" ? "Cut" : goal.type === "gain" ? "Lean gain" : "Maintain"}${goal.type === "maintain" ? "" : ` · ${formatRate(goal.ratePctPerWeek)}`}`
+    ? `${formatWeight(goal.targetKg, unit)} · ${goal.type === "lose" ? "Cut" : goal.type === "gain" ? "Lean gain" : "Maintain"}${goal.type === "maintain" ? "" : ` · ${formatRate(goal.ratePctPerWeek)}`}${etaWord ? ` · ${etaWord}` : ""}`
     : "No goal yet";
 
   return (
@@ -95,7 +101,15 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         <WeightChartCard weighIns={data.weighIns} goal={data.goal} dayFlags={data.dayFlags} today={today} unit={unit} hero />
 
-        <GoalProgress goal={data.goal} weighIns={data.weighIns} today={today} unit={unit} />
+        <GapRows
+          lines={model.gapRows}
+          onSelect={(l) => {
+            setWeightDate(l.date);
+            setSheet("weight");
+          }}
+        />
+
+        <GoalProgress goal={data.goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} />
 
         {analysis && <StrengthSleepRows analysis={analysis} showSleep={false} />}
 

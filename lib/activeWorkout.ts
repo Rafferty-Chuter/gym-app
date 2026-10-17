@@ -7,11 +7,13 @@ export const ACTIVE_WORKOUT_KEY = "activeWorkout";
 /** Fired after save/clear so UI (e.g. resume bar) can refresh in the same tab. */
 export const ACTIVE_WORKOUT_CHANGED_EVENT = "gym:activeWorkoutChanged";
 
+import type { SetType } from "@/lib/completedSets";
+
 export type DraftExercise = {
   id: number;
   exerciseId?: string;
   name: string;
-  sets: { weight: string; reps: string; done?: boolean; notes?: string; rir?: number }[];
+  sets: { weight: string; reps: string; done?: boolean; notes?: string; rir?: number; type?: SetType }[];
   targetSets?: number;
   restSec: number;
 };

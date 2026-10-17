@@ -10,8 +10,9 @@ import {
   type ImportableWorkout,
   type ParseResult,
 } from "@/lib/csvImport";
+import { weighInsRepo } from "@/lib/physique/io/repos";
 
-type FormatChoice = "auto" | "hevy" | "strong";
+type FormatChoice = "auto" | "hevy" | "strong" | "repcount";
 
 function formatDate(iso: string): string {
   try {
@@ -27,6 +28,7 @@ export default function ImportCsvPage() {
   const [text, setText] = useState("");
   const [formatChoice, setFormatChoice] = useState<FormatChoice>("auto");
   const [mode, setMode] = useState<CommitMode>("append");
+  const [sourceUnit, setSourceUnit] = useState<"kg" | "lb">("kg");
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +60,7 @@ export default function ImportCsvPage() {
     const result = parseImportCsv(text, {
       format: formatChoice === "auto" ? undefined : formatChoice,
       targetUnit: unit,
+      sourceUnit,
     });
     setParseResult(result);
     if (!result.ok) setError(result.error);
@@ -73,6 +76,12 @@ export default function ImportCsvPage() {
     }
     try {
       const r = commitImportedWorkouts(parseResult.workouts, mode);
+      if (parseResult.weighIns.length > 0) {
+        // Bodyweights the file carried become weigh-ins; a re-import replaces the same day's import.
+        void weighInsRepo.bulkUpsert(
+          parseResult.weighIns.map((w) => ({ id: `import-w-${w.date}`, date: w.date, loggedAt: `${w.date}T08:00:00.000Z`, source: "import" as const, schemaVersion: 1 as const, kg: w.kg }))
+        );
+      }
       setStatus(
         mode === "replace"
           ? `Replaced history. ${r.written} workouts saved (total ${r.total}).`
@@ -121,7 +130,7 @@ export default function ImportCsvPage() {
         </Link>
         <h1 className="mt-2 text-3xl font-bold text-white">Import CSV</h1>
         <p className="mt-1 text-sm text-app-secondary">
-          Bring in workout history from Hevy or Strong. Paste the CSV or pick a file.
+          Bring in workout history from Hevy, Strong or Rep Count. Paste the CSV or pick a file.
         </p>
 
         <section className="mt-6 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">
@@ -136,8 +145,23 @@ export default function ImportCsvPage() {
                 <option value="auto">Auto-detect</option>
                 <option value="hevy">Hevy</option>
                 <option value="strong">Strong</option>
+                <option value="repcount">Rep Count</option>
               </select>
             </div>
+            {(formatChoice === "repcount" || formatChoice === "auto") && (
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Weights in the file are</label>
+                <select
+                  value={sourceUnit}
+                  onChange={(e) => setSourceUnit(e.target.value as "kg" | "lb")}
+                  className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white"
+                >
+                  <option value="kg">kg</option>
+                  <option value="lb">lb</option>
+                </select>
+                <p className="mt-1 text-[11px] text-zinc-500">Rep Count only. Hevy and Strong files say their unit.</p>
+              </div>
+            )}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Mode</label>
               <select
@@ -217,7 +241,7 @@ export default function ImportCsvPage() {
               Range: {formatDate(previewSummary.first)} → {formatDate(previewSummary.last)} · Format:{" "}
               <span className="font-semibold text-zinc-200">{parseResult.format}</span>
               {parseResult.skippedRows > 0 && (
-                <> · Skipped {parseResult.skippedRows} unusable row{parseResult.skippedRows === 1 ? "" : "s"} (warmups, missing data)</>
+                <> · Skipped {parseResult.skippedRows} row{parseResult.skippedRows === 1 ? "" : "s"} {parseResult.format === "repcount" ? "with no reps logged (planned sets)" : "(warmups, missing data)"}</>
               )}
             </p>
 

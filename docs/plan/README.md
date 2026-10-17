@@ -113,3 +113,5 @@ The `/next-ticket` skill encodes this.
 6. **Review.** `/code-review medium` on the diff; fix what it finds.
 7. **Record.** Update `STATUS.md` (status, date, evidence, deviations, follow-ups). Commit with `<ticket id>: <summary>` and the repo's commit style. Push.
 8. **Report.** What changed, how it was verified, and what's next.
+
+- `06-execution.md` — the agreed order from here to a paid product: Sprint A (the coach), B (the product), C (it sells), with the founder's decision gates.

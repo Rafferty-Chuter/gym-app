@@ -19,7 +19,7 @@ import {
   exerciseKey,
   getExerciseMetrics,
 } from "@/lib/trainingMetrics";
-import { getCompletedLoggedSets } from "@/lib/completedSets";
+import { getCompletedLoggedSets, type SetType } from "@/lib/completedSets";
 import {
   getLiftTrendStatus,
   isPlateau as canonicalIsPlateau,
@@ -43,7 +43,7 @@ export type StoredWorkout = {
     exerciseId?: string;
     name: string;
     restSec?: number;
-    sets: { weight: string; reps: string; notes?: string; rir?: number }[];
+    sets: { weight: string; reps: string; notes?: string; rir?: number; type?: SetType }[];
   }[];
 };
 

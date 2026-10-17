@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import RemindersSection from "@/components/physique/RemindersSection";
 import Link from "next/link";
 import { useUnit } from "@/lib/unit-preference";
 import { downloadAllWorkoutsCsv } from "@/lib/exportWorkoutsCsv";
@@ -75,7 +76,7 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-2xl">
         <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
         <p className="mt-1 text-sm text-app-secondary">
-          What the coach sees about you. Edit any time — the assistant uses these as standing context.
+          Units, bodyweight and training days. Edit any time.
         </p>
 
         <section className="mt-6 rounded-2xl border border-teal-900/35 bg-zinc-900/90 p-5">
@@ -124,6 +125,8 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        <RemindersSection />
+
         <section className="mt-8 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">Data &amp; feedback</p>
           <p className="text-sm text-zinc-400 mb-4">
@@ -152,7 +155,7 @@ export default function ProfilePage() {
         <section className="mt-8 rounded-2xl border border-zinc-700/80 bg-zinc-900/60 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">Temporary</p>
           <p className="text-sm text-zinc-400 mb-4">
-            Move your saved workouts, templates, profile, and assistant chats to another device.
+            Move your saved workouts, templates and profile to another device.
           </p>
           <Link
             href="/dev/data-transfer"
@@ -164,7 +167,7 @@ export default function ProfilePage() {
             href="/profile/import"
             className="mt-3 flex w-full items-center justify-center rounded-xl border border-teal-500/40 bg-teal-950/40 px-4 py-3 text-sm font-bold text-teal-100 hover:bg-teal-900/50 hover:border-teal-400/50 transition-colors"
           >
-            Import CSV (Hevy / Strong)
+            Import CSV (Hevy, Strong, Rep Count)
           </Link>
         </section>
       </div>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ASSISTANT_ENABLED } from "@/lib/features";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -1400,7 +1401,17 @@ function AssistantPageInner() {
   );
 }
 
+/** While the assistant is parked (lib/features.ts) the route sends people to Home. */
+function AssistantParked() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/");
+  }, [router]);
+  return null;
+}
+
 export default function AssistantPage() {
+  if (!ASSISTANT_ENABLED) return <AssistantParked />;
   return (
     <Suspense fallback={null}>
       <AssistantPageInner />

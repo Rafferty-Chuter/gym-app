@@ -1,5 +1,6 @@
 "use client";
 
+import { ASSISTANT_ENABLED } from "@/lib/features";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, notFound } from "next/navigation";
@@ -886,7 +887,8 @@ function ProgressDetailView({
             </p>
           </div>
         </section>
-        <section className="pt-6">
+        {ASSISTANT_ENABLED && (
+<section className="pt-6">
           <button
             type="button"
             onClick={handleAsk}
@@ -904,6 +906,7 @@ function ProgressDetailView({
             </svg>
           </button>
         </section>
+)}
       </>
     );
   }
@@ -1030,7 +1033,8 @@ function ProgressDetailView({
         </section>
       )}
 
-      <section className="pt-6">
+      {ASSISTANT_ENABLED && (
+<section className="pt-6">
         <button
           type="button"
           onClick={handleAsk}
@@ -1052,6 +1056,7 @@ function ProgressDetailView({
           </svg>
         </button>
       </section>
+)}
     </>
   );
 }
@@ -1236,7 +1241,8 @@ export default function SignalDetailPage() {
               </p>
             </section>
 
-            <section className="pt-8">
+            {ASSISTANT_ENABLED && (
+<section className="pt-8">
               <button
                 type="button"
                 onClick={openAssistant}
@@ -1263,6 +1269,7 @@ export default function SignalDetailPage() {
                 </svg>
               </button>
             </section>
+)}
           </>
         )}
       </div>

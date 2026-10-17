@@ -8,7 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { countCompletedLoggedSets } from "@/lib/completedSets";
+import { countCompletedLoggedSets, type SetType } from "@/lib/completedSets";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
@@ -21,7 +21,7 @@ export type CompletedWorkout = {
     exerciseId?: string;
     name: string;
     restSec?: number;
-    sets: { weight: string; reps: string; notes?: string; rir?: number }[];
+    sets: { weight: string; reps: string; notes?: string; rir?: number; type?: SetType }[];
   }[];
   totalExercises: number;
   totalSets: number;
@@ -35,7 +35,7 @@ type StoredWorkout = {
     exerciseId?: string;
     name: string;
     restSec?: number;
-    sets: { weight: string; reps: string; notes?: string; rir?: number }[];
+    sets: { weight: string; reps: string; notes?: string; rir?: number; type?: SetType }[];
   }[];
 };
 

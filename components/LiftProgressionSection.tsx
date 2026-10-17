@@ -1,5 +1,6 @@
 "use client";
 
+import { ASSISTANT_ENABLED } from "@/lib/features";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getExerciseInsights } from "@/lib/trainingAnalysis";
@@ -243,6 +244,7 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
     latestE1rm: 0,
     slopePerSession: 0,
     windowChangePct: 0,
+    slopePctPerWeek: null,
   };
   const tm = trendMeta(status ?? fallbackStatus);
 
@@ -483,7 +485,7 @@ export function LiftProgressionSection({ workouts, unit }: Props) {
               </p>
 
               {/* Coach CTA */}
-              {status && shouldShowCoachCta(status) && exercise && (
+              {ASSISTANT_ENABLED && status && shouldShowCoachCta(status) && exercise && (
                 <Link
                   href={`/assistant?q=${encodeURIComponent(coachMessage(exercise, status, insights, unit))}`}
                   className="mt-1 flex items-center justify-between gap-3 rounded-xl border border-teal-800/30 bg-teal-950/30 px-4 py-3 transition hover:border-teal-600/40 hover:bg-teal-950/50 active:scale-[0.99]"

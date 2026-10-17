@@ -3,13 +3,16 @@
 import { useMemo } from "react";
 import { Caption } from "@/components/physique/ui";
 import { goalProgress } from "@/lib/physique/goalProgress";
-import type { PhysiqueGoal, WeighIn } from "@/lib/physique/types";
-import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
+import { goalEta } from "@/lib/physique/goalEta";
+import GoalEtaLine from "@/components/physique/GoalEtaLine";
+import type { DayFlags, PhysiqueGoal, WeighIn } from "@/lib/physique/types";
+import { formatWeight, type WeightUnit } from "@/lib/units";
 import type { LocalDate } from "@/lib/dates";
 
 /** MacroFactor's goal waterfall: one bar per week, light toward the goal, dark away, grey remaining. */
-export default function GoalProgress({ goal, weighIns, today, unit }: { goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; today: LocalDate; unit: WeightUnit }) {
+export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, unit }: { goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags?: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit }) {
   const p = useMemo(() => goalProgress(goal, weighIns, today), [goal, weighIns, today]);
+  const eta = useMemo(() => goalEta(goal, weighIns, dayFlags, today), [goal, weighIns, dayFlags, today]);
   if (!p) return null;
   const maxKg = Math.max(p.totalKg, ...p.weeks.map((w) => Math.abs(w.deltaKg)), 0.1);
   const h = 56;
@@ -34,10 +37,9 @@ export default function GoalProgress({ goal, weighIns, today, unit }: { goal: Ph
         ))}
       </div>
       <p className="mt-2 text-[13px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
-        {formatWeight(p.doneKg, unit)} of {formatWeight(p.totalKg, unit)}
-        {p.weeksLeft != null && Number.isFinite(p.weeksLeft) ? ` · about ${Math.max(1, Math.round(p.weeksLeft))} weeks left` : ""}
-        {kgToDisplay(0, unit) === 0 ? "" : ""}
+        {formatWeight(p.doneKg, unit)} of {formatWeight(p.totalKg, unit)} · {formatWeight(p.remainingKg, unit)} to go
       </p>
+      {eta && <GoalEtaLine eta={eta} />}
     </section>
   );
 }

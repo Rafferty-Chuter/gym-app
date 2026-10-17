@@ -1,11 +1,14 @@
 import type { CompletedWorkout } from "@/lib/workout-store";
 
 export type ImportableWorkout = Omit<CompletedWorkout, "id" | "totalExercises" | "totalSets">;
-export type CsvFormat = "hevy" | "strong" | "unknown";
+export type CsvFormat = "hevy" | "strong" | "repcount" | "unknown";
 export type Unit = "kg" | "lb";
 
+/** A bodyweight the export carried alongside a session (Rep Count's Bodyweight column). */
+export type ImportedWeighIn = { date: string; kg: number };
+
 export type ParseResult =
-  | { ok: true; format: Exclude<CsvFormat, "unknown">; workouts: ImportableWorkout[]; skippedRows: number }
+  | { ok: true; format: Exclude<CsvFormat, "unknown">; workouts: ImportableWorkout[]; skippedRows: number; weighIns: ImportedWeighIn[] }
   | { ok: false; error: string };
 
 const KG_PER_LB = 0.45359237;
@@ -98,7 +101,83 @@ export function detectFormat(headers: string[]): CsvFormat {
   const has = (k: string) => norm.includes(k);
   if (has("start_time") && (has("weight_kg") || has("exercise_title"))) return "hevy";
   if (has("workout name") && has("exercise name") && has("set order")) return "strong";
+  if (has("workout start") && has("exercise") && has("reps")) return "repcount";
   return "unknown";
+}
+
+/**
+ * Rep Count dates are local wall-clock, "2026-10-16 18:34", with no zone.
+ * Built with the Date constructor so the device's own timezone applies.
+ */
+function parseRepCountDate(s: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/.exec((s ?? "").trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0));
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * Rep Count export: one row per set with Workout Start, Workout End,
+ * Exercise, Weight, Reps, Notes, Kcal, Distance, Duration, Category, Name,
+ * Bodyweight. Rows with neither weight nor reps are planned sets never
+ * done and are skipped. Weights are in `sourceUnit` (the app's setting).
+ */
+function parseRepCount(rows: string[][], targetUnit: Unit, sourceUnit: Unit): { workouts: ImportableWorkout[]; weighIns: ImportedWeighIn[] } {
+  if (rows.length === 0) return { workouts: [], weighIns: [] };
+  const idx = indexer(rows[0]);
+  const iStart = idx("workout start");
+  const iEnd = idx("workout end");
+  const iEx = idx("exercise");
+  const iWeight = idx("weight");
+  const iReps = idx("reps");
+  const iNotes = idx("notes");
+  const iName = idx("name");
+  const iBw = idx("bodyweight");
+  const groups = new Map<string, RowGroup>();
+  const weighIns = new Map<string, ImportedWeighIn>();
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length <= Math.max(iStart, iEx, iReps)) continue;
+    const startIso = parseRepCountDate(row[iStart] ?? "");
+    if (!startIso) continue;
+    const endIso = iEnd >= 0 ? parseRepCountDate(row[iEnd] ?? "") : null;
+    const completedAt = endIso ?? startIso;
+    const name = iName >= 0 ? (row[iName] ?? "").trim() : "";
+    const groupKey = `${startIso}::${completedAt}::${name}`;
+    let group = groups.get(groupKey);
+    if (!group) {
+      let durationSec: number | undefined;
+      if (endIso) {
+        const diff = (new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000;
+        if (diff > 0 && diff < 24 * 3600) durationSec = Math.round(diff);
+      }
+      group = { completedAt, name, durationSec, exercises: new Map() };
+      groups.set(groupKey, group);
+    }
+    if (iBw >= 0) {
+      const bw = Number((row[iBw] ?? "").trim());
+      if (Number.isFinite(bw) && bw > 0) {
+        const kg = sourceUnit === "lb" ? lbToKg(bw) : bw;
+        weighIns.set(completedAt.slice(0, 10), { date: completedAt.slice(0, 10), kg: roundWeight(kg) });
+      }
+    }
+    const exerciseName = (row[iEx] ?? "").trim();
+    if (!exerciseName) continue;
+    const weightRaw = iWeight >= 0 ? (row[iWeight] ?? "").trim() : "";
+    const repsRaw = (row[iReps] ?? "").trim();
+    if (weightRaw === "" && repsRaw === "") continue; // planned, never done
+    const reps = Number(repsRaw);
+    if (!Number.isFinite(reps) || reps <= 0) continue;
+    const weightNum = Number(weightRaw);
+    let weightStr = "";
+    if (Number.isFinite(weightNum) && weightNum > 0) {
+      const inTarget = sourceUnit === targetUnit ? weightNum : targetUnit === "lb" ? kgToLb(weightNum) : lbToKg(weightNum);
+      weightStr = String(roundWeight(inTarget));
+    }
+    const notes = iNotes >= 0 ? (row[iNotes] ?? "").trim() || undefined : undefined;
+    pushSet(group, exerciseName, { weight: weightStr, reps: String(reps), notes });
+  }
+  return { workouts: groupsToWorkouts(groups), weighIns: [...weighIns.values()] };
 }
 
 /**
@@ -339,7 +418,7 @@ function parseStrong(rows: string[][], targetUnit: Unit): ImportableWorkout[] {
 
 export function parseImportCsv(
   text: string,
-  opts: { format?: Exclude<CsvFormat, "unknown">; targetUnit: Unit }
+  opts: { format?: Exclude<CsvFormat, "unknown">; targetUnit: Unit; /** Unit the file's weights are in (Rep Count only; Hevy and Strong say). */ sourceUnit?: Unit }
 ): ParseResult {
   const trimmed = text.replace(/^﻿/, "").trim();
   if (!trimmed) return { ok: false, error: "CSV is empty." };
@@ -356,12 +435,20 @@ export function parseImportCsv(
     return {
       ok: false,
       error:
-        "Could not detect format. Pick Hevy or Strong manually — header didn't match a known signature.",
+        "Could not detect the format. Pick Hevy, Strong or Rep Count: the header did not match a known one.",
     };
   }
 
   const initialDataRows = rows.length - 1;
-  const workouts = format === "hevy" ? parseHevy(rows, opts.targetUnit) : parseStrong(rows, opts.targetUnit);
+  let weighIns: ImportedWeighIn[] = [];
+  let workouts: ImportableWorkout[];
+  if (format === "hevy") workouts = parseHevy(rows, opts.targetUnit);
+  else if (format === "strong") workouts = parseStrong(rows, opts.targetUnit);
+  else {
+    const r = parseRepCount(rows, opts.targetUnit, opts.sourceUnit ?? "kg");
+    workouts = r.workouts;
+    weighIns = r.weighIns;
+  }
   const accountedSets = workouts.reduce(
     (sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.length, 0),
     0
@@ -375,7 +462,7 @@ export function parseImportCsv(
     };
   }
 
-  return { ok: true, format, workouts, skippedRows };
+  return { ok: true, format, workouts, skippedRows, weighIns };
 }
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";

@@ -15,6 +15,8 @@ import { sleepPrefill } from "@/lib/physique/dayTotals";
 import { bedtimePlan, nightWord, sleepContributors, sleepInsight, trendBars } from "@/lib/physique/sleepView";
 import PageHeader from "@/components/ui/PageHeader";
 import SleepSheet from "@/components/physique/SleepSheet";
+import GapRows from "@/components/physique/GapRows";
+import { findGaps, gapLines } from "@/lib/physique/gaps";
 import { Caption } from "@/components/physique/ui";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import SleepHero from "@/components/sleep/SleepHero";
@@ -23,6 +25,9 @@ import SleepContributors from "@/components/sleep/SleepContributors";
 import BedtimePlanner from "@/components/sleep/BedtimePlanner";
 import SleepTrend from "@/components/sleep/SleepTrend";
 import NightsList from "@/components/sleep/NightsList";
+import AppleHealthSheet from "@/components/health/AppleHealthSheet";
+import { pullHealth, useHealthLink } from "@/lib/physique/io/healthLink";
+import { useEffect } from "react";
 
 /** The Sleep tab (05-design §9.6): last night, the engine's read, contributors, the planner, 14 nights and the list. */
 export default function SleepPage() {
@@ -50,7 +55,15 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const profile = useSingleton(profileStore);
   const goalH = clampSleepGoal(profile?.sleepGoalH);
   const wakeSetting = profile?.wakeTimeHHMM;
-  const [sheetDate, setSheetDate] = useState<LocalDate | null>(null);
+  const healthLink = useHealthLink();
+  const [healthOpen, setHealthOpen] = useState(false);
+  useEffect(() => {
+    if (healthLink?.token) void pullHealth(new Date().toISOString());
+  }, [healthLink?.token]);
+  const [sheetDate, setSheetDate] = useState<LocalDate | null>(() => {
+    const q = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date");
+    return q && /^\d{4}-\d{2}-\d{2}$/.test(q) && q <= today ? q : null;
+  });
 
   const model = useMemo(() => {
     const byDate = nightsByDate(data.sleepNights);
@@ -62,7 +75,9 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
     const lastNight = byDate.get(today)?.night ?? null;
     const prefill = sleepPrefill(data.sleepNights);
     const read = analysis?.sleep ?? null;
+    const gapRows = gapLines(findGaps({ foodEntries: [], dayFlags: {}, weighIns: [], sleepNights: data.sleepNights }, today, ["sleep"]), today);
     return {
+      gapRows,
       byDate,
       nights,
       lastNight,
@@ -91,6 +106,8 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
 
         <SleepHero night={model.lastNight} word={model.word} goalH={goalH} onLog={() => setSheetDate(today)} />
 
+        <GapRows lines={model.gapRows} onSelect={(l) => setSheetDate(l.date)} />
+
         {analysis && model.insight && <SleepInsight read={analysis.sleep} text={model.insight} />}
 
         {model.nights.length > 0 && <SleepContributors items={model.contributors} />}
@@ -100,6 +117,21 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         {model.nights.length > 0 && <SleepTrend bars={model.bars} goalH={goalH} />}
 
         <NightsList nights={model.nights} today={today} onEdit={(n) => setSheetDate(n.date)} />
+
+        <button type="button" onClick={() => setHealthOpen(true)} className="flex w-full items-center justify-between gap-3 rounded-[12px] px-4 py-3 text-left transition-colors active:bg-[#1d1d20]" style={{ background: "#141416" }} aria-label="Apple Health. Open settings">
+          <span className="flex min-w-0 flex-col">
+            <span className="text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+              Apple Health
+            </span>
+            <span className="text-[12px]" style={{ color: "#a3a3a8" }}>
+              {healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${longLocalDate(healthLink.lastPayloadAt.slice(0, 10))}` : healthLink.lastError === "not_configured" ? "Token ready · server not set up yet" : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own"}
+            </span>
+          </span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#6f6f76" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0" aria-hidden>
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </button>
+        <AppleHealthSheet open={healthOpen} onClose={() => setHealthOpen(false)} />
 
         <div className="pb-2">
           <Caption>Logged values stay on this device. Export a backup from Profile.</Caption>

@@ -1,6 +1,7 @@
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import { resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
-import { countCompletedLoggedSets, getCompletedLoggedSets } from "@/lib/completedSets";
+import { countCompletedLoggedSets, countHardSets, getCompletedLoggedSets, getE1rmSets, type SetType } from "@/lib/completedSets";
+import { e1rmAdj } from "@/lib/physique/strength";
 
 const MUSCLE_GROUP_KEYWORDS: Record<string, string[]> = {
   chest: ["bench", "incline", "chest press", "fly"],
@@ -246,7 +247,7 @@ export function getVolumeByMuscleGroup(workouts: StoredWorkout[]): Record<string
     for (const ex of workout.exercises ?? []) {
       const group = getMuscleGroupForLoggedExercise(ex);
       if (group && group in counts) {
-        counts[group] += countCompletedLoggedSets(ex.sets);
+        counts[group] += countHardSets(ex.sets);
       }
     }
   }
@@ -267,7 +268,7 @@ export function getDetailedVolumeByMuscleGroup(
   ) as Record<DetailedMuscleGroup, number>;
   for (const workout of workouts) {
     for (const ex of workout.exercises ?? []) {
-      const setCount = countCompletedLoggedSets(ex.sets);
+      const setCount = countHardSets(ex.sets);
       if (setCount === 0) continue;
       const groups = getDetailedMuscleGroupsForLoggedExercise(ex, options);
       for (const g of groups) counts[g] += setCount;
@@ -276,11 +277,11 @@ export function getDetailedVolumeByMuscleGroup(
   return counts;
 }
 
-/** Best set = highest weight; if equal, highest reps. */
+/** Best set = highest weight; if equal, highest reps. Warm-ups and drop sets never count (T1). */
 export function getBestSet(
-  sets: { weight: string; reps: string }[]
+  sets: { weight: string; reps: string; type?: SetType | string | null }[]
 ): { weight: number; reps: number } | null {
-  const completedSets = getCompletedLoggedSets(sets);
+  const completedSets = getE1rmSets(sets);
   if (!completedSets.length) return null;
   let best = { weight: 0, reps: 0 };
   for (const s of completedSets) {
@@ -292,16 +293,17 @@ export function getBestSet(
 }
 
 /**
- * Estimate 1RM using Epley formula: 1RM = weight * (1 + reps/30)
- * Deterministic and safe for non-positive inputs.
+ * Estimate 1RM with Epley at RIR 0: `weight × (1 + reps/30)`. A thin
+ * wrapper over the one e1RM function (`lib/physique/strength.ts`
+ * `e1rmAdj`, 02 §6.1), kept for callers that have no RIR. Deterministic
+ * and safe for non-positive inputs.
  */
 export function estimateE1RM(weight: number, reps: number): number {
   const w = Number(weight) || 0;
   const r = Number(reps) || 0;
   if (w <= 0 || r <= 0) return 0;
-  const est = w * (1 + r / 30);
   // Keep output stable for stringification.
-  return Number(est.toFixed(1));
+  return Number(e1rmAdj(w, r, 0).toFixed(1));
 }
 
 export type ExerciseSessionPerformance = {
