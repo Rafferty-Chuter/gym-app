@@ -242,8 +242,8 @@ export const PRIMARY_ORDER: readonly RuleId[] = [
   "LOSS-2",
   "LOSS-2u",
   "RECOMP-1",
-  "RECOMP-WAIST",
   "GAIN-3",
+  "RECOMP-WAIST",
   "ON-TRACK",
   "NO-CHANGE",
 ];
