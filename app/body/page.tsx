@@ -135,7 +135,8 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         lastKg={model.onDate?.kg ?? model.lastWeighIn?.kg ?? null}
         trendKg={model.trend?.trendKg ?? null}
         hasEntry={model.onDate != null}
-        onSave={(kg, d) => saveWeighIn(d, kg, nowIso())}
+        bodyFatPct={model.onDate?.bodyFatPct ?? null}
+        onSave={(kg, d, bf) => saveWeighIn(d, kg, nowIso(), bf)}
         onDelete={async () => (model.onDate ? deleteWeighIn(model.onDate.id) : { ok: true as const })}
       />
       <WaistSheet open={sheet === "waist"} onClose={() => setSheet(null)} lastCm={model.lastWaist?.cm ?? null} dateLabel="Today" onSave={(cm) => saveWaist(today, cm, nowIso())} />

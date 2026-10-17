@@ -19,7 +19,11 @@ type Record_ = {
   schemaVersion: 1;
 };
 
-export type WeighIn = Record_ & { kg: number };
+export type WeighIn = Record_ & {
+  kg: number;
+  /** Optional body-fat reading logged with the weigh-in (R4). Display only; the engine ignores it. */
+  bodyFatPct?: number;
+};
 
 export type FoodMethod = "quick" | "saved" | "ai_text" | "ai_photo" | "barcode" | "search";
 

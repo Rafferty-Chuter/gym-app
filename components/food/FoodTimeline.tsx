@@ -11,7 +11,10 @@ type Props = {
   onEdit: (entry: FoodEntry) => void;
   onCopyDay: () => void;
   onClearDay: () => void;
+  onEditDay: () => void;
   onToggleHideEmpty: () => void;
+  /** Day status or override line shown above the hours ("Partial day", "Total set to 2,100 kcal"). */
+  dayNote?: string | null;
 };
 
 const n = (v: number) => Math.round(v).toLocaleString("en-GB");
@@ -21,10 +24,16 @@ const n = (v: number) => Math.round(v).toLocaleString("en-GB");
  * right, entries under their hour with name, macro line and an edit
  * pencil, and hour totals on the hour row. Actions sit under the list.
  */
-export default function FoodTimeline({ timeline, tz, hideEmpty, onAddAt, onEdit, onCopyDay, onClearDay, onToggleHideEmpty }: Props) {
+export default function FoodTimeline({ timeline, tz, hideEmpty, onAddAt, onEdit, onCopyDay, onClearDay, onEditDay, onToggleHideEmpty, dayNote }: Props) {
   const rows = hideEmpty ? timeline.hours.filter((h) => h.entries.length > 0) : timeline.hours;
   return (
     <section aria-label="Timeline" className="flex flex-col">
+      {dayNote && (
+        <button type="button" onClick={onEditDay} className="mb-2 flex items-center justify-between rounded-[12px] px-3 py-2 text-left text-[12px]" style={{ background: "#141416", color: "#a3a3a8" }} aria-label={`${dayNote}. Edit day`}>
+          <span>{dayNote}</span>
+          <span style={{ color: "#6f6f76" }}>Edit</span>
+        </button>
+      )}
       {rows.length === 0 && (
         <p className="py-6 text-center text-[13px]" style={{ color: "#6f6f76" }}>
           Nothing logged. Show empty hours to add at a time, or use the bar below.
@@ -100,6 +109,7 @@ export default function FoodTimeline({ timeline, tz, hideEmpty, onAddAt, onEdit,
         {[
           { label: "Copy day", onClick: onCopyDay, disabled: timeline.entries === 0 },
           { label: "Clear day", onClick: onClearDay, disabled: timeline.entries === 0 },
+          { label: "Edit day", onClick: onEditDay, disabled: false },
           { label: hideEmpty ? "Show empty hours" : "Hide empty hours", onClick: onToggleHideEmpty, disabled: false },
         ].map((a) => (
           <button key={a.label} type="button" onClick={a.onClick} disabled={a.disabled} className="h-[30px] rounded-full px-3 text-[12px] font-medium transition-colors active:bg-[#26262a] disabled:opacity-40" style={{ background: "#1d1d20", color: "#a3a3a8" }}>

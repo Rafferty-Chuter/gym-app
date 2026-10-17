@@ -56,11 +56,16 @@ function stamp(date: LocalDate, nowIso: string) {
   return { id: newId(), date, loggedAt: nowIso, source: "manual" as const, schemaVersion: 1 as const };
 }
 
-/** One weigh-in per day for manual entries: a second entry on the same day replaces the first. */
-export async function saveWeighIn(date: LocalDate, kg: number, nowIso: string): Promise<SaveResult> {
+/**
+ * One weigh-in per day for manual entries: a second entry on the same day
+ * replaces the first. `bodyFatPct` undefined keeps what is stored, null clears it.
+ */
+export async function saveWeighIn(date: LocalDate, kg: number, nowIso: string, bodyFatPct?: number | null): Promise<SaveResult> {
   return attempt(async () => {
     const existing = weighInsRepo.snapshot().find((w) => w.date === date && w.source === "manual");
     const record: WeighIn = existing ? { ...existing, kg, loggedAt: nowIso } : { ...stamp(date, nowIso), kg };
+    if (bodyFatPct === null) delete record.bodyFatPct;
+    else if (typeof bodyFatPct === "number" && Number.isFinite(bodyFatPct)) record.bodyFatPct = bodyFatPct;
     await weighInsRepo.upsert(record);
   });
 }
@@ -118,6 +123,17 @@ export async function saveWaist(date: LocalDate, cm: number, nowIso: string): Pr
     const existing = waistRepo.snapshot().find((w) => w.date === date);
     const record: WaistEntry = existing ? { ...existing, cm, loggedAt: nowIso } : { ...stamp(date, nowIso), cm };
     await waistRepo.upsert(record);
+  });
+}
+
+/** "Edit day" (R4): a kcal total that overrides the sum of entries; null removes it. */
+export async function setDayOverride(date: LocalDate, kcal: number | null): Promise<SaveResult> {
+  return attempt(async () => {
+    const current = (await dayFlagsStore.get(date)) ?? { date };
+    const next: DayFlags = { ...current, date };
+    if (kcal != null && Number.isFinite(kcal)) next.kcalOverride = Math.round(kcal);
+    else delete next.kcalOverride;
+    await dayFlagsStore.set(date, next);
   });
 }
 

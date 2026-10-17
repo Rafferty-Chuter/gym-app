@@ -5,14 +5,14 @@ import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 import { addDays, type LocalDate, type Now } from "@/lib/dates";
-import { useBodyData } from "@/lib/physique/io/bodyData";
 import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
+import { setDayOverride, setDayStatus, useBodyData } from "@/lib/physique/io/bodyData";
 import { clearDay, copyDay, logFood, removeFoodEntry, removeSavedFood, setFoodPrefs, toggleFavourite, updateFoodEntry, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
 import { dayTimeline } from "@/lib/physique/food/timeline";
 import { weekDates, weekTotals } from "@/lib/physique/food/week";
 import { energyBalance, type EnergyLine } from "@/lib/physique/food/energy";
-import { targetInEffect } from "@/lib/physique/intake";
+import { dailyIntake, targetInEffect } from "@/lib/physique/intake";
 import PageHeader from "@/components/ui/PageHeader";
 import Sheet from "@/components/ui/Sheet";
 import WeekStrip from "@/components/food/WeekStrip";
@@ -21,6 +21,7 @@ import FoodTimeline from "@/components/food/FoodTimeline";
 import AddFoodBar from "@/components/food/AddFoodBar";
 import LoggerSheet, { type LoggerOpen } from "@/components/food/LoggerSheet";
 import EntrySheet from "@/components/food/EntrySheet";
+import EditDaySheet from "@/components/food/EditDaySheet";
 import { ErrorLine, PrimaryButton, SecondaryButton } from "@/components/physique/ui";
 import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import type { FoodEntry } from "@/lib/physique/types";
@@ -34,7 +35,7 @@ export default function FoodPage() {
   return <FoodContent now={now} unit={unit === "lb" ? "lb" : "kg"} />;
 }
 
-type DayAction = { kind: "copy"; to: LocalDate } | { kind: "clear" } | null;
+type DayAction = { kind: "copy"; to: LocalDate } | { kind: "clear" } | { kind: "edit" } | null;
 
 function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const today = now.today;
@@ -53,11 +54,25 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const week = useMemo(() => weekDates(date), [date]);
   const model = useMemo(() => {
     const timeline = dayTimeline(data.foodEntries, date, tz, { start: prefs.hourStart, end: prefs.hourEnd });
+    const flags = data.dayFlags[date];
+    // The day's status and override (Edit day) beat the raw sum, as they do in the engine.
+    const intake = dailyIntake(date, data.foodEntries.filter((e) => e.date === date), flags);
+    const totals = { kcal: intake.kcal, proteinG: intake.proteinG, carbsG: intake.carbsG, fatG: intake.fatG };
+    const dayNote =
+      intake.status === "fasting"
+        ? "Fasting day · counts as 0 kcal"
+        : intake.status === "partial"
+          ? "Partial day · skipped by the engine"
+          : typeof flags?.kcalOverride === "number"
+            ? `Total set to ${Math.round(flags.kcalOverride).toLocaleString("en-GB")} kcal · entries add up to ${Math.round(timeline.totals.kcal).toLocaleString("en-GB")}`
+            : intake.suggestedPartial
+              ? "Looks like a partial day · tap to confirm or keep it"
+              : null;
     const target = targetInEffect(data.program, date);
     const weekRows = weekTotals(week, data.foodEntries, data.dayFlags, data.program, today);
     const logged = new Set(weekRows.filter((d) => d.logged).map((d) => d.date));
     const energy = energyBalance(expenditure?.intake ?? [], expenditure?.series ?? [], data.program, energyLine, today);
-    return { timeline, target, weekRows, logged, energy };
+    return { timeline, totals, flags, dayNote, target, weekRows, logged, energy };
   }, [data, date, tz, prefs.hourStart, prefs.hourEnd, week, today, expenditure, energyLine]);
 
   const nowIso = () => new Date().toISOString();
@@ -83,7 +98,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         <FoodWidgets
           date={date}
           today={today}
-          totals={model.timeline.totals}
+          totals={model.totals}
           target={model.target}
           view={prefs.view}
           onViewChange={(view: FoodView) => void setFoodPrefs({ view })}
@@ -103,7 +118,9 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           onEdit={setEditing}
           onCopyDay={() => setDayAction({ kind: "copy", to: isToday ? addDays(today, -1) : today })}
           onClearDay={() => setDayAction({ kind: "clear" })}
+          onEditDay={() => setDayAction({ kind: "edit" })}
           onToggleHideEmpty={() => void setFoodPrefs({ hideEmptyHours: !prefs.hideEmptyHours })}
+          dayNote={model.dayNote}
         />
       </div>
 
@@ -115,7 +132,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         date={date}
         today={today}
         tz={tz}
-        consumedKcal={model.timeline.totals.kcal}
+        consumedKcal={model.totals.kcal}
         targetKcal={model.target?.kcal ?? null}
         entries={data.foodEntries}
         saved={data.savedFoods}
@@ -126,7 +143,20 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
 
       <EntrySheet entry={editingLive} tz={tz} onClose={() => setEditing(null)} onSave={(patch) => (editingLive ? updateFoodEntry(editingLive.id, patch) : Promise.resolve({ ok: true as const }))} onRemove={() => (editingLive ? removeFoodEntry(editingLive.id) : Promise.resolve({ ok: true as const }))} />
 
-      <Sheet open={dayAction != null} onClose={() => setDayAction(null)} title={dayAction?.kind === "copy" ? "Copy day" : "Clear day"}>
+      <EditDaySheet
+        open={dayAction?.kind === "edit"}
+        onClose={() => setDayAction(null)}
+        dateLabel={caption}
+        flags={model.flags}
+        entriesKcal={model.timeline.totals.kcal}
+        onSave={async ({ status, overrideKcal }) => {
+          const a = await setDayStatus(date, status === "complete" ? null : status);
+          if (!a.ok) return a;
+          return setDayOverride(date, status === "fasting" ? null : overrideKcal);
+        }}
+      />
+
+      <Sheet open={dayAction?.kind === "copy" || dayAction?.kind === "clear"} onClose={() => setDayAction(null)} title={dayAction?.kind === "copy" ? "Copy day" : "Clear day"}>
         {dayAction?.kind === "copy" && (
           <div className="flex flex-col gap-3">
             <p className="text-[13px]" style={{ color: "#a3a3a8" }}>

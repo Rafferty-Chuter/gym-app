@@ -52,6 +52,7 @@ export default function WeightEntries({ weighIns, today, unit, onEdit }: { weigh
                     </span>
                     <span className="text-[11px]" style={{ color: "#6f6f76" }}>
                       {longLocalDate(w.date)}
+                      {typeof w.bodyFatPct === "number" ? ` · ${w.bodyFatPct.toFixed(1)} % fat` : ""}
                       {w.source !== "manual" ? ` · ${w.source}` : ""}
                     </span>
                   </span>
