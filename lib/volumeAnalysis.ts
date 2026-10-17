@@ -119,13 +119,15 @@ export function classifyMuscleVolume(
   group: MuscleGroup,
   sets: number,
   progression: ProgressionState,
-  historicalSets: number
+  historicalSets: number,
+  /** The weekly band from the muscle's priority (T5); the fixed range when absent. */
+  band?: { low: number; high: number }
 ): VolumeStatus {
   // A muscle the user has never trained in the imported history is not "low" —
   // it's untracked. Painting it rose creates false positives that destroy trust
   // with users whose split simply doesn't cover that muscle.
   if (historicalSets === 0) return "not-tracked";
-  const range = MUSCLE_RANGES[group];
+  const range = band ? { min: band.low, max: band.high } : MUSCLE_RANGES[group];
   if (sets < range.min) return "low";
   if (sets <= range.max) return "on-track";
   if (progression === "good") return "warning";
@@ -137,6 +139,8 @@ export type VolumeRow = {
   sets: number;
   progression: ProgressionState;
   status: VolumeStatus;
+  /** The band the row was read against (T5), when priorities were supplied. */
+  band?: { low: number; high: number };
 };
 
 /**
@@ -145,7 +149,9 @@ export type VolumeRow = {
  */
 export function buildVolumeRows(
   coach: CoachStructuredAnalysis,
-  workouts: StoredWorkout[]
+  workouts: StoredWorkout[],
+  /** Weekly bands per muscle from the user's priorities (T5). */
+  bands?: Partial<Record<MuscleGroup, { low: number; high: number }>>
 ): VolumeRow[] {
   const weeklyWorkouts = getWorkoutsFromLast7Days(workouts);
   const weeklyVolume = getDetailedVolumeByMuscleGroup(weeklyWorkouts);
@@ -155,11 +161,13 @@ export function buildVolumeRows(
   return VOLUME_GROUP_ORDER.map((g) => {
     const sets = weeklyVolume[g] ?? 0;
     const historical = historicalVolume[g] ?? 0;
+    const band = bands?.[g];
     return {
       group: g,
       sets,
       progression: progressionByMuscle[g],
-      status: classifyMuscleVolume(g, sets, progressionByMuscle[g], historical),
+      status: classifyMuscleVolume(g, sets, progressionByMuscle[g], historical, band),
+      ...(band ? { band } : {}),
     };
   });
 }

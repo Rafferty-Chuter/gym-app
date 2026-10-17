@@ -38,7 +38,7 @@ function trimToOneLine(text: string, maxLen: number): string {
 }
 
 // Coarse coach group → detailed group fan-out, mirrored from /signal/[key]/page.tsx.
-export function buildIndicators(coach: CoachStructuredAnalysis, workouts: StoredWorkout[], thisWeekTotalSets: number, thisWeekWorkoutsCount: number): Indicator[] {
+export function buildIndicators(coach: CoachStructuredAnalysis, workouts: StoredWorkout[], thisWeekTotalSets: number, thisWeekWorkoutsCount: number, bands?: Parameters<typeof computeVolumeStatus>[2]): Indicator[] {
   const workoutsCount = workouts.length;
   const cold = workoutsCount === 0;
 
@@ -71,7 +71,7 @@ export function buildIndicators(coach: CoachStructuredAnalysis, workouts: Stored
 
   // Volume — canonical from helper. Context line still pulls coach summaries
   // when available so the row feels specific.
-  const volumeStatus = computeVolumeStatus(coach, workouts);
+  const volumeStatus = computeVolumeStatus(coach, workouts, bands);
   let volumeContext: string;
   let volumePrompt: string;
   const lowVolumeEntries = coach.volumeBalance.filter((v) => /\b(low|missing|light|behind|below|needs?\s+more)\b/i.test(v.summary));

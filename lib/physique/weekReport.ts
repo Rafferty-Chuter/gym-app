@@ -9,6 +9,7 @@
  * Copy rule for anything built on this: state what is, never cheer.
  */
 
+import { readVolume, type Band, type VolumeRead } from "@/lib/training/volumeTargets";
 import { addDays, dateRange, dayDiff, minDate, type LocalDate, type Now } from "@/lib/dates";
 import { weekStart } from "@/lib/physique/food/week";
 import { countsForBalance } from "@/lib/physique/food/energy";
@@ -43,6 +44,8 @@ export type WeekReportInputs = {
   goal: PhysiqueGoal | null;
   sleepGoalH?: number;
   weightUnit: WeightUnit;
+  /** Weekly set bands per muscle from the user's priorities (T5); absent before priorities exist. */
+  volumeBands?: Partial<Record<DetailedMuscleGroup, Band>>;
   /** The engine's expenditure series up to today, or null before it can be seeded. */
   expenditure: readonly ExpenditurePoint[] | null;
   /** The judge's verdict as of today; shown on the current week only. */
@@ -83,7 +86,7 @@ export type WeekReport = {
   training: {
     sessions: number;
     hardSets: number;
-    byMuscle: Array<{ group: DetailedMuscleGroup; label: string; sets: number }>;
+    byMuscle: Array<{ group: DetailedMuscleGroup; label: string; sets: number; band?: Band; read?: VolumeRead }>;
     lifts: Array<{ name: string; e1rmKg: number; prevE1rmKg: number | null; changePct: number | null }>;
   };
   sleep: {
@@ -179,7 +182,10 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
     .filter(([, sets]) => sets > 0)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, MUSCLES_SHOWN)
-    .map(([group, sets]) => ({ group, label: GROUP_LABEL[group] ?? group, sets }));
+    .map(([group, sets]) => {
+      const band = inputs.volumeBands?.[group];
+      return { group, label: GROUP_LABEL[group] ?? group, sets, ...(band ? { band, read: readVolume(sets, band, { tracked: true, complete }) } : {}) };
+    });
   const baselineFrom = addDays(start, -LIFT_BASELINE_WEEKS * 7);
   const lifts = liftSeries(inputs.workouts, inputs.weightUnit, { today: through, tz: now.tz })
     .filter((s) => isCompoundLift(s.name, s.exerciseId))

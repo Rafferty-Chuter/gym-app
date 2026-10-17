@@ -7,9 +7,14 @@ import { Caption, Chevron, Row, RowGroup } from "@/components/physique/ui";
 import NumberSheet from "@/components/physique/NumberSheet";
 import RemindersSection from "@/components/physique/RemindersSection";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
+import MusclePrioritiesSheet from "@/components/physique/MusclePrioritiesSheet";
+import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
+import { priorityOf } from "@/lib/training/volumeTargets";
+import type { Phase } from "@/lib/training/progression";
+import { GROUP_LABEL, VOLUME_GROUP_ORDER } from "@/lib/volumeAnalysis";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useSingleton } from "@/lib/storage/useStored";
-import { profileStore } from "@/lib/physique/io/repos";
+import { goalStore, profileStore } from "@/lib/physique/io/repos";
 import { getPhysiqueProfileSync, savePhysiqueProfile } from "@/lib/physique/io/profile";
 import { saveBasics } from "@/lib/physique/io/goalSetup";
 import { useHealthLink } from "@/lib/physique/io/healthLink";
@@ -48,12 +53,17 @@ export default function ProfilePage() {
   const hydrated = useIsHydrated();
   const router = useRouter();
   const { unit, setUnit } = useUnit();
+  const priorities = useMusclePriorities();
+  const physiqueGoal = useSingleton(goalStore);
+  const phase: Phase = physiqueGoal?.type === "lose" ? "cut" : physiqueGoal?.type === "gain" ? "lean_bulk" : "maintain";
+  const emphasised = VOLUME_GROUP_ORDER.filter((g) => priorityOf(priorities, g) === "emphasise").map((g) => GROUP_LABEL[g]);
+  const prioritiesSub = emphasised.length > 0 ? `Emphasising ${emphasised.join(", ").toLowerCase()}` : "Every muscle set to grow";
   const { focus, setFocus } = useTrainingFocus();
   const { experienceLevel, setExperienceLevel } = useExperienceLevel();
   const profile = useSingleton(profileStore);
   const resolved = hydrated ? getPhysiqueProfileSync() : null;
   const healthLink = useHealthLink();
-  const [sheet, setSheet] = useState<"height" | "age" | "health" | null>(null);
+  const [sheet, setSheet] = useState<"height" | "age" | "health" | "priorities" | null>(null);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [rest, setRest] = useState<RestTimerSettings>(() => getRestTimerSettings());
   useEffect(() => {
@@ -199,6 +209,7 @@ export default function ProfilePage() {
                 </select>
               }
             />
+            <Row label="Muscle priorities" sub={prioritiesSub} value="" trailing={<Chevron />} onClick={() => setSheet("priorities")} ariaLabel="Muscle priorities. Edit" />
             <Row label="Rest timer vibration" value={<Switch on={rest.vibrate} onChange={() => toggleRest("vibrate")} label="Vibrate when the rest timer ends" />} />
             <Row label="Rest timer sound" value={<Switch on={rest.sound} onChange={() => toggleRest("sound")} label="Play a sound when the rest timer ends" />} />
           </RowGroup>
@@ -223,6 +234,7 @@ export default function ProfilePage() {
       <NumberSheet open={sheet === "height"} onClose={() => setSheet(null)} title="Height" unit="cm" initial={resolved?.heightCm ?? null} decimals={0} step={1} min={120} max={230} onSave={(v) => void saveBasics({ heightCm: v })} />
       <NumberSheet open={sheet === "age"} onClose={() => setSheet(null)} title="Age" initial={resolved?.age ?? null} decimals={0} step={1} min={13} max={100} onSave={(v) => void saveBasics({ age: v })} />
       <AppleHealthSheet open={sheet === "health"} onClose={() => setSheet(null)} />
+      <MusclePrioritiesSheet open={sheet === "priorities"} onClose={() => setSheet(null)} phase={phase} />
     </main>
   );
 }

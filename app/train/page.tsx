@@ -17,6 +17,11 @@ import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
 import { usePriorityGoal } from "@/lib/priorityGoal";
 import { buildCoachStructuredAnalysis, EMPTY_COACH_STRUCTURED_ANALYSIS } from "@/lib/coachStructuredAnalysis";
+import { bandsFor } from "@/lib/training/volumeTargets";
+import type { Phase } from "@/lib/training/progression";
+import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
+import { goalStore } from "@/lib/physique/io/repos";
+import { useSingleton } from "@/lib/storage/useStored";
 import { buildIndicators, INDICATOR_DOT_COLOR, INDICATOR_WINDOW_LABEL } from "@/lib/trainSignals";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
@@ -66,6 +71,9 @@ function TrainContent({ now }: { now: Now }) {
   const { focus } = useTrainingFocus();
   const { experienceLevel } = useExperienceLevel();
   const { goal } = usePriorityGoal();
+  const priorities = useMusclePriorities();
+  const physiqueGoal = useSingleton(goalStore);
+  const phase: Phase = physiqueGoal?.type === "lose" ? "cut" : physiqueGoal?.type === "gain" ? "lean_bulk" : "maintain";
 
   const model = useMemo(() => {
     const today = now.today;
@@ -95,8 +103,8 @@ function TrainContent({ now }: { now: Now }) {
   const indicators = useMemo(() => {
     const list = [...workouts]; // the rules take a mutable array; the store hands out a readonly one
     const coach = list.length === 0 ? EMPTY_COACH_STRUCTURED_ANALYSIS : buildCoachStructuredAnalysis(list, { focus, experienceLevel, goal, unit });
-    return buildIndicators(coach, list, model.weekSets, model.weekCount);
-  }, [workouts, focus, experienceLevel, goal, unit, model.weekSets, model.weekCount]);
+    return buildIndicators(coach, list, model.weekSets, model.weekCount, bandsFor(priorities, phase));
+  }, [workouts, focus, experienceLevel, goal, unit, model.weekSets, model.weekCount, priorities, phase]);
 
   const maxVol = Math.max(1, ...model.week.map((d) => d.volume));
   const fmtVol = (kg: number) => (kg >= 1000 ? `${(kg / 1000).toFixed(1)}k kg` : `${Math.round(kg)} kg`);

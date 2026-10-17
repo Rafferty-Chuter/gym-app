@@ -83,9 +83,10 @@ export function computeProgressStatus(workouts: StoredWorkout[]): SignalStatusRe
  */
 export function computeVolumeStatus(
   coach: CoachStructuredAnalysis,
-  workouts: StoredWorkout[]
+  workouts: StoredWorkout[],
+  bands?: Parameters<typeof buildVolumeRows>[2]
 ): SignalStatusResult & { rows: VolumeRow[] } {
-  const rowsRaw = buildVolumeRows(coach, workouts);
+  const rowsRaw = buildVolumeRows(coach, workouts, bands);
   // Render not-tracked rows at the bottom so callers can show them last.
   const rows: VolumeRow[] = [
     ...rowsRaw.filter((r) => r.status !== "not-tracked"),

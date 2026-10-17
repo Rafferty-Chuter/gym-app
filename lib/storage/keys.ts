@@ -60,6 +60,7 @@ export const STORAGE_KEYS = [
   { key: "physique.v1.healthLink", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/healthLink.ts" },
   { key: "physique.v1.pushLink", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/pushLink.ts" },
   { key: "physique.v1.onboarding", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/onboarding.ts" },
+  { key: "physique.v1.musclePriorities", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/musclePriorities.ts" },
   // ── Session-scoped handoffs ──
   { key: "assistantQuickPrompt", scope: "session", version: 1, includeInBackup: false, owner: "app/page.tsx → app/assistant" },
   { key: "assistantAutoSend", scope: "session", version: 1, includeInBackup: false, owner: "app/page.tsx → app/assistant" },

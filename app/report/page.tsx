@@ -1,5 +1,8 @@
 "use client";
 
+import { bandLabel, bandsFor } from "@/lib/training/volumeTargets";
+import type { Phase } from "@/lib/training/progression";
+import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useUnit } from "@/lib/unit-preference";
@@ -46,6 +49,8 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const expenditure = useExpenditure(now);
   const analysis = usePhysiqueAnalysis(now, unit);
   const profile = useSingleton(profileStore);
+  const priorities = useMusclePriorities();
+  const phase: Phase = data.goal?.type === "lose" ? "cut" : data.goal?.type === "gain" ? "lean_bulk" : "maintain";
   const [start, setStart] = useState<LocalDate>(() => weekFromQuery() ?? defaultReportWeek(today));
   const thisWeek = reportWeekStart(today);
 
@@ -62,13 +67,14 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           goal: data.goal,
           sleepGoalH: profile?.sleepGoalH,
           weightUnit: unit,
+          volumeBands: bandsFor(priorities, phase),
           expenditure: expenditure?.series ?? null,
           verdict: start === thisWeek && analysis ? { title: analysis.verdict.title, detail: analysis.verdict.detail, state: analysis.status.state } : null,
         },
         start,
         now
       ),
-    [data, workouts, profile, unit, expenditure, analysis, start, thisWeek, now]
+    [data, workouts, profile, unit, priorities, phase, expenditure, analysis, start, thisWeek, now]
   );
 
   const caption = `${shortLocalDate(report.start)} to ${shortLocalDate(report.end)} · ${report.complete ? "complete" : `${report.daysCovered} of 7 days so far`}`;
@@ -205,8 +211,9 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: "#1d1d20" }} aria-hidden>
                           <div className="h-full rounded-full" style={{ width: `${(m.sets / max) * 100}%`, background: "#a3a3a8" }} />
                         </div>
-                        <span className="w-6 text-right" style={{ color: "#f2f2f0" }}>
+                        <span className="w-[72px] shrink-0 text-right" style={{ color: m.read === "over" ? "#f26d7d" : m.read === "under" ? "#f5b544" : m.read === "in_range" ? "#00e5b0" : "#f2f2f0" }}>
                           {m.sets}
+                          {m.band ? <span style={{ color: "#6f6f76" }}>{` · ${bandLabel(m.band)}`}</span> : null}
                         </span>
                       </div>
                     );

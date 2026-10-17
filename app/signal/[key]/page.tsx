@@ -1,5 +1,10 @@
 "use client";
 
+import { bandLabel, bandsFor, type Band } from "@/lib/training/volumeTargets";
+import type { Phase } from "@/lib/training/progression";
+import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
+import { goalStore } from "@/lib/physique/io/repos";
+import { useSingleton } from "@/lib/storage/useStored";
 import { ASSISTANT_ENABLED } from "@/lib/features";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -14,7 +19,6 @@ import {
 import { getUniqueExerciseNames } from "@/lib/trainingMetrics";
 import { useUnit } from "@/lib/unit-preference";
 import { STATE_COLOR, type SignalState } from "@/lib/ui/status";
-import { SIGNAL_ICON } from "@/components/ui/SignalIcons";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useTrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel } from "@/lib/experienceLevel";
@@ -404,7 +408,8 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
                   className="text-[12px] font-bold tabular-nums leading-tight"
                   style={{ color: c.statusText }}
                 >
-                  {r.sets} set{r.sets === 1 ? "" : "s"}
+                  {r.sets}
+                  {r.band ? <span style={{ color: "#6f6f76" }}>{` · ${bandLabel(r.band)}`}</span> : ` set${r.sets === 1 ? "" : "s"}`}
                 </span>
                 <span
                   className="text-[10px] font-semibold tracking-wide leading-tight"
@@ -435,7 +440,7 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
         })}
       </div>
       <p className="mt-2 text-[10px] font-medium text-app-tertiary text-center">
-        Above-range bars are amber when the muscle is progressing, rose when it is stalling.
+        Bands come from your muscle priorities under Profile. Above a band is amber while the muscle still progresses, rose when it stalls.
       </p>
     </div>
   );
@@ -524,7 +529,8 @@ function buildPlateauContent(
 
 function buildVolumeContent(
   coach: CoachStructuredAnalysis,
-  workouts: ReturnType<typeof getWorkoutHistory>
+  workouts: ReturnType<typeof getWorkoutHistory>,
+  bands?: Partial<Record<MuscleGroup, Band>>
 ): DetailContent {
   const weeklyWorkouts = getWorkoutsFromLast7Days(workouts);
   const totalSets = weeklyWorkouts.reduce(
@@ -534,7 +540,7 @@ function buildVolumeContent(
   );
 
   // Canonical state/status/rows from the shared helper. MUST match the home Volume card.
-  const { state, status, rows } = computeVolumeStatus(coach, workouts);
+  const { state, status, rows } = computeVolumeStatus(coach, workouts, bands);
 
   if (workouts.length === 0) {
     return {
@@ -1078,11 +1084,14 @@ export default function SignalDetailPage() {
 
   const isProgress = key === "progress";
 
+  const priorities = useMusclePriorities();
+  const physiqueGoal = useSingleton(goalStore);
+  const phase: Phase = physiqueGoal?.type === "lose" ? "cut" : physiqueGoal?.type === "gain" ? "lean_bulk" : "maintain";
   const staticContent: DetailContent | null = useMemo(() => {
     if (isProgress) return null;
     if (key === "plateau") return buildPlateauContent(coachAnalysis, workouts, unit);
-    return buildVolumeContent(coachAnalysis, workouts);
-  }, [isProgress, key, coachAnalysis, workouts, unit]);
+    return buildVolumeContent(coachAnalysis, workouts, bandsFor(priorities, phase));
+  }, [isProgress, key, coachAnalysis, workouts, unit, priorities, phase]);
 
   const progressHeader = useMemo(
     () => (isProgress ? getProgressPageHeader(coachAnalysis, workouts) : null),
