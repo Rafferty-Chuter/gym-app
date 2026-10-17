@@ -19,6 +19,7 @@ import { useWorkoutStore } from "@/lib/workout-store";
 import { STATE_COLOR, type SignalState } from "@/lib/ui/status";
 import { SIGNAL_ICON } from "@/components/ui/SignalIcons";
 import PhysiqueHomeCard from "@/components/physique/PhysiqueHomeCard";
+import TodayStrip from "@/components/physique/TodayStrip";
 import { askWhyPrompt } from "@/components/physique/VerdictCard";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { useNow } from "@/lib/ui/useToday";
@@ -734,6 +735,17 @@ export default function Home() {
           />
         )}
 
+        <section className="pt-3" aria-label="Today">
+          <TodayStrip />
+        </section>
+
+        <section className="pt-3" aria-labelledby="physique-heading">
+          <h2 id="physique-heading" className="sr-only">
+            Body
+          </h2>
+          <PhysiqueHomeCard />
+        </section>
+
         <section className="pt-3 pb-1">
           <Link
             href={ctaHref}
@@ -858,13 +870,6 @@ export default function Home() {
           ) : (
             <IndicatorSkeleton />
           )}
-        </section>
-
-        <section className="pt-5 pb-2" aria-labelledby="physique-heading">
-          <h2 id="physique-heading" className="label-section mb-2">
-            Body
-          </h2>
-          <PhysiqueHomeCard />
         </section>
 
       </div>

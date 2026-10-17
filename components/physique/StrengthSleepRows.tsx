@@ -26,7 +26,7 @@ function pct(v: number | null): string {
 }
 
 /** Main lifts since the phase started, and the 14-night sleep read. */
-export default function StrengthSleepRows({ analysis }: { analysis: PhysiqueAnalysis }) {
+export default function StrengthSleepRows({ analysis, showSleep = true }: { analysis: PhysiqueAnalysis; showSleep?: boolean }) {
   const s = analysis.strength;
   const sl = analysis.sleep;
   const liftsLine =
@@ -49,7 +49,7 @@ export default function StrengthSleepRows({ analysis }: { analysis: PhysiqueAnal
         value={<span style={{ color: strengthColor }}>{STRENGTH_WORD[s.status]}</span>}
         sub={liftsLine}
       />
-      <Row
+      {showSleep && <Row
         label={`Sleep · ${sl.nightsLogged14} of 14 nights`}
         value={<span style={{ color: sleepColor }}>{sl.mean14h == null ? SLEEP_WORD[sl.status] : formatHoursMin(sl.mean14h * 60)}</span>}
         sub={
@@ -57,7 +57,7 @@ export default function StrengthSleepRows({ analysis }: { analysis: PhysiqueAnal
             ? "Log 10 of 14 nights for a read"
             : `${SLEEP_WORD[sl.status]}${sl.debt7h != null && sl.debt7h > 0.5 ? ` · ${sl.debt7h.toFixed(1)} h behind this week` : ""}${sl.acute ? " · short night" : ""}`
         }
-      />
+      />}
     </RowGroup>
   );
 }

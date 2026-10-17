@@ -15,6 +15,16 @@ function HomeIcon() {
   );
 }
 
+/** A bowl: the Food tab. */
+function FoodIcon() {
+  return (
+    <svg {...ICON_PROPS} className={ICON} aria-hidden>
+      <path d="M3 11h18a9 9 0 0 1-18 0z" />
+      <path d="M8 11V7M12 11V5M16 11V8" />
+    </svg>
+  );
+}
+
 /** A bathroom scale: the Body tab. */
 function BodyIcon() {
   return (
@@ -26,32 +36,20 @@ function BodyIcon() {
   );
 }
 
-function TemplatesIcon() {
+/** A moon: the Sleep tab. */
+function SleepIcon() {
   return (
     <svg {...ICON_PROPS} className={ICON} aria-hidden>
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
     </svg>
   );
 }
 
-function HistoryIcon() {
+/** A dumbbell: the Train tab. */
+function TrainIcon() {
   return (
     <svg {...ICON_PROPS} className={ICON} aria-hidden>
-      <path d="M3 12a9 9 0 1 0 3-6.7" />
-      <polyline points="3 4 3 9 8 9" />
-      <polyline points="12 7 12 12 15 14" />
-    </svg>
-  );
-}
-
-function ProfileIcon() {
-  return (
-    <svg {...ICON_PROPS} className={ICON} aria-hidden>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+      <path d="M6 8v8M18 8v8M3 10v4M21 10v4M6 12h12" />
     </svg>
   );
 }
@@ -59,26 +57,25 @@ function ProfileIcon() {
 type BottomTab = {
   href: string;
   label: string;
-  matchPrefix?: string;
+  matchPrefixes?: string[];
   Icon: React.ComponentType;
 };
 
-/** Five tabs (DESIGN.md "Tab bar"): Home, Body, Templates, History, Profile. */
+/** Five tabs (DESIGN.md rev 2): Home, Food, Body, Sleep, Train. Templates and History live under Train. */
 const TABS: BottomTab[] = [
   { href: "/", label: "Home", Icon: HomeIcon },
-  { href: "/body", label: "Body", matchPrefix: "/body", Icon: BodyIcon },
-  { href: "/templates", label: "Templates", matchPrefix: "/templates", Icon: TemplatesIcon },
-  { href: "/history", label: "History", matchPrefix: "/history", Icon: HistoryIcon },
-  { href: "/profile", label: "Profile", matchPrefix: "/profile", Icon: ProfileIcon },
+  { href: "/food", label: "Food", matchPrefixes: ["/food"], Icon: FoodIcon },
+  { href: "/body", label: "Body", matchPrefixes: ["/body"], Icon: BodyIcon },
+  { href: "/sleep", label: "Sleep", matchPrefixes: ["/sleep"], Icon: SleepIcon },
+  { href: "/train", label: "Train", matchPrefixes: ["/train", "/templates", "/history", "/workout", "/progress", "/volume"], Icon: TrainIcon },
 ];
 
 export default function BottomTabs() {
   const pathname = usePathname();
 
-  function isActive(href: string, matchPrefix?: string) {
-    if (href === "/") return pathname === "/";
-    if (matchPrefix) return pathname === href || pathname.startsWith(`${matchPrefix}/`) || pathname === matchPrefix;
-    return pathname === href || pathname.startsWith(`${href}/`);
+  function isActive(tab: BottomTab) {
+    if (tab.href === "/") return pathname === "/";
+    return (tab.matchPrefixes ?? [tab.href]).some((p) => pathname === p || pathname.startsWith(`${p}/`));
   }
 
   return (
@@ -92,7 +89,7 @@ export default function BottomTabs() {
     >
       <div className="mx-auto grid max-w-2xl grid-cols-5 px-2 pt-2 pb-3">
         {TABS.map((tab) => {
-          const active = isActive(tab.href, tab.matchPrefix);
+          const active = isActive(tab);
           return (
             <Link
               key={tab.href}

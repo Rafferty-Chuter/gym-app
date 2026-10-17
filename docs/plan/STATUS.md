@@ -40,6 +40,15 @@ Record wrong verdicts here as `YYYY-MM-DD · rule id · what it said · what was
 | U5 Weekly check-in | todo | | |
 | I3 Physique evals | todo | | |
 
+## M1.5 — Redesign (rev 2)
+| Ticket | Status | Date | Evidence / notes |
+|---|---|---|---|
+| R1 Structure: tabs, Home, Body, Train | done | 2026-10-17 | Tabs Home · Food · Body · Sleep · Train (`components/BottomTabs.tsx`); `components/ui/PageHeader.tsx` (caption over hero title, white round +); Home: `TodayStrip` (three tiles opening the sheets) + verdict line (`PhysiqueHomeCard`) before Start workout; Body: goal caption, verdict, hero trend with range pills and legend (`WeightChartCard hero`), `GoalProgress` waterfall (`lib/physique/goalProgress.ts`), lifts, waist, `WeightEntries` (collapsed to 7); `WeightSheet` gains a date row and delete; `/train` (Start workout, routines, week circles + volume, recent feed); `/food` and `/sleep` first versions (R2/R3 replace). Screenshots `docs/plan/screens/R1/` (five tabs, empty + seeded). `npm run check` 241 tests, `npm run build` pass. |
+| R2 Food tab, logger, energy page | todo | | |
+| R3 Sleep tab | todo | | |
+| R4 Logging polish | todo | | |
+| R5 Workout logger polish (Hevy) | todo | | |
+
 ## M2 — Hardening
 | Ticket | Status | Date | Evidence / notes |
 |---|---|---|---|
