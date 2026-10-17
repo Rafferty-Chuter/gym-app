@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { pullHealth, useHealthLink } from "@/lib/physique/io/healthLink";
 import { useUnit } from "@/lib/unit-preference";
 import { useNow } from "@/lib/ui/useToday";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
@@ -31,6 +32,10 @@ export default function TodayStrip() {
   const [weightDate, setWeightDate] = useState<LocalDate | null>(null);
   const today = now?.today ?? null;
   const wDate = weightDate ?? today ?? "";
+  const healthLink = useHealthLink();
+  useEffect(() => {
+    if (hydrated && healthLink?.token) void pullHealth(new Date().toISOString());
+  }, [hydrated, healthLink?.token]);
 
   const day = useMemo(() => {
     if (!today) return null;
