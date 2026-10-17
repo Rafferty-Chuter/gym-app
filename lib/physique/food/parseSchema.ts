@@ -6,11 +6,15 @@
  * against CoFID before the client ever does arithmetic).
  */
 import { z } from "zod";
-import type { Recipe } from "@/lib/food/recipe";
+import type { Recipe, ResolvedItem } from "@/lib/food/recipe";
 
 export const FoodItemSchema = z.object({
   label: z.string().min(1).max(60),
   serving: z.string().max(40),
+  /** One to three plain words naming the generic food for the UK base list ("eggs fried"); empty when nothing generic fits. */
+  lookup: z.string().max(60),
+  /** Grams of the food as eaten, 0 when unknown. */
+  grams: z.number().min(0).max(5000),
   kcal: z.number().min(0).max(5000),
   proteinG: z.number().min(0).max(500),
   fatG: z.number().min(0).max(500),
@@ -47,8 +51,12 @@ export const FoodParseOutput = z.object({
   recipe: RecipeSchema,
 });
 
-export type ParsedFoodItem = z.infer<typeof FoodItemSchema>;
+/** One row in the logger's Describe list: the model's item, plus the base-list name when it matched. */
+export type ParsedFoodItem = ResolvedItem;
 export type ParseKind = z.infer<typeof FoodParseOutput>["kind"];
+
+/** The logger says what the text is when the user chose, so the model never has to guess. */
+export type ParseMode = "auto" | "recipe";
 
 /** What the route returns to the logger: items for a meal or order, a resolved recipe otherwise. */
 export type FoodParseResponse = { kind: ParseKind; items: ParsedFoodItem[]; recipe: Recipe | null };

@@ -21,6 +21,13 @@ describe("ingredient matching", () => {
     // The dried row, not the boiled spaghetti that also carries the word "dried".
     expect(matchIngredient(items, "pasta dried")?.name).toMatch(/dried, raw$/);
     expect(matchIngredient(items, "pasta dried")?.name).not.toMatch(/boiled/);
+    // The food itself leads the name: fried eggs, not egg fried rice.
+    expect(matchIngredient(items, "eggs fried")?.name).toMatch(/^Eggs?,/);
+    expect(matchIngredient(items, "cheddar")?.name).toMatch(/Cheddar/);
+    // A long composite dish that happens to contain the words is not the food.
+    const spice = matchIngredient(items, "mixed spice");
+    expect(spice === null || spice.name.split(",").length <= 5).toBe(true);
+    expect(spice?.name ?? "").not.toMatch(/Vegetables, mixed, cooked/);
     expect(matchIngredient(items, "zzzz unknown sauce")).toBeNull();
   });
 
@@ -64,5 +71,27 @@ describe("recipe maths", () => {
     expect(recipeConfidence(ings.slice(0, 2))).toBe("high");
     expect(recipeConfidence([])).toBe("low");
     expect(estimateCount(ings)).toBe(1);
+  });
+});
+
+describe("described meal items", () => {
+  it("takes the base list's numbers when the lookup matches and grams are known", async () => {
+    const { resolveItem } = await import("@/lib/food/recipe");
+    const r = resolveItem(items, { label: "Eggs, fried", serving: "2 medium", lookup: "eggs fried", grams: 120, kcal: 999, proteinG: 1, fatG: 1, carbsG: 1, confidence: "medium" });
+    expect(r.matched).toMatch(/^Eggs, chicken, whole, fried/);
+    expect(r.confidence).toBe("high");
+    expect(r.kcal).toBeGreaterThan(150);
+    expect(r.kcal).toBeLessThan(300);
+  });
+
+  it("keeps the estimate when nothing matches or the weight is unknown", async () => {
+    const { resolveItem } = await import("@/lib/food/recipe");
+    const miss = resolveItem(items, { label: "Chicken katsu curry, Wagamama", serving: "1 dish", lookup: "", grams: 0, kcal: 1085, proteinG: 40, fatG: 40, carbsG: 140, confidence: "medium" });
+    expect(miss.matched).toBeUndefined();
+    expect(miss.kcal).toBe(1085);
+    expect(miss.confidence).toBe("medium");
+    const noWeight = resolveItem(items, { label: "Eggs", serving: "some", lookup: "eggs fried", grams: 0, kcal: 200, proteinG: 14, fatG: 15, carbsG: 0, confidence: "low" });
+    expect(noWeight.matched).toBeUndefined();
+    expect(noWeight.kcal).toBe(200);
   });
 });

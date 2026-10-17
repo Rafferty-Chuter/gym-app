@@ -11,8 +11,8 @@ export const EXTRACT_MEMORY_MODEL = ASSISTANT_MODEL;
 export const PLANNER_MODEL = ASSISTANT_MODEL;
 export const EVAL_SCORER_MODEL = ASSISTANT_MODEL;
 
-/** Food description → items + macros (ticket A1). README decision D3. */
-export const FOOD_PARSE_MODEL = "claude-opus-5-5";
+/** Food description → items, orders and recipes (A1, M4b). Sonnet 5.5 at the founder's request (2026-10-17): fast enough for a pasted recipe, intelligent enough to read one. */
+export const FOOD_PARSE_MODEL = "claude-sonnet-5-5";
 
 /** USD per million tokens, used only for cost logging. */
 export const MODEL_RATES_USD_PER_M: Record<

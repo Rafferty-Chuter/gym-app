@@ -51,23 +51,33 @@ export function acceptMatch(lookup: string, name: string): boolean {
 
 /** How many search hits are considered for an ingredient. OURS. */
 export const MATCH_CANDIDATES = 5;
+/** A name that adds more than this many words beyond the lookup is a different dish ("Vegetables, mixed, cooked with onion, spice and tomatoes" for "mixed spice"), not the food. OURS. */
+export const MAX_EXTRA_WORDS = 4;
 
 /**
- * Of the top search hits that pass `acceptMatch`, the one whose name adds
- * the fewest words beyond the lookup wins, so "pasta dried" takes
- * "Pasta, white, dried, raw" over "Pasta, white, spaghetti, dried,
- * boiled in unsalted water" and "beef mince" takes the plain mince row
- * over "extra lean". Ties keep the search order. Null when nothing passes.
+ * Of the top search hits that pass `acceptMatch`, a name whose first
+ * segment (the food itself, before the first comma) contains the first
+ * lookup word is preferred, so "eggs fried" takes "Eggs, chicken, fried"
+ * over "Rice, egg fried, takeaway"; among those, the name with the fewest
+ * words beyond the lookup wins, so "pasta dried" takes "Pasta, white,
+ * dried, raw" over the boiled spaghetti and "beef mince" the plain mince
+ * row over "extra lean". Ties keep the search order. Null when nothing
+ * passes.
  */
 export function matchIngredient(items: readonly FoodItem[], lookup: string): FoodItem | null {
   const q = lookup.trim();
   if (!q) return null;
-  const qWords = new Set(normalise(q));
-  let best: { item: FoodItem; extra: number } | null = null;
+  const qList = normalise(q);
+  const qWords = new Set(qList);
+  let best: { item: FoodItem; rank: number } | null = null;
   for (const hit of searchFoods(items, q, MATCH_CANDIDATES)) {
     if (!acceptMatch(q, hit.name)) continue;
+    const head = normalise(hit.name.split(",")[0]);
+    const headHit = head.some((w) => w === qList[0] || w.startsWith(qList[0]) || qList[0].startsWith(w));
     const extra = normalise(hit.name).filter((w) => !qWords.has(w)).length;
-    if (!best || extra < best.extra) best = { item: hit, extra };
+    if (extra > MAX_EXTRA_WORDS) continue;
+    const rank = (headHit ? 0 : 100) + extra;
+    if (!best || rank < best.rank) best = { item: hit, rank };
   }
   return best?.item ?? null;
 }
@@ -133,6 +143,35 @@ export function servingLabel(eaten: number, servings: number): string {
 export function recipeConfidence(ingredients: readonly RecipeIngredient[]): "high" | "medium" | "low" {
   if (ingredients.length === 0) return "low";
   return ingredients.every((i) => i.source === "cofid") ? "high" : "medium";
+}
+
+/** A described food as the model returns it: its own estimate plus a lookup and grams for the base list. */
+export type ItemDraft = { label: string; serving: string; lookup: string; grams: number; kcal: number; proteinG: number; fatG: number; carbsG: number; confidence: "high" | "medium" | "low" };
+
+/** A described food after the base list has been asked: base-list numbers and the matched name when it fit, the estimate otherwise. */
+export type ResolvedItem = ItemDraft & { matched?: string };
+
+/**
+ * A meal item takes the base list's numbers when its lookup matches and
+ * the model gave a weight, so "2 eggs, fried" becomes 120 g of "Eggs,
+ * chicken, fried" at CoFID's values with high confidence. Otherwise the
+ * model's own estimate stands, with its confidence as given.
+ */
+export function resolveItem(items: readonly FoodItem[], draft: ItemDraft): ResolvedItem {
+  const grams = Math.max(0, Math.round(draft.grams));
+  const hit = grams > 0 ? matchIngredient(items, draft.lookup) : null;
+  if (!hit) return { ...draft, grams, kcal: Math.round(draft.kcal), proteinG: Math.round(draft.proteinG), fatG: Math.round(draft.fatG), carbsG: Math.round(draft.carbsG) };
+  const f = grams / 100;
+  return {
+    ...draft,
+    grams,
+    kcal: Math.round(hit.per100.kcal * f),
+    proteinG: Math.round(hit.per100.proteinG * f),
+    fatG: Math.round(hit.per100.fatG * f),
+    carbsG: Math.round(hit.per100.carbsG * f),
+    confidence: "high",
+    matched: hit.name,
+  };
 }
 
 /** How many ingredients are estimates rather than base-list rows. */

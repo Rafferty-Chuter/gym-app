@@ -14,7 +14,7 @@ import { eatenMacros, recipeConfidence, servingLabel, type Recipe } from "@/lib/
 import { getClientId } from "@/lib/ui/clientId";
 import type { FoodInput } from "@/lib/physique/io/foodData";
 import type { SaveResult } from "@/lib/physique/io/bodyData";
-import type { FoodParseResponse, ParsedFoodItem } from "@/lib/physique/food/parseSchema";
+import type { FoodParseResponse, ParseMode, ParsedFoodItem } from "@/lib/physique/food/parseSchema";
 import type { FoodEntry, SavedFood } from "@/lib/physique/types";
 import type { LocalDate } from "@/lib/dates";
 
@@ -50,6 +50,13 @@ const inputStyle = { background: "#1d1d20", color: "#f2f2f0", border: "1px solid
 
 /** How long the "Logged …" line stays. OURS. */
 const TOAST_MS = 2500;
+/** Mirrors MAX_TEXT_CHARS on the parse route: a pasted recipe page fits, a novel does not. */
+const DESCRIBE_MAX_CHARS = 6000;
+
+const DESCRIBE_MODES: ReadonlyArray<{ id: ParseMode; label: string; placeholder: string; rows: number }> = [
+  { id: "auto", label: "Meal or order", placeholder: "What did you eat? 2 eggs on toast with butter, a flat white. Or an order: chicken katsu curry from Wagamama", rows: 4 },
+  { id: "recipe", label: "Recipe", placeholder: "Paste the recipe, or type it: ingredients with amounts and how many it serves. The method can stay in.", rows: 7 },
+];
 
 /**
  * The logger sheet (05-design §9.4): full height, header × · time chip ·
@@ -84,8 +91,9 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
 
   // Describe
   const [text, setText] = useState("");
+  const [mode, setMode] = useState<ParseMode>("auto");
   const [items, setItems] = useState<ParsedFoodItem[] | null>(null);
-  const [describeStatus, setDescribeStatus] = useState<"idle" | "loading" | "error" | "unavailable" | "limit">("idle");
+  const [describeStatus, setDescribeStatus] = useState<"idle" | "loading" | "error" | "unavailable" | "limit" | "too_long">("idle");
   const [editing, setEditing] = useState<number | null>(null);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [eating, setEating] = useState(1);
@@ -144,11 +152,15 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   async function describe() {
     const t = text.trim();
     if (!t) return;
+    if (t.length > DESCRIBE_MAX_CHARS) {
+      setDescribeStatus("too_long");
+      return;
+    }
     setDescribeStatus("loading");
     setItems(null);
     setRecipe(null);
     try {
-      const res = await fetch("/api/food/parse", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_id: getClientId(), text: t }) });
+      const res = await fetch("/api/food/parse", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_id: getClientId(), text: t, mode }) });
       if (res.status === 503) {
         setDescribeStatus("unavailable");
         return;
@@ -287,19 +299,34 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
 
         {tab === "describe" && (
           <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-1 rounded-[12px] p-1" style={{ background: "#1d1d20" }} role="radiogroup" aria-label="What the text is">
+              {DESCRIBE_MODES.map((m) => {
+                const selected = m.id === mode;
+                return (
+                  <button key={m.id} type="button" role="radio" aria-checked={selected} onClick={() => setMode(m.id)} className="h-[32px] rounded-[9px] text-[12px] font-medium transition-colors" style={{ background: selected ? "#f2f2f0" : "transparent", color: selected ? "#0a0a0b" : "#a3a3a8" }}>
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="What did you eat? 2 eggs on toast with butter. Or a recipe with amounts and how many it makes. Or an order: chicken katsu curry from Wagamama"
-              rows={4}
-              maxLength={2000}
+              placeholder={DESCRIBE_MODES.find((m) => m.id === mode)?.placeholder}
+              rows={DESCRIBE_MODES.find((m) => m.id === mode)?.rows ?? 4}
+              maxLength={DESCRIBE_MAX_CHARS}
               className="w-full resize-none rounded-[12px] px-3 py-2.5 text-[15px] outline-none focus:ring-1"
               style={inputStyle}
               aria-label="Describe what you ate"
             />
             <PrimaryButton onClick={describe} disabled={!text.trim() || describeStatus === "loading"}>
-              {describeStatus === "loading" ? "Estimating…" : "Estimate"}
+              {describeStatus === "loading" ? (mode === "recipe" ? "Reading the recipe…" : "Estimating…") : mode === "recipe" ? "Build the recipe" : "Estimate"}
             </PrimaryButton>
+            {describeStatus === "too_long" && (
+              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+                That is over {DESCRIBE_MAX_CHARS.toLocaleString("en-GB")} characters. Keep the ingredients and the servings line; the method can go.
+              </p>
+            )}
             {describeStatus === "unavailable" && (
               <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
                 Describe needs the AI key on the server. Add ANTHROPIC_API_KEY to the deployment to use it. Quick add works without it.
@@ -317,7 +344,7 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
             )}
             {items && items.length === 0 && (
               <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
-                Nothing recognisable in that. Try naming the foods.
+                {mode === "recipe" ? "No ingredients found in that. Paste the ingredient list with amounts." : "Nothing recognisable in that. Try naming the foods."}
               </p>
             )}
             {recipe && recipe.ingredients.length > 0 && <RecipeCard recipe={recipe} onChange={setRecipe} eating={eating} onEating={setEating} />}
@@ -337,7 +364,7 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
                         </span>
                         <span className="truncate text-[11px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
                           {n(i.kcal)} kcal · {i.proteinG}P {i.fatG}F {i.carbsG}C{i.serving ? ` · ${i.serving}` : ""}
-                          {i.confidence !== "high" ? ` · ${i.confidence === "low" ? "rough guess" : "estimate"}` : ""}
+                          {i.matched ? ` · ${i.matched}` : i.confidence !== "high" ? ` · ${i.confidence === "low" ? "rough guess" : "estimate"}` : ""}
                         </span>
                       </button>
                       <button type="button" onClick={() => setItems(items.filter((_, j) => j !== idx))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "#1d1d20", color: "#a3a3a8" }} aria-label={`Drop ${i.label}`}>
