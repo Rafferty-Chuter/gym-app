@@ -51,6 +51,9 @@ import {
 import { buildBenchProjectionPayload } from "@/lib/benchProjectionPayload";
 import { buildBenchContextSummary } from "@/lib/benchContext";
 import { buildBench1RMEstimate } from "@/lib/bench1rm";
+import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
+import { buildAssistantPhysiquePayload, hasPhysiqueData } from "@/lib/physique/io/payload";
+import { useNow } from "@/lib/ui/useToday";
 
 type StructuredWorkout = {
   sessionTitle: string;
@@ -436,6 +439,8 @@ function getOrCreateAssistantClientId(): string {
 
 function AssistantPageInner() {
   const { unit } = useUnit();
+  const now = useNow();
+  const physiqueAnalysis = usePhysiqueAnalysis(now, unit === "lb" ? "lb" : "kg");
   const { focus } = useTrainingFocus();
   const { experienceLevel } = useExperienceLevel();
   const { goal } = usePriorityGoal();
@@ -877,6 +882,7 @@ function AssistantPageInner() {
           experienceLevel,
           unit,
           priorityGoal: goal,
+          physique: physiqueAnalysis && now && hasPhysiqueData() ? buildAssistantPhysiquePayload(physiqueAnalysis, now, unit === "lb" ? "lb" : "kg") : undefined,
           exerciseTrends,
           trainingInsights,
           priorityGoalExerciseInsight,

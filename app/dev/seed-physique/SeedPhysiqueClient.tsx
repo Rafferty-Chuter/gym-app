@@ -11,8 +11,10 @@ import {
   clearPhysiqueData,
   dayFlagsStore,
   foodEntriesRepo,
+  goalHistoryRepo,
   goalStore,
   profileStore,
+  programStore,
   sleepNightsRepo,
   waistRepo,
   weighInsRepo,
@@ -213,7 +215,11 @@ export default function SeedPhysiqueClient() {
       await sleepNightsRepo.bulkUpsert(sc.sleepNights);
       await waistRepo.bulkUpsert(sc.waist);
       for (const [k, v] of Object.entries(sc.dayFlags)) await dayFlagsStore.set(k, v);
-      if (sc.goal) await goalStore.set(sc.goal);
+      if (sc.goal) {
+        await goalStore.set(sc.goal);
+        await goalHistoryRepo.upsert({ ...sc.goal, date: sc.goal.startDate });
+      }
+      if (sc.program) await programStore.set(sc.program);
       await profileStore.set(sc.profile);
       const kept = readWorkouts().filter((w) => !(w.name ?? "").startsWith(SEED_TAG));
       writeWorkouts([...kept, ...sc.workouts]);

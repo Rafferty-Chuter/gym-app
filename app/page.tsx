@@ -19,6 +19,9 @@ import { useWorkoutStore } from "@/lib/workout-store";
 import { STATE_COLOR, type SignalState } from "@/lib/ui/status";
 import { SIGNAL_ICON } from "@/components/ui/SignalIcons";
 import PhysiqueHomeCard from "@/components/physique/PhysiqueHomeCard";
+import { askWhyPrompt } from "@/components/physique/VerdictCard";
+import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
+import { useNow } from "@/lib/ui/useToday";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import StaleSessionModal from "@/components/StaleSessionModal";
 import { useUnit } from "@/lib/unit-preference";
@@ -600,6 +603,24 @@ export default function Home() {
     () => buildAssistantInsight(coachAnalysis, workouts.length),
     [coachAnalysis, workouts.length]
   );
+  // U2b: a watch or attention physique verdict takes the insight card over the training key focus.
+  const now = useNow();
+  const physique = usePhysiqueAnalysis(hasMounted ? now : null, unit === "lb" ? "lb" : "kg");
+  const physiqueInsight = useMemo(() => {
+    if (!physique || (physique.status.state !== "watch" && physique.status.state !== "attention")) return null;
+    const title = physique.verdict.title;
+    return {
+      text: `${title}. ${physique.verdict.detail}`,
+      prompt: askWhyPrompt(physique),
+      followUps: [
+        { label: "Why?", prompt: askWhyPrompt(physique) },
+        { label: "What do I change?", prompt: `My Body tab says "${title}". What exactly should I change this week, from my numbers?` },
+        { label: "Show the data", prompt: `Show me the numbers behind "${title}": weight trend and rate, intake against target, lifts and sleep.` },
+      ],
+      cold: false,
+    };
+  }, [physique]);
+  const shownInsight = physiqueInsight ?? insight;
 
   const ctaLabel = hasMounted && hasActive ? "Resume workout" : "Start workout";
   const ctaHref = hasMounted && hasActive ? "/workout" : "/workout/start";
@@ -762,27 +783,27 @@ export default function Home() {
                   Assistant
                 </p>
                 <p className="text-[11px] font-medium text-home-tertiary">
-                  {insight.cold ? "Cold start" : "From your training"}
+                  {shownInsight.cold ? "Cold start" : physiqueInsight ? "From your Body tab" : "From your training"}
                 </p>
               </div>
             </header>
 
             <button
               type="button"
-              onClick={() => openAssistantWith(insight.prompt)}
+              onClick={() => openAssistantWith(shownInsight.prompt)}
               className="block w-full text-left rounded-xl -mx-1 px-1 py-1 transition-colors duration-150 hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
-              aria-label={`Ask the assistant about: ${insight.text}`}
+              aria-label={`Ask the assistant about: ${shownInsight.text}`}
             >
               <p
                 className="text-[16px] sm:text-[17px] font-semibold leading-snug text-white"
                 style={{ textWrap: "pretty" }}
               >
-                {insight.text}
+                {shownInsight.text}
               </p>
             </button>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              {insight.followUps.map((f) => (
+              {shownInsight.followUps.map((f) => (
                 <button
                   key={f.label}
                   type="button"

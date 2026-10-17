@@ -12,11 +12,14 @@ import { dayTotals, formatHoursMin } from "@/lib/physique/dayTotals";
 import { formatWeight } from "@/lib/units";
 import { formatRate } from "@/components/physique/WeightChartCard";
 import { addDays } from "@/lib/dates";
+import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
+import { STATUS_HEX } from "@/lib/ui/status";
+import { StatusDot } from "@/components/physique/ui";
 
 /**
- * Compact physique card on Home (I1): trend weight with its rate, kcal logged
- * today, and last night's sleep. Tap opens /body. U2b adds the verdict
- * title, status dot and check-in badge; nothing here imports the judge.
+ * Compact physique card on Home: the verdict title with its status dot and
+ * a check-in badge (U2b), then trend weight with its rate, kcal logged
+ * today, and last night's sleep. Tap opens /body.
  */
 export default function PhysiqueHomeCard() {
   const hydrated = useIsHydrated();
@@ -28,6 +31,7 @@ export default function PhysiqueHomeCard() {
   const nights = useRepo(sleepNightsRepo);
   const dayFlags = useRecordStore(dayFlagsStore);
   const goal = useSingleton(goalStore);
+  const analysis = usePhysiqueAnalysis(hydrated ? now : null, unit);
 
   const stats = useMemo(() => {
     if (!hydrated || !now) return null;
@@ -54,11 +58,23 @@ export default function PhysiqueHomeCard() {
       style={{ background: "#141416", border: "1px solid #2a2a2e" }}
       aria-label="Body: open weight, food and sleep logging"
     >
-      <div className="flex items-center justify-between">
-        <span className="text-[13px]" style={{ color: "#a3a3a8" }}>
-          {stats ? (stats.hasGoal ? "Tracking your goal" : "No goal set yet") : " "}
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2 text-[13px]" style={{ color: "#f2f2f0" }}>
+          {analysis ? (
+            <>
+              <StatusDot color={STATUS_HEX[analysis.status.state]} />
+              <span className="truncate font-medium">{analysis.verdict.title}</span>
+              {analysis.checkInDue && (
+                <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: "#1d1d20", color: "#a3a3a8" }}>
+                  Check-in ready
+                </span>
+              )}
+            </>
+          ) : (
+            "\u00a0"
+          )}
         </span>
-        <span className="flex items-center gap-1 text-[12px] font-medium" style={{ color: "#6f6f76" }}>
+        <span className="flex shrink-0 items-center gap-1 text-[12px] font-medium" style={{ color: "#6f6f76" }}>
           Open
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden>
             <path d="M9 6l6 6-6 6" />

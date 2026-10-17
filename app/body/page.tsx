@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
-import { addDays, type LocalDate } from "@/lib/dates";
+import { type LocalDate, type Now } from "@/lib/dates";
 import { formatWeight, type WeightUnit } from "@/lib/units";
-import { latestTrend, weighInsNeededForRate } from "@/lib/physique/weight";
+import { latestTrend } from "@/lib/physique/weight";
 import { dayTotals, formatHoursMin, recentFoods, sleepPrefill } from "@/lib/physique/dayTotals";
 import { saveFoodEntry, saveSleepNight, saveWaist, saveWeighIn, useBodyData, type QuickFood, type SleepInput } from "@/lib/physique/io/bodyData";
 import DateSwitcher from "@/components/physique/DateSwitcher";
@@ -15,7 +15,11 @@ import FoodQuickAddSheet from "@/components/physique/FoodQuickAddSheet";
 import SleepSheet from "@/components/physique/SleepSheet";
 import WaistSheet from "@/components/physique/WaistSheet";
 import WeightChartCard from "@/components/physique/WeightChartCard";
-import VerdictPlaceholder, { type CalibratingItem } from "@/components/physique/VerdictPlaceholder";
+import VerdictCard from "@/components/physique/VerdictCard";
+import EnergyCard from "@/components/physique/EnergyCard";
+import StrengthSleepRows from "@/components/physique/StrengthSleepRows";
+import GoalHeader from "@/components/physique/GoalHeader";
+import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { Caption, Chevron, MacroBar, PlusGlyph, Row, RowGroup } from "@/components/physique/ui";
 import { targetInEffect } from "@/lib/physique/intake";
 import Link from "next/link";
@@ -28,7 +32,7 @@ export default function BodyPage() {
   const now = useNow();
   const { unit } = useUnit();
   if (!hydrated || !now) return <Shell />;
-  return <BodyContent today={now.today} unit={unit === "lb" ? "lb" : "kg"} />;
+  return <BodyContent now={now} unit={unit === "lb" ? "lb" : "kg"} />;
 }
 
 function Shell() {
@@ -41,11 +45,20 @@ function Shell() {
   );
 }
 
-function BodyContent({ today, unit }: { today: LocalDate; unit: WeightUnit }) {
-  const [selected, setSelected] = useState<LocalDate | null>(null);
+/** `/body?date=YYYY-MM-DD` opens that day (the verdict's confirm-days link). Client only. */
+function dateFromQuery(): LocalDate | null {
+  if (typeof window === "undefined") return null;
+  const v = new URLSearchParams(window.location.search).get("date");
+  return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+
+function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
+  const today = now.today;
+  const [selected, setSelected] = useState<LocalDate | null>(() => dateFromQuery());
   const date = selected && selected <= today ? selected : today;
   const [sheet, setSheet] = useState<SheetKind>(null);
   const data = useBodyData();
+  const analysis = usePhysiqueAnalysis(now, unit);
 
   const day = useMemo(() => {
     const weighIn = data.weighIns.find((w) => w.date === date) ?? null;
@@ -58,42 +71,29 @@ function BodyContent({ today, unit }: { today: LocalDate; unit: WeightUnit }) {
     return { weighIn, totals, night, lastWeighIn, lastWaist, trend, target };
   }, [data, date]);
 
-  const calibrating = useMemo<CalibratingItem[]>(() => {
-    const items: CalibratingItem[] = [];
-    const needed = weighInsNeededForRate(data.weighIns, today);
-    if (needed > 0) items.push({ text: `${needed} more weigh-in${needed === 1 ? "" : "s"} for a first read on your rate` });
-    const weekStart = addDays(today, -6);
-    const foodDays = new Set(data.foodEntries.filter((f) => f.date >= weekStart && f.date <= today).map((f) => f.date)).size;
-    if (foodDays < 4) items.push({ text: `Log food on ${4 - foodDays} more day${4 - foodDays === 1 ? "" : "s"} this week to estimate maintenance` });
-    const nights = data.sleepNights.filter((n) => n.date >= addDays(today, -13) && n.date <= today).length;
-    if (nights < 10) items.push({ text: `${nights} of 14 nights logged (10 needed for a sleep read)` });
-    return items.slice(0, 3);
-  }, [data, today]);
 
   const dateLabel = date === today ? "Today" : longLocalDate(date);
   const nowIso = () => new Date().toISOString();
   const recent = recentFoods(data.savedFoods, 8);
   const prefill = sleepPrefill(data.sleepNights);
-  const goalLine = data.goal
-    ? `${formatWeight(data.goal.targetKg, unit)} · ${data.goal.type === "lose" ? "Cut" : data.goal.type === "gain" ? "Lean gain" : "Maintain"}${data.goal.type === "maintain" ? "" : ` · ${data.goal.ratePctPerWeek > 0 ? "+" : "−"}${Math.abs(data.goal.ratePctPerWeek).toFixed(2)} %/wk`}`
-    : null;
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 pt-4 sm:px-6">
         <DateSwitcher date={date} today={today} onChange={setSelected} />
 
-        {goalLine && (
-          <Link href="/body/goal" className="flex items-center justify-between gap-2 text-[13px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }} aria-label={`Goal ${goalLine}. Edit goal`}>
-            <span className="flex items-center gap-2">
-              <span aria-hidden>→</span>
-              <span>{goalLine}</span>
-            </span>
-            <Chevron />
+        {analysis && <GoalHeader analysis={analysis} unit={unit} />}
+
+        {analysis && <VerdictCard analysis={analysis} now={now} unit={unit} />}
+        {analysis && !analysis.goal && (
+          <Link
+            href="/body/goal"
+            className="inline-flex h-[36px] w-fit items-center rounded-[12px] px-3 text-[13px] font-semibold"
+            style={{ background: "#1d1d20", color: "#f2f2f0" }}
+          >
+            Set goal
           </Link>
         )}
-
-        <VerdictPlaceholder hasGoal={data.goal != null} items={calibrating} />
 
         <section aria-label={`Log for ${dateLabel}`}>
           <RowGroup>
@@ -162,6 +162,10 @@ function BodyContent({ today, unit }: { today: LocalDate; unit: WeightUnit }) {
         </section>
 
         <WeightChartCard weighIns={data.weighIns} goal={data.goal} dayFlags={data.dayFlags} today={today} unit={unit} />
+
+        {analysis && <EnergyCard analysis={analysis} />}
+
+        {analysis && <StrengthSleepRows analysis={analysis} />}
 
         <div className="pb-2">
           <Caption>Logged values stay on this device. Export a backup from Profile.</Caption>
