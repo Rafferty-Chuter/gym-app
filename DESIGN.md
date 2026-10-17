@@ -23,9 +23,10 @@ colors:
   chart-raw: "#55555c"
   chart-projection: "#6f6f76"
   chart-band: "#1d1d20"
-  macro-protein: "#f2f2f0"
-  macro-carb: "#a3a3a8"
-  macro-fat: "#6f6f76"
+  macro-kcal: "#7aa2ff"
+  macro-protein: "#e8736f"
+  macro-fat: "#f0c36a"
+  macro-carb: "#6fcf9f"
 typography:
   hero:
     fontFamily: "var(--font-geist-sans), system-ui, sans-serif"
@@ -152,7 +153,8 @@ Restrained strategy: tinted neutrals and one accent used on well under 10% of an
 - **Primary action.** White (`primary`) with dark text, as in MacroFactor's "Log Foods" and "Check In". One per screen at most. Start Workout on Home is white.
 - **Accent (mint).** Status *good*, the selected tab or pill, and the trend-up tint in charts. Not on buttons, not on borders, not as a wash.
 - **Status.** `status-good` / `status-watch` / `status-attention` / `status-unknown`. Shown as a 8px dot or a short pill next to text, never as a card background. The same four colours drive the Signals tiles and the physique verdict.
-- **Charts.** Trend line in `chart-trend` (white, 2px). Raw weigh-ins as 4px dots in `chart-raw`. Goal projection as a dashed `chart-projection` line. A target band uses `chart-band`. Macro bars: protein `macro-protein`, carbs `macro-carb`, fat `macro-fat`; over-target is not red, it is a slightly brighter tint of the same bar.
+- **Charts.** Trend line in `chart-trend` (white, 2px). Raw weigh-ins as 4px dots in `chart-raw`. Goal projection as a dashed `chart-projection` line. A target band uses `chart-band`.
+- **Macro colours** (rev 2, from MacroFactor): kcal `macro-kcal` (blue), protein `macro-protein` (red), fat `macro-fat` (yellow), carbs `macro-carb` (green), all muted. They appear only in nutrition bars and charts, never on buttons or status. Over target is not red: the bar simply fills and its target tick turns white.
 
 ## Typography
 
@@ -186,7 +188,13 @@ Flat. Depth is expressed by surface level, not shadow.
 - **Number pad.** 3×4 grid of `numberpad-key`, with `.` and backspace, and an optional ±step row above. The current value sits above in `hero`. Never show the system keyboard for numeric entry.
 - **Chart.** Time-based x axis with sparse date labels in `caption`, y axis from `computeNiceYAxis`, raw dots, continuous trend line between the first and last real values, optional dashed projection. Tap or drag to scrub; the scrubbed point shows a small `surface-raised` tooltip with date, scale weight and trend.
 - **Status dot and pill.** 8px dot inline with text, or a 22px pill (`caption`, status colour text on `surface`).
-- **Tab bar.** Five tabs: Home, Body, Templates, History, Profile. 20px line icons, `caption` labels, active in `text` (not mint). `bg` background with a 1px top border.
+- **Tab bar.** Five tabs: Home, Food, Body, Sleep, Train (rev 2). 20px line icons, `caption` labels, active in `text` (not mint). `bg` background with a 1px top border. Profile is a round button in the Home header.
+- **Page header** (rev 2). An 11px tracked caption (date or goal) above the page title in `hero` size, title case. The tab's primary log action is a 36px white round `+` on the right. Sticky, `bg`, hairline when scrolled.
+- **Week strip** (rev 2). Seven day pills (weekday letter over day number, 40×56), a 4px dot under logged days, the selected day filled `primary` with dark text. Swiping the strip moves a week.
+- **Widget carousel** (rev 2). Horizontal scroll-snap cards the width of the screen minus the gutters, with page dots (6px, `text-tertiary`, active `text`). Two or three cards, never more.
+- **Timeline** (rev 2). A 1px vertical `border` line with hour chips (`surface-raised`, `caption`) and a 24px `+` beside each hour; entries are `surface` rows with name, `number`-sized kcal, macro caption and an edit glyph; hour totals sit on the hour row in `caption`.
+- **Contributor list** (rev 2, from Bevel). Rows of label · word (Poor / Fair / Good / Excellent in the status colour) · a 4px bar in `surface-raised` filled in `text-secondary`. Never a score.
+- **Range pills.** 1W 1M 3M 6M All as segmented pills under charts; selected is white.
 - **Empty and calibrating states.** A sentence in `text-secondary` naming exactly what is missing ("6 more weigh-ins for a first read"), with the control that fixes it directly beneath. Never a placeholder number or an illustration.
 - **Buttons.** `button-primary` (white) for the one main action; `button-secondary` (raised grey) for everything else; text-only links in `text-secondary` for tertiary actions. 44px minimum tap targets.
 
