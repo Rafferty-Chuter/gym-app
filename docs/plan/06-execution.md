@@ -14,7 +14,7 @@ The founder's call after T2: park the coach, make the app something that keeps a
 | 04 | **G5 Reminders** (built 2026-10-17, awaiting the SQL) | 0.5 | Web push that fires only on a gap and says only what is missing. One a day at a chosen time; the phone uploads which days are logged, the server applies the W2 rules and stays quiet otherwise. | Run `supabase/migrations/0002_push.sql` with the cron secret; add the app to the iPhone Home Screen and turn reminders on in Profile. |
 | 05 | **S1 to S3 Accounts and sync** | 3 | Since the Supabase project exists: sign-in, row-level security, local-first sync. | — |
 
-Sprint A (the coach) resumes after Sprint 0.
+Sprint A (the coach) resumes after Sprint 0. The chat assistant itself stays parked (`ASSISTANT_ENABLED` in `lib/features.ts`, 2026-10-17) until the founder asks for it back; Sprint A's rules ship as engine verdicts and plain copy.
 
 ## Sprint A · The coach (what makes it worth paying for)
 

@@ -9,6 +9,7 @@ import type { Now } from "@/lib/dates";
 import type { PhysiqueAnalysis, Recommendation } from "@/lib/physique/types";
 import { STATUS_HEX } from "@/lib/ui/status";
 import { assistantHrefFor, stashAssistantPrompt } from "@/lib/ui/assistantPrompt";
+import { ASSISTANT_ENABLED } from "@/lib/features";
 import type { WeightUnit } from "@/lib/units";
 
 /** The "Ask why" prompt the assistant receives; it answers from the PHYSIQUE CONTEXT block. */
@@ -118,7 +119,7 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
       )}
       <ErrorLine text={error} />
 
-      {analysis.goal && !isSafety && (
+      {ASSISTANT_ENABLED && analysis.goal && !isSafety && (
         <button type="button" onClick={askWhy} className="w-fit text-[13px] font-semibold" style={{ color: "#a3a3a8" }}>
           Ask why →
         </button>

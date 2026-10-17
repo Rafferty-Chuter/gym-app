@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { ASSISTANT_ENABLED } from "@/lib/features";
 import { useRouter } from "next/navigation";
 import {
   getWorkoutHistory,
@@ -713,7 +714,7 @@ export default function Home() {
           </div>
         </div>
 
-        {hasMounted && profileSetupNeeded && (
+        {ASSISTANT_ENABLED && hasMounted && profileSetupNeeded && (
           <Link
             href="/profile"
             className="mt-2 flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-[12px] transition-colors"
@@ -776,6 +777,7 @@ export default function Home() {
           </Link>
         </section>
 
+        {ASSISTANT_ENABLED && (
         <section className="pt-5" aria-labelledby="assistant-insight-heading">
           <h2 id="assistant-insight-heading" className="sr-only">
             Assistant
@@ -871,6 +873,7 @@ export default function Home() {
             </button>
           </article>
         </section>
+        )}
 
         <section className="pt-5 pb-2" aria-labelledby="status-row-heading">
           <h2 id="status-row-heading" className="label-section mb-2">

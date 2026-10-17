@@ -97,6 +97,7 @@ Record wrong or surprising verdicts here: date · what the app said · what you 
 ## Decisions changed
 | Date | Decision | From → to | Why |
 |---|---|---|---|
+| 2026-10-17 | Assistant parked | Chat card on Home, "Ask why" on the verdict, "Ask the assistant" on signal pages, the coach CTA on lifts and the coach-profile banner → hidden behind `ASSISTANT_ENABLED = false` in `lib/features.ts`; `/assistant` sends to Home | The founder and a friend disliked the wording. The engine, report and gap lists do the explaining for now; the chat returns once the rest is solid. Route, API, prompts and tests untouched. |
 
 ## Review notes (2026-10-16)
 Two independent reviews ran before any code was written: executability, and sports science/algorithm. The main changes:
