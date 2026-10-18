@@ -49,42 +49,124 @@ export function acceptMatch(lookup: string, name: string): boolean {
   return q.every((w) => have.has(w));
 }
 
-/** How many search hits are considered for an ingredient. OURS. */
-export const MATCH_CANDIDATES = 5;
+/** How many search hits are considered for an ingredient. OURS: enough to reach "Spinach, mature, raw" past the baby and boiled rows. */
+export const MATCH_CANDIDATES = 10;
 /** A name that adds more than this many words beyond the lookup is a different dish ("Vegetables, mixed, cooked with onion, spice and tomatoes" for "mixed spice"), not the food. OURS. */
 export const MAX_EXTRA_WORDS = 4;
+/** Rank cost of a name whose first segment adds words of its own ("Cream substitute" for "double cream", "Rock Salmon" for "salmon"): kept only when nothing plainer fits. OURS. */
+export const RANK_HEAD_EXTRA = 50;
+/** Rank cost of each preserved form the lookup did not ask for ("Spinach, dried" for "spinach"): the numbers are several times the fresh food's. OURS. */
+export const RANK_PRESERVED = 20;
+
+/** Words a recipe writes one way and CoFID another. Curated. OURS. */
+export const LOOKUP_SYNONYMS: Readonly<Record<string, string>> = { tinned: "canned", yoghurt: "yogurt", caster: "white", granulated: "white", courgettes: "courgette", aubergines: "aubergine" };
+/** Words that describe preparation, not the food, so they never decide a match. Curated. OURS. */
+export const LOOKUP_FILLER: ReadonlySet<string> = new Set(["chopped", "sliced", "diced", "grated", "crushed", "finely", "roughly", "fresh", "large", "small", "medium", "organic", "of"]);
+/** Forms whose numbers differ a lot from the fresh food. OURS. */
+export const PRESERVED_WORDS: ReadonlySet<string> = new Set(["dried", "dehydrated", "powder", "canned", "pickled", "freeze"]);
+/** Rank cost of a part of the food rather than the food ("Bacon, fat only" for "bacon"): worse than a longer head. OURS. */
+export const RANK_PART = 60;
+/** Varieties a UK cook does not mean by default: other animals ("Milk, sheeps, raw" for "milk") and wholegrain forms ("Rice, brown" for "rice"); costed like a preserved form. Curated. OURS. */
+export const NON_DEFAULT_WORDS: ReadonlySet<string> = new Set(["sheep", "goat", "duck", "buffalo", "quail", "goose", "wholewheat", "wholemeal", "brown"]);
+/** Shapes CoFID files under plain pasta: "penne dried" is looked up as "pasta dried" too, and the better match wins. Curated. OURS. */
+export const PASTA_SHAPES: ReadonlySet<string> = new Set(["spaghetti", "penne", "fusilli", "rigatoni", "linguine", "tagliatelle", "farfalle", "macaroni", "conchiglie", "orzo"]);
+/** CoFID rows for one part of a food. OURS. */
+export const PART_WORDS: ReadonlySet<string> = new Set(["fat", "lean"]);
+/** Words naming the variety a UK cook means when none is said (white rice, hen's eggs, CoFID's average rows), so they cost nothing. Curated. OURS. */
+export const DEFAULT_WORDS: ReadonlySet<string> = new Set(["average", "whole", "white", "standard", "chicken", "flesh", "only"]);
+/** Words that say how a food was cooked or kept; a lookup with none of them is weighed raw when it is a recipe ingredient. OURS. */
+export const STATE_WORDS: ReadonlySet<string> = new Set(["raw", "boiled", "fried", "grilled", "roasted", "baked", "cooked", "steamed", "stewed", "poached", "scrambled", "microwaved", "toasted", "mashed", "casseroled", "braised", "dried", "canned", "frozen", "smoked", "pickled"]);
+
+/** The lookup as the base list writes it: synonyms folded, preparation words dropped. */
+export function cleanLookup(lookup: string): string {
+  const words = lookup
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .filter((w) => w && !LOOKUP_FILLER.has(w))
+    .map((w) => LOOKUP_SYNONYMS[w] ?? w);
+  return words.join(" ");
+}
+
+export type MatchOptions = {
+  /** Recipe ingredients are weighed as bought: with no state named, the raw row is tried first. */
+  preferRaw?: boolean;
+};
 
 /**
- * Of the top search hits that pass `acceptMatch`, a name whose first
- * segment (the food itself, before the first comma) contains the first
- * lookup word is preferred, so "eggs fried" takes "Eggs, chicken, fried"
- * over "Rice, egg fried, takeaway"; among those, the name with the fewest
- * words beyond the lookup wins, so "pasta dried" takes "Pasta, white,
- * dried, raw" over the boiled spaghetti and "beef mince" the plain mince
- * row over "extra lean". Ties keep the search order. Null when nothing
- * passes.
+ * The base-list row for a lookup, or null. A hit must pass `acceptMatch`,
+ * and a lookup word must name the food where CoFID names it: the whole
+ * first segment, its first word ("Porridge oats"), or the next two
+ * segments after a category ("Cheese, Cheddar", "Pasta, wholewheat,
+ * spaghetti") unless they start with "with"; so "tomatoes tinned" never
+ * takes "Crumble, vegetable, with tinned tomatoes" and "toast" never
+ * takes "Sesame prawn toast". Among the hits that pass, the rank prefers
+ * a first segment made only of lookup words ("Cream, fresh, double" over
+ * "Cream substitute, double"), then the food over a preserved form, a
+ * part or a non-default variety the lookup did not ask for ("Spinach,
+ * baby, raw" over "Spinach, dried", back rashers over "Bacon, fat only",
+ * white rice over brown), then the fewest words beyond the lookup and
+ * the default variety, so "pasta dried" takes "Pasta, white, dried, raw".
+ * A pasta shape is also tried as plain pasta (dried, when no state is
+ * named) and the better rank wins.
+ * Ties keep the search order. With `preferRaw` and no state word, a plain
+ * "<lookup> raw" row is tried first and the lookup as given after it.
  */
-export function matchIngredient(items: readonly FoodItem[], lookup: string): FoodItem | null {
-  const q = lookup.trim();
+export function matchIngredient(items: readonly FoodItem[], lookup: string, options: MatchOptions = {}): FoodItem | null {
+  const q = cleanLookup(lookup);
   if (!q) return null;
+  const words = q.split(" ");
+  const stated = normalise(q).some((w) => STATE_WORDS.has(w));
+  // A shape with no state named is the dried pasta in the cupboard.
+  const asPasta = words.some((w) => PASTA_SHAPES.has(w)) ? [`${words.map((w) => (PASTA_SHAPES.has(w) ? "pasta" : w)).join(" ")}${stated ? "" : " dried"}`] : [];
+  const queries = [q, ...asPasta];
+  const best = (suffix: string) =>
+    queries.reduce<{ item: FoodItem; rank: number } | null>((acc, query) => {
+      const m = bestMatch(items, `${query}${suffix}`);
+      return m && (!acc || m.rank < acc.rank) ? m : acc;
+    }, null);
+  if (options.preferRaw && !stated) {
+    // Only a plain raw row: "butter raw" must not take "Beans, butter, dried, raw".
+    const raw = best(" raw");
+    if (raw && raw.rank < RANK_PRESERVED) return raw.item;
+  }
+  return best("")?.item ?? null;
+}
+
+function bestMatch(items: readonly FoodItem[], q: string): { item: FoodItem; rank: number } | null {
   const qList = normalise(q);
   const qWords = new Set(qList);
+  const withJoined = (words: string[]) => {
+    const out = new Set(words);
+    for (let i = 0; i + 1 < words.length; i++) out.add(words[i] + words[i + 1]);
+    return out;
+  };
   let best: { item: FoodItem; rank: number } | null = null;
   for (const hit of searchFoods(items, q, MATCH_CANDIDATES)) {
     if (!acceptMatch(q, hit.name)) continue;
-    const head = normalise(hit.name.split(",")[0]);
-    const headHit = head.some((w) => w === qList[0] || w.startsWith(qList[0]) || qList[0].startsWith(w));
-    const extra = normalise(hit.name).filter((w) => !qWords.has(w)).length;
+    const segments = hit.name.split(",");
+    const head = normalise(segments[0]);
+    // After a category, the food can sit in the next two segments ("Pasta, wholewheat, spaghetti"); "with tinned tomatoes" is an addition, not the food.
+    const named = withJoined(normalise(segments.slice(1, 3).filter((seg) => !/^\s*(with|in|and|on)\b/i.test(seg)).join(" ")));
+    const words = normalise(hit.name);
+    const extra = words.filter((w) => !qWords.has(w) && !DEFAULT_WORDS.has(w)).length;
     if (extra > MAX_EXTRA_WORDS) continue;
-    const rank = (headHit ? 0 : 100) + extra;
+    // "Chick peas" is a clean head for "chickpeas".
+    const headClean = head.every((w) => qWords.has(w)) || (head.length === 2 && qWords.has(head[0] + head[1]));
+    // The food is named where CoFID names it: leading the first segment ("Porridge oats"), or in the second after a category ("Cheese, Cheddar"). "Sesame prawn toast" is not toast.
+    if (!headClean && !qWords.has(head[0]) && !qList.some((w) => named.has(w))) continue;
+    const preserved = words.filter((w) => (PRESERVED_WORDS.has(w) || NON_DEFAULT_WORDS.has(w)) && !qWords.has(w)).length;
+    const part = words.some((w) => PART_WORDS.has(w) && !qWords.has(w));
+    const rank = (headClean ? 0 : RANK_HEAD_EXTRA) + preserved * RANK_PRESERVED + (part ? RANK_PART : 0) + extra;
     if (!best || rank < best.rank) best = { item: hit, rank };
   }
-  return best?.item ?? null;
+  return best;
 }
 
 /** Base-list numbers when the lookup matches, otherwise the model's estimate, marked as such. */
 export function resolveIngredient(items: readonly FoodItem[], draft: IngredientDraft): RecipeIngredient {
-  const hit = matchIngredient(items, draft.lookup || draft.name);
+  const hit = matchIngredient(items, draft.lookup || draft.name, { preferRaw: true });
   const grams = Math.max(0, Math.round(draft.grams));
   if (hit) return { name: draft.name, grams, per100: hit.per100, source: "cofid", matched: hit.name };
   return { name: draft.name, grams, per100: draft.per100, source: "estimate" };

@@ -5,16 +5,13 @@ import Sheet from "@/components/ui/Sheet";
 import MacroPad, { EMPTY_MACROS, macroNumbers, macrosToValues, type MacroField, type MacroValues } from "@/components/food/MacroPad";
 import TimeChip from "@/components/food/TimeChip";
 import { ErrorLine, PrimaryButton } from "@/components/physique/ui";
+import DescribePanel, { DescribeFooter, useDescribe } from "@/components/food/DescribePanel";
 import { hourLabel, localClock, macroKcal } from "@/lib/physique/food/timeline";
 import { filterSaved } from "@/lib/physique/food/goTos";
 import FoodSearch from "@/components/food/FoodSearch";
 import SavedFoodRow, { PlusButton } from "@/components/food/SavedFoodRow";
-import RecipeCard from "@/components/food/RecipeCard";
-import { eatenMacros, recipeConfidence, servingLabel, type Recipe } from "@/lib/food/recipe";
-import { getClientId } from "@/lib/ui/clientId";
 import type { FoodInput } from "@/lib/physique/io/foodData";
 import type { SaveResult } from "@/lib/physique/io/bodyData";
-import type { FoodParseResponse, ParseMode, ParsedFoodItem } from "@/lib/physique/food/parseSchema";
 import type { FoodEntry, SavedFood } from "@/lib/physique/types";
 import type { LocalDate } from "@/lib/dates";
 
@@ -50,13 +47,6 @@ const inputStyle = { background: "var(--surface-raised)", color: "var(--text)", 
 
 /** How long the "Logged …" line stays. OURS. */
 const TOAST_MS = 2500;
-/** Mirrors MAX_TEXT_CHARS on the parse route: a pasted recipe page fits, a novel does not. */
-const DESCRIBE_MAX_CHARS = 6000;
-
-const DESCRIBE_MODES: ReadonlyArray<{ id: ParseMode; label: string; placeholder: string; rows: number }> = [
-  { id: "auto", label: "Meal or order", placeholder: "What did you eat? 2 eggs on toast with butter, a flat white. Or an order: chicken katsu curry from Wagamama", rows: 4 },
-  { id: "recipe", label: "Recipe", placeholder: "Paste the recipe, or type it: ingredients with amounts and how many it serves. The method can stay in.", rows: 7 },
-];
 
 /**
  * The logger sheet (05-design §9.4): full height, header × · time chip ·
@@ -88,15 +78,6 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   const [name, setName] = useState("");
   const [serving, setServing] = useState("");
   const [prefillId, setPrefillId] = useState<string | undefined>(undefined);
-
-  // Describe
-  const [text, setText] = useState("");
-  const [mode, setMode] = useState<ParseMode>("auto");
-  const [items, setItems] = useState<ParsedFoodItem[] | null>(null);
-  const [describeStatus, setDescribeStatus] = useState<"idle" | "loading" | "error" | "unavailable" | "limit" | "too_long">("idle");
-  const [editing, setEditing] = useState<number | null>(null);
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [eating, setEating] = useState(1);
 
   // Saved
   const [query, setQuery] = useState("");
@@ -149,73 +130,24 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
     }
   }
 
-  async function describe() {
-    const t = text.trim();
-    if (!t) return;
-    if (t.length > DESCRIBE_MAX_CHARS) {
-      setDescribeStatus("too_long");
-      return;
-    }
-    setDescribeStatus("loading");
-    setItems(null);
-    setRecipe(null);
-    try {
-      const res = await fetch("/api/food/parse", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_id: getClientId(), text: t, mode }) });
-      if (res.status === 503) {
-        setDescribeStatus("unavailable");
-        return;
-      }
-      if (res.status === 429) {
-        setDescribeStatus("limit");
-        return;
-      }
-      if (!res.ok) throw new Error(String(res.status));
-      const json = (await res.json()) as Partial<FoodParseResponse>;
-      if (json.recipe && json.recipe.ingredients.length > 0) {
-        setRecipe(json.recipe);
-        setEating(1);
-      } else {
-        setItems(json.items ?? []);
-      }
-      setDescribeStatus("idle");
-    } catch {
-      setDescribeStatus("error");
-    }
-  }
-
-  async function logRecipe() {
-    if (!recipe || recipe.ingredients.length === 0) return;
-    const m = eatenMacros(recipe.ingredients, recipe.servings, eating);
-    const ok = await log({
-      label: recipe.name.trim() || "Recipe",
-      ...m,
-      serving: servingLabel(eating, recipe.servings),
-      method: "ai_text",
-      confidence: recipeConfidence(recipe.ingredients),
-      recipe: { servings: recipe.servings, ingredients: recipe.ingredients },
-    });
-    if (ok) {
-      setRecipe(null);
-      setText("");
-    }
-  }
-
-  async function logItems() {
-    if (!items || items.length === 0) return;
+  async function logMany(foods: FoodInput[]) {
     setBusy(true);
+    setError(null);
     let failed: string | null = null;
-    for (const i of items) {
-      const r = await onLog({ label: i.label, kcal: i.kcal, proteinG: i.proteinG, fatG: i.fatG, carbsG: i.carbsG, serving: i.serving || undefined, method: "ai_text", confidence: i.confidence, time });
+    for (const f of foods) {
+      const r = await onLog({ ...f, time });
       if (!r.ok) failed = r.error;
     }
     setBusy(false);
-    if (failed) setError(failed);
-    else {
-      setToast(`Logged ${items.length} item${items.length === 1 ? "" : "s"} · ${n(items.reduce((s, i) => s + i.kcal, 0))} kcal`);
-      setItems(null);
-      setText("");
+    if (failed) {
+      setError(failed);
+      return false;
     }
+    setToast(`Logged ${foods.length} ${foods.length === 1 ? "food" : "foods"} · ${n(foods.reduce((s, f) => s + f.kcal, 0))} kcal`);
+    return true;
   }
+
+  const describe = useDescribe({ one: (f) => log(f), many: logMany });
 
   const header = (
     <div className="flex items-center justify-between gap-2 pb-2 pt-2">
@@ -247,19 +179,10 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
           Quick add
         </PrimaryButton>
       </div>
-    ) : tab === "describe" && recipe && recipe.ingredients.length > 0 ? (
+    ) : tab === "describe" ? (
       <div className="flex flex-col gap-2">
         <ErrorLine text={error} />
-        <PrimaryButton onClick={logRecipe} disabled={busy}>
-          Log {Number.isInteger(eating) ? eating : eating.toFixed(1)} {eating === 1 ? "serving" : "servings"} · {n(eatenMacros(recipe.ingredients, recipe.servings, eating).kcal)} kcal
-        </PrimaryButton>
-      </div>
-    ) : tab === "describe" && items && items.length > 0 ? (
-      <div className="flex flex-col gap-2">
-        <ErrorLine text={error} />
-        <PrimaryButton onClick={logItems} disabled={busy}>
-          Log {items.length} item{items.length === 1 ? "" : "s"} · {n(items.reduce((s, i) => s + i.kcal, 0))} kcal
-        </PrimaryButton>
+        <DescribeFooter d={describe} busy={busy} />
       </div>
     ) : error ? (
       <ErrorLine text={error} />
@@ -297,93 +220,7 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
           </div>
         )}
 
-        {tab === "describe" && (
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-1 rounded-[12px] p-1" style={{ background: "var(--surface-raised)" }} role="radiogroup" aria-label="What the text is">
-              {DESCRIBE_MODES.map((m) => {
-                const selected = m.id === mode;
-                return (
-                  <button key={m.id} type="button" role="radio" aria-checked={selected} onClick={() => setMode(m.id)} className="h-[32px] rounded-[9px] text-[12px] font-medium transition-colors" style={{ background: selected ? "var(--primary)" : "transparent", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={DESCRIBE_MODES.find((m) => m.id === mode)?.placeholder}
-              rows={DESCRIBE_MODES.find((m) => m.id === mode)?.rows ?? 4}
-              maxLength={DESCRIBE_MAX_CHARS}
-              className="w-full resize-none rounded-[12px] px-3 py-2.5 text-[15px] outline-none focus:ring-1"
-              style={inputStyle}
-              aria-label="Describe what you ate"
-            />
-            <PrimaryButton onClick={describe} disabled={!text.trim() || describeStatus === "loading"}>
-              {describeStatus === "loading" ? (mode === "recipe" ? "Reading the recipe…" : "Estimating…") : mode === "recipe" ? "Build the recipe" : "Estimate"}
-            </PrimaryButton>
-            {describeStatus === "too_long" && (
-              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                That is over {DESCRIBE_MAX_CHARS.toLocaleString("en-GB")} characters. Keep the ingredients and the servings line; the method can go.
-              </p>
-            )}
-            {describeStatus === "unavailable" && (
-              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                Describe needs the AI key on the server. Add ANTHROPIC_API_KEY to the deployment to use it. Quick add works without it.
-              </p>
-            )}
-            {describeStatus === "limit" && (
-              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                Daily limit reached for AI estimates. Quick add still works.
-              </p>
-            )}
-            {describeStatus === "error" && (
-              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                Couldn&apos;t estimate that. Try again, or quick add it.
-              </p>
-            )}
-            {items && items.length === 0 && (
-              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                {mode === "recipe" ? "No ingredients found in that. Paste the ingredient list with amounts." : "Nothing recognisable in that. Try naming the foods."}
-              </p>
-            )}
-            {recipe && recipe.ingredients.length > 0 && <RecipeCard recipe={recipe} onChange={setRecipe} eating={eating} onEating={setEating} />}
-            {recipe && recipe.ingredients.length === 0 && (
-              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                Every ingredient was dropped. Describe it again or quick add the total.
-              </p>
-            )}
-            {items && items.length > 0 && (
-              <ul className="flex flex-col gap-1.5" aria-label="Estimated items">
-                {items.map((i, idx) => (
-                  <li key={idx} className="rounded-[12px]" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-                    <div className="flex items-center gap-2 px-3 py-2.5">
-                      <button type="button" onClick={() => setEditing(editing === idx ? null : idx)} className="flex min-w-0 flex-1 flex-col text-left" aria-label={`${i.label}, ${n(i.kcal)} kcal. Adjust`}>
-                        <span className="truncate text-[15px]" style={{ color: "var(--text)" }}>
-                          {i.label}
-                        </span>
-                        <span className="truncate text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-                          {n(i.kcal)} kcal · {i.proteinG}P {i.fatG}F {i.carbsG}C{i.serving ? ` · ${i.serving}` : ""}
-                          {i.matched ? ` · ${i.matched}` : i.confidence !== "high" ? ` · ${i.confidence === "low" ? "rough guess" : "estimate"}` : ""}
-                        </span>
-                      </button>
-                      <button type="button" onClick={() => setItems(items.filter((_, j) => j !== idx))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }} aria-label={`Drop ${i.label}`}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="h-3.5 w-3.5" aria-hidden>
-                          <path d="M6 6l12 12M18 6L6 18" />
-                        </svg>
-                      </button>
-                    </div>
-                    {editing === idx && (
-                      <div className="px-3 pb-3">
-                        <ItemEditor item={i} onChange={(next) => setItems(items.map((x, j) => (j === idx ? next : x)))} />
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        {tab === "describe" && <DescribePanel d={describe} consumedKcal={consumedKcal} targetKcal={targetKcal} />}
 
         {tab === "saved" && (
           <div className="flex flex-col gap-2">
@@ -424,20 +261,5 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
         )}
       </div>
     </Sheet>
-  );
-}
-
-/** Inline editor for one Describe row: macros via the pad, serving as text. */
-function ItemEditor({ item, onChange }: { item: ParsedFoodItem; onChange: (next: ParsedFoodItem) => void }) {
-  const [field, setField] = useState<MacroField>("kcal");
-  const values = macrosToValues(item);
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
-        <input type="text" value={item.label} onChange={(e) => onChange({ ...item, label: e.target.value })} className={`${inputClass} min-w-0 flex-1`} style={inputStyle} aria-label="Name" autoComplete="off" />
-        <input type="text" value={item.serving} onChange={(e) => onChange({ ...item, serving: e.target.value })} placeholder="Serving" className={`${inputClass} w-[120px] shrink-0`} style={inputStyle} aria-label="Serving" autoComplete="off" />
-      </div>
-      <MacroPad values={values} field={field} onField={setField} onChange={(v) => onChange({ ...item, ...macroNumbers(v) })} />
-    </div>
   );
 }

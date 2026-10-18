@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import cofidJson from "@/lib/food/data/cofid.json";
 import { cofidToItems, type CofidData } from "@/lib/food/cofid";
-import { acceptMatch, eatenMacros, estimateCount, matchIngredient, perServing, recipeConfidence, recipeTotals, resolveIngredient, servingLabel, type RecipeIngredient } from "@/lib/food/recipe";
+import { acceptMatch, cleanLookup, eatenMacros, estimateCount, matchIngredient, perServing, recipeConfidence, recipeTotals, resolveIngredient, servingLabel, type RecipeIngredient } from "@/lib/food/recipe";
 
 const items = cofidToItems((cofidJson as CofidData).foods);
 
@@ -29,6 +29,41 @@ describe("ingredient matching", () => {
     expect(spice === null || spice.name.split(",").length <= 5).toBe(true);
     expect(spice?.name ?? "").not.toMatch(/Vegetables, mixed, cooked/);
     expect(matchIngredient(items, "zzzz unknown sauce")).toBeNull();
+  });
+
+  it("names the food where CoFID names it, so a dish that contains the words is not the food", () => {
+    expect(matchIngredient(items, "tomatoes tinned")?.name).toBe("Tomatoes, canned, whole contents");
+    expect(matchIngredient(items, "toast")?.name ?? "").not.toMatch(/prawn/i);
+    expect(matchIngredient(items, "salmon")?.name).toMatch(/^Salmon,/);
+  });
+
+  it("prefers the plain food over substitutes, preserved forms, parts and other animals", () => {
+    expect(matchIngredient(items, "cream double")?.name).toMatch(/^Cream, fresh, double/);
+    expect(matchIngredient(items, "double cream")?.name).toMatch(/^Cream, fresh, double/);
+    expect(matchIngredient(items, "spinach")?.name).not.toMatch(/dried/);
+    expect(matchIngredient(items, "mushrooms", { preferRaw: true })?.name).toBe("Mushrooms, white, raw");
+    expect(matchIngredient(items, "bacon")?.name ?? "").not.toMatch(/fat only/);
+    expect(matchIngredient(items, "milk", { preferRaw: true })?.name).not.toMatch(/sheep/i);
+    expect(matchIngredient(items, "greek yoghurt")?.name).toMatch(/^Yogurt, Greek/);
+    expect(matchIngredient(items, "sugar caster")?.name).toBe("Sugar, white");
+    expect(matchIngredient(items, "rice basmati")?.name).toMatch(/^Rice, white, basmati/);
+    // A pasta shape CoFID only lists in wholewheat takes plain white pasta.
+    expect(matchIngredient(items, "spaghetti dried raw")?.name).toBe("Pasta, white, dried, raw");
+    expect(matchIngredient(items, "penne", { preferRaw: true })?.name).toBe("Pasta, white, dried, raw");
+  });
+
+  it("weighs recipe ingredients raw when no state is named, and never takes a raw row of another food", () => {
+    expect(matchIngredient(items, "potatoes", { preferRaw: true })?.name).toMatch(/raw/);
+    expect(matchIngredient(items, "eggs", { preferRaw: true })?.name).toBe("Eggs, chicken, whole, raw");
+    expect(matchIngredient(items, "onion", { preferRaw: true })?.name).toBe("Onions, raw");
+    expect(matchIngredient(items, "butter", { preferRaw: true })?.name).toMatch(/^Butter/);
+    // A named state wins over the raw default.
+    expect(matchIngredient(items, "potatoes boiled", { preferRaw: true })?.name).toMatch(/boiled/);
+  });
+
+  it("folds UK recipe words onto CoFID's and drops preparation words", () => {
+    expect(cleanLookup("Tinned chopped tomatoes")).toBe("canned tomatoes");
+    expect(cleanLookup("Greek yoghurt, fresh")).toBe("greek yogurt");
   });
 
   it("uses the base list when matched and the estimate when not", () => {
