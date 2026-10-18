@@ -96,7 +96,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         {analysis?.checkInDue && (
           <RowGroup>
-            <Row label="Review" sub="Last week in three reads, then one decision" value={<span style={{ color: "#00e5b0" }}>Ready</span>} trailing={<Chevron />} onClick={() => router.push("/review")} ariaLabel="Open the review" />
+            <Row label="Weekly report" sub="Where you're heading, what to fix, one decision" value={<span style={{ color: "#00e5b0" }}>Ready</span>} trailing={<Chevron />} onClick={() => router.push("/report")} ariaLabel="Open the weekly report" />
           </RowGroup>
         )}
         {analysis && <VerdictCard analysis={analysis} now={now} unit={unit} />}
