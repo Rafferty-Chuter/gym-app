@@ -116,11 +116,20 @@ export function usualWake(nights: readonly SleepNight[] | ReadonlyMap<LocalDate,
 
 // ── Score ──
 
+/** Whole points a part takes off: its share of the most it can take, by how far its own 0..100 falls short. */
+function penaltyFor(id: "timing" | "efficiency", partScore: number): number {
+  return Math.round(SCORE_PENALTY_MAX[id] * (1 - partScore / 100));
+}
+
 export type ScorePartId = "duration" | "timing" | "efficiency";
 
 export type ScorePart = {
   id: ScorePartId;
   label: string;
+  /** The night's data for this part, plainly: "7h 12m of 8h 00m", "08:33 · usual 08:15", "92% asleep". */
+  value: string;
+  /** What the part adds to the score: the hours give the base, the others only take off. The parts sum to the score before the 0..100 clamp. */
+  points: number;
   /** 0..100. */
   score: number;
   word: RatingWord;
@@ -159,7 +168,9 @@ export function nightScore(nights: readonly SleepNight[], date: LocalDate, sleep
   const short = goalH * 60 - night.asleepMin;
   parts.push({
     id: "duration",
-    label: "Hours vs goal",
+    label: "Asleep",
+    value: `${formatHoursMin(night.asleepMin)} of ${formatHoursMin(goalH * 60)}`,
+    points: dScore,
     score: dScore,
     word: rate(dScore),
     detail: short > 1 ? `${formatHoursMin(night.asleepMin)} of the ${formatHoursMin(goalH * 60)} goal` : `${formatHoursMin(night.asleepMin)}, the ${formatHoursMin(goalH * 60)} goal met`,
@@ -175,7 +186,9 @@ export function nightScore(nights: readonly SleepNight[], date: LocalDate, sleep
     const tScore = Math.round(100 * (1 - clamp01((off - SCORE_TIMING_MIN.full) / (SCORE_TIMING_MIN.zero - SCORE_TIMING_MIN.full))));
     parts.push({
       id: "timing",
-      label: "Wake time",
+      label: "Woke",
+      value: `${night.wakeTime} · usual ${usual.hhmm}`,
+      points: -penaltyFor("timing", tScore),
       score: tScore,
       word: rate(tScore),
       detail: off < 5 ? `${night.wakeTime}, your usual time` : `${night.wakeTime}, ${shortMin(off)} ${offset > 0 ? "later" : "earlier"} than your usual ${usual.hhmm}`,
@@ -185,11 +198,11 @@ export function nightScore(nights: readonly SleepNight[], date: LocalDate, sleep
   const eff = efficiencyOf(night);
   if (eff !== null) {
     const eScore = Math.round(100 * clamp01((eff - SCORE_EFFICIENCY.zero) / (SCORE_EFFICIENCY.full - SCORE_EFFICIENCY.zero)));
-    parts.push({ id: "efficiency", label: "Efficiency", score: eScore, word: rate(eScore), detail: `${Math.round(eff * 100)}% of the night asleep` });
+    parts.push({ id: "efficiency", label: "Efficiency", value: `${Math.round(eff * 100)}% asleep`, points: -penaltyFor("efficiency", eScore), score: eScore, word: rate(eScore), detail: `${Math.round(eff * 100)}% of the night asleep` });
   }
 
-  const penalty = parts.reduce((sum, p) => (p.id === "duration" ? sum : sum + SCORE_PENALTY_MAX[p.id] * (1 - p.score / 100)), 0);
-  const score = Math.max(0, Math.min(100, Math.round(dScore - penalty)));
+  // Whole points per part, so the breakdown on the night page adds up to the score shown.
+  const score = Math.max(0, Math.min(100, parts.reduce((sum, p) => sum + p.points, 0)));
 
   // The reason names the weakest part that falls short; otherwise what went right.
   const fallsShort = (p: ScorePart) =>

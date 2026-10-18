@@ -130,7 +130,7 @@ export default function ImportCsvPage() {
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <PageHeader caption="Profile" captionHref="/profile" title="Import" />
+        <PageHeader back={{ href: "/profile", label: "Profile" }} title="Import" />
 
         <DailyLogImport />
 

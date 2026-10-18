@@ -84,7 +84,7 @@ function WorkoutDetail() {
     return (
       <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
         <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 sm:px-6">
-          <PageHeader caption="History" captionHref="/history" captionLabel="Back to History" title="Workout" />
+          <PageHeader back={{ href: "/history", label: "History" }} title="Workout" />
           <p className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
             This workout is not in your history. It may have been deleted.
           </p>
@@ -205,9 +205,7 @@ function WorkoutDetail() {
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader
-          caption="History"
-          captionHref="/history"
-          captionLabel="Back to History"
+          back={{ href: "/history", label: "History" }}
           title={workoutTitle(workout)}
           secondary={
             <button type="button" onClick={() => setMenu(true)} className="flex h-9 w-9 items-center justify-center rounded-full transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Workout options">

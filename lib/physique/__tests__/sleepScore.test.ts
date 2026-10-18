@@ -76,8 +76,21 @@ describe("night score", () => {
     const short = run(7, 6, () => ({}), addDays(TODAY, -1));
     const s = nightScore([...short, mk(TODAY, 8)], TODAY, 8)!;
     expect(s.goalH).toBe(8);
-    expect(s.parts[0]).toMatchObject({ label: "Hours vs goal", score: 100 });
+    expect(s.parts[0]).toMatchObject({ label: "Asleep", score: 100 });
     expect(nightScore([mk(TODAY, 7)], TODAY, 8)!.reason).toBe("1h 00m short of the 8h 00m goal.");
+  });
+
+  it("shows each part as data with whole points that add up to the score (C3)", () => {
+    for (const [asleep, wake, awake] of [[6.2, "08:10", 55], [7.4, "06:20", 30], [8.3, "07:00", 12]] as const) {
+      const s = nightScore([...steady, mk(TODAY, asleep, { wakeTime: wake, stages: { awakeMin: awake } })], TODAY, 8)!;
+      expect(s.parts.reduce((sum, p) => sum + p.points, 0)).toBe(s.score);
+      for (const p of s.parts) {
+        expect(Number.isInteger(p.points)).toBe(true);
+        if (p.id !== "duration") expect(p.points).toBeLessThanOrEqual(0);
+      }
+    }
+    const s = nightScore([...steady, mk(TODAY, 7.2, { wakeTime: "07:40", stages: { awakeMin: 30 } })], TODAY, 8)!;
+    expect(s.parts.map((p) => p.value)).toEqual(["7h 12m of 8h 00m", "07:40 · usual 07:00", "94% asleep"]);
   });
 
   it("copy stays calm", () => {

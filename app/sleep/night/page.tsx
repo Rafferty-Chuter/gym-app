@@ -7,8 +7,8 @@ import SleepSheet from "@/components/physique/SleepSheet";
 import { nightLabel } from "@/components/sleep/NightHero";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import Hypnogram from "@/components/sleep/Hypnogram";
-import StageTiles from "@/components/sleep/StageTiles";
-import { RATE_COLOR, SBar, SCaption, SCard, SRow, STAGE_COLOR, ScoreRing } from "@/components/sleep/parts";
+import StageBars from "@/components/sleep/StageBars";
+import { SCaption, SCard, SRow, ScoreRing } from "@/components/sleep/parts";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { saveSleepNight, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
@@ -63,7 +63,7 @@ function NightDetail() {
   return (
     <main className="theme-sleep min-h-screen pb-28">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-5 sm:px-6">
-        <PageHeader caption="Sleep" captionHref="/sleep" captionLabel="Back to Sleep" title={title} />
+        <PageHeader back={{ href: "/sleep", label: "Sleep" }} title={title} />
 
         {!night || !score ? (
           <p className="text-[15px]" style={{ color: "var(--sl-text-secondary)" }}>
@@ -89,51 +89,22 @@ function NightDetail() {
             </SCard>
 
             {split && (
-              <section aria-label="Stages" className="flex flex-col gap-2">
-                <div className="flex items-baseline justify-between">
-                  <SCaption>Stages</SCaption>
-                  <SCaption>From the watch</SCaption>
-                </div>
-                {night.segments?.length && night.bedtime ? (
-                  <div className="rounded-[16px] px-4 py-4" style={{ background: "var(--sl-surface)" }}>
-                    <Hypnogram segments={night.segments} bedtime={night.bedtime} />
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2 rounded-[16px] px-4 py-4" style={{ background: "var(--sl-surface)" }}>
-                    <div className="flex h-3 w-full overflow-hidden rounded-full" aria-hidden>
-                      {(["deep", "core", "rem", "awake"] as const).map((k) => {
-                        const total = split.asleepMin + split.awakeMin;
-                        const min = k === "deep" ? split.deepMin : k === "core" ? split.coreMin : k === "rem" ? split.remMin : split.awakeMin;
-                        return <div key={k} style={{ width: `${(min / total) * 100}%`, background: STAGE_COLOR[k] }} />;
-                      })}
-                    </div>
-                    <p className="text-[12px] leading-snug" style={{ color: "var(--sl-text-tertiary)" }}>
-                      For the stages across the night, turn off Aggregate for sleep in Health Auto Export.
-                    </p>
-                  </div>
+              <SCard title="Stages" aside={<SCaption>From the watch</SCaption>} label="Stages" className="flex flex-col gap-4 px-4 py-4">
+                {night.segments?.length && night.bedtime ? <Hypnogram segments={night.segments} bedtime={night.bedtime} /> : null}
+                <StageBars split={split} typical={typical} />
+                {!night.segments?.length && (
+                  <p className="text-[12px] leading-snug" style={{ color: "var(--sl-text-tertiary)" }}>
+                    For the stages across the night, turn off Aggregate for sleep in Health Auto Export.
+                  </p>
                 )}
-                <StageTiles split={split} typical={typical} />
-              </section>
+              </SCard>
             )}
 
-            <SCard title="Score" label="What the score is made of" className="divide-y divide-[var(--sl-border)]">
+            <SCard title="Score" label="How the score adds up" className="divide-y divide-[var(--sl-border)]">
               {score.parts.map((p) => (
-                <div key={p.id} className="flex flex-col gap-2 px-4 py-3">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[15px]">{p.label}</span>
-                    <span className="text-[13px] font-semibold" style={{ color: RATE_COLOR[p.word] }}>
-                      {p.word}
-                    </span>
-                  </div>
-                  <SBar fill={p.score / 100} color={RATE_COLOR[p.word]} />
-                  <span className="text-[12px]" style={{ color: "var(--sl-text-tertiary)" }}>
-                    {p.detail}
-                  </span>
-                </div>
+                <ScoreLine key={p.id} label={p.label} value={p.value} points={p.points} />
               ))}
-              <p className="px-4 py-3 text-[12px] leading-snug" style={{ color: "var(--sl-text-tertiary)" }}>
-                The score is your hours against your sleep goal. Waking off your usual time or a restless night takes points off. Stages are shown, not scored: a watch tells them apart less reliably than a sleep lab.
-              </p>
+              <ScoreLine label="Score" points={score.score} total />
             </SCard>
 
             {(night.hrvMs || night.restingHr) && (
@@ -161,6 +132,21 @@ function NightDetail() {
         onSave={(input: SleepInput) => saveSleepNight(date, input, new Date().toISOString())}
       />
     </main>
+  );
+}
+
+/** One line of the score: the part, the night's data for it and the points it adds or takes off. */
+function ScoreLine({ label, value, points, total }: { label: string; value?: string; points: number; total?: boolean }) {
+  return (
+    <div className="flex min-h-[48px] items-center gap-3 px-4 py-2.5">
+      <span className={`w-[5.5rem] shrink-0 text-[15px] ${total ? "font-semibold" : ""}`}>{label}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px]" style={{ color: "var(--sl-text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+        {value}
+      </span>
+      <span className={`shrink-0 text-right text-[15px] ${total ? "font-semibold" : ""}`} style={{ fontVariantNumeric: "tabular-nums", color: !total && points < 0 ? "var(--sl-text-secondary)" : "var(--sl-text)" }}>
+        {points < 0 ? `\u2212${-points}` : points}
+      </span>
+    </div>
   );
 }
 

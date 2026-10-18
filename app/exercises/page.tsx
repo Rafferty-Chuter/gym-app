@@ -66,7 +66,7 @@ export default function ExercisesPage() {
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 sm:px-6">
-        <PageHeader caption="Train" captionHref="/train" captionLabel="Back to Train" title="Exercises" />
+        <PageHeader back={{ href: "/train", label: "Train" }} title="Exercises" />
         <input
           type="search"
           value={query}

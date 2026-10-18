@@ -51,7 +51,7 @@ export default function HistoryPage() {
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <PageHeader caption="Train" captionHref="/train" title="History" />
+        <PageHeader back={{ href: "/train", label: "Train" }} title="History" />
 
         {!hydrated ? null : workouts.length === 0 ? (
           <div className="flex flex-col items-start gap-3 pt-2">
