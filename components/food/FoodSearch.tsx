@@ -6,7 +6,8 @@ import BarcodeScanner from "@/components/food/BarcodeScanner";
 import { ErrorLine, PrimaryButton } from "@/components/physique/ui";
 import { loadCofid, searchFoods } from "@/lib/food/cofid";
 import { portionChoices, scaleMacros } from "@/lib/food/portions";
-import type { FoodItem, Portion } from "@/lib/food/types";
+import { amountAfterSwitch, formatAmount, gramsFor, servingName, stepAmount, type ServingUnit } from "@/lib/food/servings";
+import type { FoodItem } from "@/lib/food/types";
 import { hourLabel } from "@/lib/physique/food/timeline";
 import { recentLists } from "@/lib/physique/food/goTos";
 import type { FoodInput } from "@/lib/physique/io/foodData";
@@ -224,19 +225,41 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
   );
 }
 
-/** Quantity steps for the amount panel. OURS. */
-const QUANTITY_STEP = 0.5;
+/** The serving sizes offered for an item: its own portions (without "100 g", which grams cover), then grams and ounces (C6). */
+function servingUnits(item: FoodItem): ServingUnit[] {
+  const own = portionChoices(item).filter((p) => p.label !== "100 g");
+  return [...own.map((portion) => ({ kind: "portion", portion }) as const), { kind: "g" } as const, { kind: "oz" } as const];
+}
 
+const unitKey = (u: ServingUnit) => (u.kind === "portion" ? `p:${u.portion.label}:${u.portion.grams}` : u.kind);
+const unitChip = (u: ServingUnit) => (u.kind === "portion" ? u.portion.label : u.kind);
+
+/**
+ * How much (C6, after MacroFactor's food page): pick a serving size (the
+ * food's own portions, g or oz), then the amount of it with − / + or the
+ * keypad. The grams it comes to, and the macros, update as you go.
+ */
 function AmountPanel({ item, busy, onBack, onLog }: { item: FoodItem; busy: boolean; onBack: () => void; onLog: (grams: number, portionLabel: string | null) => Promise<void> }) {
-  const choices = useMemo(() => portionChoices(item), [item]);
-  const [portion, setPortion] = useState<Portion>(choices[0]);
-  const [quantity, setQuantity] = useState(1);
-  const [customGrams, setCustomGrams] = useState<string>("");
+  const units = useMemo(() => servingUnits(item), [item]);
+  const [unit, setUnit] = useState<ServingUnit>(units[0]);
+  const [amountText, setAmountText] = useState(units[0].kind === "g" ? "100" : "1");
   const [error, setError] = useState<string | null>(null);
-  const custom = customGrams.trim() !== "" ? Number(customGrams) : null;
-  const grams = custom != null && Number.isFinite(custom) && custom > 0 ? custom : portion.grams * quantity;
+  const amount = Number(amountText);
+  const grams = gramsFor(amount, unit);
   const m = scaleMacros(item, grams);
-  const label = custom != null && Number.isFinite(custom) && custom > 0 ? null : quantity === 1 ? portion.label : `${quantity} × ${portion.label}`;
+  const label = servingName(amount, unit);
+
+  function pick(u: ServingUnit) {
+    if (unitKey(u) === unitKey(unit)) return;
+    setAmountText(formatAmount(amountAfterSwitch(grams, u)));
+    setUnit(u);
+  }
+
+  const stepBtn = (dir: 1 | -1) => (
+    <button type="button" onClick={() => setAmountText(formatAmount(stepAmount(amount, unit, dir)))} className="h-full w-11 text-[19px]" style={{ color: "var(--text-secondary)" }} aria-label={dir < 0 ? "Less" : "More"}>
+      {dir < 0 ? "\u2212" : "+"}
+    </button>
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -254,34 +277,40 @@ function AmountPanel({ item, busy, onBack, onLog }: { item: FoodItem; busy: bool
           {item.brand ? `${item.brand} · ` : ""}per 100 g: {n(item.per100.kcal)} kcal · {Math.round(item.per100.proteinG)}P {Math.round(item.per100.fatG)}F {Math.round(item.per100.carbsG)}C
         </span>
       </div>
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Portion">
-        {choices.map((c) => {
-          const on = custom == null && c.grams === portion.grams;
-          return (
-            <button key={c.label} type="button" role="radio" aria-checked={on} onClick={() => { setPortion(c); setCustomGrams(""); }} className="h-9 rounded-full px-3 text-[13px] font-medium transition-colors" style={{ background: on ? "var(--primary)" : "var(--surface-raised)", color: on ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
-              {c.label}
-            </button>
-          );
-        })}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
+          Serving size
+        </span>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Serving size">
+          {units.map((u) => {
+            const on = unitKey(u) === unitKey(unit);
+            return (
+              <button key={unitKey(u)} type="button" role="radio" aria-checked={on} onClick={() => pick(u)} className="h-9 rounded-full px-3 text-[13px] font-medium transition-colors" style={{ background: on ? "var(--primary)" : "var(--surface-raised)", color: on ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
+                {unitChip(u)}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <div className="flex h-11 items-center rounded-[12px]" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }} role="group" aria-label="Quantity">
-          <button type="button" onClick={() => { setQuantity((x) => Math.max(QUANTITY_STEP, Math.round((x - QUANTITY_STEP) * 2) / 2)); setCustomGrams(""); }} className="h-full w-10 text-[17px]" style={{ color: "var(--text-secondary)" }} aria-label="Less">
-            −
-          </button>
-          <span className="w-10 text-center text-[15px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-            {custom != null ? "–" : `×${quantity}`}
-          </span>
-          <button type="button" onClick={() => { setQuantity((x) => Math.round((x + QUANTITY_STEP) * 2) / 2); setCustomGrams(""); }} className="h-full w-10 text-[17px]" style={{ color: "var(--text-secondary)" }} aria-label="More">
-            +
-          </button>
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 items-center rounded-[12px]" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }} role="group" aria-label="Amount">
+          {stepBtn(-1)}
+          <input
+            type="text"
+            inputMode="decimal"
+            value={amountText}
+            onChange={(e) => setAmountText(e.target.value.replace(/[^\d.]/g, ""))}
+            className="h-full w-16 bg-transparent text-center text-[17px] font-semibold outline-none"
+            style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}
+            aria-label={`Amount in ${unit.kind === "portion" ? unit.portion.label : unit.kind}`}
+            autoComplete="off"
+          />
+          {stepBtn(1)}
         </div>
-        <div className="relative min-w-0 flex-1">
-          <input type="text" inputMode="decimal" value={customGrams} onChange={(e) => setCustomGrams(e.target.value.replace(/[^\d.]/g, ""))} placeholder={`${Math.round(portion.grams * quantity)}`} className={`${inputClass} w-full pr-8`} style={inputStyle} aria-label="Grams" autoComplete="off" />
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
-            g
-          </span>
-        </div>
+        <span className="min-w-0 text-[13px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+          {unit.kind === "portion" ? `\u00d7 ${unit.portion.label}` : unit.kind}
+          {unit.kind !== "g" && grams > 0 ? ` · ${Math.round(grams)} g` : ""}
+        </span>
       </div>
       <p className="text-[15px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }} aria-live="polite">
         {n(m.kcal)} kcal · {Math.round(m.proteinG)}P {Math.round(m.fatG)}F {Math.round(m.carbsG)}C

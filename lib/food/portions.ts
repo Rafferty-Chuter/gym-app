@@ -2,8 +2,9 @@
  * Portions and scaling (M4). Macros scale linearly from per 100 g. The
  * default portions for generic foods are the familiar UK household
  * measures (a medium egg, a slice of medium bread, a glass of milk), all
- * CAL: ordinary sizes, not measurements of the user's food. 100 g is
- * always offered too, and any grams can be typed.
+ * CAL: ordinary sizes, not measurements of the user's food; the 80 g
+ * vegetable portion is the NHS five-a-day portion (PUB). 100 g is always
+ * offered too, and any grams or ounces can be typed (C6).
  */
 
 import type { FoodItem, Macros, Portion } from "@/lib/food/types";
@@ -26,12 +27,52 @@ const GENERIC_PORTIONS: ReadonlyArray<{ re: RegExp; portions: Portion[] }> = [
   { re: /^oranges,/, portions: [{ label: "1 medium orange", grams: 130 }] },
   { re: /^milk, /, portions: [{ label: "1 glass (200 ml)", grams: 200 }, { label: "splash (30 ml)", grams: 30 }] },
   { re: /^yogurt, /, portions: [{ label: "1 small pot", grams: 125 }, { label: "1 large pot", grams: 170 }] },
+  { re: /^cheese, cottage/, portions: [{ label: "2 tbsp", grams: 40 }, { label: "1 small pot", grams: 150 }] },
   { re: /^cheese, /, portions: [{ label: "matchbox piece", grams: 30 }] },
   { re: /^butter, /, portions: [{ label: "thin spread", grams: 7 }, { label: "1 tbsp", grams: 14 }] },
   { re: /^oil, /, portions: [{ label: "1 tsp", grams: 4 }, { label: "1 tbsp", grams: 11 }] },
   { re: /^peanut butter/, portions: [{ label: "1 tbsp", grams: 15 }] },
   { re: /^rice, .*boiled/, portions: [{ label: "1 portion (cooked)", grams: 180 }] },
+  { re: /^rice, .*raw/, portions: [{ label: "1 portion (dry)", grams: 75 }] },
   { re: /^(pasta|spaghetti|macaroni|penne|noodles), .*boiled/, portions: [{ label: "1 portion (cooked)", grams: 180 }] },
+  { re: /^(pasta|spaghetti|macaroni|penne|noodles), .*(raw|dried)/, portions: [{ label: "1 portion (dry)", grams: 75 }] },
+  { re: /^(quinoa, raw|couscous, plain, raw)/, portions: [{ label: "1 portion (dry)", grams: 60 }] },
+  { re: /^breakfast cereal, wheat biscuits/, portions: [{ label: "2 biscuits", grams: 38 }] },
+  { re: /^(breakfast cereal, |muesli)(?!.*(made up|cooked))/, portions: [{ label: "1 bowl", grams: 40 }] },
+  { re: /^salmon, smoked/, portions: [{ label: "2 slices", grams: 50 }] },
+  { re: /^salmon, (farmed|wild)/, portions: [{ label: "1 fillet", grams: 120 }] },
+  { re: /^tuna, canned/, portions: [{ label: "1 can (drained)", grams: 110 }] },
+  { re: /^cod, flesh only/, portions: [{ label: "1 fillet", grams: 140 }] },
+  { re: /^prawns, /, portions: [{ label: "1 portion", grams: 80 }] },
+  { re: /^beef, (rump|sirloin) steak/, portions: [{ label: "1 steak", grams: 200 }] },
+  { re: /^beef, mince/, portions: [{ label: "1 portion", grams: 125 }] },
+  { re: /^pork, loin (chops|steaks)/, portions: [{ label: "1 chop", grams: 150 }] },
+  { re: /^chicken, thighs/, portions: [{ label: "1 thigh", grams: 90 }] },
+  { re: /^sausages, /, portions: [{ label: "1 sausage", grams: 40 }, { label: "2 sausages", grams: 80 }] },
+  { re: /^bacon rashers, /, portions: [{ label: "1 rasher", grams: 25 }, { label: "2 rashers", grams: 50 }] },
+  { re: /^ham\b/, portions: [{ label: "1 slice", grams: 23 }] },
+  { re: /^baked beans, /, portions: [{ label: "half a can", grams: 200 }, { label: "1 can", grams: 415 }] },
+  { re: /^(chickpeas|lentils), .*boiled/, portions: [{ label: "3 tbsp", grams: 80 }] },
+  { re: /^avocado, .*flesh only$/, portions: [{ label: "half an avocado", grams: 75 }, { label: "1 avocado", grams: 150 }] },
+  { re: /^(blueberries|raspberries, raw|strawberries, raw|grapes, )/, portions: [{ label: "1 handful", grams: 80 }] },
+  { re: /^pears, .*raw/, portions: [{ label: "1 medium pear", grams: 160 }] },
+  { re: /^kiwi fruit, flesh only, raw$/, portions: [{ label: "1 kiwi", grams: 60 }] },
+  { re: /^tomatoes, .*raw/, portions: [{ label: "1 medium tomato", grams: 85 }] },
+  { re: /^onions, raw/, portions: [{ label: "1 medium onion", grams: 150 }] },
+  { re: /^peppers, capsicum, (green|red|yellow), raw/, portions: [{ label: "1 pepper", grams: 160 }] },
+  { re: /^(broccoli, green|carrots, |peas, |sweetcorn|spinach|mushrooms|beans, green)(?!.*dried)/, portions: [{ label: "1 portion (80 g)", grams: 80 }] },
+  { re: /^honey/, portions: [{ label: "1 tsp", grams: 7 }, { label: "1 tbsp", grams: 21 }] },
+  { re: /^sugar, /, portions: [{ label: "1 tsp", grams: 4 }] },
+  { re: /^jam, /, portions: [{ label: "1 tsp", grams: 7 }, { label: "1 tbsp", grams: 15 }] },
+  { re: /^chocolate, (milk|plain)/, portions: [{ label: "2 squares", grams: 10 }, { label: "1 bar", grams: 45 }] },
+  { re: /^biscuits, digestive/, portions: [{ label: "1 biscuit", grams: 15 }, { label: "2 biscuits", grams: 30 }] },
+  { re: /^croissants/, portions: [{ label: "1 croissant", grams: 60 }] },
+  { re: /^crumpets/, portions: [{ label: "1 crumpet", grams: 55 }] },
+  { re: /^houmous/, portions: [{ label: "1 tbsp", grams: 30 }] },
+  { re: /^(mayonnaise|tomato ketchup)/, portions: [{ label: "1 tbsp", grams: 15 }] },
+  { re: /^cream, (single|double|whipping)/, portions: [{ label: "1 tbsp", grams: 15 }] },
+  { re: /^ice cream, (dairy|non dairy)/, portions: [{ label: "1 scoop", grams: 60 }] },
+  { re: /^pizza, /, portions: [{ label: "1 slice", grams: 75 }] },
   { re: /^potatoes?, /, portions: [{ label: "1 portion", grams: 175 }] },
   { re: /^chicken, breast/, portions: [{ label: "1 breast", grams: 150 }] },
   { re: /^(oats|porridge oats)/, portions: [{ label: "1 serving (dry)", grams: 40 }] },

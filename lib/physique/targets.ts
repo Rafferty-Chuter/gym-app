@@ -242,7 +242,7 @@ export function validateRate(input: RateValidationInput): RateValidation {
     const deficit = -dayZeroDeltaKcal;
     if (deficit > DEFICIT_MAX_KCAL) return refuse("deficit_kcal", `That is a deficit over ${DEFICIT_MAX_KCAL} kcal a day.`);
     if (tdee0 > 0 && deficit > DEFICIT_MAX_SHARE * tdee0) {
-      return refuse("deficit_share", `That is a deficit over ${Math.round(DEFICIT_MAX_SHARE * 100)}% of your expenditure.`);
+      return refuse("deficit_share", `That is a deficit over ${Math.round(DEFICIT_MAX_SHARE * 100)}% of your maintenance.`);
     }
     const slowEdge = -bands.cut.green.min;
     const fastEdge = -bands.cut.green.max;

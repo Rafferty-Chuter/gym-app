@@ -14,6 +14,7 @@ import { filterSaved } from "@/lib/physique/food/goTos";
 import FoodSearch from "@/components/food/FoodSearch";
 import SavedFoodRow, { PlusButton } from "@/components/food/SavedFoodRow";
 import type { FoodInput } from "@/lib/physique/io/foodData";
+import { formatAmount, scaleServings } from "@/lib/food/servings";
 import type { SaveResult } from "@/lib/physique/io/bodyData";
 import type { FoodEntry, SavedFood } from "@/lib/physique/types";
 import type { LocalDate } from "@/lib/dates";
@@ -56,6 +57,9 @@ const inputStyle = { background: "var(--surface-raised)", color: "var(--text)", 
 /** How long the "Logged …" line stays. OURS. */
 const TOAST_MS = 2500;
 
+/** Servings step for a saved food in Quick add, half a serving. OURS. */
+const SERVINGS_STEP = 0.5;
+
 /**
  * The logger sheet (05-design §9.4): full height, header × · time chip ·
  * "539 / 2,041" · ↓, tabs Search · Quick add · Describe · Saved. Search
@@ -86,6 +90,9 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   const [name, setName] = useState("");
   const [serving, setServing] = useState("");
   const [prefillId, setPrefillId] = useState<string | undefined>(undefined);
+  // C6: a saved food opened in Quick add can be logged as any number of its servings.
+  const [base, setBase] = useState<SavedFood | null>(null);
+  const [servings, setServings] = useState(1);
 
   // Saved
   const [query, setQuery] = useState("");
@@ -131,6 +138,8 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
     setName(s.label);
     setServing(s.serving ?? "");
     setPrefillId(s.id);
+    setBase(s);
+    setServings(1);
     setField("kcal");
     setTab("quick");
   }
@@ -139,14 +148,40 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   const quickKcal = quick.kcal > 0 ? quick.kcal : macroKcal(quick);
   const canQuick = quickKcal > 0;
 
+  /** Servings of the saved food: the macros and the serving name follow; an edit by hand still wins. */
+  function changeServings(next: number) {
+    if (!base) return;
+    setServings(next);
+    setValues(macrosToValues(scaleServings(base, next)));
+    setServing(next === 1 ? (base.serving ?? "") : `${formatAmount(next)} × ${base.serving ?? "serving"}`);
+  }
+
   async function quickAdd() {
     if (!canQuick) return;
-    const ok = await log({ label: name.trim() || "Quick add", kcal: quickKcal, proteinG: quick.proteinG, fatG: quick.fatG, carbsG: quick.carbsG, serving: serving.trim() || undefined, method: prefillId ? "saved" : "quick" }, prefillId);
+    // Fibre rides along only while the macros are still the saved food's, scaled.
+    const scaled = base ? scaleServings(base, servings) : null;
+    const untouched = scaled != null && JSON.stringify(macroNumbers(values)) === JSON.stringify(macroNumbers(macrosToValues(scaled)));
+    const ok = await log(
+      {
+        label: name.trim() || "Quick add",
+        kcal: quickKcal,
+        proteinG: quick.proteinG,
+        fatG: quick.fatG,
+        carbsG: quick.carbsG,
+        ...(untouched && scaled?.fibreG != null ? { fibreG: scaled.fibreG } : {}),
+        serving: serving.trim() || undefined,
+        method: prefillId ? "saved" : "quick",
+        ...(base && servings !== 1 ? { keepSavedServing: true } : {}),
+      },
+      prefillId,
+    );
     if (ok) {
       setValues(EMPTY_MACROS);
       setName("");
       setServing("");
       setPrefillId(undefined);
+      setBase(null);
+      setServings(1);
       setField("kcal");
     }
   }
@@ -293,6 +328,30 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
 
         {tab === "quick" && (
           <div className="flex flex-col gap-3">
+            {base && (
+              <div className="flex items-center justify-between gap-3 rounded-[12px] px-3 py-2" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-[15px] font-medium" style={{ color: "var(--text)" }}>
+                    Servings
+                  </span>
+                  <span className="truncate text-[12px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+                    1 = {base.serving ? `${base.serving} · ` : ""}
+                    {Math.round(base.kcal).toLocaleString("en-GB")} kcal
+                  </span>
+                </span>
+                <span className="flex h-10 shrink-0 items-center rounded-[12px]" style={{ background: "var(--surface-raised)" }} role="group" aria-label="Servings">
+                  <button type="button" onClick={() => changeServings(Math.max(SERVINGS_STEP, servings - SERVINGS_STEP))} disabled={servings <= SERVINGS_STEP} className="h-full w-10 text-[19px] disabled:opacity-40" style={{ color: "var(--text-secondary)" }} aria-label="Fewer servings">
+                    {"\u2212"}
+                  </button>
+                  <span className="w-12 text-center text-[17px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }} aria-live="polite">
+                    {formatAmount(servings)}
+                  </span>
+                  <button type="button" onClick={() => changeServings(servings + SERVINGS_STEP)} className="h-full w-10 text-[19px]" style={{ color: "var(--text-secondary)" }} aria-label="More servings">
+                    +
+                  </button>
+                </span>
+              </div>
+            )}
             <MacroPad values={values} field={field} onField={setField} onChange={setValues} />
             <div className="flex gap-2">
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" className={`${inputClass} min-w-0 flex-1`} style={inputStyle} aria-label="Name" autoComplete="off" />

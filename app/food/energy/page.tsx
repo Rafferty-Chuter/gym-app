@@ -70,10 +70,10 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
             </svg>
             Food
           </Link>
-          <h1 className="mt-1 text-[34px] font-semibold leading-none tracking-[-0.02em]">Expenditure</h1>
+          <h1 className="mt-1 text-[34px] font-semibold leading-none tracking-[-0.02em]">Maintenance</h1>
         </header>
 
-        <section className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="Expenditure over the range">
+        <section className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="Maintenance over the range">
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col">
               <Caption>Average</Caption>
@@ -97,7 +97,7 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
             </div>
           </div>
           <div className="mt-3">
-            <ExpenditureChart points={model.summary.points} plusMinus={e?.plusMinus ?? null} ariaLabel={`Expenditure, ${range}`} />
+            <ExpenditureChart points={model.summary.points} plusMinus={e?.plusMinus ?? null} ariaLabel={`Maintenance, ${range}`} />
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex gap-1" role="tablist" aria-label="Range">
@@ -128,7 +128,7 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           </div>
           <p className="mt-2 text-[12px]" style={{ color: "var(--text-secondary)" }}>
             {model.summary.points.length === 0
-              ? "Expenditure starts once there is a weigh-in and a day of food."
+              ? "The maintenance estimate starts once there is a weigh-in and a day of food."
               : `Difference is the move from ${longLocalDate(model.summary.points[0].date)} to today. Intake − change in stored energy, from logged food and the weight trend.`}
           </p>
         </section>
@@ -136,7 +136,7 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
 
         <section className="grid grid-cols-2 gap-3" aria-label="Current">
           <div className="flex flex-col gap-1 rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
-            <Caption>Current expenditure</Caption>
+            <Caption>Maintenance now</Caption>
             <span className="text-[28px] font-semibold leading-tight tracking-[-0.02em]" style={{ color: e?.kcal != null ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
               {e?.kcal != null ? n(e.kcal) : "–"}
             </span>

@@ -141,6 +141,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           energyLine={energyLine}
           onEnergyLineChange={setEnergyLine}
           expenditureState={analysis?.expenditure.state ?? null}
+          maintenance={analysis?.expenditure ?? null}
         />
 
         <FoodTimeline

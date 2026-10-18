@@ -25,9 +25,14 @@ type Props = {
   energyLine: EnergyLine;
   onEnergyLineChange: (l: EnergyLine) => void;
   expenditureState: ExpenditureState | null;
+  /** The engine's current maintenance estimate (C6); null before it has one. */
+  maintenance: { kcal: number | null; state: ExpenditureState; plusMinus: number | null } | null;
 };
 
 const n = (v: number) => Math.round(v).toLocaleString("en-GB");
+
+/** How settled the maintenance estimate is, said beside it; nothing once it updates normally. */
+const MAINTENANCE_WORD: Record<ExpenditureState, string | null> = { calibrating: "early read", settling: "settling", holding: "holding", stable: null };
 
 function Card({ children, ariaLabel }: { children: ReactNode; ariaLabel: string }) {
   return (
@@ -60,7 +65,7 @@ function Pills<T extends string>({ value, options, onChange, label }: { value: T
  * sits under the macros once the day's fibre can be read (F7).
  */
 export default function FoodWidgets(props: Props) {
-  const { date, today, totals, fibreG, target, view, onViewChange, energy, energyLine, onEnergyLineChange, expenditureState } = props;
+  const { date, today, totals, fibreG, target, view, onViewChange, energy, energyLine, onEnergyLineChange, expenditureState, maintenance } = props;
   const scroller = useRef<HTMLDivElement | null>(null);
   const [page, setPage] = useState(0);
   const remaining = view === "remaining";
@@ -98,6 +103,25 @@ export default function FoodWidgets(props: Props) {
               </span>
             </p>
           )}
+          {maintenance?.kcal != null && (
+            <Link href="/food/energy" className={`${fibreG != null ? "mt-1.5" : "mt-3"} flex items-baseline justify-between text-[12px]`} style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }} aria-label={`Maintenance about ${n(maintenance.kcal)} kcal${MAINTENANCE_WORD[maintenance.state] ? `, ${MAINTENANCE_WORD[maintenance.state]}` : ""}. Open maintenance`}>
+              <span>
+                Maintenance
+                {MAINTENANCE_WORD[maintenance.state] && <span style={{ color: "var(--text-tertiary)" }}> · {MAINTENANCE_WORD[maintenance.state]}</span>}
+              </span>
+              <span className="flex items-center gap-1">
+                <span>
+                  <span className="font-semibold" style={{ color: "var(--text)" }}>
+                    {n(maintenance.kcal)}
+                  </span>{" "}
+                  kcal
+                </span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden>
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </span>
+            </Link>
+          )}
           {!target && (
             <p className="mt-3 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
               No targets yet.{" "}
@@ -112,13 +136,13 @@ export default function FoodWidgets(props: Props) {
         {/* Energy balance */}
         <Card ariaLabel="Energy balance">
           <div className="flex items-center justify-between gap-2">
-            <Link href="/food/energy" className="flex items-center gap-1 text-[15px] font-semibold" style={{ color: "var(--text)" }} aria-label="Energy balance. Open expenditure">
+            <Link href="/food/energy" className="flex items-center gap-1 text-[15px] font-semibold" style={{ color: "var(--text)" }} aria-label="Energy balance. Open maintenance">
               Energy balance
               <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden>
                 <path d="M9 6l6 6-6 6" />
               </svg>
             </Link>
-            <Pills value={energyLine} options={[{ id: "expenditure", label: "Expenditure" }, { id: "targets", label: "Targets" }]} onChange={onEnergyLineChange} label="Line" />
+            <Pills value={energyLine} options={[{ id: "expenditure", label: "Maintenance" }, { id: "targets", label: "Targets" }]} onChange={onEnergyLineChange} label="Line" />
           </div>
           <div className="mt-2">
             <EnergyBalanceChart points={energy.points} lineColor={energyLine === "targets" ? FAT_COLOR : "var(--text)"} ariaLabel={`Intake against ${energyLine} over ${energy.days} days`} />
@@ -127,7 +151,7 @@ export default function FoodWidgets(props: Props) {
             {(
               [
                 { label: "Intake", value: energy.avgIntakeKcal, color: KCAL_COLOR, prefix: "" },
-                { label: energyLine === "targets" ? "Targets" : "Expenditure", value: energy.avgLineKcal, color: energyLine === "targets" ? FAT_COLOR : "var(--text-secondary)", prefix: "− " },
+                { label: energyLine === "targets" ? "Targets" : "Maintenance", value: energy.avgLineKcal, color: energyLine === "targets" ? FAT_COLOR : "var(--text-secondary)", prefix: "− " },
                 { label: "Difference", value: energy.differenceKcal, color: "var(--text)", prefix: "= " },
               ] as const
             ).map((t) => (
@@ -146,7 +170,7 @@ export default function FoodWidgets(props: Props) {
           <p className="mt-2 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             {energy.daysLogged === 0
               ? `No full days logged in the last ${energy.days}.`
-              : `Averages over ${energy.daysLogged} logged day${energy.daysLogged === 1 ? "" : "s"}${energyLine === "expenditure" && expenditureState && expenditureState !== "stable" ? ` · expenditure ${expenditureState}` : ""}.`}
+              : `Averages over ${energy.daysLogged} logged day${energy.daysLogged === 1 ? "" : "s"}${energyLine === "expenditure" && expenditureState && expenditureState !== "stable" ? ` · maintenance ${expenditureState}` : ""}.`}
           </p>
         </Card>
       </div>

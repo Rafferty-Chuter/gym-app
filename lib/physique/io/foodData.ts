@@ -68,6 +68,8 @@ export type FoodInput = {
   fibreG?: number;
   /** Present when the log is servings of a recipe; the saved food keeps one serving and the ingredients. */
   recipe?: SavedFood["recipe"];
+  /** C6: the log is several servings of a saved food, so the saved food keeps its own serving name. */
+  keepSavedServing?: boolean;
 };
 
 function clean(food: FoodInput) {
@@ -95,7 +97,7 @@ export async function logFood(date: LocalDate, food: FoodInput, nowIso: string, 
     const base = clean(food);
     // A recipe is remembered as one serving, whatever was eaten this time.
     const savedBase = food.recipe ? clean({ ...food, ...perServing(food.recipe.ingredients, food.recipe.servings) }) : base;
-    const savedServing = food.recipe ? unitLabel({ servings: food.recipe.servings, totalGrams: food.recipe.totalGrams ?? null }) : food.serving;
+    const savedServing = food.recipe ? unitLabel({ servings: food.recipe.servings, totalGrams: food.recipe.totalGrams ?? null }) : food.keepSavedServing && savedFoodId ? undefined : food.serving;
     const id = await rememberSaved(savedBase, savedServing, nowIso, savedFoodId, food.recipe);
     const entry: FoodEntry = {
       id: newId(),

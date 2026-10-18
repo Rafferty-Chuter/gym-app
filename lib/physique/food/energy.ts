@@ -184,15 +184,15 @@ export function targetsHistory(program: PhysiqueProgram | null | undefined, toda
     const prev = i > 0 ? sorted[i - 1] : null;
     let reason: string;
     let deltaKcal: number | null = null;
-    if (!prev) reason = `${SOURCE_WORD[entry.source]} from an expenditure of ${Math.round(entry.tdeeAtAccept).toLocaleString("en-GB")} kcal.`;
+    if (!prev) reason = `${SOURCE_WORD[entry.source]} from a maintenance estimate of ${Math.round(entry.tdeeAtAccept).toLocaleString("en-GB")} kcal.`;
     else {
       deltaKcal = entry.kcal - prev.kcal;
       const tdeeMove = Math.round(entry.tdeeAtAccept - prev.tdeeAtAccept);
       const moved = tdeeMove === 0 ? "held" : `moved ${signedKcal(tdeeMove)}`;
       reason =
         deltaKcal === 0
-          ? `${SOURCE_WORD[entry.source]}: expenditure ${moved}, targets unchanged.`
-          : `${SOURCE_WORD[entry.source]}: expenditure ${moved}, so the target went ${deltaKcal > 0 ? "up" : "down"} ${Math.abs(deltaKcal).toLocaleString("en-GB")} kcal.`;
+          ? `${SOURCE_WORD[entry.source]}: maintenance ${moved}, targets unchanged.`
+          : `${SOURCE_WORD[entry.source]}: maintenance ${moved}, so the target went ${deltaKcal > 0 ? "up" : "down"} ${Math.abs(deltaKcal).toLocaleString("en-GB")} kcal.`;
     }
     return { entry, deltaKcal, reason, current: entry.startDate === currentStart };
   });
