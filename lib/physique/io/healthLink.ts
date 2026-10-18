@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
 import { sleepNightsRepo, stepsRepo, weighInsRepo } from "@/lib/physique/io/repos";
+import { repairTwelveHourNight } from "@/lib/health/repair";
 import type { DailySteps, SleepNight, SleepSegment, SleepStage, WeighIn } from "@/lib/physique/types";
 import { MAX_SEGMENTS } from "@/lib/health/hae";
 
@@ -26,6 +27,8 @@ export type HealthLink = {
   lastPayloadAt?: string | null;
   serverSamples?: number;
   lastError?: string | null;
+  /** When the S10 repair of nights read before 12-hour times were understood ran (`lib/health/repair.ts`). */
+  repairedS10At?: string;
 };
 
 export const healthLinkStore = createSingleton<HealthLink>("physique.v1.healthLink");
@@ -112,13 +115,17 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
       const asleepMin = num(v.asleepMin);
       if (asleepMin == null || asleepMin <= 0) continue;
       const n = { ...nightFor(s.day, s.received_at), asleepMin };
+      // A sleep row is the whole night as the server has it now: a value it no longer carries is removed, so a re-sent night replaces a misread one (S10).
       // Watch-only nights carry no "in bed" (0): leave it unset so the sleep period stands in.
       const inBed = num(v.inBedMin);
       if (inBed != null && inBed > 0) n.inBedMin = inBed;
+      else delete n.inBedMin;
       const bedtime = str(v.bedtime);
       if (bedtime) n.bedtime = bedtime;
+      else delete n.bedtime;
       const wake = str(v.wakeTime);
       if (wake) n.wakeTime = wake;
+      else delete n.wakeTime;
       const st = v.stages && typeof v.stages === "object" ? (v.stages as Record<string, unknown>) : null;
       if (st) {
         const stages: NonNullable<SleepNight["stages"]> = {};
@@ -169,8 +176,14 @@ let inflight: Promise<PullResult> | null = null;
 export async function pullHealth(nowIso: string, force = false): Promise<PullResult> {
   if (inflight) return inflight;
   inflight = (async (): Promise<PullResult> => {
-    const link = await healthLinkStore.get();
+    let link = await healthLinkStore.get();
     if (!link?.token) return { ok: false, error: "unauthorized" };
+    if (!link.repairedS10At) {
+      const fixed = sleepNightsRepo.snapshot().map(repairTwelveHourNight).filter((n): n is SleepNight => n != null);
+      if (fixed.length) await sleepNightsRepo.bulkUpsert(fixed);
+      link = { ...link, repairedS10At: nowIso };
+      await healthLinkStore.set(link);
+    }
     if (!force && link.lastPullAt && Date.now() - Date.parse(link.lastPullAt) < PULL_INTERVAL_MS) return { ok: true, merged: 0, nights: 0, weighIns: 0 };
     let res: Response;
     try {

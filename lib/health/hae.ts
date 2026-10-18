@@ -2,8 +2,10 @@
  * Health Auto Export → normalised samples (06-execution Sprint 0, S5).
  * Pure. The app's JSON (research D §2.1) is a `data.metrics[]` list; each
  * metric has a name, units and `data[]` rows with a `date` in
- * `yyyy-MM-dd HH:mm:ss Z`. Dates are already local, so the local day is
- * the first ten characters and the clock the next five: no timezone maths.
+ * `yyyy-MM-dd HH:mm:ss Z`, or on a phone set to 12-hour time
+ * `yyyy-MM-dd h:mm:ss a Z` ("2026-10-18 9:30:00 AM +0100", S10). Dates are
+ * already local, so the local day is the first ten characters and the
+ * clock follows: no timezone maths.
  *
  * Names are mapped defensively: the help page and the vendor's server
  * disagree on body mass (`weight_&_body_mass` vs `weight_body_mass`), and
@@ -45,13 +47,28 @@ export type ScalarSample = {
 
 export type HealthSample = SleepSample | ScalarSample;
 
-const DATE_RE = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(?::\d{2})?/;
+/** Day, hour (one or two digits), minute, optional seconds, optional AM/PM (iOS puts a narrow no-break space before it, which `\s` matches). */
+const DATE_RE = /^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*([AaPp][Mm])?/;
 
-/** Local day and clock from an export date; null when malformed. */
+/**
+ * Local day and 24-hour clock from an export date; null when malformed.
+ * A phone set to 12-hour time exports "9:30:00 AM" and "11:53:00 PM":
+ * read before S10 as no time at all and as 11:53, which put wake times at
+ * midnight's "12:00" and bedtimes twelve hours early.
+ */
 export function splitLocalDate(s: unknown): { day: string; clock: string } | null {
   if (typeof s !== "string") return null;
   const m = DATE_RE.exec(s.trim());
-  return m ? { day: m[1], clock: m[2] } : null;
+  if (!m) return null;
+  let hour = Number(m[2]);
+  const minute = Number(m[3]);
+  const half = m[4]?.toLowerCase();
+  if (half) {
+    if (hour < 1 || hour > 12) return null;
+    hour = (hour % 12) + (half === "pm" ? 12 : 0);
+  }
+  if (hour > 23 || minute > 59) return null;
+  return { day: m[1], clock: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` };
 }
 
 const LB_TO_KG = 0.45359237;
@@ -206,7 +223,9 @@ export function parseHaePayload(payload: unknown): HealthSample[] {
         continue;
       }
       if (kind === "sleep") {
-        const end = splitLocalDate(r.sleepEnd) ?? splitLocalDate(r.inBedEnd) ?? splitLocalDate(r.date);
+        // The row's own date names the day, never the wake time: it is midnight.
+        const endExact = splitLocalDate(r.sleepEnd) ?? splitLocalDate(r.inBedEnd);
+        const end = endExact ?? splitLocalDate(r.date);
         if (!end) continue;
         const start = splitLocalDate(r.sleepStart) ?? splitLocalDate(r.inBedStart);
         const total = hoursToMin(r.totalSleep);
@@ -224,7 +243,7 @@ export function parseHaePayload(payload: unknown): HealthSample[] {
           asleepMin,
           inBedMin: hoursToMin(r.inBed),
           bedtime: start?.clock ?? null,
-          wakeTime: end.clock,
+          wakeTime: endExact?.clock ?? null,
           stages: { coreMin: core, deepMin: deep, remMin: rem, awakeMin: awake },
           source,
         });

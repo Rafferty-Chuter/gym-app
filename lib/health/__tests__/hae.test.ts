@@ -31,6 +31,27 @@ describe("parseHaePayload", () => {
     expect(splitLocalDate("nope")).toBeNull();
   });
 
+  it("reads a phone set to 12-hour time, with the narrow space iOS puts before AM and PM (S10)", () => {
+    expect(splitLocalDate("2026-10-18 9:30:00 AM +0100")).toEqual({ day: "2026-10-18", clock: "09:30" });
+    expect(splitLocalDate("2026-10-17 11:53:00\u202fPM +0100")).toEqual({ day: "2026-10-17", clock: "23:53" });
+    expect(splitLocalDate("2026-10-18 12:00:00 AM +0100")).toEqual({ day: "2026-10-18", clock: "00:00" });
+    expect(splitLocalDate("2026-10-18 12:30:00 pm +0100")).toEqual({ day: "2026-10-18", clock: "12:30" });
+    expect(splitLocalDate("2026-10-18 1:05:00 AM +0100")).toEqual({ day: "2026-10-18", clock: "01:05" });
+    expect(splitLocalDate("2026-10-18T07:05:00+01:00")).toEqual({ day: "2026-10-18", clock: "07:05" });
+    expect(splitLocalDate("2026-10-18 13:05:00 PM +0100")).toBeNull();
+    expect(splitLocalDate("2026-10-18 25:05:00 +0100")).toBeNull();
+  });
+
+  it("takes bedtime and wake from a 12-hour aggregated night, and never the row's midnight as the wake time", () => {
+    const night = (row: Record<string, unknown>) => parseHaePayload({ data: { metrics: [{ name: "sleep_analysis", units: "hr", data: [row] }] } })[0];
+    const s = night({ date: "2026-10-18 12:00:00 AM +0100", totalSleep: 7.6, core: 4.7, deep: 1.1, rem: 1.8, awake: 0.3, sleepStart: "2026-10-18 1:42:00 AM +0100", sleepEnd: "2026-10-18 9:34:00 AM +0100", source: "Apple Watch" });
+    expect(s).toMatchObject({ kind: "sleep", day: "2026-10-18", bedtime: "01:42", wakeTime: "09:34" });
+    const late = night({ date: "2026-10-17 12:00:00 AM +0100", totalSleep: 7.4, sleepStart: "2026-10-16 11:53:00 PM +0100", sleepEnd: "2026-10-17 7:30:00 AM +0100" });
+    expect(late).toMatchObject({ day: "2026-10-17", bedtime: "23:53", wakeTime: "07:30" });
+    const noEnd = night({ date: "2026-10-16 12:00:00 AM +0100", totalSleep: 7 });
+    expect(noEnd).toMatchObject({ day: "2026-10-16", wakeTime: null });
+  });
+
   it("maps both body-mass names, converts lb, and reads fractions as percent", () => {
     const s = parseHaePayload(payload);
     const weights = s.filter((x) => x.kind === "weight");

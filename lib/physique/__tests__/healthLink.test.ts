@@ -41,6 +41,15 @@ describe("mergeSamples", () => {
     expect(nightsByDate(all).get("2026-10-15")?.night.asleepMin).toBe(430);
   });
 
+  it("a re-sent night replaces a misread one, times included (S10)", async () => {
+    await mergeSamples([{ metric: "sleep", day: "2026-10-18", value: { asleepMin: 458, bedtime: "11:53", wakeTime: "12:00", stages: {} }, source: "Apple Watch", received_at: at }]);
+    await mergeSamples([{ metric: "rhr", day: "2026-10-18", value: { value: 51, at: "2026-10-18T00:00:00" }, source: null, received_at: at }]);
+    await mergeSamples([{ metric: "sleep", day: "2026-10-18", value: { asleepMin: 458, bedtime: "23:53", wakeTime: "09:34", stages: {} }, source: "Apple Watch", received_at: at }]);
+    expect(sleepNightsRepo.snapshot()[0]).toMatchObject({ bedtime: "23:53", wakeTime: "09:34", restingHr: 51 });
+    await mergeSamples([{ metric: "sleep", day: "2026-10-18", value: { asleepMin: 458, bedtime: "23:53", wakeTime: null, stages: {} }, source: "Apple Watch", received_at: at }]);
+    expect(sleepNightsRepo.snapshot()[0].wakeTime).toBeUndefined();
+  });
+
   it("keeps one step count per day, replacing it on replay (B3)", async () => {
     await mergeSamples([
       { metric: "steps", day: "2026-10-14", value: { value: 8123.6, at: "2026-10-14T00:00:00" }, source: "iPhone", received_at: at },

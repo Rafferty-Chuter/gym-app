@@ -18,11 +18,16 @@ const MAX_BYTES = 4_000_000;
 /** One request carries at most this many samples. OURS. */
 const MAX_SAMPLES = 5000;
 
-function toRow(deviceHash: string, s: HealthSample): SampleRow {
+/**
+ * One stored row. `received_at` is set on every write, not only the first,
+ * so a day sent again (a manual re-export after a fix) reaches the phone's
+ * next pull, which asks for rows received since its last one.
+ */
+function toRow(deviceHash: string, s: HealthSample, receivedAt: string): SampleRow {
   if (s.kind === "sleep") {
-    return { device_hash: deviceHash, metric: "sleep", day: s.day, value: { asleepMin: s.asleepMin, inBedMin: s.inBedMin, bedtime: s.bedtime, wakeTime: s.wakeTime, stages: s.stages, ...(s.segments?.length ? { segments: s.segments } : {}) }, source: s.source };
+    return { device_hash: deviceHash, metric: "sleep", day: s.day, value: { asleepMin: s.asleepMin, inBedMin: s.inBedMin, bedtime: s.bedtime, wakeTime: s.wakeTime, stages: s.stages, ...(s.segments?.length ? { segments: s.segments } : {}) }, source: s.source, received_at: receivedAt };
   }
-  return { device_hash: deviceHash, metric: s.kind, day: s.day, value: { value: s.value, at: s.at }, source: s.source };
+  return { device_hash: deviceHash, metric: s.kind, day: s.day, value: { value: s.value, at: s.at }, source: s.source, received_at: receivedAt };
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -49,8 +54,9 @@ export async function POST(request: Request): Promise<Response> {
     await touchDevice(cfg, deviceHash, { samples: samples.length, payload: true });
     // One row per (metric, day): the last in the payload wins, as the upsert would.
     const byKey = new Map<string, SampleRow>();
+    const receivedAt = new Date().toISOString();
     for (const s of samples) {
-      const row = toRow(deviceHash, s);
+      const row = toRow(deviceHash, s, receivedAt);
       byKey.set(`${row.metric}|${row.day}`, row);
     }
     await upsertSamples(cfg, [...byKey.values()]);
