@@ -13,7 +13,7 @@ import { computePlateauStatus, computeProgressStatus, computeVolumeStatus } from
 export type IndicatorState = SignalState;
 
 /** Row dot per state: DESIGN.md status colours, grey while unknown. */
-export const INDICATOR_DOT_COLOR: Record<SignalState, string> = { good: "#00e5b0", watch: "#f5b544", attention: "#f26d7d", unknown: "#6f6f76" };
+export const INDICATOR_DOT_COLOR: Record<SignalState, string> = { good: "var(--status-good)", watch: "var(--status-watch)", attention: "var(--status-attention)", unknown: "var(--text-tertiary)" };
 
 export type Indicator = {
   key: "plateau" | "volume" | "progress";

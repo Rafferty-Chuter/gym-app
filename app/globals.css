@@ -1,29 +1,151 @@
 @import "tailwindcss";
 
+/* ── Mist palette (DESIGN.md rev 4) ─────────────────────────
+   Soft green and misty sky, in a light and a dark mode. The app
+   follows the phone (prefers-color-scheme) unless Profile sets
+   data-theme on <html>. Every component reads these variables;
+   no component hard-codes a colour. */
 :root {
-  /* ── Base surfaces ───────────────────────────────────── */
-  --background: #0a0a0b;
-  --foreground: #f2f2f0;
+  color-scheme: dark;
+  --page-top: #1c2b32;
+  --background: #10191b;
+  --foreground: #e6efeb;
+  --surface: #172225;
+  --surface-raised: #213033;
+  --surface-pressed: #2b3d40;
+  --border: #26373a;
+  --border-strong: #37494c;
+  --text: #e6efeb;
+  --text-secondary: #a1b3af;
+  --text-tertiary: #72878a;
+  --primary: #a8d8bc;
+  --primary-pressed: #92c7a8;
+  --text-on-primary: #0f201a;
+  --accent: 143 208 171;
+  --accent-foreground: 15 32 26;
+  --green: #8fd0ab;
+  --green-strong: #a9e0c1;
+  --green-dim: #24423a;
+  --sky: #9dbfd8;
+  --sky-strong: #b9d4e8;
+  --sky-dim: #2a4254;
+  --status-good: #74d3a2;
+  --status-watch: #e6b765;
+  --status-attention: #ef8f99;
+  --status-unknown: #72878a;
+  --chart-trend: #e6efeb;
+  --chart-raw: #4d6266;
+  --chart-projection: #72878a;
+  --chart-band: #1c2a2d;
+  --macro-kcal: #8fb0f0;
+  --macro-protein: #ee8d86;
+  --macro-fat: #e8c477;
+  --macro-carb: #84d1a6;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --tab-bg: #121c1e;
+  --sleep-top: #1a2a39;
+  --sleep-wind: #3b5568;
+  --stage-awake: #f0aa7c;
+  --stage-rem: #8fd0f2;
+  --stage-core: #7ea2e0;
+  --stage-deep: #aaa3e8;
+  /* Derived: the page is a misty sky fading into the base, and the sticky header matches its top. */
+  --page: linear-gradient(180deg, var(--page-top) 0px, var(--background) 380px);
+  --page-bg: var(--page-top);
+}
 
-  /* ── DESIGN.md tokens ─────────────────────────────────── */
-  --surface: #141416;
-  --surface-raised: #1d1d20;
-  --surface-pressed: #26262a;
-  --border: #2a2a2e;
-  --border-strong: #3a3a40;
-  --text: #f2f2f0;
-  --text-secondary: #a3a3a8;
-  --text-tertiary: #6f6f76;
-  --primary: #f2f2f0;
-  --text-on-primary: #0a0a0b;
-  --status-good: #00e5b0;
-  --status-watch: #f5b544;
-  --status-attention: #f26d7d;
-  --status-unknown: #6f6f76;
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --page-top: #d9e6ec;
+    --background: #edf2f0;
+    --foreground: #17272a;
+    --surface: #fafcfb;
+    --surface-raised: #e8eeeb;
+    --surface-pressed: #dbe4e0;
+    --border: #dce4e0;
+    --border-strong: #c2cfca;
+    --text: #17272a;
+    --text-secondary: #4a5d5f;
+    --text-tertiary: #677a7a;
+    --primary: #2f6b55;
+    --primary-pressed: #275a47;
+    --text-on-primary: #f4faf6;
+    --accent: 47 125 92;
+    --accent-foreground: 244 250 246;
+    --green: #7dbf9c;
+    --green-strong: #2f7d5c;
+    --green-dim: #d3e8dc;
+    --sky: #7ea8c6;
+    --sky-strong: #3d6d92;
+    --sky-dim: #d4e2ec;
+    --status-good: #2b875c;
+    --status-watch: #b0731a;
+    --status-attention: #c2475b;
+    --status-unknown: #8a9a9a;
+    --chart-trend: #17272a;
+    --chart-raw: #a7b6b3;
+    --chart-projection: #8a9a9a;
+    --chart-band: #e2eae7;
+    --macro-kcal: #5a84d4;
+    --macro-protein: #cf5f5a;
+    --macro-fat: #c4952b;
+    --macro-carb: #4b9f76;
+    --scrim: rgba(23, 39, 42, 0.38);
+    --tab-bg: #f6f9f8;
+    --sleep-top: #cfdeea;
+    --sleep-wind: #b6cadb;
+    --stage-awake: #df9467;
+    --stage-rem: #5fb0dc;
+    --stage-core: #5b88cc;
+    --stage-deep: #8a83cc;
+  }
+}
 
-  /* ── Brand accent: vivid mint ────────────────────────── */
-  --accent: 0 229 176;
-  --accent-foreground: 0 26 19;
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page-top: #d9e6ec;
+  --background: #edf2f0;
+  --foreground: #17272a;
+  --surface: #fafcfb;
+  --surface-raised: #e8eeeb;
+  --surface-pressed: #dbe4e0;
+  --border: #dce4e0;
+  --border-strong: #c2cfca;
+  --text: #17272a;
+  --text-secondary: #4a5d5f;
+  --text-tertiary: #677a7a;
+  --primary: #2f6b55;
+  --primary-pressed: #275a47;
+  --text-on-primary: #f4faf6;
+  --accent: 47 125 92;
+  --accent-foreground: 244 250 246;
+  --green: #7dbf9c;
+  --green-strong: #2f7d5c;
+  --green-dim: #d3e8dc;
+  --sky: #7ea8c6;
+  --sky-strong: #3d6d92;
+  --sky-dim: #d4e2ec;
+  --status-good: #2b875c;
+  --status-watch: #b0731a;
+  --status-attention: #c2475b;
+  --status-unknown: #8a9a9a;
+  --chart-trend: #17272a;
+  --chart-raw: #a7b6b3;
+  --chart-projection: #8a9a9a;
+  --chart-band: #e2eae7;
+  --macro-kcal: #5a84d4;
+  --macro-protein: #cf5f5a;
+  --macro-fat: #c4952b;
+  --macro-carb: #4b9f76;
+  --scrim: rgba(23, 39, 42, 0.38);
+  --tab-bg: #f6f9f8;
+  --sleep-top: #cfdeea;
+  --sleep-wind: #b6cadb;
+  --stage-awake: #df9467;
+  --stage-rem: #5fb0dc;
+  --stage-core: #5b88cc;
+  --stage-deep: #8a83cc;
 }
 
 @theme inline {
@@ -36,7 +158,8 @@
 }
 
 body {
-  background: var(--background);
+  background: var(--page);
+  background-attachment: scroll;
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -61,7 +184,7 @@ body {
 @layer components {
 
   /* ── Primary CTA ─────────────────────────────────────── */
-  /* White primary action with dark text (DESIGN.md); no glow. */
+  /* Soft green primary action (DESIGN.md rev 4); no glow. */
   .btn-primary {
     @apply font-semibold transition-colors duration-150 active:translate-y-[1px];
     background: var(--primary);
@@ -69,10 +192,10 @@ body {
     border: none;
   }
   .btn-primary:hover {
-    background: #ffffff;
+    background: var(--primary-pressed);
   }
   .btn-primary:active {
-    background: var(--text-secondary);
+    background: var(--primary-pressed);
   }
 
   /* ── Secondary / outline button ──────────────────────── */
@@ -128,29 +251,29 @@ body {
   .text-home-tertiary  { color: var(--text-tertiary); }
   .text-home-meta      { color: var(--text-tertiary); }
 
-  .link-accent      { @apply font-semibold transition-colors duration-150; color: #00e5b0; }
-  .link-accent:hover { color: #60eece; }
-  .link-home-accent { @apply font-semibold transition-colors duration-150; color: #00e5b0; }
-  .link-home-accent:hover { color: #60eece; }
+  .link-accent      { @apply font-semibold transition-colors duration-150; color: var(--green-strong); }
+  .link-accent:hover { color: var(--green); }
+  .link-home-accent { @apply font-semibold transition-colors duration-150; color: var(--green-strong); }
+  .link-home-accent:hover { color: var(--green); }
 
   /* ── Status chips ────────────────────────────────────── */
   .chip-low {
     @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold;
-    background: rgba(244, 63, 94, 0.10);
-    border: 1px solid rgba(251, 113, 133, 0.22);
-    color: #fda4af;
+    background: color-mix(in srgb, var(--status-attention) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--status-attention) 22%, transparent);
+    color: var(--status-attention);
   }
   .chip-moderate {
     @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold;
-    background: rgba(52, 211, 153, 0.08);
-    border: 1px solid rgba(52, 211, 153, 0.22);
-    color: #6ee7b7;
+    background: color-mix(in srgb, var(--status-good) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--status-good) 22%, transparent);
+    color: var(--status-good);
   }
   .chip-high {
     @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold;
-    background: rgba(56, 189, 248, 0.08);
-    border: 1px solid rgba(56, 189, 248, 0.22);
-    color: #7dd3fc;
+    background: color-mix(in srgb, var(--sky) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sky) 26%, transparent);
+    color: var(--sky-strong);
   }
 
   /* ── Section label ───────────────────────────────────── */
@@ -164,16 +287,16 @@ body {
 @keyframes assistant-presence {
   0%, 100% {
     box-shadow:
-      0 0 0 0 rgba(0, 229, 176, 0.0),
-      0 0 0 1px rgba(0, 229, 176, 0.32),
-      0 0 12px 0 rgba(0, 229, 176, 0.12);
+      0 0 0 0 color-mix(in srgb, var(--status-good) 0%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--status-good) 32%, transparent),
+      0 0 12px 0 color-mix(in srgb, var(--status-good) 12%, transparent);
     transform: scale(1);
   }
   50% {
     box-shadow:
-      0 0 0 6px rgba(0, 229, 176, 0.08),
-      0 0 0 1px rgba(0, 229, 176, 0.46),
-      0 0 22px 4px rgba(0, 229, 176, 0.20);
+      0 0 0 6px color-mix(in srgb, var(--status-good) 8%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--status-good) 46%, transparent),
+      0 0 22px 4px color-mix(in srgb, var(--status-good) 20%, transparent);
     transform: scale(1.04);
   }
 }
@@ -255,33 +378,32 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 
 
-/* ── Pillar colour: Sleep (DESIGN.md rev 3, S8) ─────────────
-   Each tab owns a hue. Sleep is a night sky: indigo layers that
-   fade to near-black, a periwinkle accent for its own data, one
-   colour per sleep stage and per rating word. Status colours stay
-   the app-wide ones. */
+/* ── Sleep (DESIGN.md rev 4) ────────────────────────────────
+   Sleep is the sky side of Mist: a dawn or dusk sky at the top, the
+   misty sky blue for its own data, one colour per stage and per
+   rating word. Everything else is the app's tokens. */
 .theme-sleep {
-  --sl-bg-top: #1c2044;
-  --sl-bg: #0c0d1a;
-  --sl-surface: #171a35;
-  --sl-surface-raised: #23274d;
-  --sl-surface-pressed: #2c3160;
-  --sl-border: #2b305c;
-  --sl-text: #eef0ff;
-  --sl-text-secondary: #a9addb;
-  --sl-text-tertiary: #7378a8;
-  --sl-accent: #9ea6ff;
-  --sl-accent-dim: #3a3f80;
-  --sl-wind-down: #5a5fa8;
-  --sl-stage-awake: #f6a26b;
-  --sl-stage-rem: #7fd3fb;
-  --sl-stage-core: #6d8bff;
-  --sl-stage-deep: #a98bfa;
-  --sl-rate-excellent: #9ea6ff;
-  --sl-rate-good: #00e5b0;
-  --sl-rate-fair: #f5b544;
-  --sl-rate-poor: #f26d7d;
+  --sl-bg-top: var(--sleep-top);
+  --sl-bg: var(--background);
+  --sl-surface: var(--surface);
+  --sl-surface-raised: var(--surface-raised);
+  --sl-surface-pressed: var(--surface-pressed);
+  --sl-border: var(--border);
+  --sl-text: var(--text);
+  --sl-text-secondary: var(--text-secondary);
+  --sl-text-tertiary: var(--text-tertiary);
+  --sl-accent: var(--sky);
+  --sl-accent-dim: var(--sky-dim);
+  --sl-wind-down: var(--sleep-wind);
+  --sl-stage-awake: var(--stage-awake);
+  --sl-stage-rem: var(--stage-rem);
+  --sl-stage-core: var(--stage-core);
+  --sl-stage-deep: var(--stage-deep);
+  --sl-rate-excellent: var(--sky-strong);
+  --sl-rate-good: var(--status-good);
+  --sl-rate-fair: var(--status-watch);
+  --sl-rate-poor: var(--status-attention);
   --page-bg: var(--sl-bg-top);
-  background: linear-gradient(180deg, var(--sl-bg-top) 0px, #141633 280px, var(--sl-bg) 640px);
+  background: linear-gradient(180deg, var(--sl-bg-top) 0px, var(--sl-bg) 520px);
   color: var(--sl-text);
 }

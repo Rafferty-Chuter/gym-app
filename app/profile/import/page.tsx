@@ -124,13 +124,13 @@ export default function ImportCsvPage() {
   }, [parseResult]);
 
   const selectClass = "h-9 max-w-[200px] rounded-[10px] px-2 text-[13px] outline-none";
-  const selectStyle = { background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" };
+  const selectStyle = { background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" };
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader caption="Profile" captionHref="/profile" title="Import CSV" />
-        <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
           Workout history from Hevy, Strong or Rep Count. Pick the file or paste the CSV.
         </p>
 
@@ -170,18 +170,18 @@ export default function ImportCsvPage() {
               }
             />
           </RowGroup>
-          <p className="text-[11px]" style={{ color: "#6f6f76" }}>
+          <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             Weights are saved in {unit}, your current unit. Change it under Profile first if the file uses the other.
           </p>
         </section>
 
         <section className="flex flex-col gap-2" aria-label="CSV">
           <div className="flex items-center gap-3">
-            <label className="inline-flex h-9 cursor-pointer items-center rounded-full px-4 text-[13px] font-semibold" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+            <label className="inline-flex h-9 cursor-pointer items-center rounded-full px-4 text-[13px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
               Choose file
               <input type="file" accept=".csv,text/csv" onChange={handleFile} className="hidden" />
             </label>
-            <span className="text-[12px]" style={{ color: "#6f6f76" }}>
+            <span className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
               or paste below
             </span>
           </div>
@@ -196,7 +196,7 @@ export default function ImportCsvPage() {
             rows={8}
             placeholder="Paste the CSV here"
             className="w-full rounded-[12px] px-3 py-2.5 font-mono text-[12px] outline-none focus:ring-1"
-            style={{ background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" }}
+            style={{ background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" }}
             aria-label="CSV text"
           />
           {parseResult?.ok ? (
@@ -208,7 +208,7 @@ export default function ImportCsvPage() {
           )}
           <ErrorLine text={error} />
           {status && (
-            <p className="text-[13px]" style={{ color: "#00e5b0" }} aria-live="polite">
+            <p className="text-[13px]" style={{ color: "var(--status-good)" }} aria-live="polite">
               {status}
             </p>
           )}
@@ -235,7 +235,7 @@ export default function ImportCsvPage() {
             </Caption>
             <RowGroup>
               {sampleWorkouts.map((w, i) => (
-                <Row key={`${w.completedAt}-${i}`} label={w.name?.trim() || "Untitled session"} sub={`${w.exercises.length} ${w.exercises.length === 1 ? "exercise" : "exercises"} · ${w.exercises.reduce((t, e) => t + e.sets.length, 0)} sets`} value={<span className="text-[13px] font-medium" style={{ color: "#a3a3a8" }}>{formatDate(w.completedAt)}</span>} />
+                <Row key={`${w.completedAt}-${i}`} label={w.name?.trim() || "Untitled session"} sub={`${w.exercises.length} ${w.exercises.length === 1 ? "exercise" : "exercises"} · ${w.exercises.reduce((t, e) => t + e.sets.length, 0)} sets`} value={<span className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{formatDate(w.completedAt)}</span>} />
               ))}
             </RowGroup>
           </section>

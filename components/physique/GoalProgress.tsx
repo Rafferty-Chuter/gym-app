@@ -20,11 +20,11 @@ export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, uni
   const maxKg = Math.max(p.totalKg, ...p.weeks.map((w) => Math.abs(w.deltaKg)), 0.1);
   const h = 56;
   const barH = (kg: number) => Math.max(2, (Math.abs(kg) / maxKg) * h);
-  const bars = [...p.weeks.map((w) => ({ key: `w${w.week}`, kg: w.deltaKg, color: w.toward ? "#f2f2f0" : "#6f6f76", label: `${w.week}`, dim: !w.complete })), { key: "rest", kg: p.remainingKg, color: "#2a2a2e", label: "left", dim: false }];
+  const bars = [...p.weeks.map((w) => ({ key: `w${w.week}`, kg: w.deltaKg, color: w.toward ? "var(--text)" : "var(--text-tertiary)", label: `${w.week}`, dim: !w.complete })), { key: "rest", kg: p.remainingKg, color: "var(--border)", label: "left", dim: false }];
   return (
-    <section className="rounded-[12px] p-4" style={{ background: "#141416" }} aria-label="Goal progress">
+    <section className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="Goal progress">
       <div className="flex items-baseline justify-between">
-        <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
+        <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
           Goal progress
         </span>
         <Caption>{p.weeks.length} {p.weeks.length === 1 ? "week" : "weeks"}</Caption>
@@ -33,13 +33,13 @@ export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, uni
         {bars.map((b) => (
           <div key={b.key} className="flex min-w-[10px] flex-1 flex-col items-center justify-end gap-1" style={{ maxWidth: 28 }}>
             <div className="w-full rounded-[3px]" style={{ height: barH(b.kg), background: b.color, opacity: b.dim ? 0.5 : 1 }} />
-            <span className="text-[9px] font-medium" style={{ color: "#6f6f76" }}>
+            <span className="text-[9px] font-medium" style={{ color: "var(--text-tertiary)" }}>
               {b.label}
             </span>
           </div>
         ))}
       </div>
-      <p className="mt-2 text-[13px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+      <p className="mt-2 text-[13px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
         {formatWeight(p.doneKg, unit)} of {formatWeight(p.totalKg, unit)} · {formatWeight(p.remainingKg, unit)} to go
       </p>
       {eta && <GoalEtaLine eta={eta} />}

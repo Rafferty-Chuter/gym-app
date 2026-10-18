@@ -183,11 +183,11 @@ MacroFactor's caption-over-title: an 11px tracked caption (the date or the goal)
 
 - **Moving ETA** (added after R5): the Goal progress card ends with "ETA Fri 25 Dec · 2 weeks behind plan" from the trend's observed rate, with the likely window from the rate margin under it; the header caption carries the short form. Early read shows the planned date and what it needs; a trend moving away shows no date. Never a countdown, never red.
 
-### 9.6 Sleep (rev 4, 2026-10-18, after WHOOP and Bevel, in Sleep's own colours)
+### 9.6 Sleep (rev 4, 2026-10-18, after WHOOP and Bevel, in the Mist palette)
 
 The founder's review of rev 3: too bland in black and white, the planner asked for a wake time the data already knows, and "not logged" rows are not something WHOOP or Bevel do. Rev 4 answers each.
 
-- **Colour:** the page wears `.theme-sleep` (DESIGN.md rev 3): an indigo gradient into near-black, indigo surfaces, a periwinkle accent for Sleep's own data, a colour per stage and per rating word.
+- **Colour:** the page wears `.theme-sleep`: since DESIGN.md rev 4 (Mist) a dawn or dusk sky into the app's base, the app's surfaces, the misty sky blue for Sleep's own data, a colour per stage and per rating word. (The first S8 build used an indigo night; the founder replaced it with Mist for the whole app.)
 - **Header:** caption "SLEEP GOAL 8H 00M", title "Sleep", + adds a night by hand.
 - **Last night** (open on the page, no card): ‹ "Last night" › with the span; a score ring (0 to 100, word in the rating colour), Time asleep beside Sleep needed, the clock span and efficiency, one sentence on why (the weakest part, or what went right), and "Night details". Score = hours ÷ need (WHOOP's Sleep Performance), minus up to 15 for waking off the usual time and 10 for a restless night; need = goal + a third of the week's debt, at most an hour. No night: "No sleep for this night" (or "on its way from Apple Health" for last night when connected) and "Add it yourself".
 - **Tonight:** Wind down and Lights out side by side, a 24-hour dial (midnight at the top) with the wind-down and the sleep window, tonight's need in the middle, one sentence on where the need comes from. "Wake up at 07:03 · Your usual, from 14 nights": read from the median of the last 14 wake times once 3 nights carry one. Tapping it sets a wake time for tomorrow only; nothing to set day to day.

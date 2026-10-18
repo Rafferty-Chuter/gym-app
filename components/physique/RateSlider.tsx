@@ -53,7 +53,7 @@ export default function RateSlider({ type, magnitude, onChange, status, trendKg,
   return (
     <div className="flex flex-col gap-1">
       <div className="relative h-11">
-        <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full" style={{ background: "#1d1d20" }} aria-hidden>
+        <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full" style={{ background: "var(--surface-raised)" }} aria-hidden>
           {segments.map((s) => (
             <div key={s.from} className="absolute top-0 h-full" style={{ left: `${pct(s.from)}%`, width: `${pct(s.to) - pct(s.from)}%`, background: s.color, opacity: s.band === "green" ? 0.7 : 0.45 }} />
           ))}
@@ -70,7 +70,7 @@ export default function RateSlider({ type, magnitude, onChange, status, trendKg,
           aria-valuetext={`${magnitude.toFixed(2)} percent per week`}
         />
       </div>
-      <div className="flex justify-between text-[11px] font-medium tracking-[0.04em]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+      <div className="flex justify-between text-[11px] font-medium tracking-[0.04em]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
         <span>Slower</span>
         <span>
           {segments.filter((s) => s.band === "green").map((s) => `${s.from.toFixed(2)}–${s.to.toFixed(2)}`).join(", ") || "–"} %/wk in the green band

@@ -82,7 +82,7 @@ function Inner({ onClose, prefill, existing, dateLabel, onSave, goalH, onGoalCha
         </div>
       }
     >
-      <p className="mb-3 text-[13px]" style={{ color: "#a3a3a8" }}>
+      <p className="mb-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
         Night before {dateLabel}
       </p>
       <Stepper label="Lights out" value={bed} onMinus={() => shift(setBed, bed, -STEP_MIN)} onPlus={() => shift(setBed, bed, STEP_MIN)} />
@@ -101,7 +101,7 @@ function Inner({ onClose, prefill, existing, dateLabel, onSave, goalH, onGoalCha
         }}
       />
       <div className="mt-3 flex items-center justify-between">
-        <span className="text-[15px]" style={{ color: "#a3a3a8" }}>
+        <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
           Wake-ups
         </span>
         <div className="flex gap-1" role="radiogroup" aria-label="Wake-ups">
@@ -115,7 +115,7 @@ function Inner({ onClose, prefill, existing, dateLabel, onSave, goalH, onGoalCha
                 aria-checked={selected}
                 onClick={() => setWakeups(selected ? undefined : w.v)}
                 className="h-[30px] rounded-full px-3 text-[12px] font-medium"
-                style={{ background: selected ? "#f2f2f0" : "#1d1d20", color: selected ? "#0a0a0b" : "#a3a3a8" }}
+                style={{ background: selected ? "var(--primary)" : "var(--surface-raised)", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}
               >
                 {w.label}
               </button>
@@ -124,7 +124,7 @@ function Inner({ onClose, prefill, existing, dateLabel, onSave, goalH, onGoalCha
         </div>
       </div>
       {showGoal && (
-        <div className="mt-3" style={{ borderTop: "1px solid #2a2a2e" }}>
+        <div className="mt-3" style={{ borderTop: "1px solid var(--border)" }}>
           <Stepper
             label="Sleep goal"
             value={formatHoursMin(goal * 60)}
@@ -160,27 +160,27 @@ function Stepper({
   minusDisabled?: boolean;
   plusDisabled?: boolean;
 }) {
-  const btn = "flex h-11 w-11 items-center justify-center rounded-[12px] text-[20px] font-semibold transition-colors active:bg-[#26262a] disabled:opacity-40";
+  const btn = "flex h-11 w-11 items-center justify-center rounded-[12px] text-[20px] font-semibold transition-colors active:bg-[var(--surface-pressed)] disabled:opacity-40";
   return (
-    <div className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid #2a2a2e" }}>
+    <div className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid var(--border)" }}>
       <div className="flex flex-col">
-        <span className="text-[15px]" style={{ color: "#a3a3a8" }}>
+        <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
           {label}
         </span>
         {sub && (
-          <span className="text-[11px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+          <span className="text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
             {sub}
           </span>
         )}
       </div>
       <div className="flex items-center gap-2">
-        <button type="button" onClick={onMinus} disabled={minusDisabled} className={btn} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`${label} earlier by ${stepText}`}>
+        <button type="button" onClick={onMinus} disabled={minusDisabled} className={btn} style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label={`${label} earlier by ${stepText}`}>
           −
         </button>
-        <span className="w-[72px] text-center text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+        <span className="w-[72px] text-center text-[17px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
           {value}
         </span>
-        <button type="button" onClick={onPlus} disabled={plusDisabled} className={btn} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`${label} later by ${stepText}`}>
+        <button type="button" onClick={onPlus} disabled={plusDisabled} className={btn} style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label={`${label} later by ${stepText}`}>
           +
         </button>
       </div>

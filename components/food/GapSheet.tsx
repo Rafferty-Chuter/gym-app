@@ -51,7 +51,7 @@ function Inner({ date, today, sources, onLog, onCopy, onEditDay }: Omit<Props, "
   }
 
   const arrow = (dir: "left" | "right", onClick: () => void, disabled: boolean, label: string) => (
-    <button type="button" onClick={onClick} disabled={disabled} className="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-30" style={{ color: "#a3a3a8" }} aria-label={label}>
+    <button type="button" onClick={onClick} disabled={disabled} className="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-30" style={{ color: "var(--text-secondary)" }} aria-label={label}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
         <path d={dir === "left" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
       </svg>
@@ -60,19 +60,19 @@ function Inner({ date, today, sources, onLog, onCopy, onEditDay }: Omit<Props, "
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+      <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
         {gapDayWord(date, today)} has no food logged. The engine skips it until it does.
       </p>
       <PrimaryButton onClick={onLog}>Log food</PrimaryButton>
       {src && (
-        <div className="flex flex-col gap-2 rounded-[12px] p-3" style={{ background: "#1d1d20" }}>
+        <div className="flex flex-col gap-2 rounded-[12px] p-3" style={{ background: "var(--surface-raised)" }}>
           <div className="flex items-center justify-between">
             {arrow("left", () => setIdx((i) => Math.min(sources.length - 1, i + 1)), idx >= sources.length - 1, "Earlier day")}
             <span className="flex flex-col items-center">
-              <span className="text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+              <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
                 {src.date === today ? "Today" : longLocalDate(src.date)}
               </span>
-              <span className="text-[11px]" style={{ color: "#6f6f76" }}>
+              <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                 {src.entries} {src.entries === 1 ? "entry" : "entries"}
               </span>
             </span>

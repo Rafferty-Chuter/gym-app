@@ -103,20 +103,20 @@ function Inner({ onCode }: { onCode: (code: string) => void }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative overflow-hidden rounded-[12px]" style={{ background: "#141416", aspectRatio: "4 / 3" }}>
+      <div className="relative overflow-hidden rounded-[12px]" style={{ background: "var(--surface)", aspectRatio: "4 / 3" }}>
         <video ref={videoRef} muted autoPlay playsInline className="h-full w-full object-cover" aria-label="Camera" />
-        {state === "scanning" && <div className="pointer-events-none absolute inset-x-6 top-1/2 h-[2px] -translate-y-1/2 rounded" style={{ background: "#f2f2f0", opacity: 0.6 }} aria-hidden />}
+        {state === "scanning" && <div className="pointer-events-none absolute inset-x-6 top-1/2 h-[2px] -translate-y-1/2 rounded" style={{ background: "var(--primary)", opacity: 0.6 }} aria-hidden />}
         {state !== "scanning" && (
-          <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-[13px]" style={{ color: "#a3a3a8" }}>
+          <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-[13px]" style={{ color: "var(--text-secondary)" }}>
             {state === "starting" ? "Starting the camera" : state === "denied" ? "Camera access was refused. Type the number under the barcode instead." : "This browser cannot use the camera here. Type the number under the barcode instead."}
           </p>
         )}
       </div>
-      <p className="text-[12px]" style={{ color: "#6f6f76" }}>
+      <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
         Hold the barcode flat and fill the frame. Packaged foods only; loose foods are in search.
       </p>
       <div className="flex gap-2">
-        <input type="text" inputMode="numeric" pattern="[0-9]*" value={typed} onChange={(e) => setTyped(e.target.value.replace(/\D/g, ""))} placeholder="Or type the number" className="h-11 min-w-0 flex-1 rounded-[12px] px-3 text-[15px] outline-none focus:ring-1" style={{ background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" }} aria-label="Barcode number" autoComplete="off" />
+        <input type="text" inputMode="numeric" pattern="[0-9]*" value={typed} onChange={(e) => setTyped(e.target.value.replace(/\D/g, ""))} placeholder="Or type the number" className="h-11 min-w-0 flex-1 rounded-[12px] px-3 text-[15px] outline-none focus:ring-1" style={{ background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" }} aria-label="Barcode number" autoComplete="off" />
         <div className="w-[110px] shrink-0">
           <PrimaryButton onClick={() => onCode(typed)} disabled={!/^\d{8,14}$/.test(typed)}>
             Look up

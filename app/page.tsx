@@ -278,14 +278,14 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white relative pb-28">
+    <main className="min-h-screen bg-zinc-950 text-[var(--text)] relative pb-28">
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
 
         <PageHeader
           caption={hasMounted && now ? fullLocalDate(now.today) : " "}
           title="Today"
           secondary={
-            <Link href="/profile" className="flex h-9 items-center rounded-full px-3 text-[13px] font-medium transition-colors active:bg-[#26262a]" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Open profile">
+            <Link href="/profile" className="flex h-9 items-center rounded-full px-3 text-[13px] font-medium transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Open profile">
               Profile
             </Link>
           }
@@ -325,8 +325,8 @@ export default function Home() {
           <Link
             href={ctaHref}
             aria-label={ctaLabel}
-            className="block w-full rounded-[12px] py-4 text-center text-[17px] font-semibold tracking-[-0.01em] transition-colors duration-150 hover:bg-white active:translate-y-[1px]"
-            style={{ background: "#f2f2f0", color: "#0a0a0b" }}
+            className="block w-full rounded-[12px] py-4 text-center text-[17px] font-semibold tracking-[-0.01em] transition-colors duration-150 hover:bg-[var(--primary-pressed)] active:translate-y-[1px]"
+            style={{ background: "var(--primary)", color: "var(--text-on-primary)" }}
           >
             {ctaLabel}
           </Link>
@@ -339,18 +339,18 @@ export default function Home() {
           </h2>
           <article
             className="rounded-[12px] p-4 sm:p-5"
-            style={{ background: "#141416", border: "1px solid #2a2a2e" }}
+            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
           >
             <header className="flex items-center gap-2.5 mb-3">
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-full"
-                style={{ background: "#1d1d20" }}
+                style={{ background: "var(--surface-raised)" }}
                 aria-hidden
               >
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#a3a3a8"
+                  stroke="var(--text-secondary)"
                   strokeWidth="1.75"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -367,7 +367,7 @@ export default function Home() {
                 </svg>
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold tracking-tight text-white">
+                <p className="text-[13px] font-bold tracking-tight text-[var(--text)]">
                   Assistant
                 </p>
                 <p className="text-[11px] font-medium text-home-tertiary">
@@ -379,11 +379,11 @@ export default function Home() {
             <button
               type="button"
               onClick={() => openAssistantWith(shownInsight.prompt)}
-              className="block w-full text-left rounded-xl -mx-1 px-1 py-1 transition-colors duration-150 hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
+              className="block w-full text-left rounded-xl -mx-1 px-1 py-1 transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--text)_2.5%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
               aria-label={`Ask the assistant about: ${shownInsight.text}`}
             >
               <p
-                className="text-[16px] sm:text-[17px] font-semibold leading-snug text-white"
+                className="text-[16px] sm:text-[17px] font-semibold leading-snug text-[var(--text)]"
                 style={{ textWrap: "pretty" }}
               >
                 {shownInsight.text}
@@ -396,8 +396,8 @@ export default function Home() {
                   key={f.label}
                   type="button"
                   onClick={() => openAssistantWith(f.prompt)}
-                  className="rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 active:bg-[#26262a]"
-                  style={{ background: "#1d1d20", color: "#a3a3a8" }}
+                  className="rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 active:bg-[var(--surface-pressed)]"
+                  style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }}
                 >
                   {f.label}
                 </button>
@@ -408,8 +408,8 @@ export default function Home() {
               type="button"
               onClick={openAssistantClean}
               aria-label="Open assistant with no preloaded message"
-              className="mt-3.5 flex items-center justify-center gap-2 w-full rounded-[12px] py-3 text-[15px] font-semibold transition-colors duration-150 active:bg-[#26262a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3a3a40]"
-              style={{ background: "#1d1d20", color: "#f2f2f0" }}
+              className="mt-3.5 flex items-center justify-center gap-2 w-full rounded-[12px] py-3 text-[15px] font-semibold transition-colors duration-150 active:bg-[var(--surface-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
+              style={{ background: "var(--surface-raised)", color: "var(--text)" }}
             >
               <span>Open assistant</span>
               <svg

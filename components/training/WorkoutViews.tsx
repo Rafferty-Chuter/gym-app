@@ -47,13 +47,13 @@ export function StatsStrip({ stats, records, unit }: { stats: WorkoutStats; reco
     { label: "Records", value: String(records), good: records > 0 },
   ];
   return (
-    <dl className="grid grid-cols-4 overflow-hidden rounded-[12px]" style={{ background: "#141416" }}>
+    <dl className="grid grid-cols-4 overflow-hidden rounded-[12px]" style={{ background: "var(--surface)" }}>
       {cells.map((c, i) => (
-        <div key={c.label} className="flex min-w-0 flex-col gap-1 px-3 py-3" style={i > 0 ? { borderLeft: "1px solid #2a2a2e" } : undefined}>
-          <dt className="text-[11px] font-medium" style={{ color: "#6f6f76" }}>
+        <div key={c.label} className="flex min-w-0 flex-col gap-1 px-3 py-3" style={i > 0 ? { borderLeft: "1px solid var(--border)" } : undefined}>
+          <dt className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
             {c.label}
           </dt>
-          <dd className="truncate text-[15px] font-semibold" style={{ color: c.good ? "#00e5b0" : "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+          <dd className="truncate text-[15px] font-semibold" style={{ color: c.good ? "var(--status-good)" : "var(--text)", fontVariantNumeric: "tabular-nums" }}>
             {c.value}
           </dd>
         </div>
@@ -66,7 +66,7 @@ export function StatsStrip({ stats, records, unit }: { stats: WorkoutStats; reco
 export function RecordMark({ kinds }: { kinds: readonly RecordKind[] }) {
   if (kinds.length === 0) return null;
   return (
-    <span className="inline-flex h-[20px] shrink-0 items-center rounded-full px-2 text-[11px] font-semibold" style={{ background: "rgba(0,229,176,0.12)", color: "#00e5b0" }} title={kinds.map((k) => RECORD_LABEL[k]).join(", ")}>
+    <span className="inline-flex h-[20px] shrink-0 items-center rounded-full px-2 text-[11px] font-semibold" style={{ background: "color-mix(in srgb, var(--status-good) 12%, transparent)", color: "var(--status-good)" }} title={kinds.map((k) => RECORD_LABEL[k]).join(", ")}>
       {kinds.length === 1 ? "Record" : `${kinds.length} records`}
     </span>
   );
@@ -76,18 +76,18 @@ export function RecordMark({ kinds }: { kinds: readonly RecordKind[] }) {
 export function RecordList({ records, unit }: { records: readonly WorkoutRecord[]; unit: string }) {
   if (records.length === 0) return null;
   return (
-    <ul className="overflow-hidden rounded-[12px] divide-y divide-[#2a2a2e]" style={{ background: "#141416" }}>
+    <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
       {records.map((r, i) => (
         <li key={`${r.name}-${r.kind}-${i}`} className="flex min-h-[56px] items-center justify-between gap-3 px-4 py-2">
           <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[15px]" style={{ color: "#f2f2f0" }}>
+            <span className="truncate text-[15px]" style={{ color: "var(--text)" }}>
               {r.name}
             </span>
-            <span className="text-[12px]" style={{ color: "#6f6f76" }}>
+            <span className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
               {RECORD_LABEL[r.kind]}, was {r.kind === "reps" ? r.previous : `${formatLoad(r.previous)} ${unit}`}
             </span>
           </span>
-          <span className="shrink-0 text-[15px] font-semibold" style={{ color: "#00e5b0", fontVariantNumeric: "tabular-nums" }}>
+          <span className="shrink-0 text-[15px] font-semibold" style={{ color: "var(--status-good)", fontVariantNumeric: "tabular-nums" }}>
             {r.kind === "reps" ? `${r.value} reps` : `${formatLoad(r.value)} ${unit}`}
           </span>
         </li>
@@ -100,7 +100,7 @@ export function RecordList({ records, unit }: { records: readonly WorkoutRecord[
 export function ExerciseBestList({ workout, recordKinds, unit, linked = true }: { workout: StoredWorkout; recordKinds: Map<string, RecordKind[]>; unit: string; linked?: boolean }) {
   const rows = (workout.exercises ?? []).filter((ex) => getCompletedLoggedSets(ex.sets ?? []).length > 0);
   return (
-    <ul className="overflow-hidden rounded-[12px] divide-y divide-[#2a2a2e]" style={{ background: "#141416" }}>
+    <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
       {rows.map((ex, i) => {
         const hard = getCompletedLoggedSets(ex.sets ?? []).filter((s) => setTypeOf(s) !== "warmup").length;
         const kinds = recordKinds.get(exerciseIdentity(ex)) ?? [];
@@ -108,16 +108,16 @@ export function ExerciseBestList({ workout, recordKinds, unit, linked = true }: 
           <>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="flex items-center gap-2">
-                <span className="truncate text-[15px]" style={{ color: "#f2f2f0" }}>
+                <span className="truncate text-[15px]" style={{ color: "var(--text)" }}>
                   {ex.name}
                 </span>
                 <RecordMark kinds={kinds} />
               </span>
-              <span className="text-[12px]" style={{ color: "#6f6f76" }}>
+              <span className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
                 {hard} {hard === 1 ? "set" : "sets"}
               </span>
             </span>
-            <span className="shrink-0 text-[15px] font-medium" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+            <span className="shrink-0 text-[15px] font-medium" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
               {formatSet(bestSet(ex.sets), unit)}
             </span>
             {linked && <Chevron />}
@@ -127,7 +127,7 @@ export function ExerciseBestList({ workout, recordKinds, unit, linked = true }: 
         return (
           <li key={`${ex.name}-${i}`}>
             {linked ? (
-              <Link href={exerciseHref(ex)} className={`${cls} transition-colors active:bg-[#1d1d20]`}>
+              <Link href={exerciseHref(ex)} className={`${cls} transition-colors active:bg-[var(--surface-raised)]`}>
                 {inner}
               </Link>
             ) : (
@@ -152,9 +152,9 @@ export function ExerciseSetsList({ workout, recordKinds, unit }: { workout: Stor
         let n = 0;
         const kinds = recordKinds.get(exerciseIdentity(ex)) ?? [];
         return (
-          <section key={`${ex.name}-${i}`} className="overflow-hidden rounded-[12px]" style={{ background: "#141416" }} aria-label={ex.name}>
-            <Link href={exerciseHref(ex)} className="flex min-h-[52px] items-center gap-2 px-4 py-2 transition-colors active:bg-[#1d1d20]">
-              <span className="min-w-0 flex-1 truncate text-[16px] font-semibold" style={{ color: "#f2f2f0" }}>
+          <section key={`${ex.name}-${i}`} className="overflow-hidden rounded-[12px]" style={{ background: "var(--surface)" }} aria-label={ex.name}>
+            <Link href={exerciseHref(ex)} className="flex min-h-[52px] items-center gap-2 px-4 py-2 transition-colors active:bg-[var(--surface-raised)]">
+              <span className="min-w-0 flex-1 truncate text-[16px] font-semibold" style={{ color: "var(--text)" }}>
                 {ex.name}
               </span>
               <RecordMark kinds={kinds} />
@@ -171,19 +171,19 @@ export function ExerciseSetsList({ workout, recordKinds, unit }: { workout: Stor
                 if (isBest) bestShown = true;
                 return (
                   <li key={j} className="flex min-h-[32px] items-center gap-3 text-[15px]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                    <span className="w-6 shrink-0 text-center text-[13px] font-semibold" style={{ color: type === "working" ? "#a3a3a8" : "#6f6f76" }}>
+                    <span className="w-6 shrink-0 text-center text-[13px] font-semibold" style={{ color: type === "working" ? "var(--text-secondary)" : "var(--text-tertiary)" }}>
                       {mark}
                     </span>
-                    <span className="flex-1" style={{ color: type === "warmup" ? "#a3a3a8" : "#f2f2f0" }}>
+                    <span className="flex-1" style={{ color: type === "warmup" ? "var(--text-secondary)" : "var(--text)" }}>
                       {w > 0 ? `${formatLoad(w)} ${unit} × ${r}` : `${r} reps`}
                       {s.notes?.trim() ? (
-                        <span className="block text-[12px]" style={{ color: "#6f6f76" }}>
+                        <span className="block text-[12px]" style={{ color: "var(--text-tertiary)" }}>
                           {s.notes.trim()}
                         </span>
                       ) : null}
                     </span>
                     {isBest && (
-                      <span className="text-[11px] font-medium" style={{ color: "#6f6f76" }}>
+                      <span className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
                         Best set
                       </span>
                     )}

@@ -37,25 +37,25 @@ export default function DevChartClient() {
     : `Trend ${data.last.trendKg.toFixed(1)} kg · Early read`;
 
   return (
-    <main className="mx-auto max-w-[560px] px-4 pb-28 pt-6" style={{ background: "#0a0a0b", color: "#f2f2f0", minHeight: "100dvh" }}>
-      <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+    <main className="mx-auto max-w-[560px] px-4 pb-28 pt-6" style={{ background: "var(--page)", color: "var(--text)", minHeight: "100dvh" }}>
+      <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
         Dev · U1 primitives
       </p>
       <h1 className="mt-1 text-[20px] font-semibold tracking-[-0.01em]">Weight chart</h1>
 
-      <section className="mt-4 rounded-[12px] p-4" style={{ background: "#141416" }}>
+      <section className="mt-4 rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
         <div className="flex items-baseline justify-between">
           <span className="text-[17px] font-semibold" style={{ fontVariantNumeric: "tabular-nums" }}>
-            {data.last.trendKg.toFixed(1)} <span className="text-[13px] font-medium" style={{ color: "#a3a3a8" }}>kg</span>
+            {data.last.trendKg.toFixed(1)} <span className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>kg</span>
           </span>
-          <span className="text-[11px] font-medium tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+          <span className="text-[11px] font-medium tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
             8 WEEKS · {data.sc.weighIns.length} WEIGH-INS
           </span>
         </div>
         <div className="mt-3">
           <TimeSeriesChart points={data.points} unit="kg" projection={data.projection} ariaLabel="Weight over 8 weeks" />
         </div>
-        <p className="mt-2 text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+        <p className="mt-2 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
           {caption}
         </p>
       </section>
@@ -65,7 +65,7 @@ export default function DevChartClient() {
           type="button"
           onClick={() => setSeed((s) => s + 1)}
           className="h-[44px] rounded-[12px] px-4 text-[15px] font-semibold"
-          style={{ background: "#1d1d20", color: "#f2f2f0" }}
+          style={{ background: "var(--surface-raised)", color: "var(--text)" }}
         >
           Next seed ({seed})
         </button>
@@ -73,14 +73,14 @@ export default function DevChartClient() {
           type="button"
           onClick={() => setSheetOpen(true)}
           className="h-[44px] rounded-[12px] px-4 text-[15px] font-semibold"
-          style={{ background: "#f2f2f0", color: "#0a0a0b" }}
+          style={{ background: "var(--primary)", color: "var(--text-on-primary)" }}
         >
           Open sheet
         </button>
       </div>
 
       <h2 className="mt-8 text-[20px] font-semibold tracking-[-0.01em]">Empty state</h2>
-      <section className="mt-3 rounded-[12px] p-4" style={{ background: "#141416" }}>
+      <section className="mt-3 rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
         <TimeSeriesChart points={[]} unit="kg" emptyText="No weigh-ins yet." height={120} />
       </section>
 
@@ -93,7 +93,7 @@ export default function DevChartClient() {
             type="button"
             onClick={() => setSheetOpen(false)}
             className="h-[48px] w-full rounded-[12px] text-[17px] font-semibold"
-            style={{ background: "#f2f2f0", color: "#0a0a0b" }}
+            style={{ background: "var(--primary)", color: "var(--text-on-primary)" }}
           >
             Save
           </button>

@@ -63,16 +63,16 @@ function Inner({ onClose, dateLabel, flags, entriesKcal, onSave }: Props) {
         </div>
       }
     >
-      <p className="mb-3 text-[13px]" style={{ color: "#a3a3a8" }}>
+      <p className="mb-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
         {dateLabel}
       </p>
       <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label="Day status">
         {STATUSES.map((s) => {
           const selected = status === s.id;
           return (
-            <button key={s.id} type="button" role="radio" aria-checked={selected} onClick={() => setStatus(s.id)} className="flex flex-col items-center rounded-[12px] px-1 py-2 text-center transition-colors" style={{ background: selected ? "#f2f2f0" : "#141416", color: selected ? "#0a0a0b" : "#f2f2f0", border: `1px solid ${selected ? "#f2f2f0" : "#2a2a2e"}` }}>
+            <button key={s.id} type="button" role="radio" aria-checked={selected} onClick={() => setStatus(s.id)} className="flex flex-col items-center rounded-[12px] px-1 py-2 text-center transition-colors" style={{ background: selected ? "var(--primary)" : "var(--surface)", color: selected ? "var(--text-on-primary)" : "var(--text)", border: `1px solid ${selected ? "var(--primary)" : "var(--border)"}` }}>
               <span className="text-[13px] font-semibold">{s.label}</span>
-              <span className="text-[10px]" style={{ color: selected ? "#3a3a40" : "#6f6f76" }}>
+              <span className="text-[10px]" style={{ color: selected ? "color-mix(in srgb, var(--text-on-primary) 70%, transparent)" : "var(--text-tertiary)" }}>
                 {s.sub}
               </span>
             </button>

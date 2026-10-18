@@ -132,7 +132,7 @@ async function* parseSSEStream(
  */
 function AssistantMessageBody({ content }: { content: string }) {
   return (
-    <div className="text-[15px] sm:text-base font-normal leading-[1.65] tracking-[0.005em] text-zinc-100/95 break-words">
+    <div className="text-[15px] sm:text-base font-normal leading-[1.65] tracking-[0.005em] text-[var(--text)] break-words">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -157,12 +157,12 @@ function AssistantMessageBody({ content }: { content: string }) {
             </li>
           ),
           strong: ({ children, ...props }) => (
-            <strong className="font-semibold text-white" {...props}>
+            <strong className="font-semibold text-[var(--text)]" {...props}>
               {children}
             </strong>
           ),
           em: ({ children, ...props }) => (
-            <em className="italic text-zinc-100" {...props}>
+            <em className="italic text-[var(--text)]" {...props}>
               {children}
             </em>
           ),
@@ -179,7 +179,7 @@ function AssistantMessageBody({ content }: { content: string }) {
           ),
           code: ({ children, ...props }) => (
             <code
-              className="rounded px-1 py-0.5 bg-white/[0.06] text-[13px] font-mono text-zinc-100"
+              className="rounded px-1 py-0.5 bg-[color-mix(in_srgb,var(--text)_6%,transparent)] text-[13px] font-mono text-[var(--text)]"
               {...props}
             >
               {children}
@@ -187,7 +187,7 @@ function AssistantMessageBody({ content }: { content: string }) {
           ),
           h1: ({ children, ...props }) => (
             <p
-              className="text-[16px] sm:text-[17px] font-semibold text-white mt-4 mb-1"
+              className="text-[16px] sm:text-[17px] font-semibold text-[var(--text)] mt-4 mb-1"
               {...props}
             >
               {children}
@@ -195,18 +195,18 @@ function AssistantMessageBody({ content }: { content: string }) {
           ),
           h2: ({ children, ...props }) => (
             <p
-              className="text-[15px] sm:text-base font-semibold text-white mt-4 mb-1"
+              className="text-[15px] sm:text-base font-semibold text-[var(--text)] mt-4 mb-1"
               {...props}
             >
               {children}
             </p>
           ),
           h3: ({ children, ...props }) => (
-            <p className="text-[15px] font-semibold text-zinc-100 mt-3 mb-1" {...props}>
+            <p className="text-[15px] font-semibold text-[var(--text)] mt-3 mb-1" {...props}>
               {children}
             </p>
           ),
-          hr: (props) => <hr className="my-4 border-white/[0.06]" {...props} />,
+          hr: (props) => <hr className="my-4 border-[var(--border)]" {...props} />,
         }}
       >
         {content}
@@ -1170,22 +1170,22 @@ function AssistantPageInner() {
   const sendDisabled = isLoading || !input.trim();
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white relative pb-28 flex flex-col">
+    <main className="min-h-screen bg-zinc-950 text-[var(--text)] relative pb-28 flex flex-col">
       {/* Top warmth — mirrors the home screen radial glow for surface continuity. */}
       <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_85%_38%_at_50%_-6%,rgba(0,229,176,0.10),transparent_58%)]"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_85%_38%_at_50%_-6%,color-mix(in srgb, var(--status-good) 10%, transparent),transparent_58%)]"
         aria-hidden
       />
       {/* Subtle bottom anchor so the empty state never feels marooned in flat dark. */}
       <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_70%_28%_at_50%_108%,rgba(0,229,176,0.045),transparent_60%)]"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_70%_28%_at_50%_108%,color-mix(in srgb, var(--status-good) 4%, transparent),transparent_60%)]"
         aria-hidden
       />
       <div className="relative mx-auto w-full max-w-2xl flex flex-col flex-1 min-h-0 px-5 sm:px-6">
         <header className="flex items-center justify-between gap-3 pt-4 pb-2">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-app-secondary hover:text-white transition-colors"
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-app-secondary hover:text-[var(--text)] transition-colors"
           >
             <svg
               viewBox="0 0 24 24"
@@ -1208,7 +1208,7 @@ function AssistantPageInner() {
               rel="noopener noreferrer"
               aria-label="Send feedback"
               title="Send feedback"
-              className="inline-flex items-center gap-1 rounded-full px-2.5 h-9 text-[12px] font-semibold text-app-secondary hover:text-white hover:bg-white/[0.05] transition-colors"
+              className="inline-flex items-center gap-1 rounded-full px-2.5 h-9 text-[12px] font-semibold text-app-secondary hover:text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)] transition-colors"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -1230,7 +1230,7 @@ function AssistantPageInner() {
               disabled={isLoading}
               aria-label="New chat"
               title="New chat"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-app-secondary hover:text-white hover:bg-white/[0.05] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-app-secondary hover:text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <NewChatIcon />
             </button>
@@ -1247,7 +1247,7 @@ function AssistantPageInner() {
               className="inline-flex h-9 w-9 items-center justify-center rounded-full mb-5 animate-assistant-presence"
               style={{
                 background:
-                  "radial-gradient(circle at 35% 30%, rgba(0,229,176,0.55) 0%, rgba(0,229,176,0.20) 55%, rgba(0,229,176,0.06) 100%)",
+                  "radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--status-good) 55%, transparent) 0%, color-mix(in srgb, var(--status-good) 20%, transparent) 55%, color-mix(in srgb, var(--status-good) 6%, transparent) 100%)",
               }}
               aria-hidden
             />
@@ -1258,13 +1258,13 @@ function AssistantPageInner() {
                 className="pointer-events-none absolute -inset-x-6 -top-4 -bottom-6 rounded-[40%] opacity-90"
                 style={{
                   background:
-                    "radial-gradient(ellipse 70% 65% at 50% 50%, rgba(0,229,176,0.10) 0%, rgba(0,229,176,0.04) 38%, transparent 72%)",
+                    "radial-gradient(ellipse 70% 65% at 50% 50%, color-mix(in srgb, var(--status-good) 10%, transparent) 0%, color-mix(in srgb, var(--status-good) 4%, transparent) 38%, transparent 72%)",
                   filter: "blur(2px)",
                 }}
                 aria-hidden
               />
               <p
-                className="relative text-[22px] sm:text-[24px] font-medium leading-[1.40] tracking-[-0.01em] text-white"
+                className="relative text-[22px] sm:text-[24px] font-medium leading-[1.40] tracking-[-0.01em] text-[var(--text)]"
                 style={{ textWrap: "pretty" }}
               >
                 {emptyState.opening}
@@ -1281,9 +1281,9 @@ function AssistantPageInner() {
                   disabled={isLoading}
                   className="rounded-full px-3 py-1.5 text-[12px] font-medium tracking-tight transition-colors duration-150 active:scale-[0.97] disabled:opacity-50"
                   style={{
-                    background: "rgba(0,229,176,0.05)",
-                    border: "1px solid rgba(0,229,176,0.22)",
-                    color: "rgba(0,229,176,0.92)",
+                    background: "color-mix(in srgb, var(--status-good) 5%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--status-good) 22%, transparent)",
+                    color: "color-mix(in srgb, var(--status-good) 92%, transparent)",
                   }}
                 >
                   {c.label}
@@ -1306,10 +1306,10 @@ function AssistantPageInner() {
                     /* User: subtle neutral-dark pill. Lets the assistant'\''s mint accent
                        carry the visual weight without two competing voices. */
                     <div
-                      className="max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-[15px] sm:text-base font-normal leading-[1.55] tracking-[0.005em] text-white whitespace-pre-wrap break-words"
+                      className="max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-[15px] sm:text-base font-normal leading-[1.55] tracking-[0.005em] text-[var(--text)] whitespace-pre-wrap break-words"
                       style={{
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.06)",
+                        background: "color-mix(in srgb, var(--text) 4%, transparent)",
+                        border: "1px solid color-mix(in srgb, var(--text) 6%, transparent)",
                       }}
                     >
                       {m.content}
@@ -1319,7 +1319,7 @@ function AssistantPageInner() {
                        Not a bubble — just enough to signal "this is the AI speaking". */
                     <div
                       className="w-full max-w-[min(100%,36rem)] pl-4 border-l-2"
-                      style={{ borderColor: "rgba(0,229,176,0.30)" }}
+                      style={{ borderColor: "color-mix(in srgb, var(--status-good) 30%, transparent)" }}
                     >
                       <AssistantMessageBody content={m.content} />
                       <DataSourcesExpander sources={m.dataSources} />
@@ -1335,20 +1335,20 @@ function AssistantPageInner() {
                  streaming starts the assistant bubble takes over. */
               <div
                 className="mt-5 inline-flex items-center gap-1.5 pl-4 border-l-2"
-                style={{ borderColor: "rgba(0,229,176,0.30)" }}
+                style={{ borderColor: "color-mix(in srgb, var(--status-good) 30%, transparent)" }}
                 aria-label="Assistant is typing"
               >
                 <span
                   className="inline-block h-1.5 w-1.5 rounded-full animate-assistant-typing-dot"
-                  style={{ background: "rgba(0,229,176,0.85)", animationDelay: "0ms" }}
+                  style={{ background: "color-mix(in srgb, var(--status-good) 85%, transparent)", animationDelay: "0ms" }}
                 />
                 <span
                   className="inline-block h-1.5 w-1.5 rounded-full animate-assistant-typing-dot"
-                  style={{ background: "rgba(0,229,176,0.85)", animationDelay: "160ms" }}
+                  style={{ background: "color-mix(in srgb, var(--status-good) 85%, transparent)", animationDelay: "160ms" }}
                 />
                 <span
                   className="inline-block h-1.5 w-1.5 rounded-full animate-assistant-typing-dot"
-                  style={{ background: "rgba(0,229,176,0.85)", animationDelay: "320ms" }}
+                  style={{ background: "color-mix(in srgb, var(--status-good) 85%, transparent)", animationDelay: "320ms" }}
                 />
               </div>
             )}
@@ -1358,10 +1358,10 @@ function AssistantPageInner() {
 
         <div className="pt-3 pb-1">
           <div
-            className="flex items-center gap-2 rounded-full pl-4 pr-1.5 py-1.5 transition-all duration-200 focus-within:border-[color:var(--color-accent)]/45 focus-within:bg-zinc-900/80 focus-within:shadow-[0_0_0_4px_rgba(0,229,176,0.10),0_0_22px_-4px_rgba(0,229,176,0.30)]"
+            className="flex items-center gap-2 rounded-full pl-4 pr-1.5 py-1.5 transition-all duration-200 focus-within:border-[color:var(--color-accent)]/45 focus-within:bg-zinc-900/80 focus-within:shadow-[0_0_0_4px_color-mix(in srgb, var(--status-good) 10%, transparent),0_0_22px_-4px_color-mix(in srgb, var(--status-good) 30%, transparent)]"
             style={{
-              background: "rgba(255,255,255,0.025)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "color-mix(in srgb, var(--text) 2%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--text) 8%, transparent)",
             }}
           >
             <input
@@ -1371,7 +1371,7 @@ function AssistantPageInner() {
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
               placeholder="Ask about your training…"
               disabled={isLoading}
-              className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[15px] font-normal leading-[1.5] tracking-[0.005em] text-white placeholder:text-app-meta py-2 disabled:opacity-50"
+              className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[15px] font-normal leading-[1.5] tracking-[0.005em] text-[var(--text)] placeholder:text-app-meta py-2 disabled:opacity-50"
               aria-label="Message"
             />
             <button
@@ -1382,14 +1382,14 @@ function AssistantPageInner() {
               className="inline-flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 active:scale-95 disabled:cursor-not-allowed"
               style={{
                 background: sendDisabled
-                  ? "rgba(255,255,255,0.06)"
-                  : "#00e5b0",
+                  ? "color-mix(in srgb, var(--text) 6%, transparent)"
+                  : "var(--status-good)",
                 color: sendDisabled
-                  ? "rgba(140,200,196,0.55)"
+                  ? "color-mix(in srgb, var(--green) 55%, transparent)"
                   : "var(--color-accent-foreground)",
                 boxShadow: sendDisabled
                   ? undefined
-                  : "0 6px 18px -8px rgba(0,229,176,0.55)",
+                  : "0 6px 18px -8px color-mix(in srgb, var(--status-good) 55%, transparent)",
               }}
             >
               <SendArrowIcon />

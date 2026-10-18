@@ -21,16 +21,16 @@ export default function GapRows({ lines, onSelect, hrefFor, max }: Props) {
   if (lines.length === 0) return null;
   const shown = max != null && lines.length > max ? lines.slice(0, max) : lines;
   const hidden = lines.length - shown.length;
-  const rowClass = "flex min-h-[48px] w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors active:bg-[#1d1d20]";
+  const rowClass = "flex min-h-[48px] w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors active:bg-[var(--surface-raised)]";
   const label = (l: GapLine) => `${l.text}. ${longLocalDate(l.date)}. Fix`;
   return (
     <section aria-label="Not logged" className="flex flex-col gap-2">
       <Caption>Not logged</Caption>
-      <div className="overflow-hidden rounded-[12px] divide-y divide-[#2a2a2e]" style={{ background: "#141416" }}>
+      <div className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
         {shown.map((l) => {
           const inner = (
             <>
-              <span className="min-w-0 text-[14px]" style={{ color: "#f2f2f0" }}>
+              <span className="min-w-0 text-[14px]" style={{ color: "var(--text)" }}>
                 {l.text}
               </span>
               <Chevron />
@@ -52,7 +52,7 @@ export default function GapRows({ lines, onSelect, hrefFor, max }: Props) {
           );
         })}
         {hidden > 0 && (
-          <p className="px-4 py-2.5 text-[12px]" style={{ color: "#6f6f76" }}>
+          <p className="px-4 py-2.5 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
             {hidden} more, shown on each tab
           </p>
         )}

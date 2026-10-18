@@ -95,17 +95,17 @@ export default function WorkoutStartPage() {
   }
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader caption="Session" title="Start workout" />
 
         {activeDraft && (
-          <Link href="/workout" className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3 transition-colors active:bg-[#1d1d20]" style={{ background: "#141416", border: "1px solid #2a2a2e" }} aria-label={`Resume ${draftDisplayName(activeDraft)}, ${formatElapsed(elapsedSec)} elapsed`}>
+          <Link href="/workout" className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3 transition-colors active:bg-[var(--surface-raised)]" style={{ background: "var(--surface)", border: "1px solid var(--border)" }} aria-label={`Resume ${draftDisplayName(activeDraft)}, ${formatElapsed(elapsedSec)} elapsed`}>
             <span className="flex min-w-0 flex-col">
-              <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#00e5b0" }}>
+              <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--status-good)" }}>
                 In progress · {formatElapsed(elapsedSec)}
               </span>
-              <span className="truncate text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+              <span className="truncate text-[15px] font-semibold" style={{ color: "var(--text)" }}>
                 {draftDisplayName(activeDraft)}
               </span>
             </span>
@@ -120,20 +120,20 @@ export default function WorkoutStartPage() {
         <section aria-label="Start a routine">
           <div className="mb-2 flex items-center justify-between">
             <Caption>Routines</Caption>
-            <Link href="/templates/new" className="text-[12px] font-medium" style={{ color: "#a3a3a8" }}>
+            <Link href="/templates/new" className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
               New routine ›
             </Link>
           </div>
           {templates.length > 0 ? (
             <RoutineList templates={templates} onChanged={() => setRevision((r) => r + 1)} />
           ) : (
-            <p className="rounded-[12px] px-4 py-3 text-[13px]" style={{ background: "#141416", color: "#a3a3a8" }}>
+            <p className="rounded-[12px] px-4 py-3 text-[13px]" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>
               No routines yet. Build one and it starts here in one tap.
             </p>
           )}
         </section>
 
-        <p className="pb-2 text-[11px]" style={{ color: "#6f6f76" }}>
+        <p className="pb-2 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
           A session saves to History when you finish it.
         </p>
       </div>

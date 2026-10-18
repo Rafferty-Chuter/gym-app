@@ -54,8 +54,8 @@ function NumberCell({ value, placeholder, onCommit, label, decimal }: { value: n
         const n = Number(text);
         onCommit(text.trim() && Number.isFinite(n) && n > 0 ? n : undefined);
       }}
-      className="h-[36px] w-full rounded-[8px] text-center text-[15px] font-semibold outline-none placeholder:font-normal placeholder:text-[#6f6f76]"
-      style={{ background: "#1d1d20", color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}
+      className="h-[36px] w-full rounded-[8px] text-center text-[15px] font-semibold outline-none placeholder:font-normal placeholder:text-[var(--text-tertiary)]"
+      style={{ background: "var(--surface-raised)", color: "var(--text)", fontVariantNumeric: "tabular-nums" }}
     />
   );
 }
@@ -64,17 +64,17 @@ function Stepper({ label, value, min, max, onChange }: { label: string; value: n
   const btn = "flex h-10 w-10 items-center justify-center rounded-full text-[18px] font-semibold disabled:opacity-30";
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2.5" role="group" aria-label={label}>
-      <span className="text-[15px]" style={{ color: "#a3a3a8" }}>
+      <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
         {label}
       </span>
       <div className="flex items-center gap-2">
-        <button type="button" className={btn} style={{ background: "#1d1d20", color: "#f2f2f0" }} onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label={`Decrease ${label}`}>
+        <button type="button" className={btn} style={{ background: "var(--surface-raised)", color: "var(--text)" }} onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label={`Decrease ${label}`}>
           −
         </button>
-        <span className="w-8 text-center text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+        <span className="w-8 text-center text-[17px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
           {value}
         </span>
-        <button type="button" className={btn} style={{ background: "#1d1d20", color: "#f2f2f0" }} onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label={`Increase ${label}`}>
+        <button type="button" className={btn} style={{ background: "var(--surface-raised)", color: "var(--text)" }} onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label={`Increase ${label}`}>
           +
         </button>
       </div>
@@ -175,14 +175,14 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
   const totalSets = workingSetCount({ exercises: items });
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
-      <header className="sticky top-0 z-30" style={{ background: "#0a0a0b", borderBottom: "1px solid #1d1d20" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
+      <header className="sticky top-0 z-30" style={{ background: "var(--background)", borderBottom: "1px solid var(--surface-raised)" }}>
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-5 py-3 sm:px-6">
-          <button type="button" onClick={cancel} className="min-w-[64px] text-left text-[15px]" style={{ color: confirmLeave ? "#f26d7d" : "#a3a3a8" }}>
+          <button type="button" onClick={cancel} className="min-w-[64px] text-left text-[15px]" style={{ color: confirmLeave ? "var(--status-attention)" : "var(--text-secondary)" }}>
             {confirmLeave ? "Discard?" : "Cancel"}
           </button>
           <span className="text-[17px] font-semibold">{mode === "create" ? "New routine" : "Edit routine"}</span>
-          <button type="button" onClick={save} className="h-[34px] min-w-[64px] rounded-full px-4 text-[15px] font-semibold" style={{ background: "#f2f2f0", color: "#0a0a0b" }}>
+          <button type="button" onClick={save} className="h-[34px] min-w-[64px] rounded-full px-4 text-[15px] font-semibold" style={{ background: "var(--primary)", color: "var(--text-on-primary)" }}>
             Save
           </button>
         </div>
@@ -200,20 +200,20 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
           placeholder="Routine name"
           aria-label="Routine name"
           maxLength={60}
-          className="w-full bg-transparent text-[28px] font-semibold tracking-[-0.02em] outline-none placeholder:text-[#3a3a40]"
-          style={{ color: "#f2f2f0" }}
+          className="w-full bg-transparent text-[28px] font-semibold tracking-[-0.02em] outline-none placeholder:text-[var(--border-strong)]"
+          style={{ color: "var(--text)" }}
         />
         {items.length > 0 && (
-          <p className="-mt-2 text-[12px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+          <p className="-mt-2 text-[12px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
             {items.length} {items.length === 1 ? "exercise" : "exercises"} · {totalSets} working sets · about {estimateMinutes({ exercises: items })} min
           </p>
         )}
         <ErrorLine text={error} />
 
         {items.length === 0 && (
-          <div className="flex flex-col items-center gap-1 rounded-[12px] px-4 py-8 text-center" style={{ background: "#141416" }}>
+          <div className="flex flex-col items-center gap-1 rounded-[12px] px-4 py-8 text-center" style={{ background: "var(--surface)" }}>
             <span className="text-[15px] font-semibold">No exercises yet</span>
-            <span className="text-[13px]" style={{ color: "#a3a3a8" }}>
+            <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
               Add them, then set the sets for each. Weights are optional.
             </span>
           </div>
@@ -225,10 +225,10 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
           let n = 0;
           const repHint = d.repMin != null && d.repMax != null ? (d.repMin === d.repMax ? String(d.repMin) : `${d.repMin}–${d.repMax}`) : "–";
           return (
-            <section key={d.key} className="rounded-[12px] p-4" style={{ background: "#141416" }} aria-label={d.name}>
+            <section key={d.key} className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label={d.name}>
               <div className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate text-[17px] font-semibold">{d.name}</span>
-                <button type="button" onClick={() => setMenuKey(d.key)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`${d.name} options`}>
+                <button type="button" onClick={() => setMenuKey(d.key)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label={`${d.name} options`}>
                   <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden>
                     <circle cx="5" cy="12" r="1.8" />
                     <circle cx="12" cy="12" r="1.8" />
@@ -241,19 +241,19 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
                 onChange={(e) => update(d.key, (x) => ({ ...x, notes: e.target.value.slice(0, 500) }))}
                 placeholder="Add a note"
                 aria-label={`Note for ${d.name}`}
-                className="mt-1 w-full bg-transparent text-[13px] outline-none placeholder:text-[#6f6f76]"
-                style={{ color: "#a3a3a8" }}
+                className="mt-1 w-full bg-transparent text-[13px] outline-none placeholder:text-[var(--text-tertiary)]"
+                style={{ color: "var(--text-secondary)" }}
               />
               <div className="mt-2 flex flex-wrap gap-1.5">
-                <button type="button" onClick={() => setRestKey(d.key)} className={chipCls} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`Rest timer ${restLabel(d.restSec)}. Change`}>
+                <button type="button" onClick={() => setRestKey(d.key)} className={chipCls} style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label={`Rest timer ${restLabel(d.restSec)}. Change`}>
                   Rest {restLabel(d.restSec)}
                 </button>
-                <button type="button" onClick={() => setTargetKey(d.key)} className={chipCls} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Change rep target and reps in reserve">
+                <button type="button" onClick={() => setTargetKey(d.key)} className={chipCls} style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Change rep target and reps in reserve">
                   {repHint} reps · RIR {d.rir ?? 2}
                 </button>
               </div>
 
-              <div className="mt-3 grid grid-cols-[40px_1fr_1fr_32px] items-center gap-x-2 gap-y-1.5 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+              <div className="mt-3 grid grid-cols-[40px_1fr_1fr_32px] items-center gap-x-2 gap-y-1.5 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
                 <span className="text-center">Set</span>
                 <span className="text-center">{unit}</span>
                 <span className="text-center">Reps</span>
@@ -275,7 +275,7 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
                         type="button"
                         onClick={() => (warm ? setRow({ type: undefined }) : workingCount > 1 ? setRow({ type: "warmup" }) : undefined)}
                         className="h-[36px] rounded-[8px] text-[15px] font-semibold"
-                        style={{ background: "transparent", color: warm ? "#6f6f76" : "#f2f2f0" }}
+                        style={{ background: "transparent", color: warm ? "var(--text-tertiary)" : "var(--text)" }}
                         aria-label={warm ? `Warm-up set. Make it a working set` : `Set ${label}. Make it a warm-up`}
                       >
                         {label}
@@ -287,7 +287,7 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
                         onClick={() => update(d.key, (x) => removeRow(x, i))}
                         disabled={!warm && workingCount <= 1}
                         className="flex h-[32px] w-[32px] items-center justify-center rounded-full text-[18px] disabled:opacity-20"
-                        style={{ color: "#6f6f76" }}
+                        style={{ color: "var(--text-tertiary)" }}
                         aria-label={`Remove set ${label}`}
                       >
                         ×
@@ -298,10 +298,10 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
               </div>
 
               <div className="mt-3 flex gap-2">
-                <button type="button" onClick={() => update(d.key, (x) => addRow(x))} className="h-[38px] flex-1 rounded-[10px] text-[13px] font-semibold" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+                <button type="button" onClick={() => update(d.key, (x) => addRow(x))} className="h-[38px] flex-1 rounded-[10px] text-[13px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
                   + Add set
                 </button>
-                <button type="button" onClick={() => update(d.key, (x) => addRow(x, "warmup"))} className="h-[38px] rounded-[10px] px-3 text-[13px] font-semibold" style={{ background: "#1d1d20", color: "#a3a3a8" }}>
+                <button type="button" onClick={() => update(d.key, (x) => addRow(x, "warmup"))} className="h-[38px] rounded-[10px] px-3 text-[13px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }}>
                   + Warm-up
                 </button>
               </div>
@@ -312,7 +312,7 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
         <PrimaryButton onClick={() => setPicker({ mode: "add" })}>Add exercises</PrimaryButton>
 
         {mode === "edit" && (
-          <button type="button" onClick={remove} className="mx-auto mt-2 text-[13px] font-semibold" style={{ color: "#f26d7d" }}>
+          <button type="button" onClick={remove} className="mx-auto mt-2 text-[13px] font-semibold" style={{ color: "var(--status-attention)" }}>
             {confirmDelete ? "Tap again to delete this routine" : "Delete routine"}
           </button>
         )}
@@ -349,7 +349,7 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
                   onClick={() => (update(restItem.key, (x) => ({ ...x, restSec: sec })), setRestKey(null))}
                   aria-pressed={on}
                   className="h-[44px] rounded-[10px] text-[15px] font-semibold"
-                  style={on ? { background: "#f2f2f0", color: "#0a0a0b" } : { background: "#1d1d20", color: "#f2f2f0" }}
+                  style={on ? { background: "var(--primary)", color: "var(--text-on-primary)" } : { background: "var(--surface-raised)", color: "var(--text)" }}
                 >
                   {restLabel(sec)}
                 </button>
@@ -367,7 +367,7 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
               <Stepper label="Most reps" value={targetItem.repMax ?? 12} min={targetItem.repMin ?? 1} max={30} onChange={(v) => update(targetItem.key, (x) => ({ ...x, repMax: v }))} />
               <Stepper label="Reps in reserve" value={targetItem.rir ?? 2} min={0} max={5} onChange={(v) => update(targetItem.key, (x) => ({ ...x, rir: v }))} />
             </RowGroup>
-            <p className="text-[12px] leading-snug" style={{ color: "#6f6f76" }}>
+            <p className="text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
               The next-set suggestion works inside this range: add reps until the top, then add weight.
             </p>
           </div>

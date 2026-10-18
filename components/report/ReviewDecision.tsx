@@ -25,7 +25,7 @@ function Pills<T extends string>({ options, value, onChange, label }: { options:
             onClick={() => onChange(o.value)}
             aria-pressed={selected}
             className="h-[30px] rounded-full px-3 text-[12px] font-medium leading-[30px] transition-colors"
-            style={{ background: selected ? "#f2f2f0" : "#1d1d20", color: selected ? "#0a0a0b" : "#f2f2f0" }}
+            style={{ background: selected ? "var(--primary)" : "var(--surface-raised)", color: selected ? "var(--text-on-primary)" : "var(--text)" }}
           >
             {o.label}
           </button>
@@ -75,10 +75,10 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
               {q.partialDays.map((p) => (
                 <div key={p.date} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="flex min-w-0 flex-col">
-                    <span className="text-[15px]" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+                    <span className="text-[15px]" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
                       {longLocalDate(p.date)} · {fmtKcal(p.kcal)} kcal
                     </span>
-                    <span className="text-[11px]" style={{ color: "#6f6f76" }}>
+                    <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                       Looks like part of a day. Partial days stay out of the estimate.
                     </span>
                   </div>
@@ -96,10 +96,10 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
               {q.unloggedDays.map((date) => (
                 <div key={date} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="flex min-w-0 flex-col">
-                    <span className="text-[15px]" style={{ color: "#f2f2f0" }}>
+                    <span className="text-[15px]" style={{ color: "var(--text)" }}>
                       {longLocalDate(date)}
                     </span>
-                    <span className="text-[11px]" style={{ color: "#6f6f76" }}>
+                    <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                       Nothing logged. Fasted counts as 0 kcal; skipped stays out.
                     </span>
                   </div>
@@ -117,14 +117,14 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
               {q.weighIn && (
                 <div className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="flex min-w-0 flex-col">
-                    <span className="text-[15px]" style={{ color: "#f2f2f0" }}>
+                    <span className="text-[15px]" style={{ color: "var(--text)" }}>
                       {q.weighIn.lastWeighInDate ? `No weigh-in since ${longLocalDate(q.weighIn.lastWeighInDate)}` : "No weigh-in yet"}
                     </span>
-                    <span className="text-[11px]" style={{ color: "#6f6f76" }}>
+                    <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                       The trend needs one this week.
                     </span>
                   </div>
-                  <Link href="/body" className="h-[30px] shrink-0 rounded-full px-3 text-[12px] font-medium leading-[30px]" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+                  <Link href="/body" className="h-[30px] shrink-0 rounded-full px-3 text-[12px] font-medium leading-[30px]" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
                     Log
                   </Link>
                 </div>
@@ -133,7 +133,7 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
                 <Row
                   label="Waist"
                   sub={q.waist.lastCm != null && q.waist.lastDate ? `Last ${q.waist.lastCm.toFixed(1)} cm on ${longLocalDate(q.waist.lastDate)}` : "Weekly, optional"}
-                  value={waistCm != null ? `${waistCm.toFixed(1)} cm` : <span style={{ color: "#6f6f76" }}>Add</span>}
+                  value={waistCm != null ? `${waistCm.toFixed(1)} cm` : <span style={{ color: "var(--text-tertiary)" }}>Add</span>}
                   onClick={() => setSheet(true)}
                   ariaLabel="Log waist"
                 />
@@ -143,14 +143,14 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
         )}
 
         {hasProgram ? (
-          <section className="flex flex-col gap-3 rounded-[16px] p-4" style={{ background: "#141416" }} aria-label="Decision">
-            <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+          <section className="flex flex-col gap-3 rounded-[16px] p-4" style={{ background: "var(--surface)" }} aria-label="Decision">
+            <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
               This week&apos;s decision
             </span>
             <div className="flex flex-col gap-1">
               <span className="text-[17px] font-semibold">{done ? "Reviewed" : d.title}</span>
               {(done ?? d.lines).map((line) => (
-                <span key={line} className="text-[13px] leading-snug" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+                <span key={line} className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                   {line}
                 </span>
               ))}
@@ -161,10 +161,10 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
               </Caption>
             ) : done ? (
               <div className="flex gap-2">
-                <Link href="/" className="h-[36px] rounded-[12px] px-3 text-[13px] font-semibold leading-[36px]" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+                <Link href="/" className="h-[36px] rounded-[12px] px-3 text-[13px] font-semibold leading-[36px]" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
                   Home
                 </Link>
-                <Link href="/body" className="h-[36px] rounded-[12px] px-3 text-[13px] font-semibold leading-[36px]" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+                <Link href="/body" className="h-[36px] rounded-[12px] px-3 text-[13px] font-semibold leading-[36px]" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
                   Body
                 </Link>
               </div>
@@ -186,7 +186,7 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
           </section>
         ) : (
           <RowGroup>
-            <Row label="No goal yet" sub="Set one and each week ends in a decision on your targets" value={<span style={{ color: "#6f6f76" }}>Set</span>} onClick={() => router.push("/body/goal")} ariaLabel="Set a goal" />
+            <Row label="No goal yet" sub="Set one and each week ends in a decision on your targets" value={<span style={{ color: "var(--text-tertiary)" }}>Set</span>} onClick={() => router.push("/body/goal")} ariaLabel="Set a goal" />
           </RowGroup>
         )}
 

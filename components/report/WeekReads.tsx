@@ -7,16 +7,16 @@ import { STATUS_HEX } from "@/lib/ui/status";
 function ReadRow({ label, read }: { label: string; read: ReviewRead }) {
   return (
     <div className="flex flex-col gap-0.5 px-4 py-3">
-      <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+      <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
         {label}
       </span>
       <span className="flex items-center gap-2">
         <StatusDot color={STATUS_HEX[read.state]} />
-        <span className="text-[15px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+        <span className="text-[15px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
           {read.title}
         </span>
       </span>
-      <span className="pl-4 text-[12px] leading-snug" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+      <span className="pl-4 text-[12px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
         {read.detail}
       </span>
     </div>

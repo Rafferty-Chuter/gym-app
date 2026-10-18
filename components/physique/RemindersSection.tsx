@@ -69,8 +69,8 @@ export default function RemindersSection() {
           label="Daily reminder"
           sub={enabled ? "On. Only when a day is missing." : "Off"}
           value={
-            <button type="button" role="switch" aria-checked={enabled} aria-label={enabled ? "Turn reminders off" : "Turn reminders on"} onClick={toggle} disabled={!hydrated || busy || !now} className="relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50" style={{ background: enabled ? "#00e5b0" : "#2a2a2e" }}>
-              <span className="absolute top-0.5 h-6 w-6 rounded-full transition-transform" style={{ left: 2, background: enabled ? "#0a0a0b" : "#f2f2f0", transform: enabled ? "translateX(20px)" : "translateX(0)" }} />
+            <button type="button" role="switch" aria-checked={enabled} aria-label={enabled ? "Turn reminders off" : "Turn reminders on"} onClick={toggle} disabled={!hydrated || busy || !now} className="relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50" style={{ background: enabled ? "var(--primary)" : "var(--border-strong)" }}>
+              <span className="absolute top-0.5 h-6 w-6 rounded-full transition-transform" style={{ left: 2, background: enabled ? "var(--text-on-primary)" : "var(--surface)", transform: enabled ? "translateX(20px)" : "translateX(0)" }} />
             </button>
           }
         />
@@ -88,13 +88,13 @@ export default function RemindersSection() {
                 if (/^\d{2}:\d{2}$/.test(v) && now) void setReminderTime(v, summary(), nowIso());
               }}
               className="h-9 rounded-[10px] px-2 text-[13px] outline-none"
-              style={{ background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" }}
+              style={{ background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" }}
               aria-label="Reminder time"
             />
           }
         />
       </RowGroup>
-      <p className="text-[11px]" style={{ color: err || iosNote ? "#f5b544" : "#6f6f76" }}>
+      <p className="text-[11px]" style={{ color: err || iosNote ? "var(--status-watch)" : "var(--text-tertiary)" }}>
         {err ?? iosNote ?? "It names the day and what is missing, nothing else."}
       </p>
     </section>

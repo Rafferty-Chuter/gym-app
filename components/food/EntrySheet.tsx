@@ -19,7 +19,7 @@ type Props = {
 };
 
 const inputClass = "h-11 w-full min-w-0 rounded-[12px] px-3 text-[15px] outline-none focus:ring-1";
-const inputStyle = { background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" };
+const inputStyle = { background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" };
 
 /** Edit one timeline entry: name, time, serving and macros; or remove it. */
 export default function EntrySheet({ entry, tz, onClose, onSave, onRemove }: Props) {

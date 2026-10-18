@@ -36,11 +36,11 @@ export default function GoalEtaLine({ eta }: { eta: GoalEta }) {
     const window = eta.earliest && eta.latest ? ` · likely ${shortLocalDate(eta.earliest)} to ${shortLocalDate(eta.latest)}` : eta.earliest ? ` · ${shortLocalDate(eta.earliest)} at the earliest` : "";
     detail = `At your current ${formatRate(eta.ratePctPerWeek)}${window}.`;
   }
-  const asideColor = aside === "on plan" || aside?.includes("ahead") ? "#00e5b0" : aside?.includes("behind") ? "#f5b544" : "#6f6f76";
+  const asideColor = aside === "on plan" || aside?.includes("ahead") ? "var(--status-good)" : aside?.includes("behind") ? "var(--status-watch)" : "var(--text-tertiary)";
   return (
-    <div className="mt-3 flex flex-col gap-0.5" style={{ borderTop: "1px solid #2a2a2e", paddingTop: 10 }} aria-label="Goal ETA">
+    <div className="mt-3 flex flex-col gap-0.5" style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }} aria-label="Goal ETA">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[15px] font-semibold" style={{ color: eta.date || eta.reached ? "#f2f2f0" : "#a3a3a8" }}>
+        <span className="text-[15px] font-semibold" style={{ color: eta.date || eta.reached ? "var(--text)" : "var(--text-secondary)" }}>
           {headline}
         </span>
         {aside && (
@@ -49,7 +49,7 @@ export default function GoalEtaLine({ eta }: { eta: GoalEta }) {
           </span>
         )}
       </div>
-      <p className="text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+      <p className="text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
         {detail}
       </p>
     </div>

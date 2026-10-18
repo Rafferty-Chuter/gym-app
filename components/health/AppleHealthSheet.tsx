@@ -65,16 +65,16 @@ export default function AppleHealthSheet({ open, onClose }: Props) {
   }
 
   const field = (label: string, value: string, kind: "token" | "url" | "header") => (
-    <div className="flex items-center gap-2 rounded-[12px] px-3 py-2" style={{ background: "#1d1d20" }}>
+    <div className="flex items-center gap-2 rounded-[12px] px-3 py-2" style={{ background: "var(--surface-raised)" }}>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+        <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
           {label}
         </span>
-        <span className="truncate text-[13px]" style={{ color: "#f2f2f0", fontFamily: "var(--font-geist-mono), monospace" }}>
+        <span className="truncate text-[13px]" style={{ color: "var(--text)", fontFamily: "var(--font-geist-mono), monospace" }}>
           {value}
         </span>
       </span>
-      <button type="button" onClick={() => void copy(kind, value)} className="h-[30px] shrink-0 rounded-full px-3 text-[12px] font-medium" style={{ background: copied === kind ? "#00e5b0" : "#141416", color: copied === kind ? "#0a0a0b" : "#f2f2f0", border: "1px solid #2a2a2e" }}>
+      <button type="button" onClick={() => void copy(kind, value)} className="h-[30px] shrink-0 rounded-full px-3 text-[12px] font-medium" style={{ background: copied === kind ? "var(--status-good)" : "var(--surface)", color: copied === kind ? "var(--surface)" : "var(--text)", border: "1px solid var(--border)" }}>
         {copied === kind ? "Copied" : "Copy"}
       </button>
     </div>
@@ -118,15 +118,15 @@ export default function AppleHealthSheet({ open, onClose }: Props) {
       }
     >
       <div className="flex flex-col gap-3">
-        <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
           Sleep, HRV, resting heart rate and weight arrive on their own through the Health Auto Export app. Manual logging stays as the fallback. Data lands within hours of unlocking the phone, not minutes.
         </p>
-        <p className="text-[13px]" style={{ color: "#f2f2f0" }}>
+        <p className="text-[13px]" style={{ color: "var(--text)" }}>
           {status}
           {last?.ok && last.merged > 0 ? ` Pulled ${last.merged}: ${last.nights} ${last.nights === 1 ? "night" : "nights"}, ${last.weighIns} ${last.weighIns === 1 ? "weigh-in" : "weigh-ins"}.` : last?.ok ? " Nothing new." : ""}
         </p>
         {err && (
-          <p className="text-[13px]" style={{ color: "#f5b544" }}>
+          <p className="text-[13px]" style={{ color: "var(--status-watch)" }}>
             {err}
           </p>
         )}
@@ -137,12 +137,12 @@ export default function AppleHealthSheet({ open, onClose }: Props) {
             {field("Token", link.token, "token")}
           </>
         )}
-        <ol className="flex flex-col gap-1.5 pl-4 text-[13px]" style={{ color: "#a3a3a8", listStyle: "decimal" }}>
+        <ol className="flex flex-col gap-1.5 pl-4 text-[13px]" style={{ color: "var(--text-secondary)", listStyle: "decimal" }}>
           {STEPS.map((s) => (
             <li key={s}>{s}</li>
           ))}
         </ol>
-        <p className="text-[11px]" style={{ color: "#6f6f76" }}>
+        <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
           The token is a password for writing to this device&apos;s data. It lives on this phone and in the Health Auto Export app, nowhere else. Disconnect to invalidate it.
         </p>
       </div>

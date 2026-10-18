@@ -46,7 +46,7 @@ function MoreGlyph() {
 
 function MenuItem({ children, onClick, tone }: { children: ReactNode; onClick: () => void; tone?: "attention" }) {
   return (
-    <button type="button" onClick={onClick} className="flex min-h-[52px] w-full items-center px-1 text-left text-[16px] transition-colors active:opacity-70" style={{ color: tone === "attention" ? "#f26d7d" : "#f2f2f0" }}>
+    <button type="button" onClick={onClick} className="flex min-h-[52px] w-full items-center px-1 text-left text-[16px] transition-colors active:opacity-70" style={{ color: tone === "attention" ? "var(--status-attention)" : "var(--text)" }}>
       {children}
     </button>
   );
@@ -78,14 +78,14 @@ function WorkoutDetail() {
   const [saved, setSaved] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ name: string; exercises: Exercise[] } | null>(null);
 
-  if (!hydrated) return <main className="min-h-screen" style={{ background: "#0a0a0b" }} />;
+  if (!hydrated) return <main className="min-h-screen" style={{ background: "var(--page)" }} />;
 
   if (!workout || !stats) {
     return (
-      <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+      <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
         <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 sm:px-6">
           <PageHeader caption="History" captionHref="/history" captionLabel="Back to History" title="Workout" />
-          <p className="text-[15px]" style={{ color: "#a3a3a8" }}>
+          <p className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
             This workout is not in your history. It may have been deleted.
           </p>
         </div>
@@ -136,14 +136,14 @@ function WorkoutDetail() {
 
   if (draft) {
     return (
-      <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
-        <div className="sticky top-0 z-30 border-b" style={{ background: "#0a0a0b", borderColor: "#2a2a2e" }}>
+      <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
+        <div className="sticky top-0 z-30 border-b" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
           <div className="mx-auto flex h-[52px] max-w-2xl items-center justify-between px-5 sm:px-6">
-            <button type="button" onClick={() => setDraft(null)} className="text-[15px]" style={{ color: "#a3a3a8" }}>
+            <button type="button" onClick={() => setDraft(null)} className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
               Cancel
             </button>
             <span className="text-[17px] font-semibold">Edit workout</span>
-            <button type="button" onClick={saveEdit} className="h-[34px] rounded-[10px] px-4 text-[15px] font-semibold" style={{ background: "#f2f2f0", color: "#0a0a0b" }}>
+            <button type="button" onClick={saveEdit} className="h-[34px] rounded-[10px] px-4 text-[15px] font-semibold" style={{ background: "var(--primary)", color: "var(--text-on-primary)" }}>
               Save
             </button>
           </div>
@@ -151,14 +151,14 @@ function WorkoutDetail() {
         <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 pt-4 sm:px-6">
           <label className="flex flex-col gap-1">
             <Caption>Name</Caption>
-            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder={workoutTitle(workout)} className="h-[44px] rounded-[10px] px-3 text-[17px] outline-none" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Workout name" />
+            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder={workoutTitle(workout)} className="h-[44px] rounded-[10px] px-3 text-[17px] outline-none" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Workout name" />
           </label>
           {draft.exercises.map((ex, ei) => {
             let n = 0;
             return (
-              <section key={`${ex.name}-${ei}`} className="rounded-[12px] px-4 py-3" style={{ background: "#141416" }} aria-label={ex.name}>
+              <section key={`${ex.name}-${ei}`} className="rounded-[12px] px-4 py-3" style={{ background: "var(--surface)" }} aria-label={ex.name}>
                 <p className="pb-2 text-[16px] font-semibold">{ex.name}</p>
-                <div className="grid grid-cols-[28px_1fr_16px_1fr_36px] items-center gap-x-2 pb-1 text-[11px] font-medium" style={{ color: "#6f6f76" }}>
+                <div className="grid grid-cols-[28px_1fr_16px_1fr_36px] items-center gap-x-2 pb-1 text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
                   <span className="text-center">SET</span>
                   <span className="text-center">{u.toUpperCase()}</span>
                   <span />
@@ -166,7 +166,7 @@ function WorkoutDetail() {
                   <span />
                 </div>
                 {ex.sets.length === 0 && (
-                  <p className="py-2 text-[13px]" style={{ color: "#6f6f76" }}>
+                  <p className="py-2 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
                     No sets left. Saving removes this exercise from the workout.
                   </p>
                 )}
@@ -176,15 +176,15 @@ function WorkoutDetail() {
                   const mark = SET_TYPE_MARK[type] || String(n);
                   return (
                     <div key={si} className="grid grid-cols-[28px_1fr_16px_1fr_36px] items-center gap-x-2 py-1">
-                      <span className="text-center text-[13px] font-semibold" style={{ color: type === "working" ? "#a3a3a8" : "#6f6f76" }}>
+                      <span className="text-center text-[13px] font-semibold" style={{ color: type === "working" ? "var(--text-secondary)" : "var(--text-tertiary)" }}>
                         {mark}
                       </span>
-                      <input inputMode="decimal" value={s.weight ?? ""} onChange={(e) => setField(ei, si, "weight", cleanWeight(e.target.value))} placeholder="0" aria-label={`${ex.name} set ${si + 1} weight`} className="h-[36px] w-full rounded-[8px] text-center text-[15px] outline-none" style={{ background: "#1d1d20", color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }} />
-                      <span className="text-center text-[13px]" style={{ color: "#6f6f76" }}>
+                      <input inputMode="decimal" value={s.weight ?? ""} onChange={(e) => setField(ei, si, "weight", cleanWeight(e.target.value))} placeholder="0" aria-label={`${ex.name} set ${si + 1} weight`} className="h-[36px] w-full rounded-[8px] text-center text-[15px] outline-none" style={{ background: "var(--surface-raised)", color: "var(--text)", fontVariantNumeric: "tabular-nums" }} />
+                      <span className="text-center text-[13px]" style={{ color: "var(--text-tertiary)" }}>
                         ×
                       </span>
-                      <input inputMode="numeric" value={s.reps ?? ""} onChange={(e) => setField(ei, si, "reps", e.target.value.replace(/\D/g, ""))} placeholder="0" aria-label={`${ex.name} set ${si + 1} reps`} className="h-[36px] w-full rounded-[8px] text-center text-[15px] outline-none" style={{ background: "#1d1d20", color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }} />
-                      <button type="button" onClick={() => removeSet(ei, si)} className="flex h-[36px] w-[36px] items-center justify-center rounded-[8px] text-[18px] leading-none" style={{ color: "#6f6f76" }} aria-label={`Remove ${ex.name} set ${si + 1}`}>
+                      <input inputMode="numeric" value={s.reps ?? ""} onChange={(e) => setField(ei, si, "reps", e.target.value.replace(/\D/g, ""))} placeholder="0" aria-label={`${ex.name} set ${si + 1} reps`} className="h-[36px] w-full rounded-[8px] text-center text-[15px] outline-none" style={{ background: "var(--surface-raised)", color: "var(--text)", fontVariantNumeric: "tabular-nums" }} />
+                      <button type="button" onClick={() => removeSet(ei, si)} className="flex h-[36px] w-[36px] items-center justify-center rounded-[8px] text-[18px] leading-none" style={{ color: "var(--text-tertiary)" }} aria-label={`Remove ${ex.name} set ${si + 1}`}>
                         ×
                       </button>
                     </div>
@@ -193,7 +193,7 @@ function WorkoutDetail() {
               </section>
             );
           })}
-          <p className="text-[12px]" style={{ color: "#6f6f76" }}>
+          <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
             Changes save to this workout. A set with no reps is not counted.
           </p>
         </div>
@@ -202,7 +202,7 @@ function WorkoutDetail() {
   }
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader
           caption="History"
@@ -210,12 +210,12 @@ function WorkoutDetail() {
           captionLabel="Back to History"
           title={workoutTitle(workout)}
           secondary={
-            <button type="button" onClick={() => setMenu(true)} className="flex h-9 w-9 items-center justify-center rounded-full transition-colors active:bg-[#26262a]" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Workout options">
+            <button type="button" onClick={() => setMenu(true)} className="flex h-9 w-9 items-center justify-center rounded-full transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Workout options">
               <MoreGlyph />
             </button>
           }
         />
-        <p className="-mt-3 text-[13px]" style={{ color: "#a3a3a8" }}>
+        <p className="-mt-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
           {workoutWhen(workout.completedAt)}
         </p>
 
@@ -234,9 +234,9 @@ function WorkoutDetail() {
         </section>
 
         {saved && (
-          <p className="text-[13px]" style={{ color: "#a3a3a8" }} role="status">
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }} role="status">
             Saved to your routines.{" "}
-            <Link href={`/templates/${saved}`} className="font-semibold" style={{ color: "#f2f2f0" }}>
+            <Link href={`/templates/${saved}`} className="font-semibold" style={{ color: "var(--text)" }}>
               Edit routine
             </Link>
           </p>
@@ -246,17 +246,17 @@ function WorkoutDetail() {
       </div>
 
       <Sheet open={menu} onClose={() => (setMenu(false), setConfirmDelete(false))} title={workoutTitle(workout)}>
-        <div className="flex flex-col divide-y divide-[#2a2a2e] pb-2">
+        <div className="flex flex-col divide-y divide-[var(--border)] pb-2">
           <MenuItem onClick={startEdit}>Edit workout</MenuItem>
           <MenuItem onClick={saveAsRoutine}>Save as routine</MenuItem>
           {confirmDelete ? (
             <div className="flex flex-col gap-2 py-3">
-              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 Delete this workout from your history? This cannot be undone.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <SecondaryButton onClick={() => setConfirmDelete(false)}>Keep</SecondaryButton>
-                <button type="button" onClick={remove} className="h-[44px] rounded-[12px] text-[15px] font-semibold" style={{ background: "#f26d7d", color: "#0a0a0b" }}>
+                <button type="button" onClick={remove} className="h-[44px] rounded-[12px] text-[15px] font-semibold" style={{ background: "var(--status-attention)", color: "var(--text-on-primary)" }}>
                   Delete
                 </button>
               </div>
@@ -274,7 +274,7 @@ function WorkoutDetail() {
 
 export default function WorkoutDetailPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen" style={{ background: "#0a0a0b" }} />}>
+    <Suspense fallback={<main className="min-h-screen" style={{ background: "var(--page)" }} />}>
       <WorkoutDetail />
     </Suspense>
   );

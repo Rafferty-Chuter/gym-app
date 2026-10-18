@@ -65,35 +65,35 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <StatusDot color={color} />
-          <span className="text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+          <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
             {v.title}
           </span>
         </div>
         {!isSafety && (
-          <p className="pl-4 text-[15px] leading-snug" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+          <p className="pl-4 text-[15px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
             {v.detail}
           </p>
         )}
         {isSafety && (
-          <p className="pl-4 text-[15px] leading-snug" style={{ color: "#a3a3a8" }}>
+          <p className="pl-4 text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>
             {v.detail}
           </p>
         )}
         {caption && (
-          <span className="pl-4 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+          <span className="pl-4 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
             {caption}
           </span>
         )}
       </div>
 
       {analysis.flags.length > 0 && (
-        <ul className="flex flex-col divide-y divide-[#2a2a2e] overflow-hidden rounded-[12px]" style={{ background: "#141416" }}>
+        <ul className="flex flex-col divide-y divide-[var(--border)] overflow-hidden rounded-[12px]" style={{ background: "var(--surface)" }}>
           {analysis.flags.slice(0, 3).map((f) => (
             <li key={f.id} className="flex flex-col px-4 py-2.5">
-              <span className="text-[13px] font-medium" style={{ color: "#f2f2f0" }}>
+              <span className="text-[13px] font-medium" style={{ color: "var(--text)" }}>
                 {f.title}
               </span>
-              <span className="text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+              <span className="text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                 {f.detail}
               </span>
             </li>
@@ -102,12 +102,12 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
       )}
 
       {rec && analysis.recommendationLabel && (
-        <div className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3" style={{ background: "#141416", border: "1px solid #2a2a2e" }}>
-          <span className="text-[13px]" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+        <div className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+          <span className="text-[13px]" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
             {note ?? analysis.recommendationLabel}
           </span>
           {rec.kind === "confirm_days" ? (
-            <Link href={`/body?date=${rec.dates[0] ?? ""}`} className="shrink-0 text-[13px] font-semibold" style={{ color: "#f2f2f0" }}>
+            <Link href={`/body?date=${rec.dates[0] ?? ""}`} className="shrink-0 text-[13px] font-semibold" style={{ color: "var(--text)" }}>
               Open day
             </Link>
           ) : rec.kind === "log_more" && rec.what === "waist" ? null : button && !note ? (
@@ -120,7 +120,7 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
       <ErrorLine text={error} />
 
       {ASSISTANT_ENABLED && analysis.goal && !isSafety && (
-        <button type="button" onClick={askWhy} className="w-fit text-[13px] font-semibold" style={{ color: "#a3a3a8" }}>
+        <button type="button" onClick={askWhy} className="w-fit text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
           Ask why →
         </button>
       )}

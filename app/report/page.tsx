@@ -47,7 +47,7 @@ export default function ReportPage() {
   const hydrated = useIsHydrated();
   const now = useNow();
   const { unit } = useUnit();
-  if (!hydrated || !now) return <main className="min-h-screen" style={{ background: "#0a0a0b" }} />;
+  if (!hydrated || !now) return <main className="min-h-screen" style={{ background: "var(--page)" }} />;
   return <ReportContent now={now} unit={unit === "lb" ? "lb" : "kg"} />;
 }
 
@@ -58,7 +58,7 @@ function weekFromQuery(): LocalDate | null {
 }
 
 const n = (v: number) => Math.round(v).toLocaleString("en-GB");
-const dash = <span style={{ color: "#6f6f76" }}>–</span>;
+const dash = <span style={{ color: "var(--text-tertiary)" }}>–</span>;
 
 function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const today = now.today;
@@ -126,23 +126,23 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const byKind = (kind: WeekGap["kind"]) => report.gaps.filter((g) => g.kind === kind);
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <header className="sticky top-0 z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "#0a0a0b" }}>
+        <header className="sticky top-0 z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--background)" }}>
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <span className="block truncate text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+              <span className="block truncate text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
                 {caption}
               </span>
               <h1 className="mt-0.5 text-[34px] font-semibold leading-none tracking-[-0.02em]">Weekly report</h1>
             </div>
             <div className="flex shrink-0 items-center gap-1 pb-0.5">
-              <button type="button" onClick={() => setStart(addDays(start, -7))} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Previous week">
+              <button type="button" onClick={() => setStart(addDays(start, -7))} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Previous week">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
                   <path d="M15 6l-6 6 6 6" />
                 </svg>
               </button>
-              <button type="button" onClick={() => setStart(addDays(start, 7))} disabled={start >= thisWeek} className="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-30" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Next week">
+              <button type="button" onClick={() => setStart(addDays(start, 7))} disabled={start >= thisWeek} className="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-30" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Next week">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
                   <path d="M9 6l6 6-6 6" />
                 </svg>
@@ -152,12 +152,12 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         </header>
 
         {insight?.heading && analysis && (
-          <Link href="/body" className="flex flex-col gap-1 rounded-[12px] px-4 py-3 transition-colors active:bg-[#1d1d20]" style={{ background: "#141416" }} aria-label={`${analysis.verdict.title}. Open Body`}>
+          <Link href="/body" className="flex flex-col gap-1 rounded-[12px] px-4 py-3 transition-colors active:bg-[var(--surface-raised)]" style={{ background: "var(--surface)" }} aria-label={`${analysis.verdict.title}. Open Body`}>
             <span className="flex items-center gap-2">
               <StatusDot color={STATUS_HEX[analysis.status.state]} />
               <span className="text-[15px] font-semibold">{analysis.verdict.title}</span>
             </span>
-            <span className="pl-4 text-[13px] leading-snug" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+            <span className="pl-4 text-[13px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
               {analysis.verdict.detail}
             </span>
           </Link>
@@ -172,17 +172,17 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         {insight && report.hasData && <WeekReads nutrition={insight.reads.nutrition} training={insight.reads.training} sleep={insight.reads.sleep} />}
 
         {!report.hasData && (
-          <p className="rounded-[12px] px-4 py-3 text-[13px]" style={{ background: "#141416", color: "#a3a3a8" }}>
+          <p className="rounded-[12px] px-4 py-3 text-[13px]" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>
             {report.complete ? "Nothing was logged this week." : "Nothing logged this week yet."} Food, weigh-ins, nights and workouts show here as they are logged.
           </p>
         )}
 
         <details className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between rounded-[12px] px-4 py-3 [&::-webkit-details-marker]:hidden" style={{ background: "#141416" }}>
-            <span className="text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+          <summary className="flex cursor-pointer list-none items-center justify-between rounded-[12px] px-4 py-3 [&::-webkit-details-marker]:hidden" style={{ background: "var(--surface)" }}>
+            <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
               All the numbers
             </span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#6f6f76" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden>
               <path d="M9 6l6 6-6 6" />
             </svg>
           </summary>
@@ -199,13 +199,13 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
                   if (items.length === 0) return null;
                   return (
                     <div key={kind} className="flex flex-col gap-1.5 px-4 py-3">
-                      <span className="text-[15px]" style={{ color: "#a3a3a8" }}>
+                      <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
                         {gapLabel(items[0])} · {items.length} {items.length === 1 ? "day" : "days"}
                       </span>
                       {/* Plain anchors: the target page reads ?date= on mount, which a soft navigation would miss. */}
                       <div className="flex flex-wrap gap-1.5">
                         {items.map((g) => (
-                          <a key={`${g.kind}-${g.date}`} href={gapHref(g)} className="h-[30px] rounded-full px-3 text-[12px] font-medium leading-[30px] transition-colors active:bg-[#26262a]" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`${gapLabel(g)} ${longLocalDate(g.date)}. Log it`}>
+                          <a key={`${g.kind}-${g.date}`} href={gapHref(g)} className="h-[30px] rounded-full px-3 text-[12px] font-medium leading-[30px] transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label={`${gapLabel(g)} ${longLocalDate(g.date)}. Log it`}>
                             {longLocalDate(g.date)}
                           </a>
                         ))}
@@ -247,7 +247,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
               <Caption>{report.training.sessions} {report.training.sessions === 1 ? "session" : "sessions"} · {report.training.hardSets} hard sets</Caption>
             </div>
             {report.training.sessions === 0 ? (
-              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 No sessions logged this week.
               </p>
             ) : (
@@ -256,7 +256,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
                   <Row key={l.name} label={l.name} value={`${formatWeight(l.e1rmKg, unit)}`} sub={l.changePct == null ? "e1RM · no baseline in the previous 3 weeks" : `e1RM · ${l.changePct > 0 ? "+" : l.changePct < 0 ? "−" : ""}${Math.abs(l.changePct).toFixed(1)} % vs the previous 3 weeks`} />
                 ))}
                 <div className="px-4 py-3">
-                  <span className="text-[15px]" style={{ color: "#a3a3a8" }}>
+                  <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
                     Hard sets by muscle
                   </span>
                   <div className="mt-2 flex flex-col gap-1.5">
@@ -264,15 +264,15 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
                       const max = report.training.byMuscle[0]?.sets ?? 1;
                       return (
                         <div key={m.group} className="flex items-center gap-3 text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          <span className="w-[88px] shrink-0 truncate" style={{ color: "#a3a3a8" }}>
+                          <span className="w-[88px] shrink-0 truncate" style={{ color: "var(--text-secondary)" }}>
                             {m.label}
                           </span>
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: "#1d1d20" }} aria-hidden>
-                            <div className="h-full rounded-full" style={{ width: `${(m.sets / max) * 100}%`, background: "#a3a3a8" }} />
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: "var(--surface-raised)" }} aria-hidden>
+                            <div className="h-full rounded-full" style={{ width: `${(m.sets / max) * 100}%`, background: "var(--text-secondary)" }} />
                           </div>
-                          <span className="w-[72px] shrink-0 text-right" style={{ color: m.read === "over" ? "#f26d7d" : m.read === "under" ? "#f5b544" : m.read === "in_range" ? "#00e5b0" : "#f2f2f0" }}>
+                          <span className="w-[72px] shrink-0 text-right" style={{ color: m.read === "over" ? "var(--status-attention)" : m.read === "under" ? "var(--status-watch)" : m.read === "in_range" ? "var(--status-good)" : "var(--text)" }}>
                             {m.sets}
-                            {m.band ? <span style={{ color: "#6f6f76" }}>{` · ${bandLabel(m.band)}`}</span> : null}
+                            {m.band ? <span style={{ color: "var(--text-tertiary)" }}>{` · ${bandLabel(m.band)}`}</span> : null}
                           </span>
                         </div>
                       );

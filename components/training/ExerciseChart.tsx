@@ -51,7 +51,7 @@ export default function ExerciseChart({ points, height = 170, ariaLabel }: { poi
 
   if (!model) {
     return (
-      <div className="flex items-center justify-center px-6 text-center text-[13px]" style={{ height: 96, color: "#6f6f76" }}>
+      <div className="flex items-center justify-center px-6 text-center text-[13px]" style={{ height: 96, color: "var(--text-tertiary)" }}>
         {points.length === 0 ? "No sessions with this measure yet." : "One session so far. The chart starts with the second."}
       </div>
     );
@@ -61,20 +61,20 @@ export default function ExerciseChart({ points, height = 170, ariaLabel }: { poi
     <svg viewBox={`0 0 ${W} ${height}`} className="w-full" style={{ height }} role="img" aria-label={ariaLabel}>
       {model.ticks.map((t) => (
         <g key={t}>
-          <line x1={model.padL} x2={W - 8} y1={model.y(t)} y2={model.y(t)} stroke="#2a2a2e" strokeWidth={1} />
-          <text x={model.padL - 6} y={model.y(t) + 3} fontSize={9} fill="#6f6f76" textAnchor="end">
+          <line x1={model.padL} x2={W - 8} y1={model.y(t)} y2={model.y(t)} stroke="var(--border)" strokeWidth={1} />
+          <text x={model.padL - 6} y={model.y(t) + 3} fontSize={9} fill="var(--text-tertiary)" textAnchor="end">
             {t >= 1000 ? Math.round(t).toLocaleString("en-GB") : formatLoad(t)}
           </text>
         </g>
       ))}
-      <path d={model.d} fill="none" stroke="#f2f2f0" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={model.d} fill="none" stroke="var(--text)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
       {points.map((p, i) => (
-        <circle key={`${p.completedAt}-${i}`} cx={model.x(p)} cy={model.y(p.value)} r={i === points.length - 1 ? 3.5 : 2} fill={i === points.length - 1 ? "#f2f2f0" : "#a3a3a8"} />
+        <circle key={`${p.completedAt}-${i}`} cx={model.x(p)} cy={model.y(p.value)} r={i === points.length - 1 ? 3.5 : 2} fill={i === points.length - 1 ? "var(--text)" : "var(--text-secondary)"} />
       ))}
-      <text x={model.padL} y={height - 4} fontSize={9} fill="#6f6f76">
+      <text x={model.padL} y={height - 4} fontSize={9} fill="var(--text-tertiary)">
         {shortDay(points[0].completedAt)}
       </text>
-      <text x={W - 8} y={height - 4} fontSize={9} fill="#6f6f76" textAnchor="end">
+      <text x={W - 8} y={height - 4} fontSize={9} fill="var(--text-tertiary)" textAnchor="end">
         {shortDay(last.completedAt)}
       </text>
     </svg>

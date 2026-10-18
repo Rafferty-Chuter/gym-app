@@ -63,9 +63,9 @@ export default function MacroPad({ values, field, onField, onChange }: Props) {
               aria-selected={selected}
               onClick={() => onField(f.key)}
               className="flex flex-col items-center rounded-[12px] py-2 transition-colors"
-              style={{ background: selected ? "#f2f2f0" : "#141416", color: selected ? "#0a0a0b" : "#f2f2f0", border: `1px solid ${selected ? "#f2f2f0" : "#2a2a2e"}` }}
+              style={{ background: selected ? "var(--primary)" : "var(--surface)", color: selected ? "var(--text-on-primary)" : "var(--text)", border: `1px solid ${selected ? "var(--primary)" : "var(--border)"}` }}
             >
-              <span className="flex items-center gap-1 text-[11px] font-medium tracking-[0.02em]" style={{ color: selected ? "#3a3a40" : "#6f6f76" }}>
+              <span className="flex items-center gap-1 text-[11px] font-medium tracking-[0.02em]" style={{ color: selected ? "color-mix(in srgb, var(--text-on-primary) 70%, transparent)" : "var(--text-tertiary)" }}>
                 <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: f.color }} aria-hidden />
                 {f.label}
               </span>
@@ -76,7 +76,7 @@ export default function MacroPad({ values, field, onField, onChange }: Props) {
           );
         })}
       </div>
-      <p className="min-h-[16px] text-[11px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+      <p className="min-h-[16px] text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
         {anyMacro ? `Macro sum is ${sum.toLocaleString("en-GB")} kcal${gap != null && Math.abs(gap) > Math.max(30, sum * 0.1) ? ` · ${Math.abs(gap)} kcal ${gap > 0 ? "above" : "below"} the kcal entered` : ""}` : " "}
       </p>
       <NumberPad value={values[field]} onChange={(v) => onChange({ ...values, [field]: v })} decimals={0} maxIntDigits={4} />

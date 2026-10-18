@@ -207,13 +207,13 @@ export default function SeedPhysiqueClient() {
   }
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 pt-6 sm:px-6">
-        <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+        <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
           Dev · seed physique data
         </p>
         <h1 className="text-[20px] font-semibold tracking-[-0.01em]">Scenarios</h1>
-        <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
           Seeding downloads a backup of everything first, then replaces the physique records and the [seed] workouts. Your own workouts are kept.
         </p>
         <div className="flex flex-col gap-2">
@@ -227,11 +227,11 @@ export default function SeedPhysiqueClient() {
           </SecondaryButton>
         </div>
         {status && (
-          <p className="text-[13px]" style={{ color: "#a3a3a8" }} role="status">
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }} role="status">
             {status}
           </p>
         )}
-        <Link href="/body" className="text-[13px] font-semibold underline-offset-2 hover:underline" style={{ color: "#a3a3a8" }}>
+        <Link href="/body" className="text-[13px] font-semibold underline-offset-2 hover:underline" style={{ color: "var(--text-secondary)" }}>
           Open Body →
         </Link>
       </div>

@@ -69,8 +69,8 @@ export default function NumberPad({ value, onChange, decimals = 1, maxIntDigits 
   }
 
   const keyClass =
-    "flex h-[52px] items-center justify-center rounded-[12px] text-[20px] font-semibold leading-none select-none transition-colors duration-100 active:bg-[#26262a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3a3a40]";
-  const keyStyle = { background: "#1d1d20", color: "#f2f2f0", fontVariantNumeric: "tabular-nums" as const };
+    "flex h-[52px] items-center justify-center rounded-[12px] text-[20px] font-semibold leading-none select-none transition-colors duration-100 active:bg-[var(--surface-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]";
+  const keyStyle = { background: "var(--surface-raised)", color: "var(--text)", fontVariantNumeric: "tabular-nums" as const };
 
   return (
     <div className="flex flex-col gap-2" role="group" aria-label="Number pad">
@@ -94,7 +94,7 @@ export default function NumberPad({ value, onChange, decimals = 1, maxIntDigits 
           type="button"
           onClick={() => press(".")}
           className={keyClass}
-          style={{ ...keyStyle, color: decimals === 0 ? "#3a3a40" : keyStyle.color }}
+          style={{ ...keyStyle, color: decimals === 0 ? "var(--border-strong)" : keyStyle.color }}
           disabled={decimals === 0}
           aria-label="Decimal point"
         >
@@ -122,18 +122,18 @@ export function NumberPadValue({ value, unit, placeholder = "0", hint }: { value
       <div className="flex items-baseline gap-1.5" aria-live="polite">
         <span
           className="text-[34px] font-semibold leading-none tracking-[-0.02em]"
-          style={{ color: value === "" ? "#6f6f76" : "#f2f2f0", fontVariantNumeric: "tabular-nums" }}
+          style={{ color: value === "" ? "var(--text-tertiary)" : "var(--text)", fontVariantNumeric: "tabular-nums" }}
         >
           {shown}
         </span>
         {unit && (
-          <span className="text-[20px] font-semibold leading-none" style={{ color: "#a3a3a8" }}>
+          <span className="text-[20px] font-semibold leading-none" style={{ color: "var(--text-secondary)" }}>
             {unit}
           </span>
         )}
       </div>
       {hint && (
-        <span className="text-[11px] font-medium tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+        <span className="text-[11px] font-medium tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
           {hint}
         </span>
       )}

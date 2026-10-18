@@ -49,13 +49,13 @@ export default function HistoryPage() {
   const records = useMemo(() => recordsByWorkout(workouts), [workouts]);
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader caption="Train" captionHref="/train" title="History" />
 
         {!hydrated ? null : workouts.length === 0 ? (
           <div className="flex flex-col items-start gap-3 pt-2">
-            <p className="text-[15px] leading-relaxed" style={{ color: "#a3a3a8" }}>
+            <p className="text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
               No workouts yet. Finish one and it shows here, with its sets and any records.
             </p>
             <SecondaryButton onClick={() => router.push("/train")}>Go to Train</SecondaryButton>
@@ -63,32 +63,32 @@ export default function HistoryPage() {
         ) : (
           groups.map((g) => (
             <section key={g.key} className="flex flex-col gap-2" aria-label={g.label}>
-              <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+              <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
                 {g.label} · {g.items.length} {g.items.length === 1 ? "workout" : "workouts"}
               </p>
-              <ul className="overflow-hidden rounded-[12px] divide-y divide-[#2a2a2e]" style={{ background: "#141416" }}>
+              <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
                 {g.items.map((w) => {
                   const st = workoutStats(w);
                   const recs = records.get(w.completedAt) ?? [];
                   const meta = [st.durationSec ? formatDuration(st.durationSec) : null, st.volume > 0 ? formatVolume(st.volume, u) : null, `${st.sets} ${st.sets === 1 ? "set" : "sets"}`].filter(Boolean).join(" · ");
                   return (
                     <li key={w.completedAt}>
-                      <Link href={workoutHref(w)} className="flex w-full flex-col gap-1 px-4 py-3 transition-colors active:bg-[#1d1d20]">
+                      <Link href={workoutHref(w)} className="flex w-full flex-col gap-1 px-4 py-3 transition-colors active:bg-[var(--surface-raised)]">
                         <span className="flex items-baseline justify-between gap-3">
-                          <span className="truncate text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+                          <span className="truncate text-[15px] font-semibold" style={{ color: "var(--text)" }}>
                             {workoutTitle(w)}
                           </span>
-                          <span className="shrink-0 text-[13px]" style={{ color: "#6f6f76" }}>
+                          <span className="shrink-0 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
                             {shortDate(w.completedAt)}
                           </span>
                         </span>
                         <span className="flex items-center gap-2">
-                          <span className="truncate text-[13px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+                          <span className="truncate text-[13px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                             {meta}
                           </span>
                           <RecordMark kinds={recs.map((r) => r.kind)} />
                         </span>
-                        <span className="truncate text-[12px]" style={{ color: "#6f6f76" }}>
+                        <span className="truncate text-[12px]" style={{ color: "var(--text-tertiary)" }}>
                           {routineSummary({ exercises: (w.exercises ?? []).map((e) => ({ name: e.name, targetSets: 0 })) })}
                         </span>
                       </Link>

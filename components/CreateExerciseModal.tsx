@@ -69,17 +69,17 @@ export default function CreateExerciseModal({ open, initialName, onClose, onCrea
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[var(--scrim)]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-exercise-title"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md max-h-[min(90vh,640px)] overflow-y-auto rounded-2xl border border-teal-950/50 bg-gradient-to-b from-zinc-900 to-teal-950/30 shadow-xl p-5 sm:p-6"
+        className="w-full max-w-md max-h-[min(90vh,640px)] overflow-y-auto rounded-2xl border border-[var(--border)] bg-gradient-to-b from-[var(--surface)] to-[var(--surface)] shadow-xl p-5 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="create-exercise-title" className="text-lg font-semibold text-white mb-1">
+        <h2 id="create-exercise-title" className="text-lg font-semibold text-[var(--text)] mb-1">
           Create new exercise
         </h2>
         <p className="text-sm text-app-secondary mb-4">

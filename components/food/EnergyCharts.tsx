@@ -6,10 +6,10 @@ import type { EnergyBalancePoint } from "@/lib/physique/food/energy";
 import type { ExpenditurePoint } from "@/lib/physique/types";
 
 /** Nutrition chart colours (DESIGN.md rev 2). */
-export const KCAL_COLOR = "#7aa2ff";
-export const PROTEIN_COLOR = "#e8736f";
-export const FAT_COLOR = "#f0c36a";
-export const CARBS_COLOR = "#6fcf9f";
+export const KCAL_COLOR = "var(--macro-kcal)";
+export const PROTEIN_COLOR = "var(--macro-protein)";
+export const FAT_COLOR = "var(--macro-fat)";
+export const CARBS_COLOR = "var(--macro-carb)";
 
 const W = 320;
 
@@ -24,7 +24,7 @@ function niceStep(span: number): number {
  * Energy balance (05-design §9.4): intake bars against a dotted line of
  * expenditure or targets. Partial days are muted; unlogged days leave a gap.
  */
-export function EnergyBalanceChart({ points, height = 120, lineColor = "#f2f2f0", ariaLabel }: { points: readonly EnergyBalancePoint[]; height?: number; lineColor?: string; ariaLabel: string }) {
+export function EnergyBalanceChart({ points, height = 120, lineColor = "var(--text)", ariaLabel }: { points: readonly EnergyBalancePoint[]; height?: number; lineColor?: string; ariaLabel: string }) {
   const model = useMemo(() => {
     const values = points.flatMap((p) => [p.intakeKcal ?? 0, p.lineKcal ?? 0]).filter((v) => v > 0);
     const max = Math.max(500, ...values) * 1.08;
@@ -49,20 +49,20 @@ export function EnergyBalanceChart({ points, height = 120, lineColor = "#f2f2f0"
 
   return (
     <svg viewBox={`0 0 ${W} ${height}`} className="w-full" style={{ height }} role="img" aria-label={ariaLabel}>
-      <line x1={0} x2={W} y1={model.baseline} y2={model.baseline} stroke="#2a2a2e" strokeWidth={1} />
+      <line x1={0} x2={W} y1={model.baseline} y2={model.baseline} stroke="var(--border)" strokeWidth={1} />
       {model.bars.map((b, i) =>
         b.y == null ? null : (
-          <rect key={i} x={b.x} y={b.y} width={Math.max(2, (W / points.length) * 0.6)} height={Math.max(1, b.h)} rx={1.5} fill={b.status === "partial" ? "#3a3a40" : KCAL_COLOR} opacity={b.status === "fasting" ? 0.4 : 1} />
+          <rect key={i} x={b.x} y={b.y} width={Math.max(2, (W / points.length) * 0.6)} height={Math.max(1, b.h)} rx={1.5} fill={b.status === "partial" ? "var(--border-strong)" : KCAL_COLOR} opacity={b.status === "fasting" ? 0.4 : 1} />
         )
       )}
       {model.line && <path d={model.line} fill="none" stroke={lineColor} strokeWidth={1.5} strokeDasharray="2 3" strokeLinecap="round" />}
       {model.first && (
-        <text x={0} y={height - 3} fontSize={9} fill="#6f6f76">
+        <text x={0} y={height - 3} fontSize={9} fill="var(--text-tertiary)">
           {shortLocalDate(model.first)}
         </text>
       )}
       {model.last && (
-        <text x={W} y={height - 3} fontSize={9} fill="#6f6f76" textAnchor="end">
+        <text x={W} y={height - 3} fontSize={9} fill="var(--text-tertiary)" textAnchor="end">
           {shortLocalDate(model.last)}
         </text>
       )}
@@ -116,7 +116,7 @@ export function ExpenditureChart({ points, plusMinus, height = 190, ariaLabel }:
 
   if (!model) {
     return (
-      <div className="flex items-center justify-center text-[13px]" style={{ height, color: "#6f6f76" }}>
+      <div className="flex items-center justify-center text-[13px]" style={{ height, color: "var(--text-tertiary)" }}>
         No expenditure yet.
       </div>
     );
@@ -125,21 +125,21 @@ export function ExpenditureChart({ points, plusMinus, height = 190, ariaLabel }:
     <svg viewBox={`0 0 ${W} ${height}`} className="w-full" style={{ height }} role="img" aria-label={ariaLabel}>
       {model.ticks.map((t) => (
         <g key={t}>
-          <line x1={model.padL} x2={W - 8} y1={model.y(t)} y2={model.y(t)} stroke="#2a2a2e" strokeWidth={1} />
-          <text x={model.padL - 6} y={model.y(t) + 3} fontSize={9} fill="#6f6f76" textAnchor="end">
+          <line x1={model.padL} x2={W - 8} y1={model.y(t)} y2={model.y(t)} stroke="var(--border)" strokeWidth={1} />
+          <text x={model.padL - 6} y={model.y(t) + 3} fontSize={9} fill="var(--text-tertiary)" textAnchor="end">
             {t.toLocaleString("en-GB")}
           </text>
         </g>
       ))}
-      {model.band && <path d={model.band} fill="#f2f2f0" opacity={0.07} />}
+      {model.band && <path d={model.band} fill="var(--text)" opacity={0.07} />}
       {model.runs.map((r, i) => (
-        <path key={i} d={r.d} fill="none" stroke={r.state === "holding" ? "#6f6f76" : "#f2f2f0"} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={r.state === "holding" ? "3 4" : undefined} />
+        <path key={i} d={r.d} fill="none" stroke={r.state === "holding" ? "var(--text-tertiary)" : "var(--text)"} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={r.state === "holding" ? "3 4" : undefined} />
       ))}
-      <circle cx={model.end.cx} cy={model.end.cy} r={3.5} fill="#f2f2f0" />
-      <text x={model.padL} y={height - 4} fontSize={9} fill="#6f6f76">
+      <circle cx={model.end.cx} cy={model.end.cy} r={3.5} fill="var(--text)" />
+      <text x={model.padL} y={height - 4} fontSize={9} fill="var(--text-tertiary)">
         {shortLocalDate(model.first)}
       </text>
-      <text x={W - 8} y={height - 4} fontSize={9} fill="#6f6f76" textAnchor="end">
+      <text x={W - 8} y={height - 4} fontSize={9} fill="var(--text-tertiary)" textAnchor="end">
         {shortLocalDate(model.last)}
       </text>
     </svg>
@@ -155,7 +155,7 @@ export function Sparkline({ values, width = 56, height = 18 }: { values: readonl
   const d = values.map((v, i) => `${i === 0 ? "M" : "L"}${((i / (values.length - 1)) * (width - 2) + 1).toFixed(1)} ${(height - 2 - ((v - min) / span) * (height - 4)).toFixed(1)}`).join(" ");
   return (
     <svg width={width} height={height} aria-hidden>
-      <path d={d} fill="none" stroke="#a3a3a8" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke="var(--text-secondary)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

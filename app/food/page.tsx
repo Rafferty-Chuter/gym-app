@@ -34,7 +34,7 @@ export default function FoodPage() {
   const hydrated = useIsHydrated();
   const now = useNow();
   const { unit } = useUnit();
-  if (!hydrated || !now) return <main className="min-h-screen" style={{ background: "#0a0a0b" }} />;
+  if (!hydrated || !now) return <main className="min-h-screen" style={{ background: "var(--page)" }} />;
   return <FoodContent now={now} unit={unit === "lb" ? "lb" : "kg"} />;
 }
 
@@ -117,7 +117,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   }
 
   return (
-    <main className="min-h-screen pb-40" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-40" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 sm:px-6">
         <PageHeader caption={caption} title="Food" action={{ label: "Add food", onClick: () => setLogger({}) }} />
 
@@ -214,19 +214,19 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
       <Sheet open={dayAction?.kind === "copy" || dayAction?.kind === "clear"} onClose={() => setDayAction(null)} title={dayAction?.kind === "copy" ? "Copy day" : "Clear day"}>
         {dayAction?.kind === "copy" && (
           <div className="flex flex-col gap-3">
-            <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+            <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
               Copy the {model.timeline.entries} {model.timeline.entries === 1 ? "entry" : "entries"} from {shortLocalDate(date)}, with their times, onto:
             </p>
-            <div className="flex items-center justify-between rounded-[12px] px-3 py-2" style={{ background: "#1d1d20" }}>
-              <button type="button" onClick={() => setDayAction({ kind: "copy", to: addDays(dayAction.to, -1) })} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "#a3a3a8" }} aria-label="Earlier day">
+            <div className="flex items-center justify-between rounded-[12px] px-3 py-2" style={{ background: "var(--surface-raised)" }}>
+              <button type="button" onClick={() => setDayAction({ kind: "copy", to: addDays(dayAction.to, -1) })} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "var(--text-secondary)" }} aria-label="Earlier day">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
                   <path d="M15 6l-6 6 6 6" />
                 </svg>
               </button>
-              <span className="text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+              <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
                 {dayAction.to === today ? "Today" : dayAction.to === addDays(today, -1) ? "Yesterday" : dayAction.to === addDays(today, 1) ? "Tomorrow" : longLocalDate(dayAction.to)}
               </span>
-              <button type="button" onClick={() => setDayAction({ kind: "copy", to: addDays(dayAction.to, 1) })} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "#a3a3a8" }} aria-label="Later day">
+              <button type="button" onClick={() => setDayAction({ kind: "copy", to: addDays(dayAction.to, 1) })} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "var(--text-secondary)" }} aria-label="Later day">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
                   <path d="M9 6l6 6-6 6" />
                 </svg>
@@ -240,7 +240,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         )}
         {dayAction?.kind === "clear" && (
           <div className="flex flex-col gap-3">
-            <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+            <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
               Remove all {model.timeline.entries} {model.timeline.entries === 1 ? "entry" : "entries"} from {shortLocalDate(date)}. This cannot be undone.
             </p>
             <ErrorLine text={actionError} />

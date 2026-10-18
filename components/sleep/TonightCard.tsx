@@ -83,10 +83,10 @@ function WakeSheet({ plan, onClose, onSave }: { plan: TonightPlan; onClose: () =
       }
     >
       <div className="flex flex-col gap-3 pb-2">
-        <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
           For an early start. It applies to tomorrow morning only; after that the plan goes back to your usual wake time, read from your nights.
         </p>
-        <input type="time" value={value} onChange={(e) => setValue(e.target.value)} aria-label="Wake time tomorrow" className="h-[52px] w-full rounded-[12px] px-4 text-[22px] font-semibold outline-none" style={{ background: "#1d1d20", color: "#f2f2f0", colorScheme: "dark" }} />
+        <input type="time" value={value} onChange={(e) => setValue(e.target.value)} aria-label="Wake time tomorrow" className="h-[52px] w-full rounded-[12px] px-4 text-[22px] font-semibold outline-none" style={{ background: "var(--surface-raised)", color: "var(--text)", colorScheme: "dark" }} />
       </div>
     </Sheet>
   );

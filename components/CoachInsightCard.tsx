@@ -28,7 +28,7 @@ export default function CoachInsightCard({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <section className="rounded-2xl border border-teal-950/40 bg-gradient-to-br from-zinc-900 from-[42%] to-teal-950/35 p-5 shadow-lg shadow-black/50">
+    <section className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] from-[42%] to-[var(--surface)] p-5 shadow-lg shadow-black/50">
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
@@ -38,9 +38,9 @@ export default function CoachInsightCard({
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-home-tertiary">
           Coach Insight
         </p>
-        <h2 className="mt-1.5 text-lg font-bold text-white">{insight.mainInsight}</h2>
+        <h2 className="mt-1.5 text-lg font-bold text-[var(--text)]">{insight.mainInsight}</h2>
         <p className="mt-2 text-sm text-home-secondary">{insight.supportingData}</p>
-        <p className="mt-1 text-sm text-teal-200">{insight.nextAction}</p>
+        <p className="mt-1 text-sm text-[var(--green-strong)]">{insight.nextAction}</p>
       </button>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -62,21 +62,21 @@ export default function CoachInsightCard({
           onClick={() => {
             setExpanded((prev) => !prev);
           }}
-          className="px-4 py-2 rounded-xl border border-teal-900/40 bg-zinc-900/70 text-sm text-app-secondary hover:text-white hover:border-teal-500/30 transition"
+          className="px-4 py-2 rounded-xl border border-[var(--border)] bg-zinc-900/70 text-sm text-app-secondary hover:text-[var(--text)] hover:border-[var(--border)] transition"
         >
           Why this?
         </button>
         <button
           type="button"
           onClick={() => onAskCoach?.()}
-          className="px-4 py-2 rounded-xl border border-teal-900/40 bg-zinc-900/70 text-sm text-app-secondary hover:text-white hover:border-teal-500/30 transition"
+          className="px-4 py-2 rounded-xl border border-[var(--border)] bg-zinc-900/70 text-sm text-app-secondary hover:text-[var(--text)] hover:border-[var(--border)] transition"
         >
           Ask the Coach
         </button>
       </div>
 
       {expanded && (
-        <div className="mt-4 rounded-xl border border-teal-900/35 bg-zinc-900/70 p-3 space-y-2">
+        <div className="mt-4 rounded-xl border border-[var(--border)] bg-zinc-900/70 p-3 space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-home-tertiary">
             Why it matters
           </p>

@@ -126,7 +126,7 @@ export function DragHandle({
       aria-label={ariaLabel}
       className={
         className ??
-        "flex items-center justify-center h-9 w-9 rounded-lg border border-white/8 bg-white/[0.04] text-app-secondary hover:text-white hover:bg-white/[0.07] transition-colors touch-none cursor-grab active:cursor-grabbing"
+        "flex items-center justify-center h-9 w-9 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_4%,transparent)] text-app-secondary hover:text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_7%,transparent)] transition-colors touch-none cursor-grab active:cursor-grabbing"
       }
       {...attributes}
       {...listeners}

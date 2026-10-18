@@ -28,19 +28,19 @@ export default function EnergyCard({ analysis }: { analysis: PhysiqueAnalysis })
   return (
     <section aria-label="Energy">
       <div className="mb-2 flex items-baseline justify-between">
-        <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
+        <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
           Energy
         </span>
         <Caption>{e.state === "calibrating" || e.state === "holding" ? stateWord : `Maintenance ${stateWord}`}</Caption>
       </div>
       <RowGroup>
-        <Row label="Maintenance" value={e.kcal == null ? <span style={{ color: "#6f6f76" }}>–</span> : `${maintenance} kcal`} sub={e.kcal == null ? "Log food and weigh-ins on the same days to estimate it" : e.state === "holding" ? "Holding until 3 complete days in a row" : undefined} />
+        <Row label="Maintenance" value={e.kcal == null ? <span style={{ color: "var(--text-tertiary)" }}>–</span> : `${maintenance} kcal`} sub={e.kcal == null ? "Log food and weigh-ins on the same days to estimate it" : e.state === "holding" ? "Holding until 3 complete days in a row" : undefined} />
         <Row
           label="Target"
-          value={t ? `${t.kcal.toLocaleString("en-GB")} kcal` : <span style={{ color: "#6f6f76" }}>–</span>}
+          value={t ? `${t.kcal.toLocaleString("en-GB")} kcal` : <span style={{ color: "var(--text-tertiary)" }}>–</span>}
           sub={t ? `P ${t.proteinG} · F ${t.fatG} · C ${t.carbsG} g` : "Set a goal to get targets"}
         />
-        <Row label="Last 14 days" value={a.onTarget == null ? <span style={{ color: "#6f6f76" }}>–</span> : a.onTarget ? "On target" : "Off target"} sub={adherenceLine} />
+        <Row label="Last 14 days" value={a.onTarget == null ? <span style={{ color: "var(--text-tertiary)" }}>–</span> : a.onTarget ? "On target" : "Off target"} sub={adherenceLine} />
       </RowGroup>
     </section>
   );

@@ -14,16 +14,16 @@ export default function EditTemplatePage() {
   const templateId = params?.templateId ? decodeURIComponent(String(params.templateId)) : "";
   const template = useMemo(() => (hydrated && templateId ? getTemplateById(templateId) : null), [hydrated, templateId]);
 
-  if (!hydrated) return <main className="min-h-screen" style={{ background: "#0a0a0b" }} aria-busy />;
+  if (!hydrated) return <main className="min-h-screen" style={{ background: "var(--page)" }} aria-busy />;
 
   if (!template) {
     return (
-      <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+      <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
         <div className="mx-auto flex max-w-2xl flex-col gap-3 px-5 pt-6 sm:px-6">
-          <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
             That routine is not on this phone.
           </p>
-          <Link href="/templates" className="text-[13px] font-semibold" style={{ color: "#f2f2f0" }}>
+          <Link href="/templates" className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>
             ‹ Routines
           </Link>
         </div>

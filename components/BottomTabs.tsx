@@ -84,8 +84,8 @@ export default function BottomTabs() {
     <nav
       className="fixed left-[env(safe-area-inset-left,0px)] right-[env(safe-area-inset-right,0px)] bottom-0 z-40 pb-[env(safe-area-inset-bottom,0px)]"
       style={{
-        background: "#0a0a0b",
-        borderTop: "1px solid #2a2a2e",
+        background: "var(--tab-bg)",
+        borderTop: "1px solid var(--border)",
       }}
       aria-label="Main"
     >
@@ -100,7 +100,7 @@ export default function BottomTabs() {
               className={`flex flex-col items-center gap-1.5 rounded-xl px-1 py-1.5 transition-colors duration-150 ${
                 active ? "" : "hover:opacity-80 active:scale-95"
               }`}
-              style={{ color: active ? "#f2f2f0" : "#6f6f76" }}
+              style={{ color: active ? "var(--text)" : "var(--text-tertiary)" }}
             >
               <tab.Icon />
               <span className="text-[11px] tracking-[0.04em]" style={{ fontWeight: 500 }}>

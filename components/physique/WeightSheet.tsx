@@ -90,7 +90,7 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
   }
 
   const pctOff = trendKg && kg ? Math.round((Math.abs(kg - trendKg) / trendKg) * 100) : 0;
-  const arrow = "flex h-9 w-9 items-center justify-center rounded-[10px] transition-colors active:bg-[#26262a] disabled:opacity-30";
+  const arrow = "flex h-9 w-9 items-center justify-center rounded-[10px] transition-colors active:bg-[var(--surface-pressed)] disabled:opacity-30";
   const options = Array.from({ length: DATE_PICKER_DAYS }, (_, i) => addDays(today, -i));
   if (!options.includes(date)) options.push(date);
 
@@ -102,7 +102,7 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
       footer={
         confirm ? (
           <div className="flex flex-col gap-2">
-            <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+            <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
               That is {pctOff}% from your trend (more than {Math.round(SANITY_PCT * 100)}%). Save it anyway?
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -119,7 +119,7 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
               Save
             </PrimaryButton>
             {hasEntry && onDelete && (
-              <button type="button" onClick={remove} disabled={saving} className="h-[40px] text-[13px] font-semibold" style={{ color: "#a3a3a8" }}>
+              <button type="button" onClick={remove} disabled={saving} className="h-[40px] text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                 Delete this entry
               </button>
             )}
@@ -128,16 +128,16 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
       }
     >
       <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={() => onDateChange?.(addDays(date, -1))} disabled={!onDateChange} className={arrow} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Previous day">
+        <button type="button" onClick={() => onDateChange?.(addDays(date, -1))} disabled={!onDateChange} className={arrow} style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Previous day">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
             <path d="M15 6l-6 6 6 6" />
           </svg>
         </button>
-        <label className="relative flex h-9 min-w-0 flex-1 items-center justify-center rounded-[10px]" style={{ background: "#1d1d20" }}>
-          <span className="pointer-events-none truncate text-[13px] font-medium" style={{ color: "#f2f2f0" }}>
+        <label className="relative flex h-9 min-w-0 flex-1 items-center justify-center rounded-[10px]" style={{ background: "var(--surface-raised)" }}>
+          <span className="pointer-events-none truncate text-[13px] font-medium" style={{ color: "var(--text)" }}>
             {dateLabel(date)}
           </span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="#6f6f76" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none ml-1 h-3.5 w-3.5 shrink-0" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none ml-1 h-3.5 w-3.5 shrink-0" aria-hidden>
             <path d="M6 9l6 6 6-6" />
           </svg>
           <select value={date} onChange={(e) => onDateChange?.(e.target.value)} disabled={!onDateChange} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" aria-label="Date">
@@ -148,7 +148,7 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
             ))}
           </select>
         </label>
-        <button type="button" onClick={() => onDateChange?.(addDays(date, 1))} disabled={!onDateChange || isToday} className={arrow} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Next day">
+        <button type="button" onClick={() => onDateChange?.(addDays(date, 1))} disabled={!onDateChange || isToday} className={arrow} style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Next day">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
             <path d="M9 6l6 6-6 6" />
           </svg>
@@ -164,11 +164,11 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
         ).map((f) => {
           const selected = field === f.key;
           return (
-            <button key={f.key} type="button" role="tab" aria-selected={selected} onClick={() => setField(f.key)} className="flex flex-col items-center rounded-[12px] py-2 transition-colors" style={{ background: selected ? "#f2f2f0" : "#141416", color: selected ? "#0a0a0b" : "#f2f2f0", border: `1px solid ${selected ? "#f2f2f0" : "#2a2a2e"}` }}>
-              <span className="text-[11px] font-medium tracking-[0.02em]" style={{ color: selected ? "#3a3a40" : "#6f6f76" }}>
+            <button key={f.key} type="button" role="tab" aria-selected={selected} onClick={() => setField(f.key)} className="flex flex-col items-center rounded-[12px] py-2 transition-colors" style={{ background: selected ? "var(--primary)" : "var(--surface)", color: selected ? "var(--text-on-primary)" : "var(--text)", border: `1px solid ${selected ? "var(--primary)" : "var(--border)"}` }}>
+              <span className="text-[11px] font-medium tracking-[0.02em]" style={{ color: selected ? "color-mix(in srgb, var(--text-on-primary) 70%, transparent)" : "var(--text-tertiary)" }}>
                 {f.label}
               </span>
-              <span className="text-[17px] font-semibold" style={{ fontVariantNumeric: "tabular-nums", color: f.key === "bodyFat" && bodyFat === "" ? (selected ? "#3a3a40" : "#6f6f76") : undefined }}>
+              <span className="text-[17px] font-semibold" style={{ fontVariantNumeric: "tabular-nums", color: f.key === "bodyFat" && bodyFat === "" ? (selected ? "var(--border-strong)" : "var(--text-tertiary)") : undefined }}>
                 {f.shown}
               </span>
             </button>

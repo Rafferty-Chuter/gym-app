@@ -41,7 +41,7 @@ export default function GoalPage() {
   const now = useNow();
   const { unit } = useUnit();
   if (!hydrated || !now) {
-    return <main className="min-h-screen" style={{ background: "#0a0a0b" }} />;
+    return <main className="min-h-screen" style={{ background: "var(--page)" }} />;
   }
   return <Wizard now={now} unit={unit === "lb" ? "lb" : "kg"} />;
 }
@@ -130,10 +130,10 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
   const stepIndex = step === "basics" ? 0 : step === "target" ? 1 : step === "rate" ? 2 : 3;
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 pt-4 sm:px-6">
         <div className="flex items-center justify-between">
-          <Link href="/body" className="flex items-center gap-1 text-[15px]" style={{ color: "#a3a3a8" }}>
+          <Link href="/body" className="flex items-center gap-1 text-[15px]" style={{ color: "var(--text-secondary)" }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
               <path d="M15 6l-6 6 6 6" />
             </svg>
@@ -149,10 +149,10 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
             <h1 className="text-[20px] font-semibold tracking-[-0.01em]">Target weight</h1>
             {trendKg == null ? (
               <div className="flex flex-col gap-3">
-                <p className="text-[15px]" style={{ color: "#a3a3a8" }}>
+                <p className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
                   Log a weigh-in first so the goal starts from your current weight.
                 </p>
-                <Link href="/body" className="inline-flex h-[44px] w-fit items-center rounded-[12px] px-4 text-[15px] font-semibold" style={{ background: "#1d1d20" }}>
+                <Link href="/body" className="inline-flex h-[44px] w-fit items-center rounded-[12px] px-4 text-[15px] font-semibold" style={{ background: "var(--surface-raised)" }}>
                   Log weight
                 </Link>
               </div>
@@ -160,7 +160,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
               <>
                 <NumberPadValue value={targetText} unit={unit} hint={`Now ${formatWeight(trendKg, unit)} (${ctx.trendSource === "trend" ? "trend" : ctx.trendSource === "weigh-in" ? "last weigh-in" : "from your profile"})`} />
                 <NumberPad value={targetText} onChange={(v) => { setTargetText(v); setMagnitude(null); setConfirmedOutside(false); }} decimals={1} step={0.5} max={unit === "kg" ? 300 : 660} />
-                <p className="min-h-[22px] text-center text-[15px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+                <p className="min-h-[22px] text-center text-[15px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                   {draft && targetKg != null
                     ? draft.type === "maintain"
                       ? "Maintain, within 0.7 kg of where you are"
@@ -182,18 +182,18 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
               type="button"
               onClick={cycleStatus}
               className="flex h-[30px] w-fit items-center gap-1.5 rounded-full px-3 text-[12px] font-medium"
-              style={{ background: "#141416", color: "#a3a3a8", border: "1px solid #2a2a2e" }}
+              style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
               aria-label={`Training status ${STATUS_LABEL[status]}. Tap to change`}
             >
-              <span style={{ color: "#f2f2f0" }}>{STATUS_LABEL[status]}</span>
+              <span style={{ color: "var(--text)" }}>{STATUS_LABEL[status]}</span>
               <span>· {statusSource === "lifts" ? "from your lifts" : statusSource === "years" ? "from your training years" : "set by you"}</span>
             </button>
-            <div className="rounded-[12px] px-4 py-3" style={{ background: "#141416" }}>
+            <div className="rounded-[12px] px-4 py-3" style={{ background: "var(--surface)" }}>
               <div className="flex items-baseline justify-between">
                 <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ fontVariantNumeric: "tabular-nums" }}>
                   {formatRate(draft.rate)}
                 </span>
-                <span className="text-[13px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+                <span className="text-[13px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                   {preview.validation.kgPerWeek > 0 ? "+" : "−"}
                   {formatWeight(Math.abs(preview.validation.kgPerWeek), unit, 2)}/week
                 </span>
@@ -228,16 +228,16 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
                 aria-checked={confirmedOutside}
                 onClick={() => setConfirmedOutside((c) => !c)}
                 className="flex items-start gap-3 rounded-[12px] px-4 py-3 text-left"
-                style={{ background: "#141416", border: `1px solid ${confirmedOutside ? "#3a3a40" : "#2a2a2e"}` }}
+                style={{ background: "var(--surface)", border: `1px solid ${confirmedOutside ? "var(--border-strong)" : "var(--border)"}` }}
               >
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md" style={{ background: confirmedOutside ? "#f2f2f0" : "#1d1d20", color: "#0a0a0b" }} aria-hidden>
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md" style={{ background: confirmedOutside ? "var(--primary)" : "var(--surface-raised)", color: "var(--text-on-primary)" }} aria-hidden>
                   {confirmedOutside && (
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
                       <path d="M5 12l5 5L20 7" />
                     </svg>
                   )}
                 </span>
-                <span className="text-[13px]" style={{ color: "#a3a3a8" }}>
+                <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                   {preview.validation.outside === "faster"
                     ? draft.type === "gain"
                       ? "Faster than the evidence suggests for lean gain: in studies, gains this fast mostly add fat. I understand."
@@ -279,22 +279,22 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
               aria-checked={startToday}
               onClick={() => setStartToday((s) => !s)}
               className="flex min-h-[56px] items-center justify-between rounded-[12px] px-4 text-left"
-              style={{ background: "#141416" }}
+              style={{ background: "var(--surface)" }}
             >
               <span className="flex flex-col">
                 <span className="text-[15px]">Start today</span>
-                <span className="text-[11px]" style={{ color: "#6f6f76" }}>
+                <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                   Masks the first week of water shifts from the rate read
                 </span>
               </span>
-              <span className="relative h-7 w-12 shrink-0 rounded-full transition-colors" style={{ background: startToday ? "#f2f2f0" : "#1d1d20" }} aria-hidden>
-                <span className="absolute top-0.5 h-6 w-6 rounded-full transition-transform" style={{ background: startToday ? "#0a0a0b" : "#6f6f76", transform: startToday ? "translateX(22px)" : "translateX(2px)" }} />
+              <span className="relative h-7 w-12 shrink-0 rounded-full transition-colors" style={{ background: startToday ? "var(--primary)" : "var(--surface-raised)" }} aria-hidden>
+                <span className="absolute top-0.5 h-6 w-6 rounded-full transition-transform" style={{ background: startToday ? "var(--text-on-primary)" : "var(--text-tertiary)", transform: startToday ? "translateX(22px)" : "translateX(2px)" }} />
               </span>
             </button>
 
             {ctx.recentCutEnded && draft.type === "gain" && (
-              <div className="flex flex-col gap-2 rounded-[12px] px-4 py-3" style={{ background: "#141416", border: "1px solid #2a2a2e" }}>
-                <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <div className="flex flex-col gap-2 rounded-[12px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                   You finished a cut recently. Running 2 to 4 weeks at maintenance first lets the new maintenance be measured before the gain starts.
                 </p>
                 <SecondaryButton small onClick={switchToMaintenance}>
@@ -303,7 +303,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
               </div>
             )}
 
-            <div className="flex flex-col gap-2 rounded-[12px] px-4 py-3" style={{ background: "#141416", border: "1px solid #2a2a2e" }}>
+            <div className="flex flex-col gap-2 rounded-[12px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
               <p className="text-[15px]">Are you pregnant, or have you had an eating disorder?</p>
               <div className="flex gap-2" role="radiogroup" aria-label="Safety question">
                 {[
@@ -317,19 +317,19 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
                     aria-checked={safety === o.v}
                     onClick={() => setSafety(o.v)}
                     className="h-[36px] rounded-full px-4 text-[13px] font-medium"
-                    style={{ background: safety === o.v ? "#f2f2f0" : "#1d1d20", color: safety === o.v ? "#0a0a0b" : "#a3a3a8" }}
+                    style={{ background: safety === o.v ? "var(--primary)" : "var(--surface-raised)", color: safety === o.v ? "var(--text-on-primary)" : "var(--text-secondary)" }}
                   >
                     {o.label}
                   </button>
                 ))}
               </div>
               {safety === true && (
-                <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+                <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                   Targets will sit at maintenance and the app won&apos;t coach a deficit. Please talk to a GP or registered dietitian before changing your weight.
                 </p>
               )}
               {underage && draft.type === "lose" && (
-                <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+                <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                   Calorie targets for a deficit aren&apos;t available under 18. Maintenance targets are.
                 </p>
               )}
@@ -375,7 +375,7 @@ function BasicsStep({ ctx, onDone }: { ctx: GoalContext; onDone: () => void }) {
     <section className="flex flex-col gap-4" aria-label="About you">
       <div>
         <h1 className="text-[20px] font-semibold tracking-[-0.01em]">A few basics</h1>
-        <p className="mt-1 text-[13px]" style={{ color: "#a3a3a8" }}>
+        <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>
           The maintenance estimate needs these. Saved to your profile.
         </p>
       </div>
@@ -383,26 +383,26 @@ function BasicsStep({ ctx, onDone }: { ctx: GoalContext; onDone: () => void }) {
         <Caption>Sex</Caption>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Sex">
           {SEX_OPTIONS.map((o) => (
-            <button key={o.v} type="button" role="radio" aria-checked={sex === o.v} onClick={() => setSex(o.v)} className="h-[36px] rounded-full px-4 text-[13px] font-medium" style={{ background: sex === o.v ? "#f2f2f0" : "#1d1d20", color: sex === o.v ? "#0a0a0b" : "#a3a3a8" }}>
+            <button key={o.v} type="button" role="radio" aria-checked={sex === o.v} onClick={() => setSex(o.v)} className="h-[36px] rounded-full px-4 text-[13px] font-medium" style={{ background: sex === o.v ? "var(--primary)" : "var(--surface-raised)", color: sex === o.v ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
               {o.label}
             </button>
           ))}
         </div>
       </div>
       <RowGroup>
-        <Row label="Height" value={heightCm != null ? `${heightCm} cm` : <span style={{ color: "#6f6f76" }}>Add</span>} trailing={<Chevron />} onClick={() => setSheet("height")} ariaLabel="Height" />
+        <Row label="Height" value={heightCm != null ? `${heightCm} cm` : <span style={{ color: "var(--text-tertiary)" }}>Add</span>} trailing={<Chevron />} onClick={() => setSheet("height")} ariaLabel="Height" />
         <Row label="Age" value={`${age}`} trailing={<Chevron />} onClick={() => setSheet("age")} ariaLabel="Age" />
       </RowGroup>
       <div className="flex flex-col gap-2">
         <Caption>Body fat, roughly (optional)</Caption>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Body fat category">
           {BODY_FAT_OPTIONS.map((o) => (
-            <button key={o.v} type="button" role="radio" aria-checked={bodyFat === o.v} onClick={() => setBodyFat(bodyFat === o.v ? null : o.v)} className="h-[36px] rounded-full px-4 text-[13px] font-medium" style={{ background: bodyFat === o.v ? "#f2f2f0" : "#1d1d20", color: bodyFat === o.v ? "#0a0a0b" : "#a3a3a8" }}>
+            <button key={o.v} type="button" role="radio" aria-checked={bodyFat === o.v} onClick={() => setBodyFat(bodyFat === o.v ? null : o.v)} className="h-[36px] rounded-full px-4 text-[13px] font-medium" style={{ background: bodyFat === o.v ? "var(--primary)" : "var(--surface-raised)", color: bodyFat === o.v ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
               {o.label}
             </button>
           ))}
         </div>
-        <p className="text-[11px]" style={{ color: "#6f6f76" }}>
+        <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
           Sets the protein target. Skip it and protein uses a bodyweight rule instead.
         </p>
       </div>

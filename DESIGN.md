@@ -1,46 +1,81 @@
 ---
 name: Gym AI
-description: A calm, precise physique and training coach for serious natural lifters. Dark layers, white actions, and a colour of its own for each tab (Sleep is indigo first).
+description: A calm, precise physique and training coach for serious natural lifters. Mist: soft green and misty sky, light or dark with the phone.
 colors:
-  bg: "#0a0a0b"
-  surface: "#141416"
-  surface-raised: "#1d1d20"
-  surface-pressed: "#26262a"
-  border: "#2a2a2e"
-  border-strong: "#3a3a40"
-  text: "#f2f2f0"
-  text-secondary: "#a3a3a8"
-  text-tertiary: "#6f6f76"
-  text-on-primary: "#0a0a0b"
-  primary: "#f2f2f0"
-  accent: "#00e5b0"
-  accent-dim: "#0c2a24"
-  status-good: "#00e5b0"
-  status-watch: "#f5b544"
-  status-attention: "#f26d7d"
-  status-unknown: "#6f6f76"
-  chart-trend: "#f2f2f0"
-  chart-raw: "#55555c"
-  chart-projection: "#6f6f76"
-  chart-band: "#1d1d20"
-  macro-kcal: "#7aa2ff"
-  macro-protein: "#e8736f"
-  macro-fat: "#f0c36a"
-  macro-carb: "#6fcf9f"
-  sleep-bg-top: "#1c2044"
-  sleep-bg: "#0c0d1a"
-  sleep-surface: "#171a35"
-  sleep-surface-raised: "#23274d"
-  sleep-border: "#2b305c"
-  sleep-text: "#eef0ff"
-  sleep-text-secondary: "#a9addb"
-  sleep-text-tertiary: "#7378a8"
-  sleep-accent: "#9ea6ff"
-  sleep-accent-dim: "#3a3f80"
-  sleep-stage-awake: "#f6a26b"
-  sleep-stage-rem: "#7fd3fb"
-  sleep-stage-core: "#6d8bff"
-  sleep-stage-deep: "#a98bfa"
+  # Mist (rev 4). Light values; the dark mode set is under colors-dark. Both live in app/globals.css.
+  page-top: "#d9e6ec"
+  bg: "#edf2f0"
+  surface: "#fafcfb"
+  surface-raised: "#e8eeeb"
+  surface-pressed: "#dbe4e0"
+  border: "#dce4e0"
+  border-strong: "#c2cfca"
+  text: "#17272a"
+  text-secondary: "#4a5d5f"
+  text-tertiary: "#677a7a"
+  primary: "#2f6b55"
+  primary-pressed: "#275a47"
+  text-on-primary: "#f4faf6"
+  green: "#7dbf9c"
+  green-strong: "#2f7d5c"
+  green-dim: "#d3e8dc"
+  sky: "#7ea8c6"
+  sky-strong: "#3d6d92"
+  sky-dim: "#d4e2ec"
+  status-good: "#2b875c"
+  status-watch: "#b0731a"
+  status-attention: "#c2475b"
+  status-unknown: "#8a9a9a"
+  chart-trend: "#17272a"
+  chart-raw: "#a7b6b3"
+  chart-projection: "#8a9a9a"
+  chart-band: "#e2eae7"
+  macro-kcal: "#5a84d4"
+  macro-protein: "#cf5f5a"
+  macro-fat: "#c4952b"
+  macro-carb: "#4b9f76"
+  sleep-top: "#cfdeea"
+  stage-awake: "#df9467"
+  stage-rem: "#5fb0dc"
+  stage-core: "#5b88cc"
+  stage-deep: "#8a83cc"
+colors-dark:
+  page-top: "#1c2b32"
+  bg: "#10191b"
+  surface: "#172225"
+  surface-raised: "#213033"
+  surface-pressed: "#2b3d40"
+  border: "#26373a"
+  border-strong: "#37494c"
+  text: "#e6efeb"
+  text-secondary: "#a1b3af"
+  text-tertiary: "#72878a"
+  primary: "#a8d8bc"
+  primary-pressed: "#92c7a8"
+  text-on-primary: "#0f201a"
+  green: "#8fd0ab"
+  green-strong: "#a9e0c1"
+  green-dim: "#24423a"
+  sky: "#9dbfd8"
+  sky-strong: "#b9d4e8"
+  sky-dim: "#2a4254"
+  status-good: "#74d3a2"
+  status-watch: "#e6b765"
+  status-attention: "#ef8f99"
+  status-unknown: "#72878a"
+  chart-trend: "#e6efeb"
+  chart-raw: "#4d6266"
+  chart-projection: "#72878a"
+  chart-band: "#1c2a2d"
+  macro-kcal: "#8fb0f0"
+  macro-protein: "#ee8d86"
+  macro-fat: "#e8c477"
+  macro-carb: "#84d1a6"
+  sleep-top: "#1a2a39"
+  stage-awake: "#f0aa7c"
+  stage-rem: "#8fd0f2"
+  stage-core: "#7ea2e0"
+  stage-deep: "#aaa3e8"
 typography:
   hero:
     fontFamily: "var(--font-geist-sans), system-ui, sans-serif"
@@ -151,29 +186,27 @@ components:
 
 Gym AI is a product-register interface (the design serves a task, it is not the product). The user is a serious lifter: stepping off the scale in a dim room first thing in the morning, or between sets under gym lights. The tool should disappear into the task: log in a few taps, read one line, move on.
 
-Direction, decided 2026-10-16 with the founder: **MacroFactor-style**. Near-black with a faint warm tint, grey surface layers, white primary actions, and colour reserved for status and data. Mint (`accent`) is the single brand accent and now means exactly two things: *good* and *selected*. Amber and rose appear only for watch and attention states.
-
-**Rev 3, decided 2026-10-18 with the founder: pillar colour.** Black and white read as bland next to WHOOP and Bevel, so each tab now owns a hue and wears it: its page background, its surfaces and its own data. Sleep goes first (indigo night, periwinkle accent, see Colors); Food, Body and Train follow the same pattern. Home stays neutral because it gathers every tab. White primary actions, the four status colours and the macro colours keep their meanings everywhere.
+**Rev 4, decided 2026-10-18 with the founder: Mist.** Soft green and misty sky across the whole app, replacing the black and white of rev 1 to 2 and the per-tab hues of rev 3 (Sleep's indigo did not suit the rest). The page is a misty sky that fades into a pale green-grey (light) or a deep green-slate (dark); cards sit on it as near-white or slate layers; the one action colour is a soft green; Sleep leans on the sky side. History: rev 1 (2026-10-16) was MacroFactor-style near-black with white actions and mint for good; rev 3 (earlier on 2026-10-18) gave each tab its own hue.
 
 Anchors: MacroFactor (Weight Trend, Expenditure, Strategy screens), WHOOP (contributor rows, the insight box), Apple Stocks (chart scrubbing, time-range pills).
 
-Theme is dark only. The scene (dim bedroom, gym lighting, phone at arm's length) forces it; a light mode is not planned.
+Light and dark (rev 4). The app follows the phone's setting (`prefers-color-scheme`); Profile > Appearance can pin Light or Dark (`data-theme` on `<html>`, set before first paint). Dark suits the dim bedroom and gym lighting; light suits daytime. Both are the same palette, so every rule here holds in both.
 
 ## Colors
 
-Restrained strategy on neutral screens (Home, sheets, settings): tinted neutrals and one accent used on well under 10% of the screen. Committed strategy on a pillar tab (rev 3): the tab's hue carries the page.
+Restrained strategy: misty neutrals, one action colour (soft green), and colour for status and data. Every colour is a CSS variable in `app/globals.css` with a light and a dark value; components never hard-code a colour.
 
-- **Pillar colour (rev 3).** A tab's palette lives in one class in `app/globals.css` (`.theme-sleep` and its `--sl-*` variables; later `.theme-food`, `.theme-body`, `.theme-train`). The class sets the page background (a vertical gradient from `*-bg-top` into `*-bg`), `--page-bg` for the sticky header, and the tab's surfaces, text tones and accent. Components on that tab read the variables, never hex. Rules: the accent marks the tab's own data (the score ring, the sleep window, bars), never buttons; a selected or latest item is the full accent, the rest `*-accent-dim`; rating words use the rating colours below; sheets stay neutral.
-- **Sleep (first pillar).** Indigo night, `sleep-*` tokens above. Stage colours: awake orange, REM sky, core blue, deep violet, used in the stage chart and tiles only. Rating words: Excellent periwinkle, Good mint, Fair amber, Poor rose.
+- **Page.** `--page` is a vertical gradient from `page-top` (misty sky) into `bg` over the first 380px; the sticky header sits on `page-top`.
+- **Green and sky.** `green` is the soft green for data that is going well and for training bars; `green-strong` for green text and links; `green-dim` for quiet fills. `sky` is the misty blue for sleep and secondary data; `sky-strong` for sky text.
+- **Sleep.** `.theme-sleep` keeps Sleep in the family: a dawn (light) or dusk (dark) sky (`sleep-top`) at the top, `sky` for its own data (score ring, sleep window, bars), stage colours (awake peach, REM sky, core blue, deep lavender) in the stage chart and tiles only, and rating words in Excellent `sky-strong`, Good `status-good`, Fair `status-watch`, Poor `status-attention`.
 
 - **Backgrounds.** `bg` is the page. `surface` is a row or card. `surface-raised` is a control (button, key, chip) sitting on a surface. `surface-pressed` is the pressed state. Never stack more than two levels; nested cards are wrong.
 - **Borders.** Hairlines only (`border`, 1px). `border-strong` for focused controls. No coloured left or right edges on anything.
-- **Text.** `text` for values and titles, `text-secondary` for supporting copy, `text-tertiary` for labels and metadata. Never pure white.
-- **Primary action.** White (`primary`) with dark text, as in MacroFactor's "Log Foods" and "Check In". One per screen at most. Start Workout on Home is white.
-- **Accent (mint).** Status *good*, the selected tab or pill, and the trend-up tint in charts. Not on buttons, not on borders, not as a wash.
+- **Text.** `text` for values and titles, `text-secondary` for supporting copy, `text-tertiary` for labels and metadata. Never pure white or pure black.
+- **Primary action.** Soft green (`primary`, deep sage in light, pale sage in dark) with `text-on-primary`. One per screen at most (Start workout, Save, Finish). The same fill marks a selected pill, day or toggle.
 - **Status.** `status-good` / `status-watch` / `status-attention` / `status-unknown`. Shown as a 8px dot or a short pill next to text, never as a card background. The same four colours drive the Signals tiles and the physique verdict.
-- **Charts.** Trend line in `chart-trend` (white, 2px). Raw weigh-ins as 4px dots in `chart-raw`. Goal projection as a dashed `chart-projection` line. A target band uses `chart-band`.
-- **Macro colours** (rev 2, from MacroFactor): kcal `macro-kcal` (blue), protein `macro-protein` (red), fat `macro-fat` (yellow), carbs `macro-carb` (green), all muted. They appear only in nutrition bars and charts, never on buttons or status. Over target is not red: the bar simply fills and its target tick turns white.
+- **Charts.** Trend line in `chart-trend` (the text colour, 2px). Raw weigh-ins as 4px dots in `chart-raw`. Goal projection as a dashed `chart-projection` line. A target band uses `chart-band`.
+- **Macro colours** (rev 2, from MacroFactor): kcal `macro-kcal` (blue), protein `macro-protein` (red), fat `macro-fat` (yellow), carbs `macro-carb` (green), all muted. They appear only in nutrition bars and charts, never on buttons or status. Over target is not red: the bar simply fills and its target tick turns to the text colour.
 
 ## Typography
 
@@ -200,23 +233,23 @@ Flat. Depth is expressed by surface level, not shadow.
 ## Components
 
 - **Row.** Label on the left in `text-secondary`, value on the right in `number`, optional trailing chevron or `+`. 56px tall, `rounded.md`, `surface`. Rows in a group are separated by 1px `border` lines, not gaps.
-- **Verdict line.** Not a card. An 8px status dot, a `body` sentence in `text`, then a `caption` line with the window and n in `text-tertiary`. Flags are plain rows beneath. A recommendation is a row with a white "Apply" or "Update targets" secondary button.
+- **Verdict line.** Not a card. An 8px status dot, a `body` sentence in `text`, then a `caption` line with the window and n in `text-tertiary`. Flags are plain rows beneath. A recommendation is a row with an "Apply" or "Update targets" secondary button.
 - **Contributor row** (WHOOP-style). Label, a 48px mini bar or sparkline in greys, value, and a small up or down tick in the status colour.
-- **Segmented pills.** `pill` in a row with 4px gaps; the selected one is white with dark text. Used for time ranges (1W 1M 3M 6M 1Y All) and small choices.
+- **Segmented pills.** `pill` in a row with 4px gaps; the selected one is `primary` with `text-on-primary`. Used for time ranges (1W 1M 3M 6M 1Y All) and small choices.
 - **Bottom sheet.** Title in `title`, content, one primary action at the bottom. Dismiss by swipe or the scrim. Safe-area padding at the bottom.
 - **Number pad.** 3×4 grid of `numberpad-key`, with `.` and backspace, and an optional ±step row above. The current value sits above in `hero`. Never show the system keyboard for numeric entry.
 - **Chart.** Time-based x axis with sparse date labels in `caption`, y axis from `computeNiceYAxis`, raw dots, continuous trend line between the first and last real values, optional dashed projection. Tap or drag to scrub; the scrubbed point shows a small `surface-raised` tooltip with date, scale weight and trend.
 - **Status dot and pill.** 8px dot inline with text, or a 22px pill (`caption`, status colour text on `surface`).
-- **Tab bar.** Five tabs: Home, Food, Body, Sleep, Train (rev 2). 20px line icons, `caption` labels, active in `text` (not mint). `bg` background with a 1px top border. Profile is a round button in the Home header.
-- **Page header** (rev 2). An 11px tracked caption (date or goal) above the page title in `hero` size, title case. The tab's primary log action is a 36px white round `+` on the right. Sticky, `bg`, hairline when scrolled.
+- **Tab bar.** Five tabs: Home, Food, Body, Sleep, Train (rev 2). 20px line icons, `caption` labels, active in `text`. `tab-bg` background with a 1px top border. Profile is a round button in the Home header.
+- **Page header** (rev 2). An 11px tracked caption (date or goal) above the page title in `hero` size, title case. The tab's primary log action is a 36px `primary` round `+` on the right. Sticky on `page-bg` (the top of the misty page).
 - **Week strip** (rev 2). Seven day pills (weekday letter over day number, 40×56), a 4px dot under logged days, the selected day filled `primary` with dark text. Swiping the strip moves a week.
 - **Widget carousel** (rev 2). Horizontal scroll-snap cards the width of the screen minus the gutters, with page dots (6px, `text-tertiary`, active `text`). Two or three cards, never more.
 - **Timeline** (rev 2). A 1px vertical `border` line with hour chips (`surface-raised`, `caption`) and a 24px `+` beside each hour; entries are `surface` rows with name, `number`-sized kcal, macro caption and an edit glyph; hour totals sit on the hour row in `caption`.
 - **Contributor list** (rev 2, from Bevel). Rows of label · word (Poor / Fair / Good / Excellent in the status colour) · a 4px bar in `surface-raised` filled in `text-secondary`.
-- **Sleep score** (rev 3). One number out of 100 in a ring on the Sleep tab: hours slept against what the night needed, with points off for waking off the usual time and for a restless night (`lib/physique/sleepScore.ts`). Always shown with its word and one sentence on why; the parts are on the night page. It is the only score in the app.
-- **Range pills.** 1W 1M 3M 6M All as segmented pills under charts; selected is white.
+- **Sleep score** (rev 3, kept in rev 4). One number out of 100 in a ring on the Sleep tab: hours slept against what the night needed, with points off for waking off the usual time and for a restless night (`lib/physique/sleepScore.ts`). Always shown with its word and one sentence on why; the parts are on the night page. It is the only score in the app.
+- **Range pills.** 1W 1M 3M 6M All as segmented pills under charts; selected is `primary`.
 - **Empty and calibrating states.** A sentence in `text-secondary` naming exactly what is missing ("6 more weigh-ins for a first read"), with the control that fixes it directly beneath. Never a placeholder number or an illustration.
-- **Buttons.** `button-primary` (white) for the one main action; `button-secondary` (raised grey) for everything else; text-only links in `text-secondary` for tertiary actions. 44px minimum tap targets.
+- **Buttons.** `button-primary` (soft green) for the one main action; `button-secondary` (raised grey) for everything else; text-only links in `text-secondary` for tertiary actions. 44px minimum tap targets.
 
 ## Do's and Don'ts
 
@@ -225,9 +258,9 @@ Flat. Depth is expressed by surface level, not shadow.
 - Do state the window and n next to any judgement.
 - Do keep logging to three taps or fewer, with values prefilled from yesterday.
 - Do use the four status colours identically everywhere (Signals tiles, verdict dot, home card).
-- Don't use mint on buttons, borders, backgrounds or glows. Mint means good or selected, nothing else.
+- Don't use the status colours on buttons, borders, backgrounds or glows. Green as an action is `primary`; `status-good` means good, nothing else.
 - Don't put a number in a ring or dial, except the sleep score (rev 3). Elsewhere states are words; detail views have numbers.
-- Don't add blurred glass, side stripes or hero-metric tiles. Gradients and tinted surfaces belong to a pillar tab's palette only (rev 3), never as decoration on a neutral screen.
+- Don't add blurred glass, side stripes or hero-metric tiles. The only gradient is the misty page (and Sleep's sky); never as decoration on a card.
 - Don't show confetti, streaks, exclamation marks, or praise.
 - Don't show a score for recovery; show a word and the numbers. Sleep has one score (rev 3), never without its word and reason.
 - Don't list missed days on a tab that a device fills on its own: a night the watch missed is an empty bar, not a "not logged" row.

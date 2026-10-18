@@ -1222,7 +1222,7 @@ export default function WorkoutPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0b] text-white pb-32">
+    <main className="min-h-screen bg-[var(--background)] text-[var(--text)] pb-32">
       {/* subtle depth on large screens */}
       
 
@@ -1231,7 +1231,7 @@ export default function WorkoutPage() {
           <div className="flex items-center gap-3 mb-3">
             <Link
               href="/workout/start"
-              className="shrink-0 flex touch-manipulation items-center justify-center h-10 w-10 rounded-xl border border-[#2a2a2e] bg-[#1d1d20] text-[#a3a3a8] hover:bg-[#1d1d20] hover:text-white transition active:opacity-90"
+              className="shrink-0 flex touch-manipulation items-center justify-center h-10 w-10 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)] transition active:opacity-90"
               aria-label="Back to workout start"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -1244,8 +1244,8 @@ export default function WorkoutPage() {
               aria-label="Workout name"
               value={workoutName}
               onChange={(e) => setWorkoutName(e.target.value)}
-              className={`input-app flex-1 min-w-0 p-3 text-base truncate touch-manipulation border-[#2a2a2e] bg-[#1d1d20] shadow-sm shadow-black/20 placeholder:text-[#6f6f76] ${
-                workoutName.trim() ? "font-medium text-[#f2f2f0]" : "font-normal text-[#a3a3a8]"
+              className={`input-app flex-1 min-w-0 p-3 text-base truncate touch-manipulation border-[var(--border)] bg-[var(--surface-raised)] shadow-sm shadow-black/20 placeholder:text-[var(--text-tertiary)] ${
+                workoutName.trim() ? "font-medium text-[var(--text)]" : "font-normal text-[var(--text-secondary)]"
               }`}
             />
             {exercises.length > 0 ? (
@@ -1253,7 +1253,7 @@ export default function WorkoutPage() {
                 <button
                   type="button"
                   onClick={() => setShowDiscardConfirm(true)}
-                  className="touch-manipulation px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl text-xs font-medium text-[#6f6f76] border border-transparent hover:text-[#a3a3a8] hover:border-[#2a2a2e] hover:bg-[#1d1d20] active:opacity-80 transition"
+                  className="touch-manipulation px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl text-xs font-medium text-[var(--text-tertiary)] border border-transparent hover:text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[var(--surface-raised)] active:opacity-80 transition"
                 >
                   Discard
                 </button>
@@ -1270,17 +1270,17 @@ export default function WorkoutPage() {
             )}
           </div>
           {showWorkoutStats && (
-            <div className="flex flex-wrap items-center gap-2 text-sm text-[#a3a3a8]">
-              <span className="tabular-nums px-2 py-1 rounded-full bg-[#1d1d20] border border-[#2a2a2e] shadow-sm shadow-black/20">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
+              <span className="tabular-nums px-2 py-1 rounded-full bg-[var(--surface-raised)] border border-[var(--border)] shadow-sm shadow-black/20">
                 {formatElapsed(elapsedSec)}
               </span>
-              <span className="px-2 py-1 rounded-full bg-[#1d1d20] border border-[#2a2a2e] shadow-sm shadow-black/20">
-                <span className="text-[#a3a3a8] mr-1">Exercises</span>
-                <span className="tabular-nums text-white">{exercises.length}</span>
+              <span className="px-2 py-1 rounded-full bg-[var(--surface-raised)] border border-[var(--border)] shadow-sm shadow-black/20">
+                <span className="text-[var(--text-secondary)] mr-1">Exercises</span>
+                <span className="tabular-nums text-[var(--text)]">{exercises.length}</span>
               </span>
-              <span className="px-2 py-1 rounded-full bg-[#1d1d20] border border-[#2a2a2e] shadow-sm shadow-black/20">
-                <span className="text-[#a3a3a8] mr-1">Sets</span>
-                <span className="tabular-nums text-white">{totalSetsLogged}</span>
+              <span className="px-2 py-1 rounded-full bg-[var(--surface-raised)] border border-[var(--border)] shadow-sm shadow-black/20">
+                <span className="text-[var(--text-secondary)] mr-1">Sets</span>
+                <span className="tabular-nums text-[var(--text)]">{totalSetsLogged}</span>
               </span>
             </div>
           )}
@@ -1288,26 +1288,26 @@ export default function WorkoutPage() {
 
         {exercises.length === 0 ? (
           <div className="flex min-h-[min(52vh,400px)] items-start justify-center px-1 pt-2 sm:pt-6">
-            <div className="flex w-full max-w-lg flex-col items-center gap-3 rounded-[12px] px-5 py-8 text-center" style={{ background: "#141416" }}>
-              <p className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>Add your first exercise</p>
-              <p className="text-[13px] leading-snug" style={{ color: "#a3a3a8" }}>
+            <div className="flex w-full max-w-lg flex-col items-center gap-3 rounded-[12px] px-5 py-8 text-center" style={{ background: "var(--surface)" }}>
+              <p className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>Add your first exercise</p>
+              <p className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
                 Search, filter by muscle or equipment, and pick as many as you like. The clock starts with the first one.
               </p>
-              <button type="button" onClick={() => setAddPickerOpen(true)} className="mt-1 h-[48px] w-full rounded-[12px] text-[17px] font-semibold" style={{ background: "#f2f2f0", color: "#0a0a0b" }}>
+              <button type="button" onClick={() => setAddPickerOpen(true)} className="mt-1 h-[48px] w-full rounded-[12px] text-[17px] font-semibold" style={{ background: "var(--primary)", color: "var(--text-on-primary)" }}>
                 Add exercises
               </button>
             </div>
           </div>
         ) : reorderMode ? (
           <>
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-[#2a2a2e] bg-[#141416] px-3 py-2">
-              <p className="text-[12px] font-semibold text-[#f2f2f0]">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+              <p className="text-[12px] font-semibold text-[var(--text)]">
                 Reorder exercises — drag to rearrange.
               </p>
               <button
                 type="button"
                 onClick={() => setReorderMode(false)}
-                className="shrink-0 rounded-lg border border-[#a3a3a8] bg-[#2a2a2e] px-3 py-1.5 text-[12px] font-bold text-[#f2f2f0] hover:bg-[#2a2a2e] transition-colors"
+                className="shrink-0 rounded-lg border border-[var(--text-secondary)] bg-[var(--border)] px-3 py-1.5 text-[12px] font-bold text-[var(--text)] hover:bg-[var(--border)] transition-colors"
               >
                 Done
               </button>
@@ -1320,14 +1320,14 @@ export default function WorkoutPage() {
                 const exercise = exercises.find((e) => e.id === id);
                 if (!exercise) return null;
                 return (
-                  <div className="flex items-center gap-3 rounded-xl border border-[#2a2a2e] bg-[#141416] px-3 py-3">
+                  <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3">
                     <DragHandle
                       attributes={handle.attributes}
                       listeners={handle.listeners}
                       isDragging={handle.isDragging}
                       ariaLabel={`Drag ${exercise.name} to reorder`}
                     />
-                    <p className="flex-1 min-w-0 truncate text-[14px] font-semibold text-white">
+                    <p className="flex-1 min-w-0 truncate text-[14px] font-semibold text-[var(--text)]">
                       {exercise.name}
                     </p>
                     <span className="shrink-0 text-[11px] text-app-meta tabular-nums">
@@ -1356,18 +1356,18 @@ export default function WorkoutPage() {
                 return (
                   <div
                     key={exercise.id}
-                    className="rounded-xl border border-[#2a2a2e] bg-[#141416] px-3 py-2.5 sm:px-3.5 sm:py-3"
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 sm:px-3.5 sm:py-3"
                   >
                     <div className="flex items-start gap-2 min-w-0">
                       <div className="min-w-0 flex-1">
-                        <h3 className="text-[15px] font-semibold tracking-tight text-white truncate leading-snug">
+                        <h3 className="text-[15px] font-semibold tracking-tight text-[var(--text)] truncate leading-snug">
                           {exercise.name}
                         </h3>
-                        <p className="text-[11px] text-[#a3a3a8] mt-0.5 leading-snug line-clamp-2">
+                        <p className="text-[11px] text-[var(--text-secondary)] mt-0.5 leading-snug line-clamp-2">
                           {contextLine}
                         </p>
                         {exercise.notes && (
-                          <p className="text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: "#6f6f76" }}>
+                          <p className="text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: "var(--text-tertiary)" }}>
                             {exercise.notes}
                           </p>
                         )}
@@ -1378,7 +1378,7 @@ export default function WorkoutPage() {
                           onClick={() =>
                             setExerciseMenuOpenId((id) => (id === exercise.id ? null : exercise.id))
                           }
-                          className="h-8 w-8 rounded-lg border border-[#2a2a2e] bg-[#1d1d20] text-[#a3a3a8] hover:text-white hover:bg-[#2a2a2e] transition flex items-center justify-center"
+                          className="h-8 w-8 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--border)] transition flex items-center justify-center"
                           aria-label="Exercise options"
                           aria-expanded={exerciseMenuOpenId === exercise.id}
                         >
@@ -1388,12 +1388,12 @@ export default function WorkoutPage() {
                         </button>
                         {exerciseMenuOpenId === exercise.id && (
                           <div
-                            className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] rounded-lg border border-[#2a2a2e] bg-[#1d1d20] py-0.5"
+                            className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] py-0.5"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
                               type="button"
-                              className="w-full px-3 py-2 text-left text-[11px] text-[#f2f2f0] hover:bg-[#2a2a2e] transition"
+                              className="w-full px-3 py-2 text-left text-[11px] text-[var(--text)] hover:bg-[var(--border)] transition"
                               onClick={() => {
                                 setReplaceExerciseTargetId(exercise.id);
                                 setExerciseMenuOpenId(null);
@@ -1403,14 +1403,14 @@ export default function WorkoutPage() {
                             </button>
                             <Link
                               href={exerciseHref(exercise)}
-                              className="block w-full px-3 py-2 text-left text-[11px] text-[#f2f2f0] hover:bg-[#2a2a2e] transition"
+                              className="block w-full px-3 py-2 text-left text-[11px] text-[var(--text)] hover:bg-[var(--border)] transition"
                               onClick={() => setExerciseMenuOpenId(null)}
                             >
                               History and records
                             </Link>
                             <button
                               type="button"
-                              className="w-full px-3 py-2 text-left text-[11px] text-[#f2f2f0] hover:bg-[#2a2a2e] transition"
+                              className="w-full px-3 py-2 text-left text-[11px] text-[var(--text)] hover:bg-[var(--border)] transition"
                               onClick={() => {
                                 setReorderMode(true);
                                 setExerciseMenuOpenId(null);
@@ -1420,7 +1420,7 @@ export default function WorkoutPage() {
                             </button>
                             <button
                               type="button"
-                              className="w-full px-3 py-2 text-left text-[11px] text-[#f2f2f0] hover:bg-[#2a2a2e] transition"
+                              className="w-full px-3 py-2 text-left text-[11px] text-[var(--text)] hover:bg-[var(--border)] transition"
                               onClick={() => {
                                 setRestAdjustExerciseId(exercise.id);
                                 setExerciseMenuOpenId(null);
@@ -1430,7 +1430,7 @@ export default function WorkoutPage() {
                             </button>
                             <button
                               type="button"
-                              className="w-full px-3 py-2 text-left text-[11px] text-[#f26d7d] hover:bg-transparent transition"
+                              className="w-full px-3 py-2 text-left text-[11px] text-[var(--status-attention)] hover:bg-transparent transition"
                               onClick={() => {
                                 deleteExercise(exercise.id);
                               }}
@@ -1442,7 +1442,7 @@ export default function WorkoutPage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 pt-2 border-t border-[#2a2a2e]">
+                    <div className="mt-2 pt-2 border-t border-[var(--border)]">
                       {(() => {
                         const lastSets = previousByKind(exercise.sets, getLastSetsForExercise({
                           exerciseId: exercise.exerciseId,
@@ -1452,35 +1452,35 @@ export default function WorkoutPage() {
                         const nextIdx = exercise.sets.findIndex((s) => !s?.done);
                         const effectiveNextIdx = nextIdx === -1 ? exercise.sets.length : nextIdx;
                         const logInputShell =
-                          "relative min-w-0 h-9 rounded-xl bg-[#1d1d20] border border-[#2a2a2e] flex items-center transition-colors duration-150 focus-within:ring-2 focus-within:ring-[#2a2a2e] focus-within:border-[#a3a3a8] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]";
+                          "relative min-w-0 h-9 rounded-xl bg-[var(--surface-raised)] border border-[var(--border)] flex items-center transition-colors duration-150 focus-within:ring-2 focus-within:ring-[var(--border)] focus-within:border-[var(--text-secondary)] shadow-[inset_0_1px_0_0_color-mix(in srgb, var(--text) 4%, transparent)]";
                         const rowIconBtn =
-                          "min-h-[44px] min-w-[44px] sm:min-h-8 sm:min-w-8 shrink-0 rounded-lg border border-[#2a2a2e] bg-[#1d1d20] flex items-center justify-center touch-manipulation select-none transition active:scale-[0.96] active:opacity-90";
+                          "min-h-[44px] min-w-[44px] sm:min-h-8 sm:min-w-8 shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] flex items-center justify-center touch-manipulation select-none transition active:scale-[0.96] active:opacity-90";
                         const logInputInner =
-                          "min-w-0 flex-1 h-full bg-transparent border-0 rounded-xl px-2 text-xs tabular-nums text-[#f2f2f0] focus:outline-none focus:ring-0 disabled:opacity-55 disabled:cursor-not-allowed placeholder:text-[#6f6f76]";
+                          "min-w-0 flex-1 h-full bg-transparent border-0 rounded-xl px-2 text-xs tabular-nums text-[var(--text)] focus:outline-none focus:ring-0 disabled:opacity-55 disabled:cursor-not-allowed placeholder:text-[var(--text-tertiary)]";
 
                         return (
                           <div className="overflow-x-auto -mx-0.5 px-0.5">
                             <div className="min-w-[min(100%,20rem)]">
                             <div className="mb-1 grid grid-cols-[1.125rem_minmax(3.25rem,0.8fr)_minmax(4.25rem,1.3fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center px-0.5">
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[#6f6f76] text-center">
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] text-center">
                                 #
                               </span>
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[#6f6f76] pl-0.5">
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] pl-0.5">
                                 Previous
                               </span>
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[#6f6f76] pl-0.5">
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] pl-0.5">
                                 Weight
                               </span>
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[#6f6f76] pl-0.5">
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] pl-0.5">
                                 Reps
                               </span>
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[#6f6f76] text-center">
+                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] text-center">
                                 RIR
                               </span>
                               <span className="sr-only">Done</span>
                             </div>
 
-                            <ul className="space-y-1 text-[#f2f2f0]">
+                            <ul className="space-y-1 text-[var(--text)]">
                               {exercise.sets.map((set, index) => {
                                 const lastSet = lastSets[index];
                                 const prevWeightStr =
@@ -1520,8 +1520,8 @@ export default function WorkoutPage() {
                                       return (
                                         <>
                                           {isNext && isActive && (
-                                            <div className="mb-0.5 text-[10px] tabular-nums text-[#a3a3a8]">
-                                              <span className="text-[#6f6f76]">Rest </span>
+                                            <div className="mb-0.5 text-[10px] tabular-nums text-[var(--text-secondary)]">
+                                              <span className="text-[var(--text-tertiary)]">Rest </span>
                                               <span className="text-[color:var(--color-accent)] font-semibold">
                                                 {formatRest(timer.remainingSec)}
                                               </span>
@@ -1530,11 +1530,11 @@ export default function WorkoutPage() {
                                           <div
                                             className={`grid grid-cols-[1.125rem_minmax(3.25rem,0.8fr)_minmax(4.25rem,1.3fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center rounded-lg py-0.5 ${
                                               isNext
-                                                ? "ring-1 ring-[color:var(--color-accent)]/55 bg-[#1d1d20] shadow-[inset_3px_0_0_0_rgba(45,212,191,0.55),inset_0_0_0_1px_rgba(45,212,191,0.14)]"
+                                                ? "ring-1 ring-[color:var(--color-accent)]/55 bg-[var(--surface-raised)] shadow-[inset_3px_0_0_0_color-mix(in srgb, var(--green) 55%, transparent),inset_0_0_0_1px_color-mix(in srgb, var(--green) 14%, transparent)]"
                                                 : isDraft
-                                                  ? "border border-dashed border-[#2a2a2e] bg-[#1d1d20]"
+                                                  ? "border border-dashed border-[var(--border)] bg-[var(--surface-raised)]"
                                                   : ""
-                                            } ${isDraft && !isDone ? "[&_input]:text-[#a3a3a8]" : ""} ${isDone ? "bg-[rgba(0,229,176,0.08)]" : ""}`}
+                                            } ${isDraft && !isDone ? "[&_input]:text-[var(--text-secondary)]" : ""} ${isDone ? "bg-[color-mix(in srgb, var(--status-good) 8%, transparent)]" : ""}`}
                                             role="button"
                                             tabIndex={0}
                                             onClick={(e) => {
@@ -1616,11 +1616,11 @@ export default function WorkoutPage() {
                                                     cycleSetType(exercise.id, index);
                                                   }}
                                                   className="h-9 w-full rounded-md text-center text-[11px] tabular-nums font-semibold touch-manipulation"
-                                                  style={{ color: t === "working" ? undefined : t === "warmup" ? "#6f6f76" : t === "drop" ? "#a3a3a8" : "#f2f2f0" }}
+                                                  style={{ color: t === "working" ? undefined : t === "warmup" ? "var(--text-tertiary)" : t === "drop" ? "var(--text-secondary)" : "var(--text)" }}
                                                   aria-label={`Set ${mark || numbers[index]}, ${SET_TYPE_LABEL[t].toLowerCase()}. Change set type`}
                                                   title={SET_TYPE_LABEL[t]}
                                                 >
-                                                  <span className={t === "working" ? "text-[#a3a3a8]" : ""}>{mark || numbers[index]}</span>
+                                                  <span className={t === "working" ? "text-[var(--text-secondary)]" : ""}>{mark || numbers[index]}</span>
                                                 </button>
                                               );
                                             })()}
@@ -1633,7 +1633,7 @@ export default function WorkoutPage() {
                                                 if (prevWeightStr && (set.weight ?? "").trim() === "") updateSetValue(exercise.id, index, "weight", prevWeightStr);
                                                 if (prevRepsStr && (set.reps ?? "").trim() === "") updateSetValue(exercise.id, index, "reps", prevRepsStr);
                                               }}
-                                              className="h-9 min-w-0 truncate rounded-lg px-1 text-left text-[11px] tabular-nums text-[#6f6f76] disabled:cursor-default"
+                                              className="h-9 min-w-0 truncate rounded-lg px-1 text-left text-[11px] tabular-nums text-[var(--text-tertiary)] disabled:cursor-default"
                                               aria-label={prevWeightStr || prevRepsStr ? `Previous set ${prevWeightStr ?? "—"} ${unit} × ${prevRepsStr ?? "—"}. Use it` : "No previous set"}
                                             >
                                               {prevWeightStr || prevRepsStr ? `${prevWeightStr ?? "—"} × ${prevRepsStr ?? "—"}` : "—"}
@@ -1674,7 +1674,7 @@ export default function WorkoutPage() {
                                                 className={`${logInputInner} pl-2 pr-1`}
                                               />
                                               <span
-                                                className="shrink-0 ml-1 pr-2 text-[9px] font-semibold uppercase tracking-wide text-[#6f6f76] tabular-nums select-none"
+                                                className="shrink-0 ml-1 pr-2 text-[9px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)] tabular-nums select-none"
                                                 aria-hidden
                                               >
                                                 {unit}
@@ -1760,7 +1760,7 @@ export default function WorkoutPage() {
                                                 }
                                               }}
                                               aria-label={`Set ${index + 1} RIR 0–5, optional`}
-                                              className="h-8 sm:h-9 min-h-0 w-full rounded-lg border border-[#2a2a2e] bg-[#1d1d20] px-1 text-center text-[11px] tabular-nums text-[#f2f2f0] placeholder:text-[#6f6f76] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] focus:outline-none focus:ring-1 focus:ring-[#2a2a2e] focus:border-[#a3a3a8] disabled:opacity-55 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                              className="h-8 sm:h-9 min-h-0 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-1 text-center text-[11px] tabular-nums text-[var(--text)] placeholder:text-[var(--text-tertiary)] shadow-[inset_0_1px_0_0_color-mix(in srgb, var(--text) 4%, transparent)] focus:outline-none focus:ring-1 focus:ring-[var(--border)] focus:border-[var(--text-secondary)] disabled:opacity-55 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             />
                                             <div className="flex justify-center">
                                               <button
@@ -1775,7 +1775,7 @@ export default function WorkoutPage() {
                                                 className={`${rowIconBtn} rounded-full ${
                                                   isDone
                                                     ? "border border-[color:var(--color-accent)]/70 bg-[color:var(--color-accent)]/12 text-[color:var(--color-accent)] shadow-sm shadow-[color:var(--color-accent)]/10"
-                                                    : "border-[#2a2a2e] text-[#a3a3a8] hover:bg-[#1d1d20] hover:border-[#2a2a2e] hover:text-[#f2f2f0]"
+                                                    : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:border-[var(--border)] hover:text-[var(--text)]"
                                                 }`}
                                                 aria-label={`Mark set ${index + 1} complete`}
                                               >
@@ -1788,7 +1788,7 @@ export default function WorkoutPage() {
 
                                           {setActionMenuKey === noteKey && (
                                             <div
-                                              className="mt-1 flex items-center gap-2 rounded-lg border border-[#2a2a2e] bg-[#141416] px-2 py-1.5 shadow-md shadow-black/30"
+                                              className="mt-1 flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 shadow-md shadow-black/30"
                                               onClick={(e) => e.stopPropagation()}
                                             >
                                               <button
@@ -1797,7 +1797,7 @@ export default function WorkoutPage() {
                                                   setSetActionMenuKey(null);
                                                   setExpandedNoteKey(noteKey);
                                                 }}
-                                                className="flex-1 rounded-md border border-[#2a2a2e] bg-[#1d1d20] px-2 py-2 text-[12px] font-semibold text-[#f2f2f0] transition hover:bg-[#1d1d20] active:scale-[0.98]"
+                                                className="flex-1 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-2 text-[12px] font-semibold text-[var(--text)] transition hover:bg-[var(--surface-raised)] active:scale-[0.98]"
                                               >
                                                 {hasNote ? "Edit note" : "Add note"}
                                               </button>
@@ -1808,7 +1808,7 @@ export default function WorkoutPage() {
                                                   const w = parseFloat((set.weight ?? "").trim() || (prevWeightStr ?? ""));
                                                   setPlateCalcWeight(Number.isFinite(w) ? w : 0);
                                                 }}
-                                                className="flex-1 rounded-md border border-[#2a2a2e] bg-[#1d1d20] px-2 py-2 text-[12px] font-semibold text-[#f2f2f0] transition hover:bg-[#1d1d20] active:scale-[0.98]"
+                                                className="flex-1 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-2 text-[12px] font-semibold text-[var(--text)] transition hover:bg-[var(--surface-raised)] active:scale-[0.98]"
                                               >
                                                 Plates
                                               </button>
@@ -1818,14 +1818,14 @@ export default function WorkoutPage() {
                                                   setSetActionMenuKey(null);
                                                   deleteSet(exercise.id, index);
                                                 }}
-                                                className="flex-1 rounded-md border border-[#2a2a2e] bg-transparent px-2 py-2 text-[12px] font-semibold text-[#f26d7d] transition hover:bg-transparent active:scale-[0.98]"
+                                                className="flex-1 rounded-md border border-[var(--border)] bg-transparent px-2 py-2 text-[12px] font-semibold text-[var(--status-attention)] transition hover:bg-transparent active:scale-[0.98]"
                                               >
                                                 Delete set
                                               </button>
                                               <button
                                                 type="button"
                                                 onClick={() => setSetActionMenuKey(null)}
-                                                className="rounded-md border border-[#2a2a2e] bg-[#141416] px-2 py-2 text-[12px] font-semibold text-[#a3a3a8] transition hover:bg-[#1d1d20]"
+                                                className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-2 text-[12px] font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-raised)]"
                                                 aria-label="Close actions"
                                               >
                                                 Close
@@ -1845,7 +1845,7 @@ export default function WorkoutPage() {
                                                   : "Note…";
                                               return (
                                                 <div
-                                                  className="mt-1 rounded-md border border-[#2a2a2e] bg-[#1d1d20] px-2 py-1.5 shadow-sm shadow-black/20"
+                                                  className="mt-1 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-1.5 shadow-sm shadow-black/20"
                                                   onClick={(e) => e.stopPropagation()}
                                                 >
                                                   <input
@@ -1862,7 +1862,7 @@ export default function WorkoutPage() {
                                                     <button
                                                       type="button"
                                                       onClick={() => setExpandedNoteKey(null)}
-                                                      className="text-[10px] px-2 py-1 rounded-md text-[#a3a3a8] hover:text-white hover:bg-[#2a2a2e] transition"
+                                                      className="text-[10px] px-2 py-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--border)] transition"
                                                     >
                                                       Done
                                                     </button>
@@ -1894,8 +1894,8 @@ export default function WorkoutPage() {
                                   <div
                                     className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs shadow-sm shadow-black/15 ${
                                       isActive
-                                        ? "border-[color:var(--color-accent)]/30 bg-[color:var(--color-accent)]/8 text-[#f2f2f0]"
-                                        : "border-[#2a2a2e] bg-[#1d1d20] text-[#f2f2f0]"
+                                        ? "border-[color:var(--color-accent)]/30 bg-[color:var(--color-accent)]/8 text-[var(--text)]"
+                                        : "border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]"
                                     }`}
                                   >
                                     {isActive ? (
@@ -1904,8 +1904,8 @@ export default function WorkoutPage() {
                                       </span>
                                     ) : (
                                       <>
-                                        <span className="text-[#6f6f76]">Rest</span>
-                                        <span className="tabular-nums font-medium text-[#f2f2f0]">
+                                        <span className="text-[var(--text-tertiary)]">Rest</span>
+                                        <span className="tabular-nums font-medium text-[var(--text)]">
                                           {formatRest(rest)}
                                         </span>
                                       </>
@@ -1917,7 +1917,7 @@ export default function WorkoutPage() {
                                           ? resetExerciseRest(exercise.id)
                                           : startExerciseRest(exercise.id, rest)
                                       }
-                                      className="rounded-md border border-[#2a2a2e] bg-[#1d1d20] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#f2f2f0] hover:bg-[#2a2a2e] hover:border-[#a3a3a8] transition touch-manipulation"
+                                      className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text)] hover:bg-[var(--border)] hover:border-[var(--text-secondary)] transition touch-manipulation"
                                     >
                                       {isActive ? "Stop" : "Start"}
                                     </button>
@@ -1943,7 +1943,7 @@ export default function WorkoutPage() {
             </section>
 
             <div className="mt-4 mb-3">
-              <button type="button" onClick={() => setAddPickerOpen(true)} className="h-[48px] w-full rounded-[12px] text-[15px] font-semibold" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+              <button type="button" onClick={() => setAddPickerOpen(true)} className="h-[48px] w-full rounded-[12px] text-[15px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
                 + Add exercises
               </button>
             </div>
@@ -1967,17 +1967,17 @@ export default function WorkoutPage() {
         <div className="mt-4">
           {showDiscardConfirm && (
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--scrim)]"
               role="dialog"
               aria-modal="true"
               aria-labelledby="discard-title"
               onClick={() => setShowDiscardConfirm(false)}
             >
               <div
-                className="w-full max-w-sm p-6 rounded-2xl border border-[#2a2a2e] bg-[#141416] shadow-xl"
+                className="w-full max-w-sm p-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h2 id="discard-title" className="text-lg font-bold text-white mb-2">
+                <h2 id="discard-title" className="text-lg font-bold text-[var(--text)] mb-2">
                   Discard workout?
                 </h2>
                 <p className="text-sm text-app-secondary mb-6">
@@ -1994,7 +1994,7 @@ export default function WorkoutPage() {
                   <button
                     type="button"
                     onClick={discardWorkout}
-                    className="px-4 py-2.5 rounded-xl text-sm font-medium bg-transparent border border-[#2a2a2e] text-[#f26d7d] hover:bg-transparent transition"
+                    className="px-4 py-2.5 rounded-xl text-sm font-medium bg-transparent border border-[var(--border)] text-[var(--status-attention)] hover:bg-transparent transition"
                   >
                     Discard
                   </button>
@@ -2031,25 +2031,25 @@ export default function WorkoutPage() {
           const rAdj = exAdj.restSec ?? 90;
           return (
             <div
-              className="fixed inset-0 z-[55] flex items-end justify-center bg-black/60 p-3 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:items-center sm:pb-3"
+              className="fixed inset-0 z-[55] flex items-end justify-center bg-[var(--scrim)] p-3 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:items-center sm:pb-3"
               onClick={() => setRestAdjustExerciseId(null)}
             >
               <div
                 role="dialog"
                 aria-labelledby="rest-adjust-title"
                 aria-modal="true"
-                className="w-full max-w-md rounded-2xl border border-[#2a2a2e] bg-[#141416] p-4 shadow-2xl shadow-black/55 ring-1 ring-[#2a2a2e]"
+                className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-black/55 ring-1 ring-[var(--border)]"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h2 id="rest-adjust-title" className="text-sm font-semibold text-white">
+                <h2 id="rest-adjust-title" className="text-sm font-semibold text-[var(--text)]">
                   Adjust rest · {exAdj.name}
                 </h2>
-                <p className="mt-1 text-[11px] leading-snug text-[#6f6f76]">
+                <p className="mt-1 text-[11px] leading-snug text-[var(--text-tertiary)]">
                   Default duration for this exercise when the timer runs after a set.
                 </p>
-                <div className="mt-3 flex items-center justify-between text-[10px] text-[#a3a3a8]">
+                <div className="mt-3 flex items-center justify-between text-[10px] text-[var(--text-secondary)]">
                   <span>Duration</span>
-                  <span className="tabular-nums text-[#f2f2f0]">{formatRest(rAdj)}</span>
+                  <span className="tabular-nums text-[var(--text)]">{formatRest(rAdj)}</span>
                 </div>
                 <input
                   type="range"
@@ -2063,7 +2063,7 @@ export default function WorkoutPage() {
                       Math.max(0, Math.min(300, Number(e.target.value) || 0))
                     )
                   }
-                  className="mt-1.5 w-full accent-[#00e5b0] h-2"
+                  className="mt-1.5 w-full accent-[var(--status-good)] h-2"
                   aria-label={`Rest duration for ${exAdj.name}`}
                 />
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -2072,7 +2072,7 @@ export default function WorkoutPage() {
                       key={sec}
                       type="button"
                       onClick={() => setExerciseRest(exAdj.id, sec)}
-                      className="text-[10px] px-2 py-1 rounded-md border border-[#2a2a2e] bg-[#1d1d20] text-[#a3a3a8] hover:text-white hover:bg-[#2a2a2e]"
+                      className="text-[10px] px-2 py-1 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--border)]"
                     >
                       {sec}s
                     </button>
@@ -2080,7 +2080,7 @@ export default function WorkoutPage() {
                 </div>
                 <button
                   type="button"
-                  className="mt-4 w-full rounded-xl border border-[#2a2a2e] bg-[#1d1d20] py-2.5 text-sm font-semibold text-[#f2f2f0] hover:bg-[#2a2a2e] transition"
+                  className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] py-2.5 text-sm font-semibold text-[var(--text)] hover:bg-[var(--border)] transition"
                   onClick={() => setRestAdjustExerciseId(null)}
                 >
                   Done

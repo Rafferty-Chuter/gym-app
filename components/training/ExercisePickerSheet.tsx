@@ -52,7 +52,7 @@ function Check({ order }: { order: number | null }) {
   return (
     <span
       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold"
-      style={order != null ? { background: "#00e5b0", color: "#0a0a0b" } : { border: "1.5px solid #3a3a40" }}
+      style={order != null ? { background: "var(--status-good)", color: "var(--text-on-primary)" } : { border: "1.5px solid var(--border-strong)" }}
       aria-hidden
     >
       {order != null ? order : null}
@@ -133,10 +133,10 @@ function Inner({ onClose, mode, title, onPick, inRoutine }: { onClose: () => voi
       <li key={key}>
         <button type="button" onClick={() => tap(item)} className="flex min-h-[56px] w-full items-center gap-3 py-2 text-left transition-colors active:opacity-70" aria-pressed={mode === "multi" ? order != null : undefined} aria-label={`${item.name}${already ? ", already added" : ""}`}>
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-[15px]" style={{ color: "#f2f2f0" }}>
+            <span className="truncate text-[15px]" style={{ color: "var(--text)" }}>
               {item.name}
             </span>
-            <span className="truncate text-[12px]" style={{ color: "#6f6f76" }}>
+            <span className="truncate text-[12px]" style={{ color: "var(--text-tertiary)" }}>
               {exerciseSubtitle(meta)}
               {extra ? ` · ${extra}` : ""}
               {already ? " · in this routine" : ""}
@@ -155,7 +155,7 @@ function Inner({ onClose, mode, title, onPick, inRoutine }: { onClose: () => voi
       aria-expanded={undefined}
       aria-label={ariaLabel}
       className="h-[34px] flex-1 truncate rounded-[10px] px-3 text-[13px] font-medium transition-colors"
-      style={active ? { background: "#f2f2f0", color: "#0a0a0b" } : { background: "#1d1d20", color: "#f2f2f0" }}
+      style={active ? { background: "var(--primary)", color: "var(--text-on-primary)" } : { background: "var(--surface-raised)", color: "var(--text)" }}
     >
       {label}
     </button>
@@ -176,7 +176,7 @@ function Inner({ onClose, mode, title, onPick, inRoutine }: { onClose: () => voi
               setPanel(null);
             }}
             className="h-[30px] rounded-full px-3 text-[12px] font-medium"
-            style={on ? { background: "#f2f2f0", color: "#0a0a0b" } : { background: "#1d1d20", color: "#a3a3a8" }}
+            style={on ? { background: "var(--primary)", color: "var(--text-on-primary)" } : { background: "var(--surface-raised)", color: "var(--text-secondary)" }}
           >
             {o.label}
           </button>
@@ -188,13 +188,13 @@ function Inner({ onClose, mode, title, onPick, inRoutine }: { onClose: () => voi
   const header = (
     <div className="pb-2 pt-1">
       <div className="flex items-center justify-between gap-2 py-2">
-        <button type="button" onClick={onClose} className="text-[15px]" style={{ color: "#a3a3a8" }}>
+        <button type="button" onClick={onClose} className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
           Cancel
         </button>
-        <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
+        <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
           {title}
         </span>
-        <button type="button" onClick={() => setCreating(true)} className="text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+        <button type="button" onClick={() => setCreating(true)} className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
           Create
         </button>
       </div>
@@ -205,8 +205,8 @@ function Inner({ onClose, mode, title, onPick, inRoutine }: { onClose: () => voi
         placeholder="Search exercises"
         aria-label="Search exercises"
         data-sheet-autofocus
-        className="h-[40px] w-full rounded-[10px] px-3 text-[15px] outline-none placeholder:text-[#6f6f76]"
-        style={{ background: "#1d1d20", color: "#f2f2f0" }}
+        className="h-[40px] w-full rounded-[10px] px-3 text-[15px] outline-none placeholder:text-[var(--text-tertiary)]"
+        style={{ background: "var(--surface-raised)", color: "var(--text)" }}
       />
       <div className="mt-2 flex gap-2">
         {chip(equipment ? EQUIPMENT_LABEL[equipment] : "All equipment", !!equipment || panel === "equipment", () => setPanel(panel === "equipment" ? null : "equipment"), "Filter by equipment")}
@@ -225,7 +225,7 @@ function Inner({ onClose, mode, title, onPick, inRoutine }: { onClose: () => voi
     ) : undefined;
 
   const sectionTitle = (t: string) => (
-    <p className="pb-1 pt-3 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+    <p className="pb-1 pt-3 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
       {t}
     </p>
   );
@@ -235,23 +235,23 @@ function Inner({ onClose, mode, title, onPick, inRoutine }: { onClose: () => voi
       {recent.length > 0 && (
         <>
           {sectionTitle("Recent")}
-          <ul className="divide-y divide-[#2a2a2e]">{recent.map((r) => row({ name: r.name, ...(r.exerciseId ? { exerciseId: r.exerciseId } : {}) }, getExerciseByName(r.name), `recent-${r.name}`, r.times > 1 ? `${r.times} times` : undefined))}</ul>
+          <ul className="divide-y divide-[var(--border)]">{recent.map((r) => row({ name: r.name, ...(r.exerciseId ? { exerciseId: r.exerciseId } : {}) }, getExerciseByName(r.name), `recent-${r.name}`, r.times > 1 ? `${r.times} times` : undefined))}</ul>
         </>
       )}
       {sectionTitle(browsing ? "All exercises" : `${alphabetical.length} ${alphabetical.length === 1 ? "match" : "matches"}`)}
       {alphabetical.length === 0 ? (
         <div className="flex flex-col items-start gap-2 py-3">
-          <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
             Nothing matches{query.trim() ? ` "${query.trim()}"` : " these filters"}.
           </p>
           {query.trim() && (
-            <button type="button" onClick={() => setCreating(true)} className="h-[34px] rounded-[10px] px-3 text-[13px] font-semibold" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+            <button type="button" onClick={() => setCreating(true)} className="h-[34px] rounded-[10px] px-3 text-[13px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
               Create &ldquo;{query.trim()}&rdquo;
             </button>
           )}
         </div>
       ) : (
-        <ul className="divide-y divide-[#2a2a2e]">{alphabetical.map((ex) => row({ exerciseId: ex.id, name: ex.name }, ex, `all-${ex.id}`))}</ul>
+        <ul className="divide-y divide-[var(--border)]">{alphabetical.map((ex) => row({ exerciseId: ex.id, name: ex.name }, ex, `all-${ex.id}`))}</ul>
       )}
       <CreateExerciseModal open={creating} initialName={query} onClose={() => setCreating(false)} onCreated={created} />
     </Sheet>

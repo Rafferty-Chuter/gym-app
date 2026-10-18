@@ -43,14 +43,14 @@ export default function WorkoutComplete({
   const empty = stats.sets === 0;
 
   return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto" style={{ background: "#0a0a0b", color: "#f2f2f0" }} role="dialog" aria-modal="true" aria-labelledby="workout-complete-title">
+    <div className="fixed inset-0 z-[70] overflow-y-auto" style={{ background: "var(--background)", color: "var(--text)" }} role="dialog" aria-modal="true" aria-labelledby="workout-complete-title">
       <div className="mx-auto flex min-h-full max-w-md flex-col gap-5 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
         <header className="flex flex-col gap-1">
           <Caption>Workout complete</Caption>
           <h1 id="workout-complete-title" className="text-[28px] font-semibold leading-tight tracking-[-0.01em]">
             {workoutTitle(workout)}
           </h1>
-          <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
             {workoutWhen(workout.completedAt)}
           </p>
         </header>
@@ -58,7 +58,7 @@ export default function WorkoutComplete({
         <StatsStrip stats={stats} records={records.length} unit={unit} />
 
         {empty ? (
-          <p className="text-[15px] leading-relaxed" style={{ color: "#a3a3a8" }}>
+          <p className="text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
             No sets were ticked done, so nothing was added to your history.
           </p>
         ) : (
@@ -80,21 +80,21 @@ export default function WorkoutComplete({
         )}
 
         {routineChanges && routineChanges.length > 0 && routineName && (
-          <section className="flex flex-col gap-3 rounded-[12px] px-4 py-4" style={{ background: "#141416" }} aria-label="Routine changes">
+          <section className="flex flex-col gap-3 rounded-[12px] px-4 py-4" style={{ background: "var(--surface)" }} aria-label="Routine changes">
             <div className="flex flex-col gap-1">
               <p className="text-[15px] font-semibold">Update &ldquo;{routineName}&rdquo;?</p>
-              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 Today was different from the routine:
               </p>
             </div>
-            <ul className="flex flex-col gap-1 text-[13px]" style={{ color: "#a3a3a8" }}>
+            <ul className="flex flex-col gap-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>
               {routineChanges.map((c, i) => (
                 <li key={i}>{c}</li>
               ))}
             </ul>
             <div className="grid grid-cols-2 gap-2">
               <SecondaryButton onClick={onKeepRoutine}>Keep routine</SecondaryButton>
-              <button type="button" onClick={onUpdateRoutine} className="h-[44px] rounded-[12px] px-4 text-[15px] font-semibold transition-colors active:bg-[#a3a3a8]" style={{ background: "#f2f2f0", color: "#0a0a0b" }}>
+              <button type="button" onClick={onUpdateRoutine} className="h-[44px] rounded-[12px] px-4 text-[15px] font-semibold transition-colors active:bg-[var(--primary-pressed)]" style={{ background: "var(--primary)", color: "var(--text-on-primary)" }}>
                 Update routine
               </button>
             </div>
@@ -102,7 +102,7 @@ export default function WorkoutComplete({
         )}
 
         {routineSaved && (
-          <p className="text-[13px]" style={{ color: "#a3a3a8" }} role="status">
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }} role="status">
             {routineName ? `${routineName} updated.` : "Saved to your routines."}
           </p>
         )}

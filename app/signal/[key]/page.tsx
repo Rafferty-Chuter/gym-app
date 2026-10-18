@@ -164,7 +164,7 @@ function LineChart({
       <div
         className="rounded-2xl flex items-center justify-center"
         style={{
-          background: "#141416",
+          background: "var(--surface)",
           height: H,
         }}
       >
@@ -211,7 +211,7 @@ function LineChart({
       ref={containerRef}
       className="rounded-2xl px-3 py-3 sm:px-4 sm:py-4"
       style={{
-        background: "#141416",
+        background: "var(--surface)",
       }}
     >
       <svg
@@ -229,14 +229,14 @@ function LineChart({
                 x2={W - padding.r}
                 y1={y}
                 y2={y}
-                stroke="rgba(255,255,255,0.05)"
+                stroke="color-mix(in srgb, var(--text) 5%, transparent)"
                 strokeWidth="1"
               />
               <text
                 x={padding.l - 8}
                 y={y + 3.5}
                 fontSize="10"
-                fill="#6f6f76"
+                fill="var(--text-tertiary)"
                 textAnchor="end"
               >
                 {Number.isInteger(v) ? String(v) : v.toFixed(1)}
@@ -268,7 +268,7 @@ function LineChart({
                 cy={pt.y}
                 r={isActive ? 5 : 3.5}
                 fill={c.chartLine}
-                stroke={isActive ? "rgba(255,255,255,0.35)" : "none"}
+                stroke={isActive ? "color-mix(in srgb, var(--text) 35%, transparent)" : "none"}
                 strokeWidth={isActive ? 1.5 : 0}
                 pointerEvents="none"
               />
@@ -303,7 +303,7 @@ function LineChart({
               x={points[0].x}
               y={H - 10}
               fontSize="10"
-              fill="#6f6f76"
+              fill="var(--text-tertiary)"
               textAnchor="start"
             >
               {formatDateLabel(points[0].completedAt)}
@@ -313,7 +313,7 @@ function LineChart({
                 x={points[points.length - 1].x}
                 y={H - 10}
                 fontSize="10"
-                fill="#6f6f76"
+                fill="var(--text-tertiary)"
                 textAnchor="end"
               >
                 {formatDateLabel(points[points.length - 1].completedAt)}
@@ -366,7 +366,7 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
       <div
         className="rounded-2xl flex items-center justify-center"
         style={{
-          background: "#141416",
+          background: "var(--surface)",
           height: 200,
         }}
       >
@@ -379,7 +379,7 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
     <div
       className="rounded-2xl px-4 py-4"
       style={{
-        background: "#141416",
+        background: "var(--surface)",
       }}
     >
       <ul className="space-y-3">
@@ -393,7 +393,7 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
               </span>
               <div
                 className="flex-1 h-2.5 rounded-full overflow-hidden"
-                style={{ background: "#2a2a2e" }}
+                style={{ background: "var(--border)" }}
               >
                 <div
                   className="h-full rounded-full"
@@ -409,7 +409,7 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
                   style={{ color: c.statusText }}
                 >
                   {r.sets}
-                  {r.band ? <span style={{ color: "#6f6f76" }}>{` · ${bandLabel(r.band)}`}</span> : ` set${r.sets === 1 ? "" : "s"}`}
+                  {r.band ? <span style={{ color: "var(--text-tertiary)" }}>{` · ${bandLabel(r.band)}`}</span> : ` set${r.sets === 1 ? "" : "s"}`}
                 </span>
                 <span
                   className="text-[10px] font-semibold tracking-wide leading-tight"
@@ -422,7 +422,7 @@ function BarChart({ rows }: { rows: VolumeBarRow[] }) {
           );
         })}
       </ul>
-      <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5 justify-center border-t border-white/[0.05] pt-3">
+      <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5 justify-center border-t border-[var(--border)] pt-3">
         {(["low", "on-track", "warning", "excessive"] as const).map((s) => {
           const c = STATE_COLOR[VOLUME_STATUS_TO_STATE[s]];
           return (
@@ -879,7 +879,7 @@ function ProgressDetailView({
           <div
             className="rounded-2xl flex items-center justify-center text-center px-6"
             style={{
-              background: "#141416",
+              background: "var(--surface)",
               minHeight: 220,
             }}
           >
@@ -895,9 +895,9 @@ function ProgressDetailView({
             onClick={handleAsk}
             className="flex items-center justify-center gap-2 w-full rounded-2xl py-4 text-[15px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
             style={{
-              background: "rgba(0,229,176,0.12)",
-              border: "1px solid rgba(0,229,176,0.35)",
-              color: "#7ff2cf",
+              background: "color-mix(in srgb, var(--status-good) 12%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--status-good) 35%, transparent)",
+              color: "var(--green-strong)",
             }}
           >
             <span>Ask the assistant about this</span>
@@ -947,7 +947,7 @@ function ProgressDetailView({
         <div
           className="rounded-2xl overflow-hidden"
           style={{
-            background: "#141416",
+            background: "var(--surface)",
             maxHeight: 256,
             overflowY: "auto",
           }}
@@ -957,7 +957,7 @@ function ProgressDetailView({
               No exercises match &ldquo;{search.trim()}&rdquo;.
             </p>
           ) : (
-            <ul className="divide-y divide-[#2a2a2e]">
+            <ul className="divide-y divide-[var(--border)]">
               {filtered.map((item) => {
                 const isSelected = item.name === selected;
                 const trendState = EXERCISE_TREND_STATE[item.trend];
@@ -968,13 +968,13 @@ function ProgressDetailView({
                       type="button"
                       onClick={() => setUserSelection(item.name)}
                       aria-pressed={isSelected}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 focus-visible:outline-none active:bg-[#1d1d20]"
-                      style={isSelected ? { background: "#1d1d20" } : undefined}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 focus-visible:outline-none active:bg-[var(--surface-raised)]"
+                      style={isSelected ? { background: "var(--surface-raised)" } : undefined}
                     >
                       <div className="flex-1 min-w-0">
                         <p
                           className="text-[14px] font-semibold tracking-tight leading-tight truncate"
-                          style={{ color: "#f2f2f0" }}
+                          style={{ color: "var(--text)" }}
                         >
                           {item.name}
                         </p>
@@ -1000,7 +1000,7 @@ function ProgressDetailView({
           <div className="flex items-baseline justify-between mb-2">
             <h3
               id="selected-chart-heading"
-              className="text-[13px] font-bold tracking-tight text-white truncate"
+              className="text-[13px] font-bold tracking-tight text-[var(--text)] truncate"
             >
               {selectedItem.name}
             </h3>
@@ -1025,9 +1025,9 @@ function ProgressDetailView({
           onClick={handleAsk}
           className="flex items-center justify-center gap-2 w-full rounded-2xl py-4 text-[15px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
           style={{
-            background: "rgba(0,229,176,0.12)",
-            border: "1px solid rgba(0,229,176,0.35)",
-            color: "#7ff2cf",
+            background: "color-mix(in srgb, var(--status-good) 12%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--status-good) 35%, transparent)",
+            color: "var(--green-strong)",
           }}
         >
           <span>
@@ -1125,12 +1125,12 @@ export default function SignalDetailPage() {
   }
 
   return (
-    <main className="relative min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="relative min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
         <div className="pt-6 pb-1">
           <Link
             href="/train"
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-app-secondary hover:text-white transition"
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-app-secondary hover:text-[var(--text)] transition"
           >
             <svg
               viewBox="0 0 24 24"
@@ -1149,13 +1149,13 @@ export default function SignalDetailPage() {
         </div>
 
         <header className="pt-4 pb-5">
-          <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+          <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
             {SIGNAL_WINDOW_LABEL[key]}
           </p>
-          <h1 className="mt-1 text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "#f2f2f0" }}>
+          <h1 className="mt-1 text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "var(--text)" }}>
             {LABEL[key]}
           </h1>
-          <p className="mt-3 flex items-center gap-2 text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+          <p className="mt-3 flex items-center gap-2 text-[15px] font-semibold" style={{ color: "var(--text)" }}>
             <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: c.statusText }} aria-hidden />
             {headerStatus}
           </p>
@@ -1172,7 +1172,7 @@ export default function SignalDetailPage() {
             <div
               className="rounded-2xl"
               style={{
-                background: "#141416",
+                background: "var(--surface)",
                 height: 320,
               }}
             />
@@ -1183,7 +1183,7 @@ export default function SignalDetailPage() {
               <div
                 className="rounded-2xl"
                 style={{
-                  background: "#141416",
+                  background: "var(--surface)",
                   height: 200,
                 }}
               />
@@ -1192,7 +1192,7 @@ export default function SignalDetailPage() {
             <section className="pt-6">
               <p className="label-section mb-2">What this means</p>
               <p
-                className="text-[16px] font-semibold leading-snug text-white"
+                className="text-[16px] font-semibold leading-snug text-[var(--text)]"
                 style={{ textWrap: "pretty" }}
               >
                 {staticContent!.explanation}
@@ -1206,9 +1206,9 @@ export default function SignalDetailPage() {
                 onClick={openAssistant}
                 className="flex items-center justify-center gap-2 w-full rounded-2xl py-4 text-[15px] font-bold tracking-tight transition-all duration-150 hover:brightness-110 active:translate-y-[1px] active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/40"
                 style={{
-                  background: "rgba(0,229,176,0.12)",
-                  border: "1px solid rgba(0,229,176,0.35)",
-                  color: "#7ff2cf",
+                  background: "color-mix(in srgb, var(--status-good) 12%, transparent)",
+                  border: "1px solid color-mix(in srgb, var(--status-good) 35%, transparent)",
+                  color: "var(--green-strong)",
                 }}
               >
                 <span>Ask the assistant about this</span>

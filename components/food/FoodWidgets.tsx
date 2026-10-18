@@ -32,7 +32,7 @@ const n = (v: number) => Math.round(v).toLocaleString("en-GB");
 
 function Card({ children, ariaLabel }: { children: ReactNode; ariaLabel: string }) {
   return (
-    <section className="flex w-full shrink-0 snap-start flex-col rounded-[12px] p-4" style={{ background: "#141416", scrollSnapAlign: "start" }} aria-label={ariaLabel}>
+    <section className="flex w-full shrink-0 snap-start flex-col rounded-[12px] p-4" style={{ background: "var(--surface)", scrollSnapAlign: "start" }} aria-label={ariaLabel}>
       {children}
     </section>
   );
@@ -44,7 +44,7 @@ function Pills<T extends string>({ value, options, onChange, label }: { value: T
       {options.map((o) => {
         const selected = o.id === value;
         return (
-          <button key={o.id} type="button" role="tab" aria-selected={selected} onClick={() => onChange(o.id)} className="h-[26px] rounded-full px-2.5 text-[11px] font-medium transition-colors" style={{ background: selected ? "#f2f2f0" : "#1d1d20", color: selected ? "#0a0a0b" : "#a3a3a8" }}>
+          <button key={o.id} type="button" role="tab" aria-selected={selected} onClick={() => onChange(o.id)} className="h-[26px] rounded-full px-2.5 text-[11px] font-medium transition-colors" style={{ background: selected ? "var(--primary)" : "var(--surface-raised)", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
             {o.label}
           </button>
         );
@@ -89,9 +89,9 @@ export default function FoodWidgets(props: Props) {
             <MacroBars totals={totals} target={target} view={view} />
           </div>
           {!target && (
-            <p className="mt-3 text-[12px]" style={{ color: "#6f6f76" }}>
+            <p className="mt-3 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
               No targets yet.{" "}
-              <Link href="/body/goal" className="underline" style={{ color: "#a3a3a8" }}>
+              <Link href="/body/goal" className="underline" style={{ color: "var(--text-secondary)" }}>
                 Set a goal
               </Link>{" "}
               to get them.
@@ -102,38 +102,38 @@ export default function FoodWidgets(props: Props) {
         {/* Energy balance */}
         <Card ariaLabel="Energy balance">
           <div className="flex items-center justify-between gap-2">
-            <Link href="/food/energy" className="flex items-center gap-1 text-[15px] font-semibold" style={{ color: "#f2f2f0" }} aria-label="Energy balance. Open expenditure">
+            <Link href="/food/energy" className="flex items-center gap-1 text-[15px] font-semibold" style={{ color: "var(--text)" }} aria-label="Energy balance. Open expenditure">
               Energy balance
-              <svg viewBox="0 0 24 24" fill="none" stroke="#6f6f76" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden>
                 <path d="M9 6l6 6-6 6" />
               </svg>
             </Link>
             <Pills value={energyLine} options={[{ id: "expenditure", label: "Expenditure" }, { id: "targets", label: "Targets" }]} onChange={onEnergyLineChange} label="Line" />
           </div>
           <div className="mt-2">
-            <EnergyBalanceChart points={energy.points} lineColor={energyLine === "targets" ? FAT_COLOR : "#f2f2f0"} ariaLabel={`Intake against ${energyLine} over ${energy.days} days`} />
+            <EnergyBalanceChart points={energy.points} lineColor={energyLine === "targets" ? FAT_COLOR : "var(--text)"} ariaLabel={`Intake against ${energyLine} over ${energy.days} days`} />
           </div>
           <div className="mt-1 grid grid-cols-3 gap-2">
             {(
               [
                 { label: "Intake", value: energy.avgIntakeKcal, color: KCAL_COLOR, prefix: "" },
-                { label: energyLine === "targets" ? "Targets" : "Expenditure", value: energy.avgLineKcal, color: energyLine === "targets" ? FAT_COLOR : "#a3a3a8", prefix: "− " },
-                { label: "Difference", value: energy.differenceKcal, color: "#f2f2f0", prefix: "= " },
+                { label: energyLine === "targets" ? "Targets" : "Expenditure", value: energy.avgLineKcal, color: energyLine === "targets" ? FAT_COLOR : "var(--text-secondary)", prefix: "− " },
+                { label: "Difference", value: energy.differenceKcal, color: "var(--text)", prefix: "= " },
               ] as const
             ).map((t) => (
               <div key={t.label} className="flex flex-col">
-                <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
-                  <span style={{ color: "#6f6f76" }}>{t.prefix}</span>
+                <span className="text-[17px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
+                  <span style={{ color: "var(--text-tertiary)" }}>{t.prefix}</span>
                   {t.value == null ? "–" : t.label === "Difference" ? signedKcal(t.value) : n(t.value)}
                 </span>
-                <span className="flex items-center gap-1 text-[11px]" style={{ color: "#6f6f76" }}>
+                <span className="flex items-center gap-1 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                   <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: t.color }} aria-hidden />
                   {t.label}
                 </span>
               </div>
             ))}
           </div>
-          <p className="mt-2 text-[11px]" style={{ color: "#6f6f76" }}>
+          <p className="mt-2 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             {energy.daysLogged === 0
               ? `No full days logged in the last ${energy.days}.`
               : `Averages over ${energy.daysLogged} logged day${energy.daysLogged === 1 ? "" : "s"}${energyLine === "expenditure" && expenditureState && expenditureState !== "stable" ? ` · expenditure ${expenditureState}` : ""}.`}
@@ -143,10 +143,10 @@ export default function FoodWidgets(props: Props) {
         {/* Week */}
         <Card ariaLabel="This week">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+            <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
               This week
             </span>
-            <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+            <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
               {selectedWeek ? shortLocalDate(selectedWeek.date) : ""}
             </span>
           </div>
@@ -169,7 +169,7 @@ export default function FoodWidgets(props: Props) {
                     aria-pressed={selected}
                     aria-label={`${WEEKDAY_LETTERS[i]} ${Number(d.date.slice(8, 10))}, ${d.logged ? `${n(d.kcal)} kcal` : "nothing logged"}`}
                     className="flex flex-col items-center gap-1 rounded-[8px] px-0.5 pb-1 pt-1.5 disabled:opacity-40"
-                    style={{ border: `1px solid ${selected ? "#3a3a40" : "transparent"}` }}
+                    style={{ border: `1px solid ${selected ? "var(--border-strong)" : "transparent"}` }}
                   >
                     <div className="flex h-[52px] items-end gap-[2px]">
                       {bars.map((b, j) => {
@@ -179,13 +179,13 @@ export default function FoodWidgets(props: Props) {
                         const met = targetMet(b.v, b.t);
                         return (
                           <div key={j} className="relative flex h-full w-[4px] items-end">
-                            {tick != null && <span className="absolute left-0 right-0 h-px" style={{ bottom: tick, background: met ? "#f2f2f0" : "#3a3a40" }} aria-hidden />}
+                            {tick != null && <span className="absolute left-0 right-0 h-px" style={{ bottom: tick, background: met ? "var(--text)" : "var(--border-strong)" }} aria-hidden />}
                             <span className="w-full rounded-[1px]" style={{ height: h, background: b.c, opacity: d.logged ? 1 : 0.25 }} aria-hidden />
                           </div>
                         );
                       })}
                     </div>
-                    <span className="text-[10px] font-medium" style={{ color: selected ? "#f2f2f0" : "#6f6f76" }}>
+                    <span className="text-[10px] font-medium" style={{ color: selected ? "var(--text)" : "var(--text-tertiary)" }}>
                       {WEEKDAY_LETTERS[i]}
                     </span>
                   </button>
@@ -204,8 +204,8 @@ export default function FoodWidgets(props: Props) {
                 <div key={r.l} className="flex items-baseline justify-between gap-1 whitespace-nowrap text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
                   <span style={{ color: r.c }}>{r.l}</span>
                   <span className="flex flex-col items-end leading-tight">
-                    <span style={{ color: "#f2f2f0" }}>{n(r.v)}</span>
-                    {r.t != null && <span className="text-[10px]" style={{ color: "#6f6f76" }}>of {n(r.t)}</span>}
+                    <span style={{ color: "var(--text)" }}>{n(r.v)}</span>
+                    {r.t != null && <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>of {n(r.t)}</span>}
                   </span>
                 </div>
               ))}
@@ -217,7 +217,7 @@ export default function FoodWidgets(props: Props) {
       <div className="flex items-center justify-between">
         <div className="flex gap-1.5 pl-1" aria-hidden>
           {[0, 1, 2].map((i) => (
-            <button key={i} type="button" tabIndex={-1} onClick={() => goTo(i)} className="h-1.5 w-1.5 rounded-full" style={{ background: i === page ? "#f2f2f0" : "#3a3a40" }} />
+            <button key={i} type="button" tabIndex={-1} onClick={() => goTo(i)} className="h-1.5 w-1.5 rounded-full" style={{ background: i === page ? "var(--text)" : "var(--border-strong)" }} />
           ))}
         </div>
         <Pills value={view} options={[{ id: "consumed", label: "Consumed" }, { id: "remaining", label: "Remaining" }]} onChange={onViewChange} label="Numbers" />

@@ -49,7 +49,7 @@ function Inner({ initial, onClose, dateLabel, onSave }: { initial: string; onClo
         </div>
       }
     >
-      <p className="text-[13px] leading-snug" style={{ color: "#a3a3a8" }}>
+      <p className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
         Morning, before food, at the navel, tape snug but not tight, relaxed after a normal breath out. Once a week is enough.
       </p>
       <NumberPadValue value={value} unit="cm" hint={dateLabel} />

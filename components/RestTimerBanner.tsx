@@ -193,8 +193,8 @@ export default function RestTimerBanner() {
       <div
         className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-xl px-3 py-2.5 backdrop-blur-sm"
         style={{
-          background: "rgba(14,20,32,0.95)",
-          border: "1px solid rgba(0,229,176,0.28)",
+          background: "color-mix(in srgb, var(--surface-raised) 95%, transparent)",
+          border: "1px solid color-mix(in srgb, var(--status-good) 28%, transparent)",
           boxShadow: "0 4px 20px rgba(0,0,0,0.50)",
         }}
         role="status"
@@ -203,7 +203,7 @@ export default function RestTimerBanner() {
       >
         <div
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-          style={{ background: "rgba(0,229,176,0.12)", color: "#00e5b0" }}
+          style={{ background: "color-mix(in srgb, var(--status-good) 12%, transparent)", color: "var(--status-good)" }}
           aria-hidden
         >
           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -213,29 +213,29 @@ export default function RestTimerBanner() {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[13px] font-semibold text-white">{timer.exerciseName}</span>
+            <span className="truncate text-[13px] font-semibold text-[var(--text)]">{timer.exerciseName}</span>
             <span
               className="shrink-0 text-[12px] font-bold tabular-nums"
-              style={{ color: "rgba(0,229,176,0.85)" }}
+              style={{ color: "color-mix(in srgb, var(--status-good) 85%, transparent)" }}
             >
               {formatMMSS(timer.remainingSec)}
             </span>
           </div>
           <div
             className="mt-1 h-1 w-full overflow-hidden rounded-full"
-            style={{ background: "rgba(255,255,255,0.06)" }}
+            style={{ background: "color-mix(in srgb, var(--text) 6%, transparent)" }}
             aria-hidden
           >
             <div
               className="h-full"
-              style={{ width: `${pct}%`, background: "rgba(0,229,176,0.55)" }}
+              style={{ width: `${pct}%`, background: "color-mix(in srgb, var(--status-good) 55%, transparent)" }}
             />
           </div>
         </div>
         <button
           type="button"
           onClick={skip}
-          className="shrink-0 rounded-lg border border-teal-500/35 bg-teal-950/30 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-teal-100 transition active:scale-[0.97] hover:bg-teal-900/40"
+          className="shrink-0 rounded-lg border border-[var(--border)] bg-teal-950/30 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[var(--green-strong)] transition active:scale-[0.97] hover:bg-teal-900/40"
           aria-label="Skip rest"
         >
           Skip

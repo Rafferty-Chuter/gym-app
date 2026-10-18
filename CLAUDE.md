@@ -54,7 +54,7 @@ Environment: `.env.local` (gitignored) holds `ANTHROPIC_API_KEY` (required) and 
 - JSDoc on exported functions and constants explaining the rule and why. Section dividers look like `// ── Title ──`.
 - Storage access is always wrapped in `try/catch` with a `typeof window === "undefined"` guard.
 - UI copy: calm, specific, peer-level, hedged where data is thin ("Early read", "Trending up"). No hype, streaks, confetti or exclamation marks. See `PRODUCT.md` anti-references.
-- Visual language: **`DESIGN.md` is normative** (dark layers, white primary actions, status colours good `#00e5b0` / watch `#f5b544` / attention `#f26d7d`, and since rev 3 a colour of its own for each tab: Sleep is the indigo `.theme-sleep` palette, the others follow). Use the CSS variables and utility classes it maps to in `app/globals.css` (on Sleep, the `--sl-*` variables); don't hard-code hex in new components. Charts are hand-rolled SVG. `bg-zinc-*` classes are globally re-skinned in `app/globals.css`.
+- Visual language: **`DESIGN.md` is normative** (rev 4 "Mist": soft green and misty sky, light and dark following the phone, a soft-green primary action, status colours for good / watch / attention). Every colour is a CSS variable in `app/globals.css` (`--text`, `--surface`, `--primary`, `--status-good`, `--sky`, and so on, each with a light and a dark value; on Sleep the `--sl-*` variables). Never hard-code a hex or rgba colour in a component, and don't use Tailwind palette classes such as `text-white`. Charts are hand-rolled SVG (SVG attributes can take `var(--…)`). `bg-zinc-*` classes are globally re-skinned in `app/globals.css`.
 
 ## Commit style
 

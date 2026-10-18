@@ -12,8 +12,9 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Food, weight, sleep and training in one place, with a plain read on whether the plan is working.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0a0a0b",
-    theme_color: "#0a0a0b",
+    // Mist light (DESIGN.md rev 4); the app itself follows the phone's light or dark setting.
+    background_color: "#edf2f0",
+    theme_color: "#d9e6ec",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },

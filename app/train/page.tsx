@@ -38,7 +38,7 @@ import type { StoredWorkout } from "@/lib/trainingAnalysis";
 export default function TrainPage() {
   const hydrated = useIsHydrated();
   const now = useNow();
-  if (!hydrated || !now) return <main className="min-h-screen" style={{ background: "#0a0a0b" }} />;
+  if (!hydrated || !now) return <main className="min-h-screen" style={{ background: "var(--page)" }} />;
   return <TrainContent now={now} />;
 }
 
@@ -120,7 +120,7 @@ function TrainContent({ now }: { now: Now }) {
   const fmtVol = (kg: number) => (kg >= 1000 ? `${(kg / 1000).toFixed(1)}k kg` : `${Math.round(kg)} kg`);
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader caption={`${model.weekCount} ${model.weekCount === 1 ? "workout" : "workouts"} · last 7 days`} title="Train" action={{ label: "New routine", href: "/templates/new" }} />
 
@@ -130,8 +130,8 @@ function TrainContent({ now }: { now: Now }) {
             if (!inProgress) queueEmptyWorkout();
             router.push("/workout");
           }}
-          className="flex w-full items-center justify-center gap-2 rounded-[12px] py-3.5 text-center text-[15px] font-semibold transition-colors duration-150 active:bg-[#26262a]"
-          style={inProgress ? { background: "#f2f2f0", color: "#0a0a0b" } : { background: "#1d1d20", color: "#f2f2f0" }}
+          className="flex w-full items-center justify-center gap-2 rounded-[12px] py-3.5 text-center text-[15px] font-semibold transition-colors duration-150 active:bg-[var(--surface-pressed)]"
+          style={inProgress ? { background: "var(--primary)", color: "var(--text-on-primary)" } : { background: "var(--surface-raised)", color: "var(--text)" }}
         >
           {inProgress ? "Resume workout" : "+ Start empty workout"}
         </button>
@@ -139,19 +139,19 @@ function TrainContent({ now }: { now: Now }) {
         <section aria-label="Your routines">
           <div className="mb-2 flex items-center justify-between">
             <Caption>Routines</Caption>
-            <Link href="/templates/new" className="text-[12px] font-medium" style={{ color: "#a3a3a8" }}>
+            <Link href="/templates/new" className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
               New routine ›
             </Link>
           </div>
           {templates.length > 0 ? (
             <RoutineList templates={templates} onChanged={() => setTemplates(getStoredTemplates())} />
           ) : (
-            <div className="flex flex-col items-start gap-3 rounded-[12px] px-4 py-4" style={{ background: "#141416" }}>
+            <div className="flex flex-col items-start gap-3 rounded-[12px] px-4 py-4" style={{ background: "var(--surface)" }}>
               <span className="text-[15px] font-semibold">No routines yet</span>
-              <span className="-mt-2 text-[13px]" style={{ color: "#a3a3a8" }}>
+              <span className="-mt-2 text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 Save the exercises and sets you repeat, then start them in one tap.
               </span>
-              <Link href="/templates/new" className="h-[36px] rounded-[10px] px-3 text-[13px] font-semibold leading-[36px]" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+              <Link href="/templates/new" className="h-[36px] rounded-[10px] px-3 text-[13px] font-semibold leading-[36px]" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
                 New routine
               </Link>
             </div>
@@ -159,12 +159,12 @@ function TrainContent({ now }: { now: Now }) {
         </section>
 
         {deloadText && (
-          <section className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3" style={{ background: "#141416" }} aria-label="Deload">
+          <section className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3" style={{ background: "var(--surface)" }} aria-label="Deload">
             <div className="flex min-w-0 flex-col">
-              <span className="text-[15px]" style={{ color: "#f2f2f0" }}>
+              <span className="text-[15px]" style={{ color: "var(--text)" }}>
                 {deloadText}
               </span>
-              <span className="text-[11px]" style={{ color: "#6f6f76" }}>
+              <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                 {deload.state === "active" ? "Half the sets, loads 10 % lighter, four in reserve. Trends skip this week." : "A week at half the sets and lighter loads, then the block restarts."}
               </span>
             </div>
@@ -174,9 +174,9 @@ function TrainContent({ now }: { now: Now }) {
           </section>
         )}
 
-        <section className="rounded-[12px] p-4" style={{ background: "#141416" }} aria-label="This week">
+        <section className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="This week">
           <div className="flex items-baseline justify-between">
-            <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
+            <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
               {model.weekCount} {model.weekCount === 1 ? "workout" : "workouts"}
             </span>
             <Caption>last 7 days · {fmtVol(model.weekVolume)}</Caption>
@@ -185,9 +185,9 @@ function TrainContent({ now }: { now: Now }) {
             {model.week.map((d) => (
               <div key={d.date} className="flex flex-col items-center gap-1.5">
                 <div className="flex h-10 w-full items-end justify-center" aria-hidden>
-                  <div className="w-3 rounded-[2px]" style={{ height: `${Math.max(d.volume > 0 ? 6 : 2, (d.volume / maxVol) * 40)}px`, background: d.volume > 0 ? "#f2f2f0" : "#2a2a2e" }} />
+                  <div className="w-3 rounded-[2px]" style={{ height: `${Math.max(d.volume > 0 ? 6 : 2, (d.volume / maxVol) * 40)}px`, background: d.volume > 0 ? "var(--green)" : "var(--border)" }} />
                 </div>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold" style={{ background: d.n > 0 ? "#f2f2f0" : "#1d1d20", color: d.n > 0 ? "#0a0a0b" : "#6f6f76" }}>
+                <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold" style={{ background: d.n > 0 ? "var(--primary)" : "var(--surface-raised)", color: d.n > 0 ? "var(--text-on-primary)" : "var(--text-tertiary)" }}>
                   {d.letter}
                 </span>
               </div>

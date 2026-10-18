@@ -80,14 +80,14 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
     : "Log a weigh-in to start the trend";
 
   return (
-    <section className="rounded-[12px] p-4" style={{ background: "#141416" }} aria-label="Weight trend">
+    <section className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="Weight trend">
       {hero ? (
         <div className="flex items-end justify-between gap-3">
           <div className="flex flex-col">
-            <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: model.latest ? "#f2f2f0" : "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+            <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: model.latest ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
               {model.latest ? formatWeight(model.latest.trendKg, unit) : "–"}
             </span>
-            <span className="mt-1 text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+            <span className="mt-1 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
               {model.latest ? `Trend · ${rateLine}` : rateLine}
             </span>
           </div>
@@ -95,7 +95,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
         </div>
       ) : (
         <div className="flex items-baseline justify-between">
-          <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
+          <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
             Weight
           </span>
           <Caption>{model.inWindow > 0 ? `${Math.min(model.spanDays, model.points.length)} days · ${model.inWindow} weigh-ins` : "no weigh-ins"}</Caption>
@@ -116,21 +116,21 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
                 aria-selected={selected}
                 onClick={() => setRange(r.id)}
                 className="h-[26px] rounded-full px-2.5 text-[11px] font-medium transition-colors"
-                style={{ background: selected ? "#f2f2f0" : "#1d1d20", color: selected ? "#0a0a0b" : "#a3a3a8" }}
+                style={{ background: selected ? "var(--primary)" : "var(--surface-raised)", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}
               >
                 {r.id}
               </button>
             );
           })}
         </div>
-        <div className="flex items-center gap-3 text-[11px]" style={{ color: "#6f6f76" }} aria-hidden>
-          <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 rounded" style={{ background: "#f2f2f0" }} />Trend</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "#55555c" }} />Scale</span>
-          {model.projection && <span className="flex items-center gap-1"><span className="inline-block w-3 border-t border-dashed" style={{ borderColor: "#6f6f76" }} />Goal</span>}
+        <div className="flex items-center gap-3 text-[11px]" style={{ color: "var(--text-tertiary)" }} aria-hidden>
+          <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 rounded" style={{ background: "var(--primary)" }} />Trend</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--chart-raw)" }} />Scale</span>
+          {model.projection && <span className="flex items-center gap-1"><span className="inline-block w-3 border-t border-dashed" style={{ borderColor: "var(--text-tertiary)" }} />Goal</span>}
         </div>
       </div>
       {!hero && (
-        <p className="mt-2 text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+        <p className="mt-2 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
           {model.latest ? `Trend ${formatWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
         </p>
       )}

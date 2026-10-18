@@ -17,7 +17,7 @@ export default function GoalHeader({ analysis, unit }: { analysis: PhysiqueAnaly
   const line = `${formatWeight(g.targetKg, unit)} · ${label}${g.type === "maintain" ? "" : ` · ${formatRate(g.ratePctPerWeek)}`}`;
   return (
     <Link href="/body/goal" className="flex flex-col gap-2" aria-label={`Goal ${line}. Edit goal`}>
-      <div className="flex items-center justify-between text-[13px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+      <div className="flex items-center justify-between text-[13px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
         <span className="flex items-center gap-2">
           <span aria-hidden>→</span>
           <span>{line}</span>
@@ -26,10 +26,10 @@ export default function GoalHeader({ analysis, unit }: { analysis: PhysiqueAnaly
       </div>
       {g.type !== "maintain" && (
         <div className="flex items-center gap-3">
-          <div className="h-1 flex-1 overflow-hidden rounded-full" style={{ background: "#1d1d20" }} aria-hidden>
-            <div className="h-full rounded-full" style={{ width: `${progress * 100}%`, background: "#f2f2f0" }} />
+          <div className="h-1 flex-1 overflow-hidden rounded-full" style={{ background: "var(--surface-raised)" }} aria-hidden>
+            <div className="h-full rounded-full" style={{ width: `${progress * 100}%`, background: "var(--primary)" }} />
           </div>
-          <span className="text-[11px] font-medium" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+          <span className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
             {trend != null ? `${formatWeight(trend, unit)} → ${formatWeight(g.targetKg, unit)}` : `from ${formatWeight(g.startTrendKg, unit)}`}
           </span>
         </div>

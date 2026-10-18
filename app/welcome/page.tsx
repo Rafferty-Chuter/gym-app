@@ -18,14 +18,14 @@ export default function WelcomePage() {
     window.location.assign(path);
   }
   return (
-    <main className="flex min-h-screen flex-col" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="flex min-h-screen flex-col" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-between px-5 pb-10 pt-20 sm:px-6">
         <div className="flex flex-col gap-6">
-          <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+          <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
             Gym AI
           </p>
           <h1 className="text-[34px] font-semibold leading-[1.1] tracking-[-0.02em]">One place for the plan</h1>
-          <ul className="flex flex-col gap-3 text-[15px] leading-snug" style={{ color: "#a3a3a8" }}>
+          <ul className="flex flex-col gap-3 text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>
             <li>Log food, weight, sleep and training. Food by search or barcode, weight in a tap, sleep from Apple Health if you want.</li>
             <li>The engine reads the weight trend against what you eat and says whether the plan is working, in numbers.</li>
             <li>Nothing cheers and nothing nags. A missed day is stated once, with the fix a tap away.</li>
@@ -36,7 +36,7 @@ export default function WelcomePage() {
             Set up
           </PrimaryButton>
           <SecondaryButton onClick={() => void go("/")}>Look around first</SecondaryButton>
-          <p className="pt-2 text-center text-[11px]" style={{ color: "#6f6f76" }}>
+          <p className="pt-2 text-center text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             Set up starts with today&apos;s weight, then a target and a pace. About two minutes. Everything stays on this phone.
           </p>
         </div>

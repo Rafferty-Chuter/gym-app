@@ -28,7 +28,7 @@ export default function WeekStrip({ dates, selected, today, logged, onSelect, on
       onClick={onClick}
       disabled={!enabled}
       className="flex h-9 w-6 shrink-0 items-center justify-center rounded-full disabled:opacity-30"
-      style={{ color: "#a3a3a8" }}
+      style={{ color: "var(--text-secondary)" }}
       aria-label={dir === "prev" ? "Previous week" : "Next week"}
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
@@ -54,15 +54,15 @@ export default function WeekStrip({ dates, selected, today, logged, onSelect, on
               aria-pressed={isSelected}
               aria-label={`${date}${isToday ? ", today" : ""}${hasLog ? ", logged" : ""}`}
               className="flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-[12px] transition-colors disabled:opacity-30"
-              style={{ background: isSelected ? "#f2f2f0" : "transparent", color: isSelected ? "#0a0a0b" : "#f2f2f0" }}
+              style={{ background: isSelected ? "var(--primary)" : "transparent", color: isSelected ? "var(--text-on-primary)" : "var(--text)" }}
             >
-              <span className="text-[10px] font-medium tracking-[0.04em]" style={{ color: isSelected ? "#3a3a40" : "#6f6f76" }}>
+              <span className="text-[10px] font-medium tracking-[0.04em]" style={{ color: isSelected ? "var(--border-strong)" : "var(--text-tertiary)" }}>
                 {WEEKDAY_LETTERS[i]}
               </span>
               <span className="text-[15px] font-semibold leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
                 {Number(date.slice(8, 10))}
               </span>
-              <span className="h-1 w-1 rounded-full" style={{ background: hasLog ? (isSelected ? "#0a0a0b" : "#a3a3a8") : isToday && !isSelected ? "#3a3a40" : "transparent" }} aria-hidden />
+              <span className="h-1 w-1 rounded-full" style={{ background: hasLog ? (isSelected ? "var(--text-on-primary)" : "var(--text-secondary)") : isToday && !isSelected ? "var(--border-strong)" : "transparent" }} aria-hidden />
             </button>
           );
         })}

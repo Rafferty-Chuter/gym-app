@@ -19,19 +19,19 @@ export default function MusclePrioritiesSheet({ open, onClose, phase }: { open: 
   return (
     <Sheet open={open} onClose={onClose} title="Muscle priorities" ariaLabel="Muscle priorities">
       <div className="flex flex-col gap-3">
-        <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
           {`Grow is the default. Emphasise up to ${EMPHASISE_MAX} muscles you want to bring up, and Maintain what can wait on a cut. Each sets the week's band of hard sets.`}
         </p>
-        <ul className="flex flex-col overflow-hidden rounded-[12px] divide-y divide-[#2a2a2e]" style={{ background: "#141416" }}>
+        <ul className="flex flex-col overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
           {VOLUME_GROUP_ORDER.map((g: MuscleGroup) => {
             const p = priorityOf(priorities, g);
             return (
               <li key={g} className="flex items-center justify-between gap-3 px-4 py-2.5">
                 <div className="flex min-w-0 flex-col">
-                  <span className="text-[15px]" style={{ color: "#f2f2f0" }}>
+                  <span className="text-[15px]" style={{ color: "var(--text)" }}>
                     {GROUP_LABEL[g]}
                   </span>
-                  <span className="text-[11px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+                  <span className="text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
                     {bandLabel(targetBand(g, p, phase))} sets
                   </span>
                 </div>
@@ -40,7 +40,7 @@ export default function MusclePrioritiesSheet({ open, onClose, phase }: { open: 
                     const selected = o === p;
                     const blocked = o === "emphasise" && !selected && emphasised >= EMPHASISE_MAX;
                     return (
-                      <button key={o} type="button" role="radio" aria-checked={selected} disabled={blocked} onClick={() => void setMusclePriority(g, o)} className="h-8 rounded-full px-2.5 text-[12px] font-medium transition-colors disabled:opacity-40" style={{ background: selected ? "#f2f2f0" : "#1d1d20", color: selected ? "#0a0a0b" : "#a3a3a8" }}>
+                      <button key={o} type="button" role="radio" aria-checked={selected} disabled={blocked} onClick={() => void setMusclePriority(g, o)} className="h-8 rounded-full px-2.5 text-[12px] font-medium transition-colors disabled:opacity-40" style={{ background: selected ? "var(--primary)" : "var(--surface-raised)", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
                         {PRIORITY_LABEL[o]}
                       </button>
                     );

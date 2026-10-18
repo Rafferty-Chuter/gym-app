@@ -19,28 +19,28 @@ export default function PhysiqueHomeCard() {
   const { unit: rawUnit } = useUnit();
   const analysis = usePhysiqueAnalysis(hydrated ? now : null, rawUnit === "lb" ? "lb" : "kg");
   if (!analysis) {
-    return <div className="h-[64px] rounded-[12px]" style={{ background: "#141416" }} aria-hidden />;
+    return <div className="h-[64px] rounded-[12px]" style={{ background: "var(--surface)" }} aria-hidden />;
   }
   const v = analysis.verdict;
   const caption = v.windowDays ? `${v.windowDays} days${v.n ? ` · ${v.n} ${v.id.startsWith("SLEEP") ? "nights" : "weigh-ins"}` : ""}` : null;
   return (
-    <Link href="/body" className="flex flex-col gap-1 rounded-[12px] px-4 py-3 transition-colors active:bg-[#1d1d20]" style={{ background: "#141416" }} aria-label={`${v.title}. Open Body`}>
+    <Link href="/body" className="flex flex-col gap-1 rounded-[12px] px-4 py-3 transition-colors active:bg-[var(--surface-raised)]" style={{ background: "var(--surface)" }} aria-label={`${v.title}. Open Body`}>
       <span className="flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2">
           <StatusDot color={STATUS_HEX[analysis.status.state]} />
-          <span className="truncate text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>
+          <span className="truncate text-[15px] font-semibold" style={{ color: "var(--text)" }}>
             {v.title}
           </span>
         </span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="#6f6f76" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0" aria-hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0" aria-hidden>
           <path d="M9 6l6 6-6 6" />
         </svg>
       </span>
-      <span className="pl-4 text-[13px] leading-snug" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+      <span className="pl-4 text-[13px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
         {v.detail}
       </span>
       {caption && (
-        <span className="pl-4 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+        <span className="pl-4 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
           {caption}
         </span>
       )}

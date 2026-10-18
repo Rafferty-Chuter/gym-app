@@ -43,14 +43,14 @@ type Props = {
 };
 
 // ── Tokens (DESIGN.md) ──
-const COLOR_RAW = "#55555c";
-const COLOR_TREND = "#f2f2f0";
-const COLOR_PROJECTION = "#6f6f76";
-const COLOR_BAND = "#1d1d20";
-const COLOR_GRID = "#2a2a2e";
-const COLOR_LABEL = "#6f6f76";
-const COLOR_TOOLTIP_BG = "#1d1d20";
-const COLOR_TOOLTIP_BORDER = "#2a2a2e";
+const COLOR_RAW = "var(--chart-raw)";
+const COLOR_TREND = "var(--text)";
+const COLOR_PROJECTION = "var(--text-tertiary)";
+const COLOR_BAND = "var(--surface-raised)";
+const COLOR_GRID = "var(--border)";
+const COLOR_LABEL = "var(--text-tertiary)";
+const COLOR_TOOLTIP_BG = "var(--surface-raised)";
+const COLOR_TOOLTIP_BORDER = "var(--border)";
 
 const PAD_LEFT = 6;
 const PAD_RIGHT = 44;
@@ -192,7 +192,7 @@ export default function TimeSeriesChart({
       <div
         ref={ref}
         className="flex items-center justify-center rounded-[12px] text-[13px]"
-        style={{ height, color: "#a3a3a8", background: "#141416" }}
+        style={{ height, color: "var(--text-secondary)", background: "var(--surface)" }}
       >
         {emptyText}
       </div>
@@ -286,9 +286,9 @@ export default function TimeSeriesChart({
           )}
           {activePoint && activeX != null && (
             <g>
-              <line x1={activeX} x2={activeX} y1={PAD_TOP} y2={PAD_TOP + geo.innerH} stroke="#3a3a40" strokeWidth={1} />
-              {activePoint.raw != null && <circle cx={activeX} cy={geo.yOf(activePoint.raw)} r={4} fill={COLOR_TREND} stroke="#0a0a0b" strokeWidth={1.5} />}
-              {activePoint.trend != null && <circle cx={activeX} cy={geo.yOf(activePoint.trend)} r={3.5} fill={trendColor} stroke="#0a0a0b" strokeWidth={1.5} />}
+              <line x1={activeX} x2={activeX} y1={PAD_TOP} y2={PAD_TOP + geo.innerH} stroke="var(--border-strong)" strokeWidth={1} />
+              {activePoint.raw != null && <circle cx={activeX} cy={geo.yOf(activePoint.raw)} r={4} fill={COLOR_TREND} stroke="var(--background)" strokeWidth={1.5} />}
+              {activePoint.trend != null && <circle cx={activeX} cy={geo.yOf(activePoint.trend)} r={3.5} fill={trendColor} stroke="var(--background)" strokeWidth={1.5} />}
             </g>
           )}
         </svg>
@@ -302,21 +302,21 @@ export default function TimeSeriesChart({
             width: 124,
             background: COLOR_TOOLTIP_BG,
             border: `1px solid ${COLOR_TOOLTIP_BORDER}`,
-            color: "#a3a3a8",
+            color: "var(--text-secondary)",
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          <div style={{ color: "#6f6f76", letterSpacing: "0.04em" }}>{longLocalDate(activePoint.date)}</div>
+          <div style={{ color: "var(--text-tertiary)", letterSpacing: "0.04em" }}>{longLocalDate(activePoint.date)}</div>
           {activePoint.raw != null && (
             <div className="flex justify-between gap-2">
               <span>{rawLabel}</span>
-              <span style={{ color: "#f2f2f0", fontWeight: 600 }}>{fmt(activePoint.raw)}</span>
+              <span style={{ color: "var(--text)", fontWeight: 600 }}>{fmt(activePoint.raw)}</span>
             </div>
           )}
           {activePoint.trend != null && (
             <div className="flex justify-between gap-2">
               <span>{trendLabel}</span>
-              <span style={{ color: "#f2f2f0", fontWeight: 600 }}>{fmt(activePoint.trend)}</span>
+              <span style={{ color: "var(--text)", fontWeight: 600 }}>{fmt(activePoint.trend)}</span>
             </div>
           )}
         </div>

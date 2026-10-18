@@ -101,7 +101,7 @@ export default function Sheet({ open, onClose, title, children, footer, closeLab
         aria-label={closeLabel}
         onClick={onClose}
         className="absolute inset-0 h-full w-full cursor-default sheet-scrim"
-        style={{ background: "rgba(0,0,0,0.6)" }}
+        style={{ background: "var(--scrim)" }}
         tabIndex={-1}
       />
       <div
@@ -113,11 +113,11 @@ export default function Sheet({ open, onClose, title, children, footer, closeLab
         tabIndex={-1}
         className="sheet-panel absolute inset-x-0 bottom-0 mx-auto flex max-h-[92dvh] w-full max-w-[560px] flex-col outline-none"
         style={{
-          background: "#141416",
-          color: "#f2f2f0",
+          background: "var(--surface)",
+          color: "var(--text)",
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
-          boxShadow: "0 -8px 32px rgba(0,0,0,0.5)",
+          boxShadow: "0 -8px 32px color-mix(in srgb, var(--scrim) 60%, transparent)",
           transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
           transition: isDragging ? "none" : "transform 200ms cubic-bezier(0.16, 1, 0.3, 1)",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
@@ -151,7 +151,7 @@ export default function Sheet({ open, onClose, title, children, footer, closeLab
             setDragY(0);
           }}
         >
-          <div className="mx-auto h-1 w-10 rounded-full" style={{ background: "#3a3a40" }} aria-hidden />
+          <div className="mx-auto h-1 w-10 rounded-full" style={{ background: "var(--border-strong)" }} aria-hidden />
           {title && (
             <h2 id={titleId} className="pb-2 pt-3 text-[20px] font-semibold leading-tight tracking-[-0.01em]">
               {title}

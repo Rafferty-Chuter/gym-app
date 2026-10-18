@@ -39,14 +39,14 @@ export function NutritionRing({ eatenKcal, targetKcal, view, onToggleView, size 
   const ring = (
     <span className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden className="absolute inset-0 -rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1d1d20" strokeWidth={RING_STROKE} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-raised)" strokeWidth={RING_STROKE} />
         {pct > 0 && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={KCAL_COLOR} strokeWidth={RING_STROKE} strokeLinecap="round" strokeDasharray={`${c * pct} ${c}`} style={{ transition: "stroke-dasharray 300ms" }} />}
       </svg>
       <span className="relative flex flex-col items-center">
-        <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+        <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
           {n(hero)}
         </span>
-        <span className="mt-1 text-[12px]" style={{ color: "#a3a3a8" }}>
+        <span className="mt-1 text-[12px]" style={{ color: "var(--text-secondary)" }}>
           {word}
         </span>
       </span>
@@ -54,10 +54,10 @@ export function NutritionRing({ eatenKcal, targetKcal, view, onToggleView, size 
   );
   const side = (caption: string, value: string, align: "start" | "end") => (
     <span className={`flex min-w-[56px] flex-col ${align === "end" ? "items-end" : "items-start"}`}>
-      <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+      <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
         {caption}
       </span>
-      <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+      <span className="text-[17px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
         {value}
       </span>
     </span>
@@ -99,10 +99,10 @@ export function MacroBars({ totals, target, view }: BarsProps) {
             <span className="text-[11px] font-medium" style={{ color: m.color }}>
               {m.label}
             </span>
-            <div className="h-1 w-full overflow-hidden rounded-full" style={{ background: "#1d1d20" }} aria-hidden>
+            <div className="h-1 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-raised)" }} aria-hidden>
               <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: m.color, transition: "width 150ms" }} />
             </div>
-            <span className="text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+            <span className="text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
               {Math.round(shown)}
               {m.target != null ? ` / ${m.target}` : ""} g
             </span>

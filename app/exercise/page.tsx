@@ -73,32 +73,32 @@ function ExerciseDetail() {
     </button>
   );
 
-  if (!hydrated) return <main className="min-h-screen" style={{ background: "#0a0a0b" }} />;
+  if (!hydrated) return <main className="min-h-screen" style={{ background: "var(--page)" }} />;
 
   const latest = series[series.length - 1];
   const best = series.length > 0 ? Math.max(...series.map((p) => p.value)) : null;
   const shown = showAll ? sessions : sessions.slice(0, SESSIONS_SHOWN);
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader caption={back} title={title} />
-        <p className="-mt-3 text-[13px]" style={{ color: "#a3a3a8" }}>
+        <p className="-mt-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
           {exerciseSubtitle(meta)}
           {sessions.length > 0 ? ` · ${sessions.length} ${sessions.length === 1 ? "session" : "sessions"}` : ""}
         </p>
 
         {sessions.length === 0 ? (
-          <p className="text-[15px] leading-relaxed" style={{ color: "#a3a3a8" }}>
+          <p className="text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
             No sessions of {title} yet. Log it in a workout and its chart and records show here.
           </p>
         ) : (
           <>
-            <section className="flex flex-col gap-3 rounded-[12px] px-4 pb-3 pt-4" style={{ background: "#141416" }} aria-label="Progress chart">
+            <section className="flex flex-col gap-3 rounded-[12px] px-4 pb-3 pt-4" style={{ background: "var(--surface)" }} aria-label="Progress chart">
               {metrics.length > 1 && (
-                <div className="grid gap-1 rounded-[10px] p-1" style={{ background: "#1d1d20", gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))` }} role="tablist" aria-label="Chart measure">
+                <div className="grid gap-1 rounded-[10px] p-1" style={{ background: "var(--surface-raised)", gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))` }} role="tablist" aria-label="Chart measure">
                   {metrics.map((m) => (
-                    <button key={m} type="button" role="tab" aria-selected={m === metric} onClick={() => setPicked(m)} className="h-[30px] truncate rounded-[8px] px-2 text-[12px] font-semibold transition-colors" style={m === metric ? { background: "#f2f2f0", color: "#0a0a0b" } : { color: "#a3a3a8" }}>
+                    <button key={m} type="button" role="tab" aria-selected={m === metric} onClick={() => setPicked(m)} className="h-[30px] truncate rounded-[8px] px-2 text-[12px] font-semibold transition-colors" style={m === metric ? { background: "var(--primary)", color: "var(--text-on-primary)" } : { color: "var(--text-secondary)" }}>
                       {m === "e1rm" ? "Est. 1RM" : m === "heaviest" ? "Heaviest" : m === "volume" ? "Volume" : "Reps"}
                     </button>
                   ))}
@@ -107,7 +107,7 @@ function ExerciseDetail() {
               {latest && (
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="flex flex-col">
-                    <span className="text-[11px] font-medium" style={{ color: "#6f6f76" }}>
+                    <span className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
                       {CHART_METRIC_LABEL[metric]}, last session
                     </span>
                     <span className="text-[24px] font-semibold" style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -115,7 +115,7 @@ function ExerciseDetail() {
                     </span>
                   </span>
                   {best != null && series.length > 1 && (
-                    <span className="text-right text-[12px]" style={{ color: "#a3a3a8" }}>
+                    <span className="text-right text-[12px]" style={{ color: "var(--text-secondary)" }}>
                       Best {chartValue(best, metric, u)}
                     </span>
                   )}
@@ -138,16 +138,16 @@ function ExerciseDetail() {
             {records.repRecords.length > 0 && (
               <section className="flex flex-col gap-2">
                 <Caption>Heaviest for each rep count</Caption>
-                <ul className="overflow-hidden rounded-[12px] divide-y divide-[#2a2a2e]" style={{ background: "#141416" }}>
+                <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
                   {records.repRecords.map((r) => (
                     <li key={r.reps} className="grid min-h-[44px] grid-cols-[1fr_auto_auto] items-center gap-4 px-4 text-[15px]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                      <span style={{ color: "#a3a3a8" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>
                         {r.reps} {r.reps === 1 ? "rep" : "reps"}
                       </span>
                       <span className="font-semibold">
                         {formatLoad(r.weight)} {u}
                       </span>
-                      <span className="w-[86px] text-right text-[12px]" style={{ color: "#6f6f76" }}>
+                      <span className="w-[86px] text-right text-[12px]" style={{ color: "var(--text-tertiary)" }}>
                         {day(r.completedAt)}
                       </span>
                     </li>
@@ -158,20 +158,20 @@ function ExerciseDetail() {
 
             <section className="flex flex-col gap-2">
               <Caption>History</Caption>
-              <ul className="overflow-hidden rounded-[12px] divide-y divide-[#2a2a2e]" style={{ background: "#141416" }}>
+              <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
                 {shown.map((s) => (
                   <li key={s.completedAt}>
-                    <Link href={workoutHref(s)} className="flex flex-col gap-1 px-4 py-3 transition-colors active:bg-[#1d1d20]">
+                    <Link href={workoutHref(s)} className="flex flex-col gap-1 px-4 py-3 transition-colors active:bg-[var(--surface-raised)]">
                       <span className="flex items-baseline justify-between gap-3">
                         <span className="truncate text-[15px] font-medium">{workoutTitle({ name: s.workoutName, exercises: [] })}</span>
-                        <span className="shrink-0 text-[12px]" style={{ color: "#6f6f76" }}>
+                        <span className="shrink-0 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
                           {day(s.completedAt)}
                         </span>
                       </span>
-                      <span className="text-[13px] leading-snug" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
+                      <span className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                         {setsLine(s, u)}
                       </span>
-                      <span className="text-[12px]" style={{ color: "#6f6f76" }}>
+                      <span className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
                         Best set {formatSet(s.best, u)}
                         {s.e1rm != null ? ` · est. 1RM ${formatLoad(s.e1rm)} ${u}` : ""}
                       </span>
@@ -192,7 +192,7 @@ function ExerciseDetail() {
 
 export default function ExercisePage() {
   return (
-    <Suspense fallback={<main className="min-h-screen" style={{ background: "#0a0a0b" }} />}>
+    <Suspense fallback={<main className="min-h-screen" style={{ background: "var(--page)" }} />}>
       <ExerciseDetail />
     </Suspense>
   );

@@ -37,9 +37,9 @@ export default function BodyPage() {
 
 function Shell() {
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto max-w-2xl px-5 pt-5 sm:px-6">
-        <div className="h-11 rounded-[12px]" style={{ background: "#141416" }} />
+        <div className="h-11 rounded-[12px]" style={{ background: "var(--surface)" }} />
       </div>
     </main>
   );
@@ -79,7 +79,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     : "No goal yet";
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader
           caption={caption}
@@ -97,12 +97,12 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         {analysis?.checkInDue && (
           <RowGroup>
-            <Row label="Weekly report" sub="Where you're heading, what to fix, one decision" value={<span style={{ color: "#00e5b0" }}>Ready</span>} trailing={<Chevron />} onClick={() => router.push("/report")} ariaLabel="Open the weekly report" />
+            <Row label="Weekly report" sub="Where you're heading, what to fix, one decision" value={<span style={{ color: "var(--status-good)" }}>Ready</span>} trailing={<Chevron />} onClick={() => router.push("/report")} ariaLabel="Open the weekly report" />
           </RowGroup>
         )}
         {analysis && <VerdictCard analysis={analysis} now={now} unit={unit} />}
         {analysis && !analysis.goal && (
-          <Link href="/body/goal" className="inline-flex h-[36px] w-fit items-center rounded-[12px] px-3 text-[13px] font-semibold" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+          <Link href="/body/goal" className="inline-flex h-[36px] w-fit items-center rounded-[12px] px-3 text-[13px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
             Set goal
           </Link>
         )}
@@ -125,7 +125,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           <Row
             label="Waist"
             sub={model.lastWaist ? `Last ${longLocalDate(model.lastWaist.date)}` : "Weekly, optional"}
-            value={model.lastWaist ? `${model.lastWaist.cm.toFixed(1)} cm` : <span style={{ color: "#6f6f76" }}>Add</span>}
+            value={model.lastWaist ? `${model.lastWaist.cm.toFixed(1)} cm` : <span style={{ color: "var(--text-tertiary)" }}>Add</span>}
             trailing={<Chevron />}
             onClick={() => setSheet("waist")}
             ariaLabel="Log waist"

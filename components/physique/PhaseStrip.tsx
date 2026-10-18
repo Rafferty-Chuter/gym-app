@@ -8,7 +8,7 @@ import { planLine, planPosition, type PhasePlan, type PlannedPhase } from "@/lib
 import { formatWeight, type WeightUnit } from "@/lib/units";
 import { dayDiff, type LocalDate } from "@/lib/dates";
 
-const PHASE_COLOR: Record<PlannedPhase["kind"], string> = { cut: "#f2f2f0", lean_bulk: "#f2f2f0", maintain: "#6f6f76", next: "#2a2a2e" };
+const PHASE_COLOR: Record<PlannedPhase["kind"], string> = { cut: "var(--text)", lean_bulk: "var(--text)", maintain: "var(--text-tertiary)", next: "var(--border)" };
 
 /**
  * The phase strip (G1): one thin bar under the goal's ETA, the current
@@ -27,15 +27,15 @@ export default function PhaseStrip({ plan, today, unit }: { plan: PhasePlan; tod
   const tailShare = 0.12;
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="mt-3 flex w-full flex-col gap-1.5 text-left" aria-label="Phases. Open details" style={{ borderTop: "1px solid #2a2a2e", paddingTop: 10 }}>
+      <button type="button" onClick={() => setOpen(true)} className="mt-3 flex w-full flex-col gap-1.5 text-left" aria-label="Phases. Open details" style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
         <div className="relative flex h-1.5 w-full gap-[2px] overflow-hidden rounded-full" aria-hidden>
           {plan.phases.map((p) => {
             const share = p.end && total ? (dayDiff(p.start, p.end) / total) * (1 - tailShare) : p.kind === "next" || !p.end ? tailShare : 0;
             return <div key={p.kind + p.start} style={{ flex: `${Math.max(share, 0.02)} 0 0`, background: PHASE_COLOR[p.kind] }} />;
           })}
-          {position != null && <div className="absolute top-0 h-full w-[2px]" style={{ left: `${position * (1 - tailShare) * 100}%`, background: "#00e5b0" }} />}
+          {position != null && <div className="absolute top-0 h-full w-[2px]" style={{ left: `${position * (1 - tailShare) * 100}%`, background: "var(--status-good)" }} />}
         </div>
-        <span className="text-[12px]" style={{ color: "#a3a3a8" }}>
+        <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
           {planLine(plan, shortLocalDate)}
         </span>
       </button>
@@ -43,7 +43,7 @@ export default function PhaseStrip({ plan, today, unit }: { plan: PhasePlan; tod
         <div className="flex flex-col gap-3">
           <RowGroup>
             {plan.phases.map((p) => (
-              <Row key={p.kind + p.start} label={p.label} sub={p.note} value={<span className="text-[13px] font-medium" style={{ color: p.current ? "#00e5b0" : "#a3a3a8" }}>{p.end ? `${shortLocalDate(p.start)} to ${shortLocalDate(p.end)}` : p.kind === "next" ? `from ${shortLocalDate(p.start)}` : `from ${shortLocalDate(p.start)}`}</span>} />
+              <Row key={p.kind + p.start} label={p.label} sub={p.note} value={<span className="text-[13px] font-medium" style={{ color: p.current ? "var(--status-good)" : "var(--text-secondary)" }}>{p.end ? `${shortLocalDate(p.start)} to ${shortLocalDate(p.end)}` : p.kind === "next" ? `from ${shortLocalDate(p.start)}` : `from ${shortLocalDate(p.start)}`}</span>} />
             ))}
           </RowGroup>
           {plan.milestones.length > 0 && (
@@ -53,7 +53,7 @@ export default function PhaseStrip({ plan, today, unit }: { plan: PhasePlan; tod
               ))}
             </RowGroup>
           )}
-          <p className="text-[11px]" style={{ color: "#6f6f76" }}>
+          <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             Dates follow the trend, so they move as you log. Maintenance after a cut is there to measure the new maintenance, not to rest. A diet break is offered separately when adherence says so.
           </p>
         </div>

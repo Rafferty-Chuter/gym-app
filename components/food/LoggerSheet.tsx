@@ -46,7 +46,7 @@ const TABS: ReadonlyArray<{ id: LoggerTab; label: string }> = [
 
 const n = (v: number) => Math.round(v).toLocaleString("en-GB");
 const inputClass = "h-11 rounded-[12px] px-3 text-[15px] outline-none focus:ring-1";
-const inputStyle = { background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" };
+const inputStyle = { background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" };
 
 /** How long the "Logged …" line stays. OURS. */
 const TOAST_MS = 2500;
@@ -219,19 +219,19 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
 
   const header = (
     <div className="flex items-center justify-between gap-2 pb-2 pt-2">
-      <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "#a3a3a8" }} aria-label="Close">
+      <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "var(--text-secondary)" }} aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="h-4 w-4" aria-hidden>
           <path d="M6 6l12 12M18 6L6 18" />
         </svg>
       </button>
       <div className="flex items-center gap-2">
         <TimeChip value={time} onChange={setTime} compact />
-        <span className="rounded-full px-3 py-1.5 text-[12px] font-medium" style={{ background: "#1d1d20", color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }} aria-label={targetKcal ? `${n(consumedKcal)} of ${n(targetKcal)} kcal` : `${n(consumedKcal)} kcal`}>
-          <span style={{ color: "#f2f2f0" }}>{n(consumedKcal)}</span>
+        <span className="rounded-full px-3 py-1.5 text-[12px] font-medium" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }} aria-label={targetKcal ? `${n(consumedKcal)} of ${n(targetKcal)} kcal` : `${n(consumedKcal)} kcal`}>
+          <span style={{ color: "var(--text)" }}>{n(consumedKcal)}</span>
           {targetKcal ? ` / ${n(targetKcal)}` : " kcal"}
         </span>
       </div>
-      <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "#a3a3a8" }} aria-label="Minimise">
+      <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "var(--text-secondary)" }} aria-label="Minimise">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -271,17 +271,17 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   return (
     <Sheet open onClose={onClose} header={header} full ariaLabel="Log food" footer={footer}>
       <div className="flex flex-col gap-3">
-        <div className="grid grid-cols-4 gap-1 rounded-[12px] p-1" style={{ background: "#1d1d20" }} role="tablist" aria-label="Logger">
+        <div className="grid grid-cols-4 gap-1 rounded-[12px] p-1" style={{ background: "var(--surface-raised)" }} role="tablist" aria-label="Logger">
           {TABS.map((t) => {
             const selected = t.id === tab;
             return (
-              <button key={t.id} type="button" role="tab" aria-selected={selected} onClick={() => setTab(t.id)} className="h-[32px] rounded-[9px] text-[12px] font-medium transition-colors" style={{ background: selected ? "#f2f2f0" : "transparent", color: selected ? "#0a0a0b" : "#a3a3a8" }}>
+              <button key={t.id} type="button" role="tab" aria-selected={selected} onClick={() => setTab(t.id)} className="h-[32px] rounded-[9px] text-[12px] font-medium transition-colors" style={{ background: selected ? "var(--primary)" : "transparent", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
                 {t.label}
               </button>
             );
           })}
         </div>
-        <p className="min-h-[16px] text-[12px]" style={{ color: "#00e5b0" }} aria-live="polite">
+        <p className="min-h-[16px] text-[12px]" style={{ color: "var(--status-good)" }} aria-live="polite">
           {toast ?? " "}
         </p>
 
@@ -299,11 +299,11 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
 
         {tab === "describe" && (
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-1 rounded-[12px] p-1" style={{ background: "#1d1d20" }} role="radiogroup" aria-label="What the text is">
+            <div className="grid grid-cols-2 gap-1 rounded-[12px] p-1" style={{ background: "var(--surface-raised)" }} role="radiogroup" aria-label="What the text is">
               {DESCRIBE_MODES.map((m) => {
                 const selected = m.id === mode;
                 return (
-                  <button key={m.id} type="button" role="radio" aria-checked={selected} onClick={() => setMode(m.id)} className="h-[32px] rounded-[9px] text-[12px] font-medium transition-colors" style={{ background: selected ? "#f2f2f0" : "transparent", color: selected ? "#0a0a0b" : "#a3a3a8" }}>
+                  <button key={m.id} type="button" role="radio" aria-checked={selected} onClick={() => setMode(m.id)} className="h-[32px] rounded-[9px] text-[12px] font-medium transition-colors" style={{ background: selected ? "var(--primary)" : "transparent", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
                     {m.label}
                   </button>
                 );
@@ -323,51 +323,51 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
               {describeStatus === "loading" ? (mode === "recipe" ? "Reading the recipe…" : "Estimating…") : mode === "recipe" ? "Build the recipe" : "Estimate"}
             </PrimaryButton>
             {describeStatus === "too_long" && (
-              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 That is over {DESCRIBE_MAX_CHARS.toLocaleString("en-GB")} characters. Keep the ingredients and the servings line; the method can go.
               </p>
             )}
             {describeStatus === "unavailable" && (
-              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 Describe needs the AI key on the server. Add ANTHROPIC_API_KEY to the deployment to use it. Quick add works without it.
               </p>
             )}
             {describeStatus === "limit" && (
-              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 Daily limit reached for AI estimates. Quick add still works.
               </p>
             )}
             {describeStatus === "error" && (
-              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 Couldn&apos;t estimate that. Try again, or quick add it.
               </p>
             )}
             {items && items.length === 0 && (
-              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 {mode === "recipe" ? "No ingredients found in that. Paste the ingredient list with amounts." : "Nothing recognisable in that. Try naming the foods."}
               </p>
             )}
             {recipe && recipe.ingredients.length > 0 && <RecipeCard recipe={recipe} onChange={setRecipe} eating={eating} onEating={setEating} />}
             {recipe && recipe.ingredients.length === 0 && (
-              <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 Every ingredient was dropped. Describe it again or quick add the total.
               </p>
             )}
             {items && items.length > 0 && (
               <ul className="flex flex-col gap-1.5" aria-label="Estimated items">
                 {items.map((i, idx) => (
-                  <li key={idx} className="rounded-[12px]" style={{ background: "#141416", border: "1px solid #2a2a2e" }}>
+                  <li key={idx} className="rounded-[12px]" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
                     <div className="flex items-center gap-2 px-3 py-2.5">
                       <button type="button" onClick={() => setEditing(editing === idx ? null : idx)} className="flex min-w-0 flex-1 flex-col text-left" aria-label={`${i.label}, ${n(i.kcal)} kcal. Adjust`}>
-                        <span className="truncate text-[15px]" style={{ color: "#f2f2f0" }}>
+                        <span className="truncate text-[15px]" style={{ color: "var(--text)" }}>
                           {i.label}
                         </span>
-                        <span className="truncate text-[11px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+                        <span className="truncate text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
                           {n(i.kcal)} kcal · {i.proteinG}P {i.fatG}F {i.carbsG}C{i.serving ? ` · ${i.serving}` : ""}
                           {i.matched ? ` · ${i.matched}` : i.confidence !== "high" ? ` · ${i.confidence === "low" ? "rough guess" : "estimate"}` : ""}
                         </span>
                       </button>
-                      <button type="button" onClick={() => setItems(items.filter((_, j) => j !== idx))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "#1d1d20", color: "#a3a3a8" }} aria-label={`Drop ${i.label}`}>
+                      <button type="button" onClick={() => setItems(items.filter((_, j) => j !== idx))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }} aria-label={`Drop ${i.label}`}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="h-3.5 w-3.5" aria-hidden>
                           <path d="M6 6l12 12M18 6L6 18" />
                         </svg>
@@ -389,12 +389,12 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search saved foods" className={`${inputClass} min-w-0 flex-1`} style={inputStyle} aria-label="Search saved foods" autoComplete="off" />
-              <button type="button" onClick={() => setManaging((m) => !m)} className="h-11 shrink-0 rounded-[12px] px-3 text-[13px] font-medium" style={{ background: "#1d1d20", color: "#a3a3a8" }} aria-pressed={managing}>
+              <button type="button" onClick={() => setManaging((m) => !m)} className="h-11 shrink-0 rounded-[12px] px-3 text-[13px] font-medium" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }} aria-pressed={managing}>
                 {managing ? "Done" : "Edit"}
               </button>
             </div>
             {savedList.length === 0 ? (
-              <p className="py-4 text-[13px]" style={{ color: "#6f6f76" }}>
+              <p className="py-4 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
                 {saved.length === 0 ? "No saved foods yet. Anything you quick add is kept here." : "No match."}
               </p>
             ) : (
@@ -403,12 +403,12 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
                   foodRow(
                     s,
                     managing ? (
-                      <button type="button" onClick={() => void onRemoveSaved(s.id)} className="h-9 shrink-0 rounded-full px-3 text-[12px] font-medium" style={{ background: "#1d1d20", color: "#f26d7d" }} aria-label={`Remove ${s.label} from saved`}>
+                      <button type="button" onClick={() => void onRemoveSaved(s.id)} className="h-9 shrink-0 rounded-full px-3 text-[12px] font-medium" style={{ background: "var(--surface-raised)", color: "var(--status-attention)" }} aria-label={`Remove ${s.label} from saved`}>
                         Remove
                       </button>
                     ) : (
                       <>
-                        <button type="button" onClick={() => void onToggleFavourite(s.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ color: s.favourite ? "#f2f2f0" : "#3a3a40" }} aria-label={s.favourite ? `Unstar ${s.label}` : `Star ${s.label}`} aria-pressed={Boolean(s.favourite)}>
+                        <button type="button" onClick={() => void onToggleFavourite(s.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ color: s.favourite ? "var(--text)" : "var(--border-strong)" }} aria-label={s.favourite ? `Unstar ${s.label}` : `Star ${s.label}`} aria-pressed={Boolean(s.favourite)}>
                           <svg viewBox="0 0 24 24" fill={s.favourite ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.8} strokeLinejoin="round" className="h-4 w-4" aria-hidden>
                             <path d="M12 3.5l2.6 5.5 6 .7-4.4 4.1 1.2 5.9L12 16.8l-5.4 2.9 1.2-5.9L3.4 9.7l6-.7z" />
                           </svg>

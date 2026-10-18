@@ -67,8 +67,8 @@ export function ChartPointTooltip({
     <div
       className="mt-3 rounded-xl px-3 py-2.5 text-[12px] leading-snug"
       style={{
-        background: "rgba(14,20,32,0.95)",
-        border: "1px solid rgba(0,229,176,0.28)",
+        background: "color-mix(in srgb, var(--surface-raised) 95%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--status-good) 28%, transparent)",
         boxShadow: "0 4px 18px rgba(0,0,0,0.45)",
       }}
       role="dialog"
@@ -82,19 +82,19 @@ export function ChartPointTooltip({
           type="button"
           onClick={onClose}
           aria-label="Close tooltip"
-          className="-mr-1 -mt-1 h-6 w-6 rounded-md text-app-tertiary hover:text-white hover:bg-white/[0.06] transition flex items-center justify-center"
+          className="-mr-1 -mt-1 h-6 w-6 rounded-md text-app-tertiary hover:text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] transition flex items-center justify-center"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
           </svg>
         </button>
       </div>
-      <p className="mt-1 text-[13px] font-semibold text-white tabular-nums">
+      <p className="mt-1 text-[13px] font-semibold text-[var(--text)] tabular-nums">
         {formatSetLine(heaviest, unit)}
       </p>
       {showE1RM && (
         <p className="mt-0.5 text-[11px] text-app-secondary tabular-nums">
-          Est. 1RM: <span className="text-white">{heaviest.e1rm.toFixed(1)}{unit}</span>
+          Est. 1RM: <span className="text-[var(--text)]">{heaviest.e1rm.toFixed(1)}{unit}</span>
         </p>
       )}
       {extras.length > 0 && (
@@ -118,7 +118,7 @@ export function ChartPointTooltip({
                 <button
                   type="button"
                   onClick={() => setExpanded(false)}
-                  className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-app-tertiary hover:text-white"
+                  className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-app-tertiary hover:text-[var(--text)]"
                 >
                   Hide
                 </button>

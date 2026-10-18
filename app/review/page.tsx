@@ -11,5 +11,5 @@ export default function ReviewRedirect() {
   useEffect(() => {
     window.location.replace("/report");
   }, []);
-  return <main className="min-h-screen" style={{ background: "#0a0a0b" }} aria-busy />;
+  return <main className="min-h-screen" style={{ background: "var(--page)" }} aria-busy />;
 }

@@ -28,7 +28,7 @@ export default function PageHeader({
   secondary?: ReactNode;
 }) {
   const captionNode = caption ? (
-    <span className="block truncate text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
+    <span className="block truncate text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
       {caption}
     </span>
   ) : null;
@@ -37,10 +37,10 @@ export default function PageHeader({
       <path d="M12 5v14M5 12h14" />
     </svg>
   );
-  const plusClass = "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors active:bg-[#a3a3a8]";
-  const plusStyle = { background: "#f2f2f0", color: "#0a0a0b" };
+  const plusClass = "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors active:bg-[var(--primary-pressed)]";
+  const plusStyle = { background: "var(--primary)", color: "var(--text-on-primary)" };
   return (
-    <header className="sticky top-0 z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--page-bg, #0a0a0b)" }}>
+    <header className="sticky top-0 z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--page-bg, var(--background))" }}>
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           {captionHref && caption ? (
@@ -50,7 +50,7 @@ export default function PageHeader({
           ) : (
             captionNode
           )}
-          <h1 className="mt-0.5 text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "#f2f2f0" }}>
+          <h1 className="mt-0.5 text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "var(--text)" }}>
             {title}
           </h1>
         </div>

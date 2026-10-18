@@ -22,6 +22,7 @@ import { BODY_FAT_OPTIONS, SEX_OPTIONS } from "@/lib/physique/profileOptions";
 import { clampSleepGoal } from "@/lib/physique/sleep";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { useUnit } from "@/lib/unit-preference";
+import { readAppearance, setAppearance, type Appearance } from "@/lib/ui/appearance";
 import { useTrainingFocus, TRAINING_FOCUS_OPTIONS, type TrainingFocus } from "@/lib/trainingFocus";
 import { useExperienceLevel, EXPERIENCE_LEVEL_OPTIONS, type ExperienceLevel } from "@/lib/experienceLevel";
 import { getRestTimerSettings, REST_TIMER_SETTINGS_EVENT, setRestTimerSettings, type RestTimerSettings } from "@/lib/restTimerSettings";
@@ -31,14 +32,14 @@ import type { Sex } from "@/lib/physique/types";
 /** Sleep goal steps. OURS: half hours across the allowed range. */
 const SLEEP_GOAL_STEP_H = 0.5;
 
-const pill = (on: boolean) => ({ background: on ? "#f2f2f0" : "#1d1d20", color: on ? "#0a0a0b" : "#a3a3a8" });
-const selectStyle = { background: "#1d1d20", color: "#f2f2f0", border: "1px solid #2a2a2e" };
+const pill = (on: boolean) => ({ background: on ? "var(--primary)" : "var(--surface-raised)", color: on ? "var(--text-on-primary)" : "var(--text-secondary)" });
+const selectStyle = { background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" };
 
 /** On / off as a small switch inside a row. */
 function Switch({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) {
   return (
-    <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onChange} className="relative h-7 w-12 shrink-0 rounded-full transition-colors" style={{ background: on ? "#00e5b0" : "#2a2a2e" }}>
-      <span className="absolute top-0.5 h-6 w-6 rounded-full transition-transform" style={{ left: 2, background: on ? "#0a0a0b" : "#f2f2f0", transform: on ? "translateX(20px)" : "translateX(0)" }} />
+    <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onChange} className="relative h-7 w-12 shrink-0 rounded-full transition-colors" style={{ background: on ? "var(--primary)" : "var(--border-strong)" }}>
+      <span className="absolute top-0.5 h-6 w-6 rounded-full transition-transform" style={{ left: 2, background: on ? "var(--text-on-primary)" : "var(--surface)", transform: on ? "translateX(20px)" : "translateX(0)" }} />
     </button>
   );
 }
@@ -52,6 +53,13 @@ export default function ProfilePage() {
   const hydrated = useIsHydrated();
   const router = useRouter();
   const { unit, setUnit } = useUnit();
+  // Read after hydration so the server's "Auto" never mismatches a stored choice.
+  const [picked, setPicked] = useState<Appearance | null>(null);
+  const appearance: Appearance = picked ?? (hydrated ? readAppearance() : "auto");
+  const pickAppearance = (a: Appearance) => {
+    setAppearance(a);
+    setPicked(a);
+  };
   const priorities = useMusclePriorities();
   const physiqueGoal = useSingleton(goalStore);
   const phase: Phase = physiqueGoal?.type === "lose" ? "cut" : physiqueGoal?.type === "gain" ? "lean_bulk" : "maintain";
@@ -96,7 +104,7 @@ export default function ProfilePage() {
   const healthSub = healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${receivedLabel(healthLink.lastPayloadAt, new Date())}` : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own";
 
   return (
-    <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
+    <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader caption="Settings" title="Profile" />
 
@@ -116,6 +124,19 @@ export default function ProfilePage() {
               }
               sub="Display only. Stored values never change."
             />
+            <Row
+              label="Appearance"
+              value={
+                <span className="flex gap-1" role="radiogroup" aria-label="Appearance">
+                  {(["auto", "light", "dark"] as const).map((a) => (
+                    <button key={a} type="button" role="radio" aria-checked={appearance === a} onClick={() => pickAppearance(a)} className="h-8 rounded-full px-3 text-[13px] font-medium" style={pill(appearance === a)}>
+                      {a === "auto" ? "Auto" : a === "light" ? "Light" : "Dark"}
+                    </button>
+                  ))}
+                </span>
+              }
+              sub="Auto follows your phone."
+            />
           </RowGroup>
         </section>
 
@@ -134,7 +155,7 @@ export default function ProfilePage() {
                 </span>
               }
             />
-            <Row label="Height" value={resolved?.heightCm ? `${resolved.heightCm} cm` : <span style={{ color: "#6f6f76" }}>Add</span>} trailing={<Chevron />} onClick={() => setSheet("height")} ariaLabel="Height. Edit" />
+            <Row label="Height" value={resolved?.heightCm ? `${resolved.heightCm} cm` : <span style={{ color: "var(--text-tertiary)" }}>Add</span>} trailing={<Chevron />} onClick={() => setSheet("height")} ariaLabel="Height. Edit" />
             <Row label="Age" value={resolved ? `${resolved.age}` : "–"} trailing={<Chevron />} onClick={() => setSheet("age")} ariaLabel="Age. Edit" />
             <Row
               label="Body fat, roughly"
@@ -151,7 +172,7 @@ export default function ProfilePage() {
               }
             />
           </RowGroup>
-          <p className="text-[11px]" style={{ color: "#6f6f76" }}>
+          <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             The maintenance estimate needs sex, height and age. Target weight and pace live under Body.
           </p>
         </section>
@@ -164,13 +185,13 @@ export default function ProfilePage() {
               sub="7 to 9 h. The Sleep tab and the planner use it."
               value={
                 <span className="flex items-center gap-1">
-                  <button type="button" onClick={() => void stepSleepGoal(-SLEEP_GOAL_STEP_H)} className="flex h-8 w-8 items-center justify-center rounded-full text-[17px]" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Shorter sleep goal">
+                  <button type="button" onClick={() => void stepSleepGoal(-SLEEP_GOAL_STEP_H)} className="flex h-8 w-8 items-center justify-center rounded-full text-[17px]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Shorter sleep goal">
                     −
                   </button>
                   <span className="w-[72px] text-center" style={{ fontVariantNumeric: "tabular-nums" }}>
                     {formatHoursMin(goalH * 60)}
                   </span>
-                  <button type="button" onClick={() => void stepSleepGoal(SLEEP_GOAL_STEP_H)} className="flex h-8 w-8 items-center justify-center rounded-full text-[17px]" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Longer sleep goal">
+                  <button type="button" onClick={() => void stepSleepGoal(SLEEP_GOAL_STEP_H)} className="flex h-8 w-8 items-center justify-center rounded-full text-[17px]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Longer sleep goal">
                     +
                   </button>
                 </span>
@@ -224,7 +245,7 @@ export default function ProfilePage() {
             <Row label="Move to another phone" sub="Copy everything as text and paste it there" value="" trailing={<Chevron />} onClick={() => router.push("/dev/data-transfer")} ariaLabel="Move to another phone. Open" />
             {feedbackUrl && <Row label="Send feedback" sub="Opens a short form" value="" trailing={<Chevron />} onClick={() => window.open(feedbackUrl, "_blank", "noopener,noreferrer")} ariaLabel="Send feedback. Opens in a new tab" />}
           </RowGroup>
-          <p className="pb-2 text-[11px]" style={{ color: "#6f6f76" }}>
+          <p className="pb-2 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             Everything stays on this phone. Export before switching phones.
           </p>
         </section>

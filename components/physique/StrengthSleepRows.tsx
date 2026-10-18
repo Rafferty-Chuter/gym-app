@@ -40,8 +40,8 @@ export default function StrengthSleepRows({ analysis, showSleep = true }: { anal
         : s.baselineMissing
           ? "No pre-phase baseline yet"
           : "Not enough sessions yet";
-  const strengthColor = s.status === "dropping" ? STATUS_HEX.attention : s.status === "one-lift" ? STATUS_HEX.watch : s.status === "unclear" ? "#6f6f76" : "#f2f2f0";
-  const sleepColor = sl.status === "severe" ? STATUS_HEX.attention : sl.status === "short" ? STATUS_HEX.watch : sl.status === "unknown" ? "#6f6f76" : "#f2f2f0";
+  const strengthColor = s.status === "dropping" ? STATUS_HEX.attention : s.status === "one-lift" ? STATUS_HEX.watch : s.status === "unclear" ? "var(--text-tertiary)" : "var(--text)";
+  const sleepColor = sl.status === "severe" ? STATUS_HEX.attention : sl.status === "short" ? STATUS_HEX.watch : sl.status === "unknown" ? "var(--text-tertiary)" : "var(--text)";
   return (
     <RowGroup>
       <Row

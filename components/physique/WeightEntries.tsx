@@ -42,21 +42,21 @@ export default function WeightEntries({ weighIns, today, unit, onEdit }: { weigh
           <div className="mb-2">
             <Caption>{g.label}</Caption>
           </div>
-          <ul className="divide-y divide-[#2a2a2e] overflow-hidden rounded-[12px]" style={{ background: "#141416" }}>
+          <ul className="divide-y divide-[var(--border)] overflow-hidden rounded-[12px]" style={{ background: "var(--surface)" }}>
             {g.items.map((w) => (
               <li key={w.id}>
-                <button type="button" onClick={() => onEdit(w)} className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors active:bg-[#1d1d20]" aria-label={`Edit weigh-in ${longLocalDate(w.date)}, ${formatWeight(w.kg, unit)}`}>
+                <button type="button" onClick={() => onEdit(w)} className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`Edit weigh-in ${longLocalDate(w.date)}, ${formatWeight(w.kg, unit)}`}>
                   <span className="flex flex-col">
-                    <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}>
+                    <span className="text-[17px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
                       {formatWeight(w.kg, unit)}
                     </span>
-                    <span className="text-[11px]" style={{ color: "#6f6f76" }}>
+                    <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                       {longLocalDate(w.date)}
                       {typeof w.bodyFatPct === "number" ? ` · ${w.bodyFatPct.toFixed(1)} % fat` : ""}
                       {w.source !== "manual" ? ` · ${w.source}` : ""}
                     </span>
                   </span>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#6f6f76" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
                     <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
                   </svg>
                 </button>
@@ -66,7 +66,7 @@ export default function WeightEntries({ weighIns, today, unit, onEdit }: { weigh
         </div>
       ))}
       {total > COLLAPSED_ENTRIES && (
-        <button type="button" onClick={() => setExpanded((e) => !e)} className="h-[36px] text-[13px] font-semibold" style={{ color: "#a3a3a8" }}>
+        <button type="button" onClick={() => setExpanded((e) => !e)} className="h-[36px] text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
           {expanded ? "Show fewer" : `Show all ${total} from the last 30 days`}
         </button>
       )}

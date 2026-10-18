@@ -30,11 +30,11 @@ export default function TimeChip({ value, onChange, compact = false }: { value: 
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className={`flex items-center gap-1.5 rounded-full font-medium transition-colors active:bg-[#26262a] ${compact ? "h-[30px] px-3 text-[12px]" : "h-[34px] px-3.5 text-[13px]"}`}
-        style={{ background: "#1d1d20", color: "#f2f2f0", fontVariantNumeric: "tabular-nums" }}
+        className={`flex items-center gap-1.5 rounded-full font-medium transition-colors active:bg-[var(--surface-pressed)] ${compact ? "h-[30px] px-3 text-[12px]" : "h-[34px] px-3.5 text-[13px]"}`}
+        style={{ background: "var(--surface-raised)", color: "var(--text)", fontVariantNumeric: "tabular-nums" }}
         aria-label={`Time ${value}. Change`}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="#a3a3a8" strokeWidth={2} strokeLinecap="round" className="h-3.5 w-3.5" aria-hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth={2} strokeLinecap="round" className="h-3.5 w-3.5" aria-hidden>
           <circle cx="12" cy="12" r="8" />
           <path d="M12 8v4l2.5 2" />
         </svg>
@@ -48,7 +48,7 @@ export default function TimeChip({ value, onChange, compact = false }: { value: 
             { label: `+${TIME_STEP_MIN}`, d: TIME_STEP_MIN },
             { label: "+1 h", d: 60 },
           ].map((b) => (
-            <button key={b.label} type="button" onClick={() => step(b.d)} className="h-[30px] rounded-full px-2.5 text-[12px] font-medium transition-colors active:bg-[#26262a]" style={{ background: "#141416", color: "#a3a3a8", border: "1px solid #2a2a2e", fontVariantNumeric: "tabular-nums" }}>
+            <button key={b.label} type="button" onClick={() => step(b.d)} className="h-[30px] rounded-full px-2.5 text-[12px] font-medium transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontVariantNumeric: "tabular-nums" }}>
               {b.label}
             </button>
           ))}

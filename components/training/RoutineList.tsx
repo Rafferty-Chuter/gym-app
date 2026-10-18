@@ -42,20 +42,20 @@ export default function RoutineList({ templates, onChanged }: { templates: Worko
     <>
       <ul className="flex flex-col gap-2" aria-label="Routines">
         {templates.map((t) => (
-          <li key={t.id} className="rounded-[12px] p-4" style={{ background: "#141416" }}>
+          <li key={t.id} className="rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
             <div className="flex items-start justify-between gap-2">
               <button type="button" onClick={() => setPreview(t)} className="min-w-0 flex-1 text-left" aria-label={`${t.name}. ${meta(t)}. Preview`}>
-                <span className="block truncate text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
+                <span className="block truncate text-[17px] font-semibold" style={{ color: "var(--text)" }}>
                   {t.name}
                 </span>
-                <span className="mt-0.5 block text-[13px] leading-snug" style={{ color: "#a3a3a8" }}>
+                <span className="mt-0.5 block text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
                   {routineSummary(t)}
                 </span>
-                <span className="mt-0.5 block text-[11px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+                <span className="mt-0.5 block text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
                   {meta(t)}
                 </span>
               </button>
-              <button type="button" onClick={() => (setMenu(t), setConfirmDelete(false))} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label={`${t.name} options`}>
+              <button type="button" onClick={() => (setMenu(t), setConfirmDelete(false))} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label={`${t.name} options`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden>
                   <circle cx="5" cy="12" r="1.8" />
                   <circle cx="12" cy="12" r="1.8" />
@@ -63,7 +63,7 @@ export default function RoutineList({ templates, onChanged }: { templates: Worko
                 </svg>
               </button>
             </div>
-            <button type="button" onClick={() => start(t)} className="mt-3 h-[40px] w-full rounded-[10px] text-[15px] font-semibold" style={{ background: "#f2f2f0", color: "#0a0a0b" }} aria-label={`Start ${t.name}`}>
+            <button type="button" onClick={() => start(t)} className="mt-3 h-[40px] w-full rounded-[10px] text-[15px] font-semibold" style={{ background: "var(--primary)", color: "var(--text-on-primary)" }} aria-label={`Start ${t.name}`}>
               Start routine
             </button>
           </li>
@@ -85,7 +85,7 @@ export default function RoutineList({ templates, onChanged }: { templates: Worko
       >
         {preview && (
           <div className="flex flex-col gap-3 pb-1">
-            <p className="text-[12px]" style={{ color: "#6f6f76", fontVariantNumeric: "tabular-nums" }}>
+            <p className="text-[12px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
               {meta(preview)}
             </p>
             <RowGroup>
