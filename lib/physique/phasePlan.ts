@@ -110,14 +110,12 @@ export function planPosition(plan: PhasePlan, today: LocalDate): number | null {
   return Math.max(0, Math.min(1, dayDiff(first.start, today) / total));
 }
 
-/** "Cut to 25 Dec · maintain 3 weeks · next from 15 Jan", or the reason there is no date. */
+/** "Cut to 25 Dec, then 3 weeks at maintenance", or the reason there is no date. "next from" went in C9: it named a date with nothing on it. */
 export function planLine(plan: PhasePlan, fmt: (d: LocalDate) => string): string {
-  const [first, settle, next] = plan.phases;
+  const [first, settle] = plan.phases;
   if (!first) return "";
-  if (first.kind === "maintain") return "Maintaining · next goal when you choose it";
+  if (first.kind === "maintain") return "Maintaining";
   if (!first.end) return `${first.label} · no end date yet`;
-  const parts = [`${first.label} to ${fmt(first.end)}`];
-  if (settle?.end) parts.push(`maintain ${settle.kind === "maintain" ? `${Math.round(dayDiff(settle.start, settle.end) / 7)} weeks` : ""}`.trim());
-  if (next?.start && settle?.end) parts.push(`next from ${fmt(next.start)}`);
-  return parts.join(" · ");
+  const head = `${first.label} to ${fmt(first.end)}`;
+  return settle?.end && settle.kind === "maintain" ? `${head}, then ${Math.round(dayDiff(settle.start, settle.end) / 7)} weeks at maintenance` : head;
 }

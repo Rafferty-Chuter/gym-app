@@ -14,7 +14,6 @@ import { RANGES, type RangeId } from "@/components/physique/WeightChartCard";
 import { ExpenditureChart } from "@/components/food/EnergyCharts";
 import { Caption, Row, RowGroup } from "@/components/physique/ui";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
-import type { ExpenditureState } from "@/lib/physique/types";
 
 /** The expenditure page (05-design §9.4): MacroFactor's "maintenance adjustment", explained. */
 export default function EnergyPage() {
@@ -27,7 +26,6 @@ export default function EnergyPage() {
 
 const n = (v: number) => Math.round(v).toLocaleString("en-GB");
 
-const STATE_WORD: Record<ExpenditureState, string> = { holding: "Holding", calibrating: "Calibrating", settling: "Settling", stable: "Updating" };
 
 function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const today = now.today;
@@ -86,7 +84,7 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
               </span>
             </div>
             <div className="flex flex-col">
-              <Caption>Difference</Caption>
+              <Caption>Change</Caption>
               <span className="text-[28px] font-semibold leading-tight tracking-[-0.02em]" style={{ color: model.summary.differenceKcal != null ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
                 {model.summary.differenceKcal != null ? signedKcal(model.summary.differenceKcal) : "–"}
                 <span className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>
@@ -129,26 +127,19 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           <p className="mt-2 text-[12px]" style={{ color: "var(--text-secondary)" }}>
             {model.summary.points.length === 0
               ? "The maintenance estimate starts once there is a weigh-in and a day of food."
-              : `Difference is the move from ${longLocalDate(model.summary.points[0].date)} to today. Intake − change in stored energy, from logged food and the weight trend.`}
+              : `Change since ${longLocalDate(model.summary.points[0].date)}, worked out from logged food and the weight trend.`}
           </p>
         </section>
 
 
-        <section className="grid grid-cols-2 gap-3" aria-label="Current">
+        <section className="grid grid-cols-1 gap-3" aria-label="Current">
           <div className="flex flex-col gap-1 rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
             <Caption>Maintenance now</Caption>
             <span className="text-[28px] font-semibold leading-tight tracking-[-0.02em]" style={{ color: e?.kcal != null ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
               {e?.kcal != null ? n(e.kcal) : "–"}
             </span>
             <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
-              {e?.kcal != null ? `kcal/day${e.plusMinus ? ` · ±${e.plusMinus}` : ""}` : "Needs food and weigh-ins on the same days"}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1 rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
-            <Caption>Current strategy</Caption>
-            <span className="text-[20px] font-semibold leading-tight">{STATE_WORD[state]}</span>
-            <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
-              {strategy}
+              {e?.kcal != null ? `kcal a day · ${strategy}` : "Needs food and weigh-ins on the same days"}
             </span>
           </div>
         </section>

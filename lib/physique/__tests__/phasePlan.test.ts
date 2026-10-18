@@ -17,7 +17,7 @@ describe("phase planner", () => {
     expect(plan?.phases[1]).toMatchObject({ start: "2026-12-20", end: "2027-01-10", current: false });
     expect(plan?.phases[2].start).toBe("2027-01-10");
     expect(MAINTENANCE_AFTER_CUT_WEEKS).toBe(3);
-    expect(planLine(plan!, (d) => d)).toBe("Cut to 2026-12-20 · maintain 3 weeks · next from 2027-01-10");
+    expect(planLine(plan!, (d) => d)).toBe("Cut to 2026-12-20, then 3 weeks at maintenance");
   });
 
   it("dates the halfway point from today at the ETA's rate", () => {

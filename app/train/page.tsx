@@ -185,7 +185,7 @@ function TrainContent({ now }: { now: Now }) {
             <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
               {model.weekCount} {model.weekCount === 1 ? "workout" : "workouts"}
             </span>
-            <Caption>last 7 days · {fmtVol(model.weekVolume)}</Caption>
+            <Caption>last 7 days · {fmtVol(model.weekVolume)} lifted</Caption>
           </div>
           <div className="mt-3 grid grid-cols-7 gap-1.5">
             {model.week.map((d) => (

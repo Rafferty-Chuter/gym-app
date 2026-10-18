@@ -1,6 +1,6 @@
 "use client";
 
-import { Caption, StatusDot } from "@/components/physique/ui";
+import { StatusDot } from "@/components/physique/ui";
 import type { Fix, Heading } from "@/lib/physique/weeklyInsight";
 import { STATUS_HEX } from "@/lib/ui/status";
 
@@ -126,7 +126,6 @@ export function FixesCard({ fixes, more, goingWell }: { fixes: Fix[]; more: numb
       )}
       {(more > 0 || well) && (
         <div className="flex flex-col gap-1">
-          {more > 0 && <Caption>{more === 1 ? "One smaller thing waits until these are done." : `${more} smaller things wait until these are done.`}</Caption>}
           {well && (
             <p className="text-[12px] leading-snug" style={{ color: "var(--text-secondary)" }}>
               {well}

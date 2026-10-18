@@ -261,7 +261,7 @@ function strengthTile({ report, strength, goalType }: ScorecardInputs): Tile {
     id: "strength",
     label: "Main lifts",
     value: word.value,
-    sub: "e1RM since the phase began",
+    sub: "Est. 1RM since the phase began",
     delta: { text: named.join(" · "), tone: word.tone },
     chart: { kind: "none" },
     href: "/exercises",
@@ -271,13 +271,13 @@ function strengthTile({ report, strength, goalType }: ScorecardInputs): Tile {
 function sleepTile({ report, prev }: ScorecardInputs): Tile {
   const s = report.sleep;
   const value = s.meanH == null ? "–" : minutes(s.meanH);
-  const sub = [`${s.shortNights} short ${s.shortNights === 1 ? "night" : "nights"}`, s.wakeSpreadMin != null ? `wake ±${s.wakeSpreadMin} min` : null].filter(Boolean).join(" · ");
+  const sub = [`${s.shortNights} short ${s.shortNights === 1 ? "night" : "nights"}`, s.wakeSpreadMin != null ? `wake time ±${s.wakeSpreadMin} min` : null].filter(Boolean).join(" · ");
   let delta: Tile["delta"] = null;
   if (s.meanH != null) {
     const gap = s.goalH - s.meanH;
     const tone: Tone = gap <= SLEEP_GOOD_H ? "good" : gap > SLEEP_SHORT_H ? "watch" : "neutral";
     const vsLast = prev?.sleep.meanH != null ? s.meanH - prev.sleep.meanH : null;
-    const text = vsLast != null && Math.abs(vsLast) >= 1 / 6 ? `${sign(vsLast)}${minutes(Math.abs(vsLast))} vs last week` : gap <= SLEEP_GOOD_H ? `${minutes(s.goalH)} or more` : `${minutes(gap)} under ${minutes(s.goalH)}`;
+    const text = vsLast != null && Math.abs(vsLast) >= 1 / 6 ? `${sign(vsLast)}${minutes(Math.abs(vsLast))} vs last week` : gap <= SLEEP_GOOD_H ? `${s.goalH} hours or more` : `${minutes(gap)} under ${s.goalH} hours`;
     delta = { text, tone };
   }
   return { id: "sleep", label: "Sleep a night", value, sub, delta, chart: { kind: "bars", values: report.days.map((d) => d.asleepH), target: s.goalH }, href: "/sleep" };

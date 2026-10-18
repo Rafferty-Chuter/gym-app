@@ -211,9 +211,12 @@ function DescribeInput({ d }: { d: DescribeState }) {
         <span id="describe-hint" style={{ color: "var(--text-tertiary)" }}>
           Meals, takeaway orders and recipes. Numbers come from the UK food database.
         </span>
-        <span className="shrink-0" style={{ color: over ? "var(--status-watch)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-          {len.toLocaleString("en-GB")} / {MAX_DESCRIBE_CHARS.toLocaleString("en-GB")}
-        </span>
+        {/* The count only matters near the limit (C9). */}
+        {len > MAX_DESCRIBE_CHARS * 0.8 && (
+          <span className="shrink-0" style={{ color: over ? "var(--status-watch)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+            {len.toLocaleString("en-GB")} / {MAX_DESCRIBE_CHARS.toLocaleString("en-GB")}
+          </span>
+        )}
       </div>
       {d.error && (
         <p role="alert" className="flex items-start gap-2 rounded-[12px] px-3 py-2.5 text-[13px] leading-snug" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>

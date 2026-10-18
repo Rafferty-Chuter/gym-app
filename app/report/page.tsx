@@ -225,7 +225,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
               <Row label="Maintenance" value={report.expenditure.endKcal == null ? dash : `${n(report.expenditure.endKcal)} kcal`} sub={report.expenditure.deltaKcal == null ? "Needs food and weigh-ins on the same days" : report.expenditure.state === "holding" ? "Holding until logging resumes" : `${signedKcal(report.expenditure.deltaKcal)} kcal over the week`} />
               <Row label="Intake" value={report.food.meanKcal == null ? dash : `${n(report.food.meanKcal)} kcal`} sub={report.food.targetKcal == null ? "Average of logged days · no target set" : report.food.deltaKcal == null ? `Target ${n(report.food.targetKcal)} kcal` : `${signedKcal(report.food.deltaKcal)} vs the ${n(report.food.targetKcal)} kcal target, averaged over logged days`} />
               <Row label="Protein" value={report.food.meanProteinG == null ? dash : `${n(report.food.meanProteinG)} g`} sub={report.food.meanProteinG == null ? "No complete days" : `${report.food.proteinGPerKg != null ? `${report.food.proteinGPerKg.toFixed(1)} g/kg` : ""}${report.food.targetProteinG != null ? ` · target ${n(report.food.targetProteinG)} g` : ""}`} />
-              <Row label="Fibre" value={report.food.meanFibreG == null ? dash : `${n(report.food.meanFibreG)} g`} sub={report.food.meanFibreG == null ? `Read on days where most foods carry a fibre value · ${report.food.fibreDays} so far` : `Target ${FIBRE_TARGET_G} g · ${report.food.fibreDays} days read`} />
+              {report.food.meanFibreG != null && <Row label="Fibre" value={`${n(report.food.meanFibreG)} g`} sub={`Target ${FIBRE_TARGET_G} g · ${report.food.fibreDays} days read`} />}
               {(report.food.partial > 0 || report.food.fasting > 0) && <Row label="Day status" value={`${report.food.complete} complete`} sub={`${report.food.partial} partial · ${report.food.fasting} fasting`} />}
             </RowGroup>
           </section>
@@ -244,7 +244,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
                 {report.training.lifts.map((l) => {
                   // The change shown is the strength engine's, since the phase began; this week's best e1RM is the raw number.
                   const since = analysis?.strength.lifts.find((x) => x.name === l.name)?.changePct ?? null;
-                  return <Row key={l.name} label={l.name} value={`${formatWeight(l.e1rmKg, unit)}`} sub={since == null ? "Best e1RM this week" : `Best e1RM this week · ${since > 0 ? "+" : since < 0 ? "−" : ""}${Math.abs(since).toFixed(1)} % since the phase began`} />;
+                  return <Row key={l.name} label={l.name} value={`${formatWeight(l.e1rmKg, unit)}`} sub={since == null ? "Best est. 1RM this week" : `Best est. 1RM this week · ${since > 0 ? "+" : since < 0 ? "−" : ""}${Math.abs(since).toFixed(1)} % since the phase began`} />;
                 })}
                 <div className="px-4 py-3">
                   <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
@@ -305,7 +305,6 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
               Based on {coverageLine(report)}.
             </p>
           )}
-          <Caption>Numbers and fixes come from the engine. Nothing here is a guess.</Caption>
           {report.hasData && (
             <button type="button" data-no-print onClick={() => window.print()} className="h-[44px] w-full rounded-[12px] text-[15px] font-semibold transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
               Save as PDF

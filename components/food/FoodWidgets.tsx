@@ -4,7 +4,7 @@ import { MacroBars, NutritionRing } from "@/components/food/NutritionRing";
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { EnergyBalanceChart, FAT_COLOR, KCAL_COLOR } from "@/components/food/EnergyCharts";
-import { signedKcal, type EnergyBalance, type EnergyLine } from "@/lib/physique/food/energy";
+import { type EnergyBalance, type EnergyLine } from "@/lib/physique/food/energy";
 import { FIBRE_GOOD_SHARE, FIBRE_TARGET_G } from "@/lib/physique/weekScorecard";
 import type { MacroSums } from "@/lib/physique/food/timeline";
 import type { ExpenditureState, ProgramTargets } from "@/lib/physique/types";
@@ -152,13 +152,13 @@ export default function FoodWidgets(props: Props) {
               [
                 { label: "Intake", value: energy.avgIntakeKcal, color: KCAL_COLOR, prefix: "" },
                 { label: energyLine === "targets" ? "Targets" : "Maintenance", value: energy.avgLineKcal, color: energyLine === "targets" ? FAT_COLOR : "var(--text-secondary)", prefix: "− " },
-                { label: "Difference", value: energy.differenceKcal, color: "var(--text)", prefix: "= " },
+                { label: energy.differenceKcal == null || energy.differenceKcal === 0 ? "Balance" : energy.differenceKcal < 0 ? "Deficit" : "Surplus", value: energy.differenceKcal, color: "var(--text)", prefix: "= " },
               ] as const
             ).map((t) => (
               <div key={t.label} className="flex flex-col">
                 <span className="text-[17px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
                   <span style={{ color: "var(--text-tertiary)" }}>{t.prefix}</span>
-                  {t.value == null ? "–" : t.label === "Difference" ? signedKcal(t.value) : n(t.value)}
+                  {t.value == null ? "–" : n(Math.abs(t.value))}
                 </span>
                 <span className="flex items-center gap-1 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                   <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: t.color }} aria-hidden />

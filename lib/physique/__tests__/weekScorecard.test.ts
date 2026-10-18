@@ -54,7 +54,7 @@ describe("weekly scorecard (W4)", () => {
     const base = { baselineMissing: false, strOk: true, mainLifts: 2, liftsRead: 2 };
     const at = (strength: Parameters<typeof scorecard>[0]["strength"]) => scorecard({ report, prev, unit: "kg", goalType: "lose", strength }).find((t) => t.id === "strength")!;
     const rising = at({ ...base, status: "rising", lifts: [{ name: "Squat", changePct: 4 }, { name: "Bench Press", changePct: 1 }] });
-    expect(rising).toMatchObject({ value: "Rising", sub: "e1RM since the phase began", href: "/exercises" });
+    expect(rising).toMatchObject({ value: "Rising", sub: "Est. 1RM since the phase began", href: "/exercises" });
     expect(rising.delta).toEqual({ text: "Squat +4%", tone: "good" });
     const oneDown = at({ ...base, status: "one-lift", lifts: [{ name: "Squat", changePct: -1 }, { name: "Bench Press", changePct: -8 }] });
     expect(oneDown.value).toBe("One down");

@@ -44,7 +44,7 @@ describe("weekly insight (W3)", () => {
     const h = heading(i);
     expect(h.title).toMatch(/^78\.0 kg around \d{4}-\d{2}-\d{2}$/);
     expect(h.lines[0]).toMatch(/^At −\d\.\d+ %\/wk(, .+)?\. \d+\.\d kg to go\.$/);
-    expect(h.lines[1]).toMatch(/^Cut to .+ · maintain 3 weeks · next from .+\.$/);
+    expect(h.lines[1]).toMatch(/^Cut to .+, then 3 weeks at maintenance\.$/);
     expect(h.lines.at(-1)).toBe("Lifts holding since the phase started.");
     expect(i.analysis.strength.status).toBe("holding");
   });
