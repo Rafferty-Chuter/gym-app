@@ -22,6 +22,9 @@ import { BODY_FAT_OPTIONS, SEX_OPTIONS } from "@/lib/physique/profileOptions";
 import { clampSleepGoal } from "@/lib/physique/sleep";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { useUnit } from "@/lib/unit-preference";
+import { setHeightUnit, useHeightUnit } from "@/lib/ui/heightUnit";
+import { formatHeight } from "@/lib/units";
+import HeightSheet from "@/components/physique/HeightSheet";
 import { readAppearance, setAppearance, type Appearance } from "@/lib/ui/appearance";
 import { getRestTimerSettings, REST_TIMER_SETTINGS_EVENT, setRestTimerSettings, type RestTimerSettings } from "@/lib/restTimerSettings";
 import { downloadAllWorkoutsCsv } from "@/lib/exportWorkoutsCsv";
@@ -50,6 +53,7 @@ export default function ProfilePage() {
   const hydrated = useIsHydrated();
   const router = useRouter();
   const { unit, setUnit } = useUnit();
+  const heightUnit = useHeightUnit();
   // Read after hydration so the server's "Auto" never mismatches a stored choice.
   const [picked, setPicked] = useState<Appearance | null>(null);
   const appearance: Appearance = picked ?? (hydrated ? readAppearance() : "auto");
@@ -120,6 +124,18 @@ export default function ProfilePage() {
               sub="Body weights stay in kg underneath. Logged workouts switch to the new unit."
             />
             <Row
+              label="Height"
+              value={
+                <span className="flex gap-1" role="radiogroup" aria-label="Height units">
+                  {(["cm", "ft"] as const).map((u) => (
+                    <button key={u} type="button" role="radio" aria-checked={heightUnit === u} onClick={() => setHeightUnit(u)} className="h-8 rounded-full px-3 text-[13px] font-medium" style={pill(heightUnit === u)}>
+                      {u === "cm" ? "cm" : "ft / in"}
+                    </button>
+                  ))}
+                </span>
+              }
+            />
+            <Row
               label="Appearance"
               value={
                 <span className="flex gap-1" role="radiogroup" aria-label="Appearance">
@@ -150,7 +166,7 @@ export default function ProfilePage() {
                 </span>
               }
             />
-            <Row label="Height" value={resolved?.heightCm ? `${resolved.heightCm} cm` : <span style={{ color: "var(--text-tertiary)" }}>Add</span>} trailing={<Chevron />} onClick={() => setSheet("height")} ariaLabel="Height. Edit" />
+            <Row label="Height" value={resolved?.heightCm ? formatHeight(resolved.heightCm, heightUnit) : <span style={{ color: "var(--text-tertiary)" }}>Add</span>} trailing={<Chevron />} onClick={() => setSheet("height")} ariaLabel="Height. Edit" />
             <Row label="Age" value={resolved ? `${resolved.age}` : "–"} trailing={<Chevron />} onClick={() => setSheet("age")} ariaLabel="Age. Edit" />
             <Row
               label="Body fat, roughly"
@@ -177,7 +193,7 @@ export default function ProfilePage() {
           <RowGroup>
             <Row
               label="Sleep goal"
-              sub="7 to 9 h. The Sleep tab and the planner use it."
+              sub="7 to 9 h. Each night is scored against it."
               value={
                 <span className="flex items-center gap-1">
                   <button type="button" onClick={() => void stepSleepGoal(-SLEEP_GOAL_STEP_H)} className="flex h-8 w-8 items-center justify-center rounded-full text-[17px]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Shorter sleep goal">
@@ -221,7 +237,7 @@ export default function ProfilePage() {
         </section>
       </div>
 
-      <NumberSheet open={sheet === "height"} onClose={() => setSheet(null)} title="Height" unit="cm" initial={resolved?.heightCm ?? null} decimals={0} step={1} min={120} max={230} onSave={(v) => void saveBasics({ heightCm: v })} />
+      <HeightSheet open={sheet === "height"} onClose={() => setSheet(null)} initialCm={resolved?.heightCm ?? null} onSave={(v) => void saveBasics({ heightCm: v })} />
       <NumberSheet open={sheet === "age"} onClose={() => setSheet(null)} title="Age" initial={resolved?.age ?? null} decimals={0} step={1} min={13} max={100} onSave={(v) => void saveBasics({ age: v })} />
       <AppleHealthSheet open={sheet === "health"} onClose={() => setSheet(null)} />
       <MusclePrioritiesSheet open={sheet === "priorities"} onClose={() => setSheet(null)} phase={phase} />

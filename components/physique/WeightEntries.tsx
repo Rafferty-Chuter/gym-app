@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Caption } from "@/components/physique/ui";
 import type { WeighIn } from "@/lib/physique/types";
-import { formatWeight, type WeightUnit } from "@/lib/units";
+import { formatBodyWeight, type WeightUnit } from "@/lib/units";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 
@@ -46,10 +46,10 @@ export default function WeightEntries({ weighIns, today, unit, onEdit }: { weigh
           <ul className="divide-y divide-[var(--border)] overflow-hidden rounded-[12px]" style={{ background: "var(--surface)" }}>
             {g.items.map((w) => (
               <li key={w.id}>
-                <button type="button" onClick={() => onEdit(w)} className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`Edit weigh-in ${longLocalDate(w.date)}, ${formatWeight(w.kg, unit)}`}>
+                <button type="button" onClick={() => onEdit(w)} className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`Edit weigh-in ${longLocalDate(w.date)}, ${formatBodyWeight(w.kg, unit)}`}>
                   <span className="flex flex-col">
                     <span className="text-[17px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-                      {formatWeight(w.kg, unit)}
+                      {formatBodyWeight(w.kg, unit)}
                     </span>
                     <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                       {longLocalDate(w.date)}

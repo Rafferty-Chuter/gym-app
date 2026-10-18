@@ -16,7 +16,7 @@ import { useWorkouts } from "@/lib/physique/io/workouts";
 import { profileStore } from "@/lib/physique/io/repos";
 import { buildWeekReport, defaultReportWeek, reportWeekStart, type WeekReport } from "@/lib/physique/weekReport";
 import { signedKcal } from "@/lib/physique/food/energy";
-import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
+import { formatBodyWeight, formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { formatRate } from "@/components/physique/WeightChartCard";
 import { Caption, Row, RowGroup } from "@/components/physique/ui";
@@ -134,7 +134,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   }, [analysis, data, workouts, unit, now, today, deloadRecord, report, plannedSessions, reviewModel, start, reviewWeek]);
 
   const caption = `${shortLocalDate(report.start)} to ${shortLocalDate(report.end)} · ${report.complete ? "complete" : `${report.daysCovered} of 7 days so far`}`;
-  const w = (kg: number | null) => (kg == null ? dash : formatWeight(kg, unit));
+  const w = (kg: number | null) => (kg == null ? dash : formatBodyWeight(kg, unit));
   const kgDelta = (kg: number | null) => (kg == null ? dash : `${kg > 0 ? "+" : kg < 0 ? "−" : ""}${Math.abs(kgToDisplay(kg, unit)).toFixed(1)} ${unit}`);
 
   return (

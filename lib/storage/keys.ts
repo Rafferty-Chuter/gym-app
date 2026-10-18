@@ -32,6 +32,7 @@ export const STORAGE_KEYS = [
   { key: "userCoachingProfile", scope: "local", version: 1, includeInBackup: true, owner: "lib/userProfile.ts (legacy, read-only)" },
   { key: "weightUnit", scope: "local", version: 1, includeInBackup: true, owner: "lib/unit-preference.tsx" },
   { key: "appearance", scope: "local", version: 1, includeInBackup: true, owner: "lib/ui/appearance.ts" },
+  { key: "heightUnit", scope: "local", version: 1, includeInBackup: true, owner: "lib/ui/heightUnit.ts" },
   { key: "trainingFocus", scope: "local", version: 1, includeInBackup: true, owner: "lib/trainingFocus.tsx" },
   { key: "experienceLevel", scope: "local", version: 1, includeInBackup: true, owner: "lib/experienceLevel.tsx" },
   { key: "priorityGoal", scope: "local", version: 1, includeInBackup: true, owner: "lib/priorityGoal.tsx" },

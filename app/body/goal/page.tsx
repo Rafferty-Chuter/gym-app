@@ -11,11 +11,13 @@ import { useRepo, useSingleton } from "@/lib/storage/useStored";
 import { goalStore, profileStore, weighInsRepo } from "@/lib/physique/io/repos";
 import { createGoal, loadGoalContext, previewGoal, saveBasics, type GoalContext } from "@/lib/physique/io/goalSetup";
 import { CUT_REFUSED_ABOVE, GAIN_REFUSED_ABOVE, rateBands } from "@/lib/physique/targets";
-import { displayToKg, formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
+import { displayToKg, formatHeight, formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
+import { useHeightUnit } from "@/lib/ui/heightUnit";
 import type { Now } from "@/lib/dates";
 import type { BodyFatCategory, Sex, TrainingStatus } from "@/lib/physique/types";
 import NumberPad, { NumberPadValue, formatPadValue, parsePadValue } from "@/components/ui/NumberPad";
 import NumberSheet from "@/components/physique/NumberSheet";
+import HeightSheet from "@/components/physique/HeightSheet";
 import RateSlider from "@/components/physique/RateSlider";
 import { Caption, Chevron, ErrorLine, PrimaryButton, Row, RowGroup, SecondaryButton } from "@/components/physique/ui";
 import { formatRate } from "@/components/physique/WeightChartCard";
@@ -358,6 +360,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
 function BasicsStep({ ctx, onDone }: { ctx: GoalContext; onDone: () => void }) {
   const [sex, setSex] = useState<Sex | undefined>(ctx.profile.missing.includes("sex") ? undefined : ctx.profile.sex);
   const [heightCm, setHeightCm] = useState<number | null>(ctx.profile.heightCm ?? null);
+  const heightUnit = useHeightUnit();
   const [age, setAge] = useState<number>(ctx.profile.age);
   const [bodyFat, setBodyFat] = useState<BodyFatCategory | null>(ctx.profile.bodyFatCategory ?? null);
   const [sheet, setSheet] = useState<"height" | "age" | null>(null);
@@ -391,7 +394,7 @@ function BasicsStep({ ctx, onDone }: { ctx: GoalContext; onDone: () => void }) {
         </div>
       </div>
       <RowGroup>
-        <Row label="Height" value={heightCm != null ? `${heightCm} cm` : <span style={{ color: "var(--text-tertiary)" }}>Add</span>} trailing={<Chevron />} onClick={() => setSheet("height")} ariaLabel="Height" />
+        <Row label="Height" value={heightCm != null ? formatHeight(heightCm, heightUnit) : <span style={{ color: "var(--text-tertiary)" }}>Add</span>} trailing={<Chevron />} onClick={() => setSheet("height")} ariaLabel="Height" />
         <Row label="Age" value={`${age}`} trailing={<Chevron />} onClick={() => setSheet("age")} ariaLabel="Age" />
       </RowGroup>
       <div className="flex flex-col gap-2">
@@ -410,7 +413,7 @@ function BasicsStep({ ctx, onDone }: { ctx: GoalContext; onDone: () => void }) {
       <PrimaryButton onClick={save} disabled={!ok || saving}>
         Continue
       </PrimaryButton>
-      <NumberSheet open={sheet === "height"} onClose={() => setSheet(null)} title="Height" unit="cm" initial={heightCm} decimals={0} step={1} min={120} max={230} onSave={setHeightCm} />
+      <HeightSheet open={sheet === "height"} onClose={() => setSheet(null)} initialCm={heightCm} onSave={setHeightCm} />
       <NumberSheet open={sheet === "age"} onClose={() => setSheet(null)} title="Age" initial={age} decimals={0} step={1} min={13} max={100} onSave={setAge} />
     </section>
   );

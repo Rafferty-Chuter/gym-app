@@ -19,7 +19,7 @@ import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { ON_TRACK_TOLERANCE } from "@/lib/physique/judge";
 import { RHR_FLAG_BPM } from "@/lib/physique/recovery";
 import { WAKE_SPREAD_MIN } from "@/lib/physique/sleepScore";
-import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
+import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import type { GoalType, PhysiqueAnalysis, StrengthStatus } from "@/lib/physique/types";
 import type { WeekReport } from "@/lib/physique/weekReport";
 
@@ -167,7 +167,7 @@ const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(
 function weightTile({ report, unit, goalType, planRatePct, gainCeilingPct }: ScorecardInputs): Tile {
   const w = report.weight;
   const focus = focusFor(goalType);
-  const value = w.endTrendKg == null ? "–" : formatWeight(w.endTrendKg, unit);
+  const value = w.endTrendKg == null ? "–" : formatBodyWeight(w.endTrendKg, unit);
   const weighed = `${w.weighIns} of ${report.daysCovered} weighed`;
   const vsPlan = rateVsPlan(w.ratePctPerWeek, planRatePct, focus, gainCeilingPct, w.rateMarginPct);
   if (vsPlan && w.ratePctPerWeek != null) {

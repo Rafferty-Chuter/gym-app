@@ -4,7 +4,7 @@ import { useState } from "react";
 import Sheet from "@/components/ui/Sheet";
 import NumberPad, { NumberPadValue, formatPadValue, parsePadValue } from "@/components/ui/NumberPad";
 import { PrimaryButton, SecondaryButton, ErrorLine } from "@/components/physique/ui";
-import { displayToKg, kgToDisplay, type WeightUnit } from "@/lib/units";
+import { BODYWEIGHT_DECIMALS, displayToKg, kgToDisplay, type WeightUnit } from "@/lib/units";
 import { sanityCheck, SANITY_PCT } from "@/lib/physique/weight";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
@@ -48,7 +48,7 @@ type Field = "weight" | "bodyFat";
  */
 export default function WeightSheet(props: Props) {
   if (!props.open) return null;
-  const initial = props.lastKg != null ? formatPadValue(kgToDisplay(props.lastKg, props.unit), 1) : "";
+  const initial = props.lastKg != null ? formatPadValue(kgToDisplay(props.lastKg, props.unit), BODYWEIGHT_DECIMALS[props.unit]) : "";
   return <Inner key={`${initial}-${props.date}`} {...props} initial={initial} />;
 }
 
@@ -185,7 +185,7 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
               setValue(v);
               setConfirm(false);
             }}
-            decimals={1}
+            decimals={BODYWEIGHT_DECIMALS[unit]}
             step={0.1}
             max={unit === "kg" ? 400 : 880}
           />

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import TimeSeriesChart, { longLocalDate, type TimeSeriesPoint } from "@/components/charts/TimeSeriesChart";
 import { Caption } from "@/components/physique/ui";
 import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
-import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
+import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import type { PhysiqueGoal, WeighIn, DayFlags } from "@/lib/physique/types";
 import { displayRate, latestTrend, MIN_DAYS_FOR_RATE, segmentStart, trendSeries, weighInsByDate, weighInsNeededForRate } from "@/lib/physique/weight";
 
@@ -97,7 +97,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
         <div className="flex items-end justify-between gap-3">
           <div className="flex flex-col">
             <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: model.lastWeighIn ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-              {model.lastWeighIn ? formatWeight(model.lastWeighIn.kg, unit) : "–"}
+              {model.lastWeighIn ? formatBodyWeight(model.lastWeighIn.kg, unit) : "–"}
             </span>
             {model.lastWeighIn && (
               <span className="mt-1 text-[12px] font-medium" style={{ color: "var(--text)" }}>
@@ -105,7 +105,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
               </span>
             )}
             <span className="mt-0.5 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {model.latest ? `Trend ${formatWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
+              {model.latest ? `Trend ${formatBodyWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
             </span>
           </div>
           <Caption>{model.inWindow} weigh-ins</Caption>
@@ -148,7 +148,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
       </div>
       {!hero && (
         <p className="mt-2 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-          {model.latest ? `Trend ${formatWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
+          {model.latest ? `Trend ${formatBodyWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
         </p>
       )}
     </section>

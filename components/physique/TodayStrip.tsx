@@ -15,7 +15,7 @@ import { displayRate, latestTrend, segmentStart, trendSeries } from "@/lib/physi
 import { clampSleepGoal } from "@/lib/physique/sleep";
 import { trendBars } from "@/lib/physique/sleepView";
 import { targetInEffect } from "@/lib/physique/intake";
-import { formatWeight } from "@/lib/units";
+import { formatBodyWeight } from "@/lib/units";
 import { formatRate } from "@/components/physique/WeightChartCard";
 import { MacroBars, NutritionRing } from "@/components/food/NutritionRing";
 import WeightSheet from "@/components/physique/WeightSheet";
@@ -75,7 +75,7 @@ export default function TodayStrip() {
   const tileStyle = { background: "var(--surface)" };
 
   // Weight tile words: the trend and its rate when the engine has one, else the last entry.
-  const weightSub = !ready || !day ? " " : day.rate ? `Trend ${formatWeight(day.rate.result.bw, unit)} · ${formatRate(day.rate.result.ratePctPerWeek)}` : day.trend ? `Trend ${formatWeight(day.trend.trendKg, unit)}` : day.lastWeighIn ? `Last ${formatWeight(day.lastWeighIn.kg, unit)}` : "No entries yet";
+  const weightSub = !ready || !day ? " " : day.rate ? `Trend ${formatBodyWeight(day.rate.result.bw, unit)} · ${formatRate(day.rate.result.ratePctPerWeek)}` : day.trend ? `Trend ${formatBodyWeight(day.trend.trendKg, unit)}` : day.lastWeighIn ? `Last ${formatBodyWeight(day.lastWeighIn.kg, unit)}` : "No entries yet";
   const sleepSub = !ready || !day ? " " : day.night ? `of ${formatHoursMin(goalH * 60)} goal` : "Last night";
 
   return (
@@ -105,12 +105,12 @@ export default function TodayStrip() {
       </section>
 
       <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Weight and sleep">
-        <button type="button" className={tile} style={tileStyle} onClick={() => { setWeightDate(null); setSheet("weight"); }} disabled={!ready} aria-label={day?.weighIn ? `Weight today ${formatWeight(day.weighIn.kg, unit)}. ${weightSub}. Edit` : `Weigh in. ${weightSub}`}>
+        <button type="button" className={tile} style={tileStyle} onClick={() => { setWeightDate(null); setSheet("weight"); }} disabled={!ready} aria-label={day?.weighIn ? `Weight today ${formatBodyWeight(day.weighIn.kg, unit)}. ${weightSub}. Edit` : `Weigh in. ${weightSub}`}>
           <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
             Weight
           </span>
           <span className="text-[22px] font-semibold leading-tight" style={{ color: ready && day?.weighIn ? "var(--text)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-            {ready && day?.weighIn ? formatWeight(day.weighIn.kg, unit) : "Weigh in"}
+            {ready && day?.weighIn ? formatBodyWeight(day.weighIn.kg, unit) : "Weigh in"}
           </span>
           <Sparkline points={ready && day ? day.series.map((p) => p.trendKg) : []} />
           <span className="truncate text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>

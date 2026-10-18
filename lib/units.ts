@@ -23,6 +23,18 @@ export function formatWeight(kg: number, unit: WeightUnit, decimals = 1): string
   return `${v.toFixed(decimals)} ${unit}`;
 }
 
+/**
+ * Decimals a body weight shows (C5, the founder's request): 2 in kg, as
+ * scales that read to 0.05 kg show it; 1 in lb, where scales read to 0.2 lb.
+ * Goal targets, rates and changes keep their own precision.
+ */
+export const BODYWEIGHT_DECIMALS: Record<WeightUnit, number> = { kg: 2, lb: 1 };
+
+/** A weigh-in or trend weight: "82.35 kg" / "181.6 lb". */
+export function formatBodyWeight(kg: number, unit: WeightUnit): string {
+  return formatWeight(kg, unit, BODYWEIGHT_DECIMALS[unit]);
+}
+
 /** "2,950 kcal" */
 export function formatKcal(kcal: number): string {
   if (!Number.isFinite(kcal)) return "—";
@@ -47,4 +59,30 @@ export function parseWeightText(text: string | number | null | undefined, unit: 
 /** Round to a step (e.g. 0.1 kg). */
 export function roundTo(value: number, step: number): number {
   return Math.round(value / step) * step;
+}
+
+// ── Height ──
+
+export type HeightUnit = "cm" | "ft";
+
+/** One inch in centimetres (exact). */
+export const CM_PER_INCH = 2.54;
+
+/** Centimetres to whole feet and inches, rounded to the nearest inch: 180 → 5 ft 11 in. */
+export function cmToFtIn(cm: number): { ft: number; inch: number } {
+  const total = Math.round(cm / CM_PER_INCH);
+  return { ft: Math.floor(total / 12), inch: total % 12 };
+}
+
+/** Feet and inches to whole centimetres, as stored: 5 ft 11 in → 180. */
+export function ftInToCm(ft: number, inch: number): number {
+  return Math.round((ft * 12 + inch) * CM_PER_INCH);
+}
+
+/** "180 cm" / "5 ft 11 in". */
+export function formatHeight(cm: number, unit: HeightUnit): string {
+  if (!Number.isFinite(cm)) return "—";
+  if (unit === "cm") return `${Math.round(cm)} cm`;
+  const { ft, inch } = cmToFtIn(cm);
+  return `${ft} ft ${inch} in`;
 }

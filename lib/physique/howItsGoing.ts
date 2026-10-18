@@ -21,7 +21,7 @@ import { formatHoursMin } from "@/lib/physique/dayTotals";
 import type { WeekReport } from "@/lib/physique/weekReport";
 import { RHR_FLAG_BPM } from "@/lib/physique/recovery";
 import { WAKE_SPREAD_MIN } from "@/lib/physique/sleepScore";
-import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
+import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import type { GoalType } from "@/lib/physique/types";
 import { FIBRE_GOOD_SHARE, FIBRE_TARGET_G, INTAKE_ON_TARGET_KCAL, MAINTAIN_BAND_KG, PROTEIN_GOOD_SHARE, SLEEP_GOOD_H, SLEEP_SHORT_H, STEPS_GOOD, TRAINING_DAYS_GOOD, WAIST_HOLD_CM, focusFor, rateVsPlan, type Focus, type Tone } from "@/lib/physique/weekScorecard";
 
@@ -194,7 +194,7 @@ function waistRow({ recent }: PulseInputs): PulseRow | null {
 function weightRow({ recent, unit = "kg" }: PulseInputs): PulseRow | null {
   const w = recent.weight;
   if (w.endTrendKg == null || w.deltaKg == null) return null;
-  const base = { id: "weight" as const, label: "Weight", value: formatWeight(w.endTrendKg, unit), href: "/body" };
+  const base = { id: "weight" as const, label: "Weight", value: formatBodyWeight(w.endTrendKg, unit), href: "/body" };
   if (Math.abs(w.deltaKg) <= MAINTAIN_BAND_KG) return { ...base, note: "Holding", tone: "good" };
   const v = kgToDisplay(Math.abs(w.deltaKg), unit).toFixed(1);
   return { ...base, note: `${w.deltaKg > 0 ? "Up" : "Down"} ${v} ${unit}`, tone: "watch" };
