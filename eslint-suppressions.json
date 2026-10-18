@@ -4,11 +4,6 @@
       "count": 3
     }
   },
-  "app/templates/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "app/workout/start/page.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1

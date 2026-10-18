@@ -6,20 +6,15 @@ import { deloadStore } from "@/lib/physique/io/deload";
 import { addDays, localDateKey, type LocalDate } from "@/lib/dates";
 import { goalStore } from "@/lib/physique/io/repos";
 import { useSingleton } from "@/lib/storage/useStored";
-import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import {
   useState,
   useEffect,
   useLayoutEffect,
   useRef,
-  useMemo,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWorkoutStore } from "@/lib/workout-store";
-import {
-  getWorkoutHistory,
-} from "@/lib/trainingAnalysis";
 import {
   getActiveWorkout,
   saveActiveWorkout,
@@ -28,18 +23,14 @@ import {
   type DraftWorkout,
 } from "@/lib/activeWorkout";
 import { useUnit } from "@/lib/unit-preference";
+import { kgToDisplay } from "@/lib/units";
 import {
   getExerciseByName,
   normalizeExerciseName,
 } from "@/lib/exerciseLibrary";
-import ExercisePicker, { type ExercisePickerValue } from "@/components/ExercisePicker";
-import CreateExerciseModal from "@/components/CreateExerciseModal";
+import ExercisePickerSheet, { type PickedExercise } from "@/components/training/ExercisePickerSheet";
+import { sameExercise } from "@/lib/exerciseLibrary";
 import { SortableList, DragHandle } from "@/components/SortableList";
-import {
-  USER_EXERCISE_LIBRARY_EVENT,
-  userRecordToExercise,
-  type UserExerciseRecord,
-} from "@/lib/userExerciseLibrary";
 import { getCompletedLoggedSets, nextSetType, SET_TYPE_LABEL, SET_TYPE_MARK, setTypeOf, type SetType } from "@/lib/completedSets";
 import { getTemplateById } from "@/lib/templateStorage";
 import RestBar from "@/components/workout/RestBar";
@@ -90,15 +81,13 @@ function getLastPerformanceForExercise(exercise: ExerciseRef): { weight: string;
     if (!raw) return null;
     const workouts: StoredWorkout[] = JSON.parse(raw);
     if (!Array.isArray(workouts)) return null;
-    const normalized = exercise.name.trim().toLowerCase();
     const sorted = [...workouts].sort(
       (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
     );
     for (const workout of sorted) {
       const match = workout.exercises?.find(
         (ex) =>
-          (exercise.exerciseId && ex.exerciseId && ex.exerciseId === exercise.exerciseId) ||
-          ex.name?.trim().toLowerCase() === normalized
+          sameExercise(ex, exercise)
       );
       if (match?.sets?.length) {
         const lastSet = match.sets[match.sets.length - 1];
@@ -116,6 +105,7 @@ function getLastSetsForExercise(exercise: ExerciseRef): {
   weight: string;
   reps: string;
   notes?: string;
+  type?: SetType;
 }[] {
   if (typeof window === "undefined") return [];
   try {
@@ -123,21 +113,20 @@ function getLastSetsForExercise(exercise: ExerciseRef): {
     if (!raw) return [];
     const workouts: StoredWorkout[] = JSON.parse(raw);
     if (!Array.isArray(workouts)) return [];
-    const normalized = exercise.name.trim().toLowerCase();
     const sorted = [...workouts].sort(
       (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
     );
     for (const workout of sorted) {
       const match = workout.exercises?.find(
         (ex) =>
-          (exercise.exerciseId && ex.exerciseId && ex.exerciseId === exercise.exerciseId) ||
-          ex.name?.trim().toLowerCase() === normalized
+          sameExercise(ex, exercise)
       );
       if (match?.sets?.length) {
         return match.sets.map((s) => ({
           weight: String(s?.weight ?? ""),
           reps: String(s?.reps ?? ""),
           notes: typeof s?.notes === "string" ? s.notes : undefined,
+          ...(s?.type ? { type: s.type } : {}),
         }));
       }
     }
@@ -145,6 +134,25 @@ function getLastSetsForExercise(exercise: ExerciseRef): {
   } catch {
     return [];
   }
+}
+
+/**
+ * TR3: each row's last-session set, warm-ups against warm-ups and the rest
+ * against the rest in order (Hevy's alignment), so a routine's warm-up row
+ * never shows last time's top set.
+ */
+function previousByKind<T extends { type?: SetType }>(rows: ReadonlyArray<{ type?: SetType }>, last: readonly T[]): Array<T | undefined> {
+  const lastWarm = last.filter((s) => setTypeOf(s) === "warmup");
+  const lastWork = last.filter((s) => setTypeOf(s) !== "warmup");
+  let w = 0;
+  let k = 0;
+  return rows.map((r) => (setTypeOf(r) === "warmup" ? lastWarm[w++] : lastWork[k++]));
+}
+
+/** TR3: the number each row shows: warm-ups carry "W", the rest count 1, 2, 3 among themselves. */
+function rowNumbers(rows: ReadonlyArray<{ type?: SetType }>): number[] {
+  let n = 0;
+  return rows.map((r) => (setTypeOf(r) === "warmup" ? 0 : (n += 1)));
 }
 
 /** Every logged session of an exercise, by id or name, as the progression rule reads it. */
@@ -155,13 +163,11 @@ function getSessionsForExercise(exercise: ExerciseRef): ExerciseSession[] {
     if (!raw) return [];
     const workouts: StoredWorkout[] = JSON.parse(raw);
     if (!Array.isArray(workouts)) return [];
-    const normalized = exercise.name.trim().toLowerCase();
     const out: ExerciseSession[] = [];
     for (const workout of workouts) {
       const match = workout.exercises?.find(
         (ex) =>
-          (exercise.exerciseId && ex.exerciseId && ex.exerciseId === exercise.exerciseId) ||
-          ex.name?.trim().toLowerCase() === normalized
+          sameExercise(ex, exercise)
       );
       if (match?.sets?.length && typeof workout.completedAt === "string") out.push({ completedAt: workout.completedAt, sets: match.sets });
     }
@@ -226,7 +232,6 @@ export default function WorkoutPage() {
   const phase: Phase = goal?.type === "lose" ? "cut" : goal?.type === "gain" ? "lean_bulk" : "maintain";
   const deloadRecord = useSingleton(deloadStore);
   const deloadActive = isDeloadActive(deloadRecord, todayLocal());
-  const [exerciseName, setExerciseName] = useState("");
   const [exercises, setExercises] = useState<
     {
       id: number;
@@ -235,6 +240,8 @@ export default function WorkoutPage() {
       sets: { weight: string; reps: string; done?: boolean; notes?: string; rir?: number; type?: SetType }[];
       targetSets?: number;
       restSec: number;
+      /** The routine's note for this exercise (TR2), shown under the name. */
+      notes?: string;
       /** Rep range and RIR from the routine (T3), when it came from one. */
       repMin?: number;
       repMax?: number;
@@ -262,18 +269,15 @@ export default function WorkoutPage() {
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [routineSaved, setRoutineSaved] = useState(false);
-  const addExerciseInputRef = useRef<HTMLInputElement | null>(null);
   const setInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const setDoneButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [pendingFocus, setPendingFocus] = useState<{ exerciseId: number; setIndex: number } | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [restByExercise, setRestByExercise] = useState<Record<number, RestTimerState>>({});
   const [startTime, setStartTime] = useState<number | null>(null);
-  const [createExerciseOpen, setCreateExerciseOpen] = useState(false);
-  const [createExerciseSeedName, setCreateExerciseSeedName] = useState("");
   const [replaceExerciseTargetId, setReplaceExerciseTargetId] = useState<number | null>(null);
-  const [replaceExerciseInput, setReplaceExerciseInput] = useState("");
-  const [userLibraryRevision, setUserLibraryRevision] = useState(0);
+  /** TR3: the full-screen picker for adding exercises mid-session. */
+  const [addPickerOpen, setAddPickerOpen] = useState(false);
   const loadHandledRef = useRef(false);
   const persistReadyRef = useRef(false);
   /** After Finish or Discard, do not write activeWorkout again (state may still hold old exercises). */
@@ -398,35 +402,6 @@ export default function WorkoutPage() {
   }, [pendingFocus]);
 
   const totalSetsLogged = exercises.reduce((total, ex) => total + ex.sets.length, 0);
-  const workoutHistory = getWorkoutHistory();
-  const lastLoggedWorkout = [...workoutHistory].sort(
-    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  )[0];
-
-  const hydrated = useIsHydrated();
-  const recentExerciseHint = useMemo(() => {
-    const exs = lastLoggedWorkout?.exercises ?? [];
-    const seen = new Set<string>();
-    const names: string[] = [];
-    for (const ex of exs) {
-      const n = ex.name?.trim();
-      if (!n) continue;
-      const key = n.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      names.push(n);
-      if (names.length >= 5) break;
-    }
-    return names;
-  }, [lastLoggedWorkout]);
-
-  useEffect(() => {
-    function bump() {
-      setUserLibraryRevision((r) => r + 1);
-    }
-    window.addEventListener(USER_EXERCISE_LIBRARY_EVENT, bump);
-    return () => window.removeEventListener(USER_EXERCISE_LIBRARY_EVENT, bump);
-  }, []);
 
   const showWorkoutStats = exercises.length > 0;
 
@@ -517,6 +492,30 @@ export default function WorkoutPage() {
     );
   }
 
+  /** TR2: today's rows as the routine's plan: warm-ups kept, weights in kg, reps as logged. */
+  function routineExerciseFromSession(ex: (typeof exercises)[number]) {
+    const displayUnit = unit === "lb" ? "lb" : "kg";
+    const rows = ex.sets.map((st) => {
+      const w = Number(String(st.weight ?? "").replace(",", "."));
+      const r = Number(st.reps);
+      return {
+        ...(st.type === "warmup" ? { type: "warmup" as const } : {}),
+        ...(Number.isFinite(w) && w > 0 ? { kg: Math.round((displayUnit === "lb" ? w * 0.45359237 : w) * 100) / 100 } : {}),
+        ...(Number.isFinite(r) && r > 0 ? { reps: Math.round(r) } : {}),
+      };
+    });
+    const working = rows.filter((r) => r.type !== "warmup").length;
+    return {
+      ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
+      name: ex.name,
+      targetSets: Math.max(1, Math.min(20, working || ex.targetSets || 3)),
+      restSec: ex.restSec ?? 90,
+      ...(rows.length > 0 && working > 0 ? { sets: rows.slice(0, 20) } : {}),
+      ...(ex.notes ? { notes: ex.notes } : {}),
+      ...(ex.repMin != null && ex.repMax != null && ex.rir != null ? { repMin: ex.repMin, repMax: ex.repMax, rir: ex.rir } : {}),
+    };
+  }
+
   function saveAsRoutineFromSession() {
     if (typeof window === "undefined") return;
     try {
@@ -532,15 +531,7 @@ export default function WorkoutPage() {
       const routine = {
         id: `tpl_${Date.now()}`,
         name,
-        exercises: exercises.map((ex) => ({
-          ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
-          name: ex.name,
-          targetSets: Math.max(
-            1,
-            Math.min(20, (ex.targetSets ?? (ex.sets.length || 3)))
-          ),
-          restSec: ex.restSec ?? 90,
-        })),
+        exercises: exercises.map(routineExerciseFromSession),
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify([...templates, routine]));
@@ -562,12 +553,7 @@ export default function WorkoutPage() {
           ? {
               ...tpl,
               name: getWorkoutDisplayName().trim() || (tpl as { name?: string }).name || "Template",
-              exercises: exercises.map((ex) => ({
-                ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
-                name: ex.name,
-                targetSets: Math.max(1, Math.min(20, ex.targetSets ?? ex.sets.length ?? 3)),
-                restSec: ex.restSec ?? 90,
-              })),
+              exercises: exercises.map(routineExerciseFromSession),
             }
           : tpl
       );
@@ -611,10 +597,6 @@ export default function WorkoutPage() {
     const suggestedMuscle = sessionStorage.getItem(WORKOUT_SUGGESTED_MUSCLE_KEY);
     if (suggestedMuscle) {
       sessionStorage.removeItem(WORKOUT_SUGGESTED_MUSCLE_KEY);
-      const suggestion = suggestedMuscle.trim();
-      if (suggestion) {
-        setExerciseName(suggestion);
-      }
     }
 
     const fromTemplate = sessionStorage.getItem(TEMPLATE_FOR_WORKOUT_KEY);
@@ -674,8 +656,29 @@ export default function WorkoutPage() {
               Number.isFinite(Number(t.repMin)) && Number.isFinite(Number(t.repMax)) && Number.isFinite(Number(t.rir))
                 ? { repMin: Number(t.repMin), repMax: Number(t.repMax), rir: Number(t.rir) }
                 : {};
+            // TR2: a routine with planned rows starts with them, warm-ups typed, planned weight and reps filled in.
+            const tplRows = typeof ex === "object" && ex !== null && Array.isArray((ex as { sets?: unknown }).sets)
+              ? ((ex as { sets: unknown[] }).sets as Array<{ type?: string; kg?: number; reps?: number } | null>)
+              : null;
+            const tplNotes = typeof ex === "object" && ex !== null && typeof (ex as { notes?: unknown }).notes === "string" ? ((ex as { notes: string }).notes.trim() || undefined) : undefined;
+            const displayUnit = unit === "lb" ? "lb" : "kg";
+            const plannedRow = (r: { type?: string; kg?: number; reps?: number } | null, type?: SetType) => ({
+              weight: r && typeof r.kg === "number" && r.kg > 0 ? String(Math.round(kgToDisplay(r.kg, displayUnit) * 10) / 10) : "",
+              reps: r && typeof r.reps === "number" && r.reps > 0 ? String(Math.round(r.reps)) : "",
+              done: false,
+              notes: "",
+              ...(type ? { type } : {}),
+            });
+            const rowSets = tplRows && tplRows.length > 0
+              ? (() => {
+                  const warm = tplRows.filter((r) => r?.type === "warmup");
+                  const work = tplRows.filter((r) => r?.type !== "warmup");
+                  const kept = deloadActiveNow() ? work.slice(0, deloadSets(work.length)) : work;
+                  return [...warm.map((r) => plannedRow(r, "warmup")), ...kept.map((r) => plannedRow(r))];
+                })()
+              : null;
             const plannedSets = targetSets != null && deloadActiveNow() ? deloadSets(targetSets) : (targetSets ?? 0);
-            const sets = Array.from(
+            const sets = rowSets ?? Array.from(
               { length: Math.max(0, plannedSets) },
               () =>
                 ({
@@ -698,8 +701,10 @@ export default function WorkoutPage() {
                 : {}),
               name: byName?.name ?? name,
               sets,
-              targetSets,
+              // With planned rows, the row count (warm-ups included) is what "last planned set" means.
+              targetSets: rowSets ? rowSets.length : targetSets,
               restSec,
+              ...(tplNotes ? { notes: tplNotes } : {}),
               ...targets,
             };
           });
@@ -757,6 +762,8 @@ export default function WorkoutPage() {
       setRestByExercise(recalculateRestTimers(restoredTimers));
     }
     persistReadyRef.current = true;
+    // Runs once on mount: a started routine's planned weights convert with the unit in effect then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -793,6 +800,10 @@ export default function WorkoutPage() {
         })),
         targetSets: ex.targetSets,
         restSec: ex.restSec ?? 90,
+        ...(ex.notes ? { notes: ex.notes } : {}),
+        ...(ex.repMin != null ? { repMin: ex.repMin } : {}),
+        ...(ex.repMax != null ? { repMax: ex.repMax } : {}),
+        ...(ex.rir != null ? { rir: ex.rir } : {}),
       })),
     };
     if (!draftHasMeaningfulContent(pseudo)) {
@@ -856,7 +867,7 @@ export default function WorkoutPage() {
   }
 
   function detectRoutineChanges(
-    templateExercises: { name: string; exerciseId?: string; targetSets: number }[],
+    templateExercises: { name: string; exerciseId?: string; targetSets: number; sets?: unknown[] }[],
     completedExercises: { name: string; exerciseId?: string; sets: unknown[] }[]
   ): string[] {
     const norm = (s: string) => s.toLowerCase().trim();
@@ -872,9 +883,10 @@ export default function WorkoutPage() {
       const cex = completedMap.get(key);
       if (!cex) {
         changes.push(`Removed "${tex.name}"`);
-      } else if ((cex.sets as unknown[]).length !== tex.targetSets) {
+      } else if ((cex.sets as unknown[]).length !== (tex.sets?.length || tex.targetSets)) {
+        const planned = tex.sets?.length || tex.targetSets;
         changes.push(
-          `"${tex.name}" — ${(cex.sets as unknown[]).length} set${(cex.sets as unknown[]).length !== 1 ? "s" : ""} instead of ${tex.targetSets}`
+          `"${tex.name}": ${(cex.sets as unknown[]).length} set${(cex.sets as unknown[]).length !== 1 ? "s" : ""} instead of ${planned}`
         );
       }
     }
@@ -956,11 +968,6 @@ export default function WorkoutPage() {
     router.push("/");
   }
 
-  function openCreateExerciseFlow(seedName: string) {
-    setCreateExerciseSeedName(seedName.trim());
-    setCreateExerciseOpen(true);
-  }
-
   function reorderExercisesByIds(nextIds: number[]) {
     setExercises((prev) => {
       const byId = new Map(prev.map((e) => [e.id, e] as const));
@@ -988,7 +995,7 @@ export default function WorkoutPage() {
         ex.id === exerciseId
           ? {
               ...ex,
-              exerciseId: nextExercise.id,
+              exerciseId: nextExercise.id || undefined,
               name: nextExercise.name,
               sets: [{ weight: "", reps: "", done: false, notes: "" }],
             }
@@ -1005,85 +1012,35 @@ export default function WorkoutPage() {
     }));
   }
 
-  function requestReplaceExercise(selection?: ExercisePickerValue) {
+  /** TR3: the picker's choice replaces the exercise in this slot; logged sets in the slot need a confirm. */
+  function pickReplacement(p: PickedExercise) {
     if (replaceExerciseTargetId === null) return;
-    const value = (selection?.name ?? replaceExerciseInput).trim();
-    if (!value) return;
-    const selectedFromPicker = selection?.exerciseId
-      ? { id: selection.exerciseId, name: selection.name }
-      : null;
-    const matched = selectedFromPicker ?? getExerciseByName(value);
-    if (!matched) {
-      openCreateExerciseFlow(value);
-      return;
-    }
+    const matched = p.exerciseId ? { id: p.exerciseId, name: p.name } : getExerciseByName(p.name);
     const hasData = exerciseHasMeaningfulLoggedData(replaceExerciseTargetId);
-    if (
-      hasData &&
-      !window.confirm(
-        "This exercise has logged data. Replacing it will clear sets for this slot. Continue?"
-      )
-    ) {
-      return;
-    }
-    replaceExerciseAtSlot(replaceExerciseTargetId, { id: matched.id, name: matched.name });
+    if (hasData && !window.confirm("This exercise has logged sets. Replacing it clears them. Continue?")) return;
+    replaceExerciseAtSlot(replaceExerciseTargetId, { id: matched?.id ?? "", name: matched?.name ?? p.name });
     setReplaceExerciseTargetId(null);
-    setReplaceExerciseInput("");
     setExerciseMenuOpenId(null);
   }
 
-  function appendExerciseFromLibrary(matched: { id: string; name: string }) {
-    const newExercise = {
-      id: Date.now(),
-      exerciseId: matched.id,
-      name: matched.name,
-      sets: [{ weight: "", reps: "", done: false, notes: "" }],
-      restSec: 90,
-    };
-    setExercises((prev) => [...prev, newExercise]);
-    setExerciseName("");
-  }
-
-  function handleUserExerciseCreated(record: UserExerciseRecord) {
-    const ex = userRecordToExercise(record);
-    if (replaceExerciseTargetId !== null) {
-      const hasData = exerciseHasMeaningfulLoggedData(replaceExerciseTargetId);
-      if (
-        hasData &&
-        !window.confirm(
-          "This exercise has logged data. Replacing it will clear sets for this slot. Continue?"
-        )
-      ) {
-        return;
-      }
-      replaceExerciseAtSlot(replaceExerciseTargetId, { id: ex.id, name: ex.name });
-      setReplaceExerciseTargetId(null);
-      setReplaceExerciseInput("");
-      setExerciseMenuOpenId(null);
-    } else {
-      appendExerciseFromLibrary({ id: ex.id, name: ex.name });
-    }
-    setUserLibraryRevision((r) => r + 1);
-  }
-
-  function addExercise(selection?: ExercisePickerValue) {
-    const trimmed = (selection?.name ?? exerciseName).trim();
-    if (!trimmed) {
-      addExerciseInputRef.current?.focus();
-      return;
-    }
-
-    const selectedFromPicker = selection?.exerciseId
-      ? { id: selection.exerciseId, name: selection.name }
-      : null;
-    const matched = selectedFromPicker ?? getExerciseByName(trimmed);
-
-    if (!matched) {
-      openCreateExerciseFlow(trimmed);
-      return;
-    }
-
-    appendExerciseFromLibrary({ id: matched.id, name: matched.name });
+  /** TR3: add everything picked, each with as many rows as last time (at least one) and its rep target. */
+  function appendPicked(list: PickedExercise[]) {
+    const base = Date.now();
+    const added = list.map((p, i) => {
+      const matched = p.exerciseId ? { id: p.exerciseId, name: p.name } : getExerciseByName(p.name);
+      const name = matched?.name ?? p.name;
+      const last = getLastSetsForExercise({ exerciseId: matched?.id, name });
+      const rows = Math.max(1, Math.min(10, last.length));
+      return {
+        id: base + i,
+        ...(matched?.id ? { exerciseId: matched.id } : {}),
+        name,
+        sets: Array.from({ length: rows }, () => ({ weight: "", reps: "", done: false, notes: "" })),
+        restSec: 90,
+        ...targetsForExercise(name),
+      };
+    });
+    if (added.length) setExercises((prev) => [...prev, ...added]);
   }
 
   function addSetRow(exerciseId: number) {
@@ -1322,41 +1279,15 @@ export default function WorkoutPage() {
         </header>
 
         {exercises.length === 0 ? (
-          <div className="min-h-[min(52vh,400px)] flex items-start justify-center px-1 pt-2 sm:pt-6 lg:pt-10">
-            <div className="w-full max-w-lg rounded-3xl border border-[#2a2a2e] bg-[#141416] p-5 sm:p-7">
-              <div className="mb-4">
-                <p className="text-xl font-semibold tracking-tight text-white">Add your first exercise</p>
-                <p className="text-sm text-app-secondary mt-1.5 leading-relaxed">
-                  Your workout starts once you add the first movement.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <ExercisePicker
-                  value={exerciseName}
-                  onValueChange={setExerciseName}
-                  onSelect={(exercise) => addExercise(exercise)}
-                  onRequestCreateExercise={openCreateExerciseFlow}
-                  inputRef={addExerciseInputRef}
-                  placeholder="Search or type a movement"
-                  inputClassName="input-app w-full p-3 text-base shadow-sm shadow-black/10"
-                  dropdownClassName="rounded-xl border border-[#2a2a2e] bg-[#141416] max-h-72 overflow-y-auto"
-                  libraryRevision={userLibraryRevision}
-                />
-                {hydrated && recentExerciseHint.length > 0 && (
-                  <p className="text-[11px] text-app-meta/90 leading-snug px-0.5">
-                    Recent: {recentExerciseHint.join(", ")}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => addExercise()}
-                  className="w-full py-3.5 rounded-2xl btn-primary text-base font-semibold"
-                >
-                  Add exercise
-                </button>
-                <p className="text-[11px] text-app-meta text-center">Tip: Enter selects a match or opens create when there’s no result.</p>
-              </div>
+          <div className="flex min-h-[min(52vh,400px)] items-start justify-center px-1 pt-2 sm:pt-6">
+            <div className="flex w-full max-w-lg flex-col items-center gap-3 rounded-[12px] px-5 py-8 text-center" style={{ background: "#141416" }}>
+              <p className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>Add your first exercise</p>
+              <p className="text-[13px] leading-snug" style={{ color: "#a3a3a8" }}>
+                Search, filter by muscle or equipment, and pick as many as you like. The clock starts with the first one.
+              </p>
+              <button type="button" onClick={() => setAddPickerOpen(true)} className="mt-1 h-[48px] w-full rounded-[12px] text-[17px] font-semibold" style={{ background: "#f2f2f0", color: "#0a0a0b" }}>
+                Add exercises
+              </button>
             </div>
           </div>
         ) : reorderMode ? (
@@ -1427,6 +1358,11 @@ export default function WorkoutPage() {
                         <p className="text-[11px] text-[#a3a3a8] mt-0.5 leading-snug line-clamp-2">
                           {contextLine}
                         </p>
+                        {exercise.notes && (
+                          <p className="text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: "#6f6f76" }}>
+                            {exercise.notes}
+                          </p>
+                        )}
                       </div>
                       <div className="relative shrink-0" data-exercise-menu-root>
                         <button
@@ -1452,7 +1388,6 @@ export default function WorkoutPage() {
                               className="w-full px-3 py-2 text-left text-[11px] text-[#f2f2f0] hover:bg-[#2a2a2e] transition"
                               onClick={() => {
                                 setReplaceExerciseTargetId(exercise.id);
-                                setReplaceExerciseInput("");
                                 setExerciseMenuOpenId(null);
                               }}
                             >
@@ -1494,10 +1429,11 @@ export default function WorkoutPage() {
 
                     <div className="mt-2 pt-2 border-t border-[#2a2a2e]">
                       {(() => {
-                        const lastSets = getLastSetsForExercise({
+                        const lastSets = previousByKind(exercise.sets, getLastSetsForExercise({
                           exerciseId: exercise.exerciseId,
                           name: exercise.name,
-                        });
+                        }));
+                        const numbers = rowNumbers(exercise.sets);
                         const nextIdx = exercise.sets.findIndex((s) => !s?.done);
                         const effectiveNextIdx = nextIdx === -1 ? exercise.sets.length : nextIdx;
                         const logInputShell =
@@ -1666,10 +1602,10 @@ export default function WorkoutPage() {
                                                   }}
                                                   className="h-9 w-full rounded-md text-center text-[11px] tabular-nums font-semibold touch-manipulation"
                                                   style={{ color: t === "working" ? undefined : t === "warmup" ? "#6f6f76" : t === "drop" ? "#a3a3a8" : "#f2f2f0" }}
-                                                  aria-label={`Set ${index + 1}, ${SET_TYPE_LABEL[t].toLowerCase()}. Change set type`}
+                                                  aria-label={`Set ${mark || numbers[index]}, ${SET_TYPE_LABEL[t].toLowerCase()}. Change set type`}
                                                   title={SET_TYPE_LABEL[t]}
                                                 >
-                                                  <span className={t === "working" ? "text-[#a3a3a8]" : ""}>{mark || index + 1}</span>
+                                                  <span className={t === "working" ? "text-[#a3a3a8]" : ""}>{mark || numbers[index]}</span>
                                                 </button>
                                               );
                                             })()}
@@ -1991,93 +1927,27 @@ export default function WorkoutPage() {
               })}
             </section>
 
-            <section className="mt-5 mb-3 rounded-xl border border-[#2a2a2e] bg-[#1d1d20] p-3 shadow-md shadow-black/25">
-              <div className="flex gap-2 items-stretch">
-                <div className="flex-1 min-w-0">
-                  <ExercisePicker
-                    value={exerciseName}
-                    onValueChange={setExerciseName}
-                    onSelect={(exercise) => addExercise(exercise)}
-                    onRequestCreateExercise={openCreateExerciseFlow}
-                    inputRef={addExerciseInputRef}
-                    placeholder="Next exercise…"
-                    inputClassName="input-app flex-1 min-w-0 py-2.5 px-3 text-sm sm:text-base"
-                    dropdownClassName="mt-2 rounded-xl border border-[#2a2a2e] bg-[#141416] max-h-72 overflow-y-auto"
-                    libraryRevision={userLibraryRevision}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => addExercise()}
-                  className="shrink-0 self-center min-h-[44px] px-4 rounded-xl btn-primary text-sm font-semibold sm:min-h-0 sm:py-3"
-                >
-                  Add
-                </button>
-              </div>
-            </section>
+            <div className="mt-4 mb-3">
+              <button type="button" onClick={() => setAddPickerOpen(true)} className="h-[48px] w-full rounded-[12px] text-[15px] font-semibold" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+                + Add exercises
+              </button>
+            </div>
           </>
         )}
 
-        <CreateExerciseModal
-          open={createExerciseOpen}
-          initialName={createExerciseSeedName}
-          onClose={() => setCreateExerciseOpen(false)}
-          onCreated={handleUserExerciseCreated}
+        <ExercisePickerSheet
+          open={addPickerOpen}
+          onClose={() => setAddPickerOpen(false)}
+          mode="multi"
+          onPick={appendPicked}
+          inRoutine={exercises.map((e) => e.name)}
         />
-
-        {replaceExerciseTargetId !== null && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="replace-exercise-title"
-            onClick={() => {
-              setReplaceExerciseTargetId(null);
-              setReplaceExerciseInput("");
-            }}
-          >
-            <div
-              className="w-full max-w-md rounded-2xl border border-[#2a2a2e] bg-[#141416] shadow-xl p-5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 id="replace-exercise-title" className="text-base font-semibold text-white mb-1">
-                Replace exercise
-              </h2>
-              <p className="text-xs text-app-secondary mb-3">
-                Pick a replacement for this slot. Position in the workout stays the same.
-              </p>
-              <ExercisePicker
-                value={replaceExerciseInput}
-                onValueChange={setReplaceExerciseInput}
-                onSelect={(exercise) => requestReplaceExercise(exercise)}
-                onRequestCreateExercise={openCreateExerciseFlow}
-                placeholder="Search or type a movement"
-                inputClassName="input-app w-full p-3 text-sm"
-                dropdownClassName="mt-2 rounded-xl border border-[#2a2a2e] bg-[#141416] max-h-72 overflow-y-auto"
-                libraryRevision={userLibraryRevision}
-              />
-              <div className="mt-3 flex gap-2 justify-end">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    setReplaceExerciseTargetId(null);
-                    setReplaceExerciseInput("");
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => requestReplaceExercise()}
-                >
-                  Replace
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ExercisePickerSheet
+          open={replaceExerciseTargetId !== null}
+          onClose={() => setReplaceExerciseTargetId(null)}
+          mode="single"
+          onPick={(list) => list[0] && pickReplacement(list[0])}
+        />
 
         <div className="mt-4">
           {showDiscardConfirm && (

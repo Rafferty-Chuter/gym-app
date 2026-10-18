@@ -26,6 +26,7 @@ import {
   type LiftTrendStatus,
 } from "@/lib/liftTrend";
 import { normalizeExerciseName } from "@/lib/exerciseNameNormalize";
+import { exerciseIdentity } from "@/lib/exerciseLibrary";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 
@@ -70,11 +71,11 @@ function collectSetsForExerciseName(
   workouts: StoredWorkout[],
   exerciseName: string
 ): { rir?: number }[] {
-  const key = exerciseKey(exerciseName);
+  const key = exerciseIdentity({ name: exerciseName });
   const out: { rir?: number }[] = [];
   for (const w of workouts) {
     for (const ex of w.exercises ?? []) {
-      if (exerciseKey(ex.name) === key) {
+      if (exerciseIdentity(ex) === key) {
         for (const s of getCompletedLoggedSets(ex.sets ?? [])) out.push(s);
       }
     }
@@ -200,7 +201,7 @@ function computeExerciseRIRFields(
   ExerciseInsights,
   "avgRIR" | "latestSessionAvgRIR" | "latestSessionAllSetsToFailure"
 > {
-  const key = exerciseKey(exerciseName);
+  const key = exerciseIdentity({ name: exerciseName });
   const cap = Math.min(Math.max(maxSessions, 1), 12);
   const sortedDesc = [...(workouts ?? [])].sort(
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -208,7 +209,7 @@ function computeExerciseRIRFields(
 
   const sessions: { sets: { rir?: number }[] }[] = [];
   for (const w of sortedDesc) {
-    const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
+    const ex = w.exercises?.find((e) => exerciseIdentity(e) === key);
     const completedSets = getCompletedLoggedSets(ex?.sets ?? []);
     if (!completedSets.length) continue;
     sessions.push({ sets: completedSets });
@@ -283,10 +284,10 @@ export function getExerciseTrends(
   const results: ExerciseTrendResult[] = [];
 
   for (const exerciseName of exerciseNames) {
-    const key = exerciseKey(exerciseName);
+    const key = exerciseIdentity({ name: exerciseName });
     const performances: RecentPerformance[] = [];
     for (const w of sorted) {
-      const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
+      const ex = w.exercises?.find((e) => exerciseIdentity(e) === key);
       const completedSets = getCompletedLoggedSets(ex?.sets ?? []);
       if (!completedSets.length) continue;
       const best = getBestSet(completedSets);

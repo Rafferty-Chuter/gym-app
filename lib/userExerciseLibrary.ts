@@ -136,6 +136,7 @@ export function userRecordToExercise(record: UserExerciseRecord): Exercise {
     movementPattern: record.movementPattern,
     fatigueCost: "moderate",
     bias: parts.join(" · "),
+    equipment: record.equipment === "smith machine" ? "smith" : record.equipment,
   };
 }
 

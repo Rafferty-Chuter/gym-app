@@ -28,12 +28,14 @@ function draftDisplayName(d: DraftWorkout): string {
   return "Active workout";
 }
 
-/** Strip: Templates / Coach / Profile only — Home & live workout use dedicated resume UI. */
+/** Strip on every tab and settings page; Home and the live workout have their own resume UI. */
 function shouldShowResumeStrip(pathname: string | null): boolean {
   if (!pathname) return false;
   if (pathname === "/workout") return false;
   if (pathname === "/") return false;
   if (pathname.startsWith("/templates")) return true;
+  // TR3: the session stays one tap away from every tab, as in Hevy.
+  if (["/train", "/history", "/food", "/body", "/sleep", "/report"].some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
   if (pathname === "/coach" || pathname.startsWith("/coach/")) return true;
   if (pathname === "/profile" || pathname.startsWith("/profile/")) return true;
   return false;

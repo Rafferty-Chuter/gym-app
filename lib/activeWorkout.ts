@@ -16,6 +16,11 @@ export type DraftExercise = {
   sets: { weight: string; reps: string; done?: boolean; notes?: string; rir?: number; type?: SetType }[];
   targetSets?: number;
   restSec: number;
+  /** TR2: the routine's note, and the rep target (T3), so a resumed session keeps them. */
+  notes?: string;
+  repMin?: number;
+  repMax?: number;
+  rir?: number;
 };
 
 export type DraftWorkout = {

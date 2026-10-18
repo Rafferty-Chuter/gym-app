@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import TemplateEditorForm from "@/components/TemplateEditorForm";
+import RoutineEditor from "@/components/training/RoutineEditor";
 import { getTemplateById } from "@/lib/templateStorage";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 
@@ -31,5 +31,5 @@ export default function EditTemplatePage() {
     );
   }
 
-  return <TemplateEditorForm mode="edit" initialTemplate={template} />;
+  return <RoutineEditor key={template.id} mode="edit" initialTemplate={template} />;
 }

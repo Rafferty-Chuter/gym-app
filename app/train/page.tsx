@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 import { useWorkouts } from "@/lib/physique/io/workouts";
 import { getStoredTemplates } from "@/lib/templateStorage";
+import RoutineList from "@/components/training/RoutineList";
+import { queueEmptyWorkout, workoutInProgress } from "@/lib/training/startWorkout";
 import { getHardSets } from "@/lib/completedSets";
 import { localDateKey, addDays, type Now } from "@/lib/dates";
 import { useUnit } from "@/lib/unit-preference";
@@ -27,7 +29,11 @@ import { useSingleton } from "@/lib/storage/useStored";
 import { buildIndicators, INDICATOR_DOT_COLOR, INDICATOR_WINDOW_LABEL } from "@/lib/trainSignals";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
-/** Hevy's home, in our language: Start workout, latest routines, the week, volume, and the recent feed. */
+/**
+ * Train (TR3, after Hevy's Workout tab): start an empty workout or resume
+ * one, every routine with its own Start, then the week, the deload, the
+ * analysis rows and one row into History.
+ */
 export default function TrainPage() {
   const hydrated = useIsHydrated();
   const now = useNow();
@@ -58,17 +64,12 @@ function setCount(w: StoredWorkout): number {
   return w.exercises.reduce((n, ex) => n + getHardSets(ex.sets).length, 0);
 }
 
-function formatDuration(sec: number | undefined): string | null {
-  if (typeof sec !== "number" || !Number.isFinite(sec) || sec <= 0) return null;
-  const m = Math.round(sec / 60);
-  return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m} min`;
-}
-
 function TrainContent({ now }: { now: Now }) {
   const workouts = useWorkouts();
   const { unit: rawUnit } = useUnit();
   const unit = rawUnit === "lb" ? "lb" : "kg";
-  const templates = useMemo(() => getStoredTemplates().slice(0, 4), []);
+  const [templates, setTemplates] = useState(() => getStoredTemplates());
+  const [inProgress] = useState(() => workoutInProgress());
   const router = useRouter();
   const { focus } = useTrainingFocus();
   const { experienceLevel } = useExperienceLevel();
@@ -99,12 +100,12 @@ function TrainContent({ now }: { now: Now }) {
     const week = days.map((d) => ({ date: d, letter: DAY_LETTERS[new Date(`${d}T00:00:00Z`).getUTCDay()], n: byDay.get(d)?.n ?? 0, volume: byDay.get(d)?.volume ?? 0 }));
     const weekCount = week.reduce((n, d) => n + d.n, 0);
     const weekVolume = week.reduce((n, d) => n + d.volume, 0);
-    const recent = [...workouts].sort((a, b) => (a.completedAt < b.completedAt ? 1 : -1)).slice(0, 5);
+    const latest = workouts.reduce<string | null>((m, w) => (m == null || w.completedAt > m ? w.completedAt : m), null);
     const weekSets = workouts.reduce((n, w) => {
       const d = workoutDay(w, now.tz);
       return d && d >= from && d <= today ? n + setCount(w) : n;
     }, 0);
-    return { week, weekCount, weekVolume, recent, weekSets };
+    return { week, weekCount, weekVolume, latest, weekSets, total: workouts.length };
   }, [workouts, now, unit]);
 
   // The three training reads (plateau, volume, progress), from the same rules as their signal pages.
@@ -120,38 +121,39 @@ function TrainContent({ now }: { now: Now }) {
   return (
     <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <PageHeader caption={`${model.weekCount} ${model.weekCount === 1 ? "workout" : "workouts"} · last 7 days`} title="Train" />
+        <PageHeader caption={`${model.weekCount} ${model.weekCount === 1 ? "workout" : "workouts"} · last 7 days`} title="Train" action={{ label: "New routine", href: "/templates/new" }} />
 
-        <Link
-          href="/workout/start"
-          className="block w-full rounded-[12px] py-4 text-center text-[17px] font-semibold tracking-[-0.01em] transition-colors duration-150 hover:bg-white active:translate-y-[1px]"
-          style={{ background: "#f2f2f0", color: "#0a0a0b" }}
+        <button
+          type="button"
+          onClick={() => {
+            if (!inProgress) queueEmptyWorkout();
+            router.push("/workout");
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-[12px] py-3.5 text-center text-[15px] font-semibold transition-colors duration-150 active:bg-[#26262a]"
+          style={inProgress ? { background: "#f2f2f0", color: "#0a0a0b" } : { background: "#1d1d20", color: "#f2f2f0" }}
         >
-          Start workout
-        </Link>
+          {inProgress ? "Resume workout" : "+ Start empty workout"}
+        </button>
 
-        <section aria-label="Routines">
+        <section aria-label="Your routines">
           <div className="mb-2 flex items-center justify-between">
-            <Caption>Latest routines</Caption>
-            <Link href="/templates" className="text-[12px] font-medium" style={{ color: "#a3a3a8" }}>
-              All routines ›
+            <Caption>Routines</Caption>
+            <Link href="/templates/new" className="text-[12px] font-medium" style={{ color: "#a3a3a8" }}>
+              New routine ›
             </Link>
           </div>
           {templates.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2">
-              {templates.map((t) => (
-                <Link key={t.id} href={`/templates/${t.id}`} className="flex min-h-[72px] flex-col justify-between rounded-[12px] px-3 py-2.5 transition-colors active:bg-[#1d1d20]" style={{ background: "#141416", border: "1px solid #2a2a2e" }}>
-                  <span className="truncate text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>{t.name}</span>
-                  <span className="text-[11px]" style={{ color: "#6f6f76" }}>
-                    {t.exercises.length} {t.exercises.length === 1 ? "exercise" : "exercises"}
-                  </span>
-                </Link>
-              ))}
-            </div>
+            <RoutineList templates={templates} onChanged={() => setTemplates(getStoredTemplates())} />
           ) : (
-            <Link href="/templates/new" className="block rounded-[12px] px-4 py-3 text-[13px]" style={{ background: "#141416", color: "#a3a3a8" }}>
-              No routines yet. Build one ›
-            </Link>
+            <div className="flex flex-col items-start gap-3 rounded-[12px] px-4 py-4" style={{ background: "#141416" }}>
+              <span className="text-[15px] font-semibold">No routines yet</span>
+              <span className="-mt-2 text-[13px]" style={{ color: "#a3a3a8" }}>
+                Save the exercises and sets you repeat, then start them in one tap.
+              </span>
+              <Link href="/templates/new" className="h-[36px] rounded-[10px] px-3 text-[13px] font-semibold leading-[36px]" style={{ background: "#1d1d20", color: "#f2f2f0" }}>
+                New routine
+              </Link>
+            </div>
           )}
         </section>
 
@@ -216,55 +218,16 @@ function TrainContent({ now }: { now: Now }) {
           </RowGroup>
         </section>
 
-        <section aria-label="Recent workouts">
-          <div className="mb-2 flex items-center justify-between">
-            <Caption>Recent</Caption>
-            <Link href="/history" className="text-[12px] font-medium" style={{ color: "#a3a3a8" }}>
-              All history ›
-            </Link>
-          </div>
-          {model.recent.length > 0 ? (
-            <ul className="flex flex-col gap-2">
-              {model.recent.map((w) => {
-                const dur = formatDuration(w.durationSec);
-                const vol = volumeKg(w, unit);
-                const sets = setCount(w);
-                const d = new Date(w.completedAt);
-                return (
-                  <li key={w.completedAt} className="rounded-[12px] px-4 py-3" style={{ background: "#141416" }}>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="truncate text-[15px] font-semibold" style={{ color: "#f2f2f0" }}>{w.name?.trim() || "Workout"}</span>
-                      <span className="shrink-0 text-[11px]" style={{ color: "#6f6f76" }}>
-                        {Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", "")}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex gap-4 text-[12px]" style={{ color: "#a3a3a8", fontVariantNumeric: "tabular-nums" }}>
-                      {dur && <span>{dur}</span>}
-                      <span>{fmtVol(vol)}</span>
-                      <span>{sets} sets</span>
-                    </div>
-                    <ul className="mt-2 flex flex-col gap-0.5">
-                      {w.exercises.slice(0, 3).map((ex, i) => (
-                        <li key={i} className="text-[13px]" style={{ color: "#a3a3a8" }}>
-                          {getHardSets(ex.sets).length} × {ex.name}
-                        </li>
-                      ))}
-                      {w.exercises.length > 3 && (
-                        <li className="text-[12px]" style={{ color: "#6f6f76" }}>
-                          {w.exercises.length - 3} more
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="text-[13px]" style={{ color: "#a3a3a8" }}>
-              No workouts logged yet.
-            </p>
-          )}
-        </section>
+        <RowGroup>
+          <Row
+            label="History"
+            sub={model.latest ? `Last on ${new Date(model.latest).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", "")}` : "Workouts land here when you finish them"}
+            value={`${model.total}`}
+            trailing={<Chevron />}
+            onClick={() => router.push("/history")}
+            ariaLabel={`History, ${model.total} workouts. Open`}
+          />
+        </RowGroup>
       </div>
     </main>
   );

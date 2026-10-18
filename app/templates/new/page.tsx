@@ -1,8 +1,7 @@
 "use client";
 
-import TemplateEditorForm from "@/components/TemplateEditorForm";
+import RoutineEditor from "@/components/training/RoutineEditor";
 
 export default function NewTemplatePage() {
-  return <TemplateEditorForm mode="create" />;
+  return <RoutineEditor mode="create" />;
 }
-

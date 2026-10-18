@@ -1,5 +1,5 @@
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
-import { resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
+import { exerciseIdentity, resolveLoggedExerciseMeta } from "@/lib/exerciseLibrary";
 import { countCompletedLoggedSets, countHardSets, getCompletedLoggedSets, getE1rmSets, type SetType } from "@/lib/completedSets";
 import { e1rmAdj } from "@/lib/physique/strength";
 
@@ -40,7 +40,7 @@ export function getUniqueExerciseNames(workouts: StoredWorkout[]): string[] {
     for (const ex of w.exercises ?? []) {
       const name = ex.name?.trim();
       if (!name) continue;
-      const key = exerciseKey(name);
+      const key = exerciseIdentity({ name, exerciseId: ex.exerciseId });
       if (seen.has(key)) continue;
       seen.add(key);
       names.push(name);
@@ -354,7 +354,7 @@ export function getExerciseMetrics(
 ): ExerciseMetrics {
   const maxSessions = Math.min(Math.max(options?.maxSessions ?? 5, 1), 24);
   const label = exerciseName.trim() || "Exercise";
-  const key = exerciseKey(exerciseName);
+  const key = exerciseIdentity({ name: exerciseName });
 
   const sortedDesc = [...(workouts ?? [])].sort(
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -362,7 +362,7 @@ export function getExerciseMetrics(
 
   const newestPerformances: ExerciseSessionPerformance[] = [];
   for (const w of sortedDesc) {
-    const ex = w.exercises?.find((e) => exerciseKey(e.name) === key);
+    const ex = w.exercises?.find((e) => exerciseIdentity(e) === key);
     const completedSets = getCompletedLoggedSets(ex?.sets ?? []);
     if (!completedSets.length) continue;
     const best = getBestSet(completedSets);

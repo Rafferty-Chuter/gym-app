@@ -11,6 +11,7 @@
 
 import { addDays, dayDiff, localDateKey, type LocalDate, type Now } from "@/lib/dates";
 import { getExerciseById, getExerciseByName, type ExerciseRole } from "@/lib/exerciseMetadataLibrary";
+import { exerciseIdentity } from "@/lib/exerciseLibrary";
 import { mean, median, olsSlope } from "@/lib/stats";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import { parseWeightText, type WeightUnit } from "@/lib/units";
@@ -129,7 +130,7 @@ export type LiftExposure = {
 };
 
 export type LiftSeries = {
-  /** Normalised name (trimmed, lower-cased, single spaces), mirroring `exerciseKey`. */
+  /** The movement's identity (`exerciseIdentity`): its library id, else its normalised name, so other apps' names share a series. */
   key: string;
   /** Display name from the first occurrence. */
   name: string;
@@ -138,8 +139,9 @@ export type LiftSeries = {
   exposures: LiftExposure[];
 };
 
-export function liftKey(name: string | undefined): string {
-  return (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+export function liftKey(name: string | undefined, exerciseId?: string): string {
+  if (!(name ?? "").trim() && !exerciseId) return "";
+  return exerciseIdentity({ name, exerciseId });
 }
 
 export function workoutDate(w: StoredWorkout, tz: string): LocalDate | null {
@@ -158,7 +160,7 @@ export function liftSeries(workouts: readonly StoredWorkout[], unit: WeightUnit,
     const date = workoutDate(w, now.tz);
     if (!date || date > now.today) continue;
     for (const ex of w.exercises ?? []) {
-      const key = liftKey(ex.name);
+      const key = liftKey(ex.name, ex.exerciseId);
       if (!key) continue;
       const sets = ex.sets ?? [];
       const completed = sets.filter(isCompletedSet);
@@ -224,7 +226,8 @@ export function pickMainLifts(workouts: readonly StoredWorkout[], unit: WeightUn
     if (weeks.size < MAIN_LIFT_MIN_WEEKS_TRAINED) continue;
     candidates.push({ ...s, recentExposures: recent.length, weeksTrained: weeks.size });
   }
-  candidates.sort((a, b) => b.recentExposures - a.recentExposures || b.weeksTrained - a.weeksTrained || a.key.localeCompare(b.key));
+  // Ties go by name, so the order reads alphabetically whatever the identity key looks like.
+  candidates.sort((a, b) => b.recentExposures - a.recentExposures || b.weeksTrained - a.weeksTrained || a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
   return candidates.slice(0, MAIN_LIFTS_MAX);
 }
 

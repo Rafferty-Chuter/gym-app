@@ -1,4 +1,8 @@
 import { getUserExercisesAsLibraryExercises } from "@/lib/userExerciseLibrary";
+import { BASE_ALIASES, BASE_EQUIPMENT, EXTRA_EXERCISES } from "@/lib/exerciseCatalogExtra";
+
+/** What the movement is done with; the picker filters on it and progression snaps loads by it. */
+export type ExerciseEquipment = "barbell" | "dumbbell" | "machine" | "cable" | "bodyweight" | "smith" | "kettlebell" | "band" | "other";
 
 export type Exercise = {
   id: string;
@@ -27,9 +31,13 @@ export type Exercise = {
     | "isolation";
   fatigueCost: "low" | "moderate" | "high";
   bias?: string; // specific emphasis
+  /** Set on every built-in entry (TR1); inferred from the name for anything else. */
+  equipment?: ExerciseEquipment;
+  /** Other names for the same movement (Hevy and Strong style, short forms). Matched exactly and by search. */
+  aliases?: readonly string[];
 };
 
-export const EXERCISE_LIBRARY: Exercise[] = [
+const BASE_LIBRARY: Exercise[] = [
   // ================= CHEST =================
   {
     id: "barbell_bench_press",
@@ -616,8 +624,51 @@ export const EXERCISE_LIBRARY: Exercise[] = [
   },
 ];
 
+/** Every built-in exercise: the first 61 with equipment and aliases, then the TR1 additions. */
+export const EXERCISE_LIBRARY: Exercise[] = [
+  ...BASE_LIBRARY.map((e) => ({ ...e, equipment: BASE_EQUIPMENT[e.id] ?? e.equipment, aliases: BASE_ALIASES[e.id] ?? e.aliases })),
+  ...EXTRA_EXERCISES,
+];
+
 export function normalizeExerciseName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Letters and digits only: "Pull-Up" and "pull up" meet. */
+function looseKey(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+/** Equipment for any exercise: the entry's own, else read from its name. */
+export function exerciseEquipment(ex: Pick<Exercise, "name" | "equipment">): ExerciseEquipment {
+  if (ex.equipment) return ex.equipment;
+  const n = ex.name.toLowerCase();
+  if (/smith/.test(n)) return "smith";
+  if (/kettlebell|\bkb\b/.test(n)) return "kettlebell";
+  if (/\bband/.test(n)) return "band";
+  if (/dumbbell|\bdb\b/.test(n)) return "dumbbell";
+  if (/cable|pulldown|pushdown|face pull/.test(n)) return "cable";
+  if (/machine|pec deck|leg press|leg extension|leg curl|hack squat/.test(n)) return "machine";
+  if (/push ?up|pull ?up|chin ?up|dip|plank|crunch|sit ?up|bodyweight/.test(n)) return "bodyweight";
+  return "barbell";
+}
+
+/** Short forms people type, expanded before matching. */
+const ABBREVIATIONS: Readonly<Record<string, string>> = {
+  db: "dumbbell",
+  bb: "barbell",
+  kb: "kettlebell",
+  ohp: "overhead press",
+  rdl: "romanian deadlift",
+  sldl: "stiff leg deadlift",
+  bss: "bulgarian split squat",
+  cgbp: "close grip bench press",
+  ez: "ez",
+  lat: "lat",
+};
+
+function words(s: string): string[] {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
 }
 
 function getMergedExercises(): Exercise[] {
@@ -633,19 +684,53 @@ export function getExerciseById(id: string): Exercise | null {
   return getMergedExercises().find((ex) => normalizeExerciseName(ex.id) === key) ?? null;
 }
 
+/**
+ * The exercise a logged or typed name means: an exact name first, then a
+ * name or alias that matches once punctuation and spacing are ignored.
+ */
 export function getExerciseByName(name: string): Exercise | null {
   const key = normalizeExerciseName(name);
   if (!key) return null;
   const fromBuiltIn = EXERCISE_LIBRARY.find((ex) => normalizeExerciseName(ex.name) === key);
   if (fromBuiltIn) return fromBuiltIn;
-  return getMergedExercises().find((ex) => normalizeExerciseName(ex.name) === key) ?? null;
+  const merged = getMergedExercises();
+  const exact = merged.find((ex) => normalizeExerciseName(ex.name) === key);
+  if (exact) return exact;
+  const loose = looseKey(name);
+  if (!loose) return null;
+  return merged.find((ex) => looseKey(ex.name) === loose || (ex.aliases ?? []).some((a) => looseKey(a) === loose)) ?? null;
 }
 
+/**
+ * Search by words in any order, each word a prefix of a word in the name
+ * or an alias ("db press", "press bench", "rdl"). Best matches first: the
+ * exact name, then names starting with the query, then names matching
+ * every word, then alias matches.
+ */
 export function searchExercises(query: string): Exercise[] {
   const merged = getMergedExercises();
   const key = normalizeExerciseName(query);
   if (!key) return merged;
-  return merged.filter((ex) => normalizeExerciseName(ex.name).includes(key));
+  const terms = words(key).flatMap((w) => words(ABBREVIATIONS[w] ?? w));
+  if (terms.length === 0) return merged;
+  const hits = (text: string) => {
+    const ws = words(text);
+    return terms.every((t) => ws.some((w) => w.startsWith(t)));
+  };
+  const expanded = terms.join(" ");
+  const scored: Array<{ ex: Exercise; score: number }> = [];
+  for (const ex of merged) {
+    const name = normalizeExerciseName(ex.name);
+    const aliases = (ex.aliases ?? []).map(normalizeExerciseName);
+    let score = -1;
+    if (name === key || aliases.includes(key)) score = 0;
+    else if (name.startsWith(key) || name.startsWith(expanded)) score = 1;
+    else if (hits(ex.name)) score = 2;
+    else if ((ex.aliases ?? []).some(hits)) score = 3;
+    if (score >= 0) scored.push({ ex, score });
+  }
+  // Ties: the plainer (shorter) name first, so "Romanian Deadlift" leads its variants.
+  return scored.sort((a, b) => a.score - b.score || a.ex.name.length - b.ex.name.length || a.ex.name.localeCompare(b.ex.name)).map((s) => s.ex);
 }
 
 const CATEGORY_ORDER: Exercise["displayCategory"][] = [
@@ -671,6 +756,33 @@ export function getExercisesGroupedByCategory(): Array<{
     category,
     exercises: merged.filter((ex) => ex.displayCategory === category),
   })).filter((row) => row.exercises.length > 0);
+}
+
+// ── Identity ──
+
+const identityCache = new Map<string, string>();
+
+/**
+ * One key per movement (TR1): "id:<library id>" when the id or the name
+ * (aliases included) resolves to the library, else the normalised name.
+ * "Bench Press", "Bench Press (Barbell)" and "Barbell Bench Press" share a
+ * history; anything unknown keeps its own name. Built-in hits are cached.
+ */
+export function exerciseIdentity(ex: { name?: string; exerciseId?: string }): string {
+  const name = ex.name ?? "";
+  const cacheKey = `${ex.exerciseId ?? ""}|${normalizeExerciseName(name)}`;
+  const hit = identityCache.get(cacheKey);
+  if (hit) return hit;
+  const meta = (ex.exerciseId ? getExerciseById(ex.exerciseId) : null) ?? (name ? getExerciseByName(name) : null);
+  const key = meta ? `id:${meta.id}` : `name:${normalizeExerciseName(name)}`;
+  if (meta && EXERCISE_LIBRARY.some((e) => e.id === meta.id)) identityCache.set(cacheKey, key);
+  return key;
+}
+
+/** Whether two logged or planned exercises are the same movement. */
+export function sameExercise(a: { name?: string; exerciseId?: string }, b: { name?: string; exerciseId?: string }): boolean {
+  if (a.exerciseId && b.exerciseId && a.exerciseId === b.exerciseId) return true;
+  return exerciseIdentity(a) === exerciseIdentity(b);
 }
 
 export function resolveLoggedExerciseMeta(exercise: {

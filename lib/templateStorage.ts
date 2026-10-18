@@ -5,10 +5,18 @@ import { getExerciseByName } from "@/lib/exerciseLibrary";
 
 export const TEMPLATE_STORAGE_KEY = "workoutTemplates";
 
+/** One planned set (TR2). Warm-ups never count toward volume or the working-set target. */
+export type TemplateSet = { type?: "warmup"; kg?: number; reps?: number };
+
 export type TemplateExercise = {
   exerciseId?: string;
   name: string;
+  /** Working sets; kept equal to the non-warm-up rows of `sets` when those exist. */
   targetSets: number;
+  /** The planned rows, warm-ups first (TR2). Absent on older routines: `targetSets` empty working sets. */
+  sets?: TemplateSet[];
+  /** A note shown on the exercise while logging (TR2). */
+  notes?: string;
   restSec?: number;
   /** Rep range and RIR per set (T3). Filled from the movement's role when a stored routine has none. */
   repMin?: number;
@@ -69,11 +77,27 @@ function normalizeTemplate(
           ? e.exerciseId.trim()
           : byName?.id;
       const name = byName?.name ?? rawName;
+      const sets = Array.isArray(e.sets)
+        ? (e.sets as unknown[]).slice(0, 20).map((row): TemplateSet => {
+            const r = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
+            const kg = Number(r.kg);
+            const reps = Number(r.reps);
+            return {
+              ...(r.type === "warmup" ? { type: "warmup" as const } : {}),
+              ...(Number.isFinite(kg) && kg > 0 ? { kg: Math.round(kg * 100) / 100 } : {}),
+              ...(Number.isFinite(reps) && reps > 0 ? { reps: Math.round(reps) } : {}),
+            };
+          })
+        : undefined;
+      const working = sets ? sets.filter((r) => r.type !== "warmup").length : null;
+      const notes = typeof e.notes === "string" && e.notes.trim() ? e.notes.trim().slice(0, 500) : undefined;
       return {
         ...(exerciseId ? { exerciseId } : {}),
         name,
-        targetSets,
+        targetSets: working != null ? Math.max(1, working) : targetSets,
         restSec,
+        ...(sets && sets.length ? { sets } : {}),
+        ...(notes ? { notes } : {}),
         ...normaliseTargets(e, targetsForExercise(name)),
       };
     }),

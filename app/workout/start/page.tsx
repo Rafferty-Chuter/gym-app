@@ -4,7 +4,12 @@ import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import { Chevron, Row, RowGroup } from "@/components/physique/ui";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useIsHydrated } from "@/lib/ui/useIsHydrated";
+import { Caption } from "@/components/physique/ui";
+import RoutineList from "@/components/training/RoutineList";
+import { getStoredTemplates, type WorkoutTemplate } from "@/lib/templateStorage";
+import { queueEmptyWorkout } from "@/lib/training/startWorkout";
 import {
   ACTIVE_WORKOUT_CHANGED_EVENT,
   draftHasMeaningfulContent,
@@ -12,7 +17,6 @@ import {
   type DraftWorkout,
 } from "@/lib/activeWorkout";
 
-const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 
 function formatElapsed(sec: number): string {
   const h = Math.floor(sec / 3600);
@@ -36,6 +40,13 @@ export default function WorkoutStartPage() {
   const router = useRouter();
   const [activeDraft, setActiveDraft] = useState<DraftWorkout | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const hydrated = useIsHydrated();
+  const [revision, setRevision] = useState(0);
+  // Routines live in this browser's storage: read after hydration, re-read after a change.
+  const templates = useMemo<WorkoutTemplate[]>(() => {
+    void revision;
+    return hydrated ? getStoredTemplates() : [];
+  }, [hydrated, revision]);
 
   const refreshDraft = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -78,10 +89,8 @@ export default function WorkoutStartPage() {
   }, [activeDraft]);
 
   function startEmptyWorkout() {
-    sessionStorage.setItem(
-      TEMPLATE_FOR_WORKOUT_KEY,
-      JSON.stringify({ emptyWorkout: true, workoutName: "" })
-    );
+    if (activeDraft && !window.confirm("A workout is in progress. Discard it and start an empty one?")) return;
+    queueEmptyWorkout();
     router.push("/workout");
   }
 
@@ -105,9 +114,24 @@ export default function WorkoutStartPage() {
         )}
 
         <RowGroup>
-          <Row label="Empty workout" sub="Build the session as you train." value="" trailing={<Chevron />} onClick={startEmptyWorkout} ariaLabel="Start an empty workout" />
-          <Row label="From a routine" sub="Exercises, sets and rest prefilled." value="" trailing={<Chevron />} onClick={() => router.push("/templates")} ariaLabel="Start from a routine" />
+          <Row label="Empty workout" sub="Add exercises as you go" value="" trailing={<Chevron />} onClick={startEmptyWorkout} ariaLabel="Start an empty workout" />
         </RowGroup>
+
+        <section aria-label="Start a routine">
+          <div className="mb-2 flex items-center justify-between">
+            <Caption>Routines</Caption>
+            <Link href="/templates/new" className="text-[12px] font-medium" style={{ color: "#a3a3a8" }}>
+              New routine ›
+            </Link>
+          </div>
+          {templates.length > 0 ? (
+            <RoutineList templates={templates} onChanged={() => setRevision((r) => r + 1)} />
+          ) : (
+            <p className="rounded-[12px] px-4 py-3 text-[13px]" style={{ background: "#141416", color: "#a3a3a8" }}>
+              No routines yet. Build one and it starts here in one tap.
+            </p>
+          )}
+        </section>
 
         <p className="pb-2 text-[11px]" style={{ color: "#6f6f76" }}>
           A session saves to History when you finish it.
