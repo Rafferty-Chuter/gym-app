@@ -35,6 +35,11 @@ import { getCompletedLoggedSets, nextSetType, SET_TYPE_LABEL, SET_TYPE_MARK, set
 import { getTemplateById } from "@/lib/templateStorage";
 import RestBar from "@/components/workout/RestBar";
 import PlateCalculator from "@/components/workout/PlateCalculator";
+import WorkoutComplete from "@/components/training/WorkoutComplete";
+import { exerciseHref } from "@/components/training/WorkoutViews";
+import { getWorkoutHistory, type StoredWorkout as HistoryWorkout } from "@/lib/trainingAnalysis";
+import { workoutRecords, type WorkoutRecord } from "@/lib/training/workoutSummary";
+import { uniqueRoutineName } from "@/lib/training/routine";
 
 const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
@@ -259,6 +264,8 @@ export default function WorkoutPage() {
   const [exerciseMenuOpenId, setExerciseMenuOpenId] = useState<number | null>(null);
   const [reorderMode, setReorderMode] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  // TR4: the saved session and its records, for the "Workout complete" screen.
+  const [finished, setFinished] = useState<{ workout: HistoryWorkout; records: WorkoutRecord[] } | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [routineChanges, setRoutineChanges] = useState<string[] | null>(null);
   const [lastPerformance, setLastPerformance] = useState<
@@ -530,7 +537,7 @@ export default function WorkoutPage() {
 
       const routine = {
         id: `tpl_${Date.now()}`,
-        name,
+        name: uniqueRoutineName(name, templates.map((t: { name?: unknown }) => (typeof t?.name === "string" ? t.name : ""))),
         exercises: exercises.map(routineExerciseFromSession),
       };
 
@@ -882,17 +889,15 @@ export default function WorkoutPage() {
     for (const [key, tex] of templateMap) {
       const cex = completedMap.get(key);
       if (!cex) {
-        changes.push(`Removed "${tex.name}"`);
+        changes.push(`Removed ${tex.name}`);
       } else if ((cex.sets as unknown[]).length !== (tex.sets?.length || tex.targetSets)) {
         const planned = tex.sets?.length || tex.targetSets;
-        changes.push(
-          `"${tex.name}": ${(cex.sets as unknown[]).length} set${(cex.sets as unknown[]).length !== 1 ? "s" : ""} instead of ${planned}`
-        );
+        changes.push(`${tex.name}: ${(cex.sets as unknown[]).length} set${(cex.sets as unknown[]).length !== 1 ? "s" : ""}, planned ${planned}`);
       }
     }
     for (const [key, cex] of completedMap) {
       if (!templateMap.has(key)) {
-        changes.push(`Added "${cex.name}"`);
+        changes.push(`Added ${cex.name}`);
       }
     }
     return changes;
@@ -936,7 +941,10 @@ export default function WorkoutPage() {
       totalExercises: completedExercises.length,
       totalSets,
     };
+    // Records are judged against the history before this session is added.
+    const records = workoutRecords(completed, getWorkoutHistory());
     addWorkout(completed);
+    setFinished({ workout: completed, records });
     clearActiveWorkout();
     persistEnabledRef.current = false;
 
@@ -1393,6 +1401,13 @@ export default function WorkoutPage() {
                             >
                               Replace exercise
                             </button>
+                            <Link
+                              href={exerciseHref(exercise)}
+                              className="block w-full px-3 py-2 text-left text-[11px] text-[#f2f2f0] hover:bg-[#2a2a2e] transition"
+                              onClick={() => setExerciseMenuOpenId(null)}
+                            >
+                              History and records
+                            </Link>
                             <button
                               type="button"
                               className="w-full px-3 py-2 text-left text-[11px] text-[#f2f2f0] hover:bg-[#2a2a2e] transition"
@@ -1988,78 +2003,23 @@ export default function WorkoutPage() {
             </div>
           )}
 
-          {showSummary && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
-              onClick={(e) => e.target === e.currentTarget && router.push("/")}
-            >
-              <div
-                className="w-full max-w-md p-6 rounded-2xl border border-[#2a2a2e] bg-[#141416] shadow-xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h2 className="text-xl font-semibold mb-4">Workout Summary</h2>
-                <p className="text-white font-bold mb-2">{getWorkoutDisplayName()}</p>
-                <p className="text-app-secondary mb-4">
-                  {exercises.length} exercise{exercises.length !== 1 ? "s" : ""} ·{" "}
-                  {exercises.reduce((total, ex) => total + ex.sets.length, 0)} total sets
-                </p>
-                <ul className="space-y-2 text-sm text-app-secondary mb-6">
-                  {exercises.map((exercise) => (
-                    <li key={exercise.id}>
-                      {exercise.name} — {exercise.sets.length} set
-                      {exercise.sets.length !== 1 ? "s" : ""}
-                    </li>
-                  ))}
-                </ul>
-                {templateId && routineChanges && routineChanges.length > 0 && (
-                  <div className="mb-4 rounded-xl border border-[#2a2a2e] bg-[#141416] p-4">
-                    <p className="text-sm font-semibold text-[#00e5b0] mb-1">
-                      This workout differs from &ldquo;{templateName}&rdquo;
-                    </p>
-                    <ul className="text-xs text-[#a3a3a8] space-y-0.5 mb-3">
-                      {routineChanges.map((change, i) => (
-                        <li key={i}>· {change}</li>
-                      ))}
-                    </ul>
-                    <p className="text-xs text-app-secondary mb-3">
-                      Want to update the routine to reflect today&apos;s session?
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          overwriteTemplateFromSession();
-                          setRoutineChanges(null);
-                        }}
-                        className="flex-1 py-2 rounded-lg text-sm font-semibold bg-[#2a2a2e] text-[#6f6f76] hover:bg-[#2a2a2e] transition"
-                      >
-                        Update routine
-                      </button>
-                      <button
-                        onClick={() => setRoutineChanges(null)}
-                        className="flex-1 py-2 rounded-lg text-sm font-semibold border border-[#2a2a2e] text-app-secondary hover:bg-[#1d1d20] transition"
-                      >
-                        Keep original
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <button
-                    onClick={saveAsRoutineFromSession}
-                    disabled={routineSaved || exercises.length === 0}
-                    className="w-full py-3 rounded-xl font-semibold border border-[#a3a3a8] text-[#00e5b0] hover:bg-[#141416] transition disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {routineSaved ? "Routine Saved" : "Save as Routine"}
-                  </button>
-                  <button
-                    onClick={() => router.push("/")}
-                    className="w-full py-3 rounded-xl btn-primary"
-                  >
-                    Back to Home
-                  </button>
-                </div>
-              </div>
-            </div>
+          {showSummary && finished && (
+            <WorkoutComplete
+              workout={finished.workout}
+              records={finished.records}
+              unit={unit === "lb" ? "lb" : "kg"}
+              routineName={templateId ? templateName : null}
+              routineChanges={templateId ? routineChanges : null}
+              onUpdateRoutine={() => {
+                overwriteTemplateFromSession();
+                setRoutineChanges(null);
+              }}
+              onKeepRoutine={() => setRoutineChanges(null)}
+              canSaveRoutine={!templateId}
+              routineSaved={routineSaved}
+              onSaveRoutine={saveAsRoutineFromSession}
+              onDone={() => router.push("/train")}
+            />
           )}
         </div>
       </div>

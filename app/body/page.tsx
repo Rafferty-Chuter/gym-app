@@ -84,6 +84,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         <PageHeader
           caption={caption}
           captionHref="/body/goal"
+          captionLabel="Body goal. Edit goal"
           title="Body"
           action={{
             label: "Log weight",

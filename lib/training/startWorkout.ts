@@ -8,6 +8,9 @@
 
 import { draftHasMeaningfulContent, getActiveWorkout } from "@/lib/activeWorkout";
 import type { WorkoutTemplate } from "@/lib/templateStorage";
+import type { StoredWorkout } from "@/lib/trainingAnalysis";
+import { routineExercisesFromWorkout } from "@/lib/training/routine";
+import type { WeightUnit } from "@/lib/units";
 
 /** The key the logger reads on mount. */
 export const TEMPLATE_FOR_WORKOUT_KEY = "workoutFromTemplate";
@@ -33,6 +36,22 @@ export function queueRoutine(t: WorkoutTemplate): boolean {
 export function queueEmptyWorkout(name = ""): boolean {
   try {
     sessionStorage.setItem(TEMPLATE_FOR_WORKOUT_KEY, JSON.stringify({ emptyWorkout: true, workoutName: name }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Queue a finished workout to do again (TR5): same exercises, sets, weights
+ * and reps as planned rows. It is not a routine, so finishing it offers
+ * Save as routine rather than Update routine.
+ */
+export function queueRepeat(w: StoredWorkout, unit: WeightUnit): boolean {
+  const exercises = routineExercisesFromWorkout(w, unit);
+  if (exercises.length === 0) return false;
+  try {
+    sessionStorage.setItem(TEMPLATE_FOR_WORKOUT_KEY, JSON.stringify({ templateName: w.name?.trim() || "Workout", exercises }));
     return true;
   } catch {
     return false;

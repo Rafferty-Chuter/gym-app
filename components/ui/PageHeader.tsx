@@ -11,6 +11,7 @@ import Link from "next/link";
 export default function PageHeader({
   caption,
   captionHref,
+  captionLabel,
   title,
   action,
   secondary,
@@ -18,6 +19,8 @@ export default function PageHeader({
   caption?: ReactNode;
   /** Makes the caption a link (the Body page's goal caption opens the goal). */
   captionHref?: string;
+  /** What the caption link says to assistive tech, when its text is not enough. */
+  captionLabel?: string;
   title: string;
   /** The + action: a label for assistive tech and a handler or href. */
   action?: { label: string; onClick?: () => void; href?: string };
@@ -41,7 +44,7 @@ export default function PageHeader({
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           {captionHref && caption ? (
-            <Link href={captionHref} className="block" aria-label={`${title} goal. Edit goal`}>
+            <Link href={captionHref} className="block" aria-label={captionLabel}>
               {captionNode}
             </Link>
           ) : (

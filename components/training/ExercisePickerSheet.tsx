@@ -42,7 +42,8 @@ const EQUIPMENT: ReadonlyArray<{ value: ExerciseEquipment; label: string }> = [
 const EQUIPMENT_LABEL = Object.fromEntries(EQUIPMENT.map((e) => [e.value, e.label])) as Record<ExerciseEquipment, string>;
 const MUSCLE_LABEL = Object.fromEntries(MUSCLES.map((m) => [m.value, m.label])) as Record<Category, string>;
 
-function subtitle(ex: Exercise | null): string {
+/** "Chest · Barbell" for a library exercise, "Your exercise" for a custom one. */
+export function exerciseSubtitle(ex: Exercise | null): string {
   if (!ex) return "Your exercise";
   return `${MUSCLE_LABEL[ex.displayCategory] ?? ex.displayCategory} · ${EQUIPMENT_LABEL[exerciseEquipment(ex)]}`;
 }
@@ -136,7 +137,7 @@ function Inner({ onClose, mode, title, onPick, inRoutine }: { onClose: () => voi
               {item.name}
             </span>
             <span className="truncate text-[12px]" style={{ color: "#6f6f76" }}>
-              {subtitle(meta)}
+              {exerciseSubtitle(meta)}
               {extra ? ` · ${extra}` : ""}
               {already ? " · in this routine" : ""}
             </span>

@@ -61,7 +61,7 @@ export function ChartPointTooltip({
       )
     : [];
   const dateLabel = formatChartDate(detail.completedAt);
-  const sessionHref = `/history?w=${encodeURIComponent(detail.completedAt)}`;
+  const sessionHref = `/history/workout?at=${encodeURIComponent(detail.completedAt)}`;
 
   return (
     <div

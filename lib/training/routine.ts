@@ -4,7 +4,10 @@
  * its routine cards. Pure; the editor and the Train tab render these.
  */
 
+import { getCompletedLoggedSets, setTypeOf } from "@/lib/completedSets";
 import type { TemplateExercise, TemplateSet, WorkoutTemplate } from "@/lib/templateStorage";
+import type { StoredWorkout } from "@/lib/trainingAnalysis";
+import { displayToKg, type WeightUnit } from "@/lib/units";
 
 /** Rest choices offered in the editor and the logger, in seconds. OURS: Hevy's steps up to five minutes. */
 export const REST_PRESETS: readonly number[] = [0, 30, 45, 60, 90, 120, 150, 180, 240, 300];
@@ -92,4 +95,44 @@ export function routineSummary(t: Pick<WorkoutTemplate, "exercises">, shown = 3)
 /** A routine id that will not collide. */
 export function newRoutineId(now: number, rand: () => number): string {
   return `tpl_${now.toString(36)}_${Math.floor(rand() * 1e8).toString(36)}`;
+}
+
+/**
+ * A finished workout as routine exercises (TR5): Repeat and Save as routine
+ * from History. Each done set becomes a planned row, warm-ups kept, weights
+ * converted from the stored display unit to kg. Unweighted sets keep reps.
+ */
+export function routineExercisesFromWorkout(w: Pick<StoredWorkout, "exercises">, unit: WeightUnit): TemplateExercise[] {
+  const out: TemplateExercise[] = [];
+  for (const ex of w.exercises ?? []) {
+    const rows: TemplateSet[] = getCompletedLoggedSets(ex.sets ?? [])
+      .slice(0, MAX_ROWS)
+      .map((s) => {
+        const wt = Number.parseFloat(String(s.weight ?? "").replace(",", "."));
+        const reps = Number.parseFloat(String(s.reps ?? ""));
+        return {
+          ...(setTypeOf(s) === "warmup" ? { type: "warmup" as const } : {}),
+          ...(Number.isFinite(wt) && wt > 0 ? { kg: Math.round(displayToKg(wt, unit) * 100) / 100 } : {}),
+          ...(Number.isFinite(reps) && reps > 0 ? { reps: Math.round(reps) } : {}),
+        };
+      });
+    const working = rows.filter((r) => r.type !== "warmup").length;
+    if (working === 0) continue;
+    out.push({
+      ...(ex.exerciseId ? { exerciseId: ex.exerciseId } : {}),
+      name: ex.name,
+      targetSets: working,
+      sets: rows,
+      restSec: typeof ex.restSec === "number" && ex.restSec > 0 ? ex.restSec : DEFAULT_REST_SEC,
+    });
+  }
+  return out;
+}
+
+/** A routine name not already taken: "Push A", then "Push A 2", "Push A 3". */
+export function uniqueRoutineName(base: string, taken: readonly string[]): string {
+  const name = base.trim() || "Routine";
+  const used = new Set(taken.map((t) => t.trim().toLowerCase()));
+  if (!used.has(name.toLowerCase())) return name;
+  for (let i = 2; ; i++) if (!used.has(`${name} ${i}`.toLowerCase())) return `${name} ${i}`;
 }

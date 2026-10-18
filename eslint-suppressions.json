@@ -1,9 +1,4 @@
 {
-  "app/history/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 3
-    }
-  },
   "app/workout/start/page.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
