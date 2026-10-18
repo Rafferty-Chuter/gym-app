@@ -5,6 +5,7 @@ import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { EnergyBalanceChart, FAT_COLOR, KCAL_COLOR } from "@/components/food/EnergyCharts";
 import { signedKcal, type EnergyBalance, type EnergyLine } from "@/lib/physique/food/energy";
+import { FIBRE_GOOD_SHARE, FIBRE_TARGET_G } from "@/lib/physique/weekScorecard";
 import type { MacroSums } from "@/lib/physique/food/timeline";
 import type { ExpenditureState, ProgramTargets } from "@/lib/physique/types";
 import type { LocalDate } from "@/lib/dates";
@@ -15,6 +16,8 @@ type Props = {
   date: LocalDate;
   today: LocalDate;
   totals: MacroSums;
+  /** The day's fibre when it can be read (lib/food/fibre.ts), else null and the line is hidden. */
+  fibreG: number | null;
   target: ProgramTargets | null;
   view: FoodView;
   onViewChange: (v: FoodView) => void;
@@ -53,10 +56,11 @@ function Pills<T extends string>({ value, options, onChange, label }: { value: T
  * Widget carousel (05-design §9.4): Today · Energy balance, as horizontal
  * scroll-snap pages with dots. Tapping the ring switches eaten and
  * remaining. The week card and the Consumed / Remaining pills went in B2:
- * the week strip and the ring already do their jobs.
+ * the week strip and the ring already do their jobs. One quiet fibre line
+ * sits under the macros once the day's fibre can be read (F7).
  */
 export default function FoodWidgets(props: Props) {
-  const { date, today, totals, target, view, onViewChange, energy, energyLine, onEnergyLineChange, expenditureState } = props;
+  const { date, today, totals, fibreG, target, view, onViewChange, energy, energyLine, onEnergyLineChange, expenditureState } = props;
   const scroller = useRef<HTMLDivElement | null>(null);
   const [page, setPage] = useState(0);
   const remaining = view === "remaining";
@@ -83,6 +87,17 @@ export default function FoodWidgets(props: Props) {
           <div className="mt-4">
             <MacroBars totals={totals} target={target} view={view} />
           </div>
+          {fibreG != null && (
+            <p className="mt-3 flex items-baseline justify-between text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+              <span>Fibre</span>
+              <span>
+                <span className="font-semibold" style={{ color: fibreG >= FIBRE_TARGET_G * FIBRE_GOOD_SHARE ? "var(--status-good)" : "var(--text)" }}>
+                  {Math.round(fibreG)}
+                </span>{" "}
+                of {FIBRE_TARGET_G} g
+              </span>
+            </p>
+          )}
           {!target && (
             <p className="mt-3 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
               No targets yet.{" "}

@@ -83,7 +83,7 @@ async function rememberSaved(food: ReturnType<typeof clean>, serving: string | u
     (savedFoodId ? saved.find((s) => s.id === savedFoodId) : undefined) ??
     saved.find((s) => s.label.toLowerCase() === food.label.toLowerCase() && s.kcal === food.kcal);
   const next: SavedFood = match
-    ? { ...match, lastUsedAt: nowIso, useCount: match.useCount + 1, serving: serving ?? match.serving, ...(match.fibreG == null && food.fibreG != null ? { fibreG: food.fibreG } : {}), ...(recipe ? { recipe } : {}) }
+    ? { ...match, lastUsedAt: nowIso, useCount: match.useCount + 1, serving: serving ?? match.serving, ...(recipe ? { recipe, fibreG: food.fibreG } : match.fibreG == null && food.fibreG != null ? { fibreG: food.fibreG } : {}) }
     : { id: newId(), ...food, serving, lastUsedAt: nowIso, useCount: 1, schemaVersion: 1, ...(recipe ? { recipe } : {}) };
   await savedFoodsRepo.upsert(next);
   return next.id;
@@ -131,6 +131,8 @@ export async function saveRecipe(draft: RecipeDraft, nowIso: string): Promise<Sa
       serving: unitLabel(draft),
       recipe: toSavedRecipe(draft),
     };
+    // An edit can leave too little of the recipe with a fibre value: the old number must not stay (F7).
+    if (one.fibreG == null) delete next.fibreG;
     await savedFoodsRepo.upsert(next);
   });
   return r.ok ? { ...r, id } : r;

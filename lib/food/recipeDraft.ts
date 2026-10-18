@@ -47,11 +47,12 @@ export function draftFromPlate(items: readonly PlateItem[]): RecipeDraft {
 
 function plateIngredient(p: PlateItem): RecipeIngredient {
   const base = { name: p.label, source: p.matched ? ("cofid" as const) : ("estimate" as const), ...(p.matched ? { matched: p.matched } : {}) };
+  const fibre = (f: number) => (p.fibreG != null ? { fibreG: p.fibreG * f } : {});
   if (p.grams > 0) {
     const f = 100 / p.grams;
-    return { ...base, grams: Math.round(p.grams * p.amount), per100: { kcal: p.kcal * f, proteinG: p.proteinG * f, carbsG: p.carbsG * f, fatG: p.fatG * f } };
+    return { ...base, grams: Math.round(p.grams * p.amount), per100: { kcal: p.kcal * f, proteinG: p.proteinG * f, carbsG: p.carbsG * f, fatG: p.fatG * f, ...fibre(f) } };
   }
-  return { ...base, grams: Math.round(p.amount * 100), per100: { kcal: p.kcal, proteinG: p.proteinG, carbsG: p.carbsG, fatG: p.fatG }, portion: p.serving || "portion" };
+  return { ...base, grams: Math.round(p.amount * 100), per100: { kcal: p.kcal, proteinG: p.proteinG, carbsG: p.carbsG, fatG: p.fatG, ...fibre(1) }, portion: p.serving || "portion" };
 }
 
 export function draftFromRecipe(r: Recipe): RecipeDraft {

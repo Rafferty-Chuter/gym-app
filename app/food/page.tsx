@@ -16,6 +16,7 @@ import { dailyIntake, targetInEffect } from "@/lib/physique/intake";
 import PageHeader from "@/components/ui/PageHeader";
 import Sheet from "@/components/ui/Sheet";
 import WeekStrip from "@/components/food/WeekStrip";
+import { knownFibre } from "@/lib/food/fibre";
 import FoodWidgets, { type FoodView } from "@/components/food/FoodWidgets";
 import FoodTimeline from "@/components/food/FoodTimeline";
 import AddFoodBar from "@/components/food/AddFoodBar";
@@ -76,6 +77,8 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
     // The day's status and override (Edit day) beat the raw sum, as they do in the engine.
     const intake = dailyIntake(date, data.foodEntries.filter((e) => e.date === date), flags);
     const totals = { kcal: intake.kcal, proteinG: intake.proteinG, carbsG: intake.carbsG, fatG: intake.fatG };
+    // Fibre only when the entries are the day (no edited total) and most of their energy has a fibre value (F7).
+    const fibreG = intake.status !== "fasting" && typeof flags?.kcalOverride !== "number" ? (knownFibre(data.foodEntries.filter((e) => e.date === date)) ?? null) : null;
     const dayNote =
       intake.status === "fasting"
         ? "Fasting day · counts as 0 kcal"
@@ -91,7 +94,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
     const logged = new Set(weekRows.filter((d) => d.logged).map((d) => d.date));
     const energy = energyBalance(expenditure?.intake ?? [], expenditure?.series ?? [], data.program, energyLine, today);
     const gapRows = gapLines(findGaps({ foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: [], sleepNights: [] }, today, ["food"]), today);
-    return { timeline, totals, flags, dayNote, target, weekRows, logged, energy, gapRows };
+    return { timeline, totals, fibreG, flags, dayNote, target, weekRows, logged, energy, gapRows };
   }, [data, date, tz, prefs.hourStart, prefs.hourEnd, week, today, expenditure, energyLine]);
 
   const nowIso = () => new Date().toISOString();
@@ -130,6 +133,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           date={date}
           today={today}
           totals={model.totals}
+          fibreG={model.fibreG}
           target={model.target}
           view={prefs.view}
           onViewChange={(view: FoodView) => void setFoodPrefs({ view })}

@@ -28,6 +28,10 @@ export const MAX_ITEM_MACRO_G = 1000;
 export const MAX_INGREDIENT_GRAMS = 10_000;
 /** Pure fat is about 900 kcal per 100 g; no food is denser. PUB. */
 export const MAX_KCAL_PER_100 = 900;
+/** Fibre per 100 g above this is not a food (wheat bran is about 40 g). OURS. */
+export const MAX_FIBRE_PER_100 = 60;
+/** Fibre in one described food above this is not a meal (three times a day's target). OURS. */
+export const MAX_ITEM_FIBRE_G = 100;
 
 // ── Reading the text ──
 
@@ -142,6 +146,7 @@ export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): Saniti
       proteinG: clamp(i.proteinG, MAX_ITEM_MACRO_G),
       fatG: clamp(i.fatG, MAX_ITEM_MACRO_G),
       carbsG: clamp(i.carbsG, MAX_ITEM_MACRO_G),
+      ...(Number.isFinite(i.fibreG) ? { fibreG: Math.round(clamp(i.fibreG, MAX_ITEM_FIBRE_G) * 10) / 10 } : {}),
       confidence: i.confidence,
     }))
     .filter((i) => i.label.length > 0)
@@ -151,7 +156,7 @@ export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): Saniti
       name: shortText(g.name, MAX_NAME_CHARS),
       lookup: shortText(g.lookup, MAX_LOOKUP_CHARS),
       grams: Math.round(clamp(g.grams, MAX_INGREDIENT_GRAMS)),
-      per100: reconcileEnergy({ kcal: clamp(g.per100.kcal, MAX_KCAL_PER_100), proteinG: clamp(g.per100.proteinG, 100), fatG: clamp(g.per100.fatG, 100), carbsG: clamp(g.per100.carbsG, 100) }),
+      per100: reconcileEnergy({ kcal: clamp(g.per100.kcal, MAX_KCAL_PER_100), proteinG: clamp(g.per100.proteinG, 100), fatG: clamp(g.per100.fatG, 100), carbsG: clamp(g.per100.carbsG, 100), ...(Number.isFinite(g.per100.fibreG) ? { fibreG: Math.round(clamp(g.per100.fibreG, MAX_FIBRE_PER_100) * 10) / 10 } : {}) }),
     }))
     .filter((g) => g.name.length > 0 && g.grams > 0)
     .slice(0, MAX_INGREDIENTS);
@@ -173,12 +178,12 @@ export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): Saniti
 
 function itemToIngredient(i: ItemDraft): IngredientDraft {
   const f = 100 / i.grams;
-  return { name: i.label, lookup: i.lookup, grams: i.grams, per100: { kcal: Math.min(MAX_KCAL_PER_100, i.kcal * f), proteinG: Math.min(100, i.proteinG * f), fatG: Math.min(100, i.fatG * f), carbsG: Math.min(100, i.carbsG * f) } };
+  return { name: i.label, lookup: i.lookup, grams: i.grams, per100: { kcal: Math.min(MAX_KCAL_PER_100, i.kcal * f), proteinG: Math.min(100, i.proteinG * f), fatG: Math.min(100, i.fatG * f), carbsG: Math.min(100, i.carbsG * f), ...(i.fibreG != null ? { fibreG: Math.min(MAX_FIBRE_PER_100, i.fibreG * f) } : {}) } };
 }
 
 function ingredientToItem(g: IngredientDraft): ItemDraft {
   const f = g.grams / 100;
-  return { label: g.name, serving: `${g.grams} g`, lookup: g.lookup, grams: g.grams, kcal: g.per100.kcal * f, proteinG: g.per100.proteinG * f, fatG: g.per100.fatG * f, carbsG: g.per100.carbsG * f, confidence: "medium" };
+  return { label: g.name, serving: `${g.grams} g`, lookup: g.lookup, grams: g.grams, kcal: g.per100.kcal * f, proteinG: g.per100.proteinG * f, fatG: g.per100.fatG * f, carbsG: g.per100.carbsG * f, ...(g.per100.fibreG != null ? { fibreG: g.per100.fibreG * f } : {}), confidence: "medium" };
 }
 
 // ── Failures ──

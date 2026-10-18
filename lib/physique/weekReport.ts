@@ -21,6 +21,7 @@ import { clampSleepGoal, nightsByDate, thresholdsForWindow, type NormalizedNight
 import { isCompoundLift, liftSeries, workoutDate } from "@/lib/physique/strength";
 import { CONSISTENCY_MIN_NIGHTS, nightAxisMin } from "@/lib/physique/sleepScore";
 import { mean, stdev } from "@/lib/stats";
+import { knownFibre } from "@/lib/food/fibre";
 import { waistChange } from "@/lib/physique/judge";
 import { BASELINE_DAYS, BASELINE_MIN_VALID, RECENT_MIN_VALID } from "@/lib/physique/recovery";
 import { countHardSets } from "@/lib/completedSets";
@@ -36,11 +37,6 @@ export const LIFT_BASELINE_WEEKS = 3;
 export const MUSCLES_SHOWN = 8;
 /** A complete day hits protein at this share of the target or more. OURS: within 10% is on target for a day. */
 export const PROTEIN_HIT_SHARE = 0.9;
-/**
- * A day's fibre is read only when foods with a known fibre value make up
- * this share of its energy; below it the total would undercount. OURS.
- */
-export const FIBRE_KNOWN_SHARE = 0.8;
 /** Days a fibre or step average needs. OURS: three, the weekly report's floor for any average. */
 export const MIN_DAYS_FOR_MEAN = 3;
 /** Waist is read over this many days to the week's end. EVID: the judge's 28-day waist window (research F §10). */
@@ -233,11 +229,8 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   // Fibre: complete days only, and only when foods with a known value carry most of the day's energy.
   const fibreByDay = new Map<LocalDate, number>();
   for (const d of completeDays) {
-    const entries = inputs.foodEntries.filter((e) => e.date === d.date);
-    const kcal = entries.reduce((s, e) => s + e.kcal, 0);
-    const known = entries.filter((e) => typeof e.fibreG === "number");
-    if (kcal <= 0 || known.reduce((s, e) => s + e.kcal, 0) / kcal < FIBRE_KNOWN_SHARE) continue;
-    fibreByDay.set(d.date, round1(known.reduce((s, e) => s + (e.fibreG as number), 0)));
+    const fibre = knownFibre(inputs.foodEntries.filter((e) => e.date === d.date));
+    if (fibre != null) fibreByDay.set(d.date, fibre);
   }
   const fibreDays = fibreByDay.size;
   const meanFibreG = fibreDays >= MIN_DAYS_FOR_MEAN ? Math.round(mean([...fibreByDay.values()])) : null;

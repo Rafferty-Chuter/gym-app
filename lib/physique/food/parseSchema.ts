@@ -24,6 +24,8 @@ export const FoodItemSchema = z.object({
   proteinG: z.number(),
   fatG: z.number(),
   carbsG: z.number(),
+  /** Dietary fibre (AOAC, as UK labels give it) in grams for the item as eaten (F7). */
+  fibreG: z.number(),
   confidence: z.enum(["high", "medium", "low"]),
 });
 
@@ -32,6 +34,7 @@ export const Per100Schema = z.object({
   proteinG: z.number(),
   fatG: z.number(),
   carbsG: z.number(),
+  fibreG: z.number(),
 });
 
 export const RecipeIngredientSchema = z.object({

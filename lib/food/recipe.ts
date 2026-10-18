@@ -7,6 +7,7 @@
  */
 
 import { normalise, searchFoods } from "@/lib/food/cofid";
+import { knownFibre } from "@/lib/food/fibre";
 import type { FoodItem, Macros, Per100 } from "@/lib/food/types";
 
 export type IngredientSource = "cofid" | "estimate";
@@ -171,48 +172,54 @@ function bestMatch(items: readonly FoodItem[], q: string): { item: FoodItem; ran
   return best;
 }
 
-/** Base-list numbers when the lookup matches, otherwise the model's estimate, marked as such. */
+/**
+ * Base-list numbers when the lookup matches, otherwise the model's
+ * estimate, marked as such. A matched row without a fibre value takes the
+ * model's fibre estimate for that one number (F7).
+ */
 export function resolveIngredient(items: readonly FoodItem[], draft: IngredientDraft): RecipeIngredient {
   const hit = matchIngredient(items, draft.lookup || draft.name, { preferRaw: true });
   const grams = Math.max(0, Math.round(draft.grams));
-  if (hit) return { name: draft.name, grams, per100: hit.per100, source: "cofid", matched: hit.name };
+  if (hit) return { name: draft.name, grams, per100: withFibre(hit.per100, draft.per100.fibreG), source: "cofid", matched: hit.name };
   return { name: draft.name, grams, per100: draft.per100, source: "estimate" };
 }
 
-const round = (m: Macros): Macros => ({ kcal: Math.round(m.kcal), proteinG: Math.round(m.proteinG), carbsG: Math.round(m.carbsG), fatG: Math.round(m.fatG) });
+function withFibre(per100: Per100, fallback: number | undefined): Per100 {
+  return per100.fibreG == null && fallback != null ? { ...per100, fibreG: fallback } : per100;
+}
 
-/** Unrounded macros for one ingredient at its grams. */
+const round = (m: Macros): Macros => ({ kcal: Math.round(m.kcal), proteinG: Math.round(m.proteinG), carbsG: Math.round(m.carbsG), fatG: Math.round(m.fatG), fibreG: m.fibreG == null ? undefined : Math.round(m.fibreG * 10) / 10 });
+
+/** Unrounded macros for one ingredient at its grams; fibre only when the row has it. */
 export function ingredientMacros(ing: RecipeIngredient): Macros {
   const f = ing.grams / 100;
-  return { kcal: ing.per100.kcal * f, proteinG: ing.per100.proteinG * f, carbsG: ing.per100.carbsG * f, fatG: ing.per100.fatG * f };
+  return { kcal: ing.per100.kcal * f, proteinG: ing.per100.proteinG * f, carbsG: ing.per100.carbsG * f, fatG: ing.per100.fatG * f, ...(ing.per100.fibreG != null ? { fibreG: ing.per100.fibreG * f } : {}) };
 }
 
-/** The whole recipe, rounded once at the end. */
-export function recipeTotals(ingredients: readonly RecipeIngredient[]): Macros {
-  const t = { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 };
-  for (const ing of ingredients) {
-    const m = ingredientMacros(ing);
-    t.kcal += m.kcal;
-    t.proteinG += m.proteinG;
-    t.carbsG += m.carbsG;
-    t.fatG += m.fatG;
-  }
-  return round(t);
-}
-
-/** Macros for `eaten` servings of a recipe that makes `servings`. */
+/**
+ * Macros for `eaten` servings of a recipe that makes `servings`, rounded
+ * once at the end. Fibre is the known-fibre total (lib/food/fibre.ts)
+ * scaled the same way, and undefined (present as a key, so it replaces an
+ * earlier value when spread) when too little of the recipe has a value.
+ */
 export function eatenMacros(ingredients: readonly RecipeIngredient[], servings: number, eaten: number): Macros {
   const s = Math.max(1, servings);
   const t = { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 };
-  for (const ing of ingredients) {
-    const m = ingredientMacros(ing);
+  const parts = ingredients.map(ingredientMacros);
+  for (const m of parts) {
     t.kcal += m.kcal;
     t.proteinG += m.proteinG;
     t.carbsG += m.carbsG;
     t.fatG += m.fatG;
   }
+  const fibre = knownFibre(parts);
   const f = eaten / s;
-  return round({ kcal: t.kcal * f, proteinG: t.proteinG * f, carbsG: t.carbsG * f, fatG: t.fatG * f });
+  return round({ kcal: t.kcal * f, proteinG: t.proteinG * f, carbsG: t.carbsG * f, fatG: t.fatG * f, fibreG: fibre == null ? undefined : fibre * f });
+}
+
+/** The whole recipe. */
+export function recipeTotals(ingredients: readonly RecipeIngredient[]): Macros {
+  return eatenMacros(ingredients, 1, 1);
 }
 
 /** One serving of the recipe. */
@@ -235,7 +242,7 @@ export function recipeConfidence(ingredients: readonly RecipeIngredient[]): "hig
 }
 
 /** A described food as the model returns it: its own estimate plus a lookup and grams for the base list. */
-export type ItemDraft = { label: string; serving: string; lookup: string; grams: number; kcal: number; proteinG: number; fatG: number; carbsG: number; confidence: "high" | "medium" | "low" };
+export type ItemDraft = { label: string; serving: string; lookup: string; grams: number; kcal: number; proteinG: number; fatG: number; carbsG: number; fibreG?: number; confidence: "high" | "medium" | "low" };
 
 /** A described food after the base list has been asked: base-list numbers and the matched name when it fit, the estimate otherwise. */
 export type ResolvedItem = ItemDraft & { matched?: string };
@@ -244,12 +251,15 @@ export type ResolvedItem = ItemDraft & { matched?: string };
  * A meal item takes the base list's numbers when its lookup matches and
  * the model gave a weight, so "2 eggs, fried" becomes 120 g of "Eggs,
  * chicken, fried" at CoFID's values with high confidence. Otherwise the
- * model's own estimate stands, with its confidence as given.
+ * model's own estimate stands, with its confidence as given. Fibre follows
+ * the same rule, with the model's estimate standing in where the matched
+ * row has none (F7).
  */
 export function resolveItem(items: readonly FoodItem[], draft: ItemDraft): ResolvedItem {
   const grams = Math.max(0, Math.round(draft.grams));
   const hit = grams > 0 ? matchIngredient(items, draft.lookup) : null;
-  if (!hit) return { ...draft, grams, kcal: Math.round(draft.kcal), proteinG: Math.round(draft.proteinG), fatG: Math.round(draft.fatG), carbsG: Math.round(draft.carbsG) };
+  const fibre = (g: number | undefined) => (g == null ? {} : { fibreG: Math.round(g * 10) / 10 });
+  if (!hit) return { ...draft, grams, kcal: Math.round(draft.kcal), proteinG: Math.round(draft.proteinG), fatG: Math.round(draft.fatG), carbsG: Math.round(draft.carbsG), ...fibre(draft.fibreG) };
   const f = grams / 100;
   return {
     ...draft,
@@ -258,6 +268,7 @@ export function resolveItem(items: readonly FoodItem[], draft: ItemDraft): Resol
     proteinG: Math.round(hit.per100.proteinG * f),
     fatG: Math.round(hit.per100.fatG * f),
     carbsG: Math.round(hit.per100.carbsG * f),
+    ...fibre(hit.per100.fibreG != null ? hit.per100.fibreG * f : draft.fibreG),
     confidence: "high",
     matched: hit.name,
   };
