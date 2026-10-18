@@ -68,10 +68,10 @@ describe("reminder", () => {
     expect(shortRange("2026-10-12", "2026-10-18")).toBe("12 to 18 Oct");
     expect(shortRange("2026-09-28", "2026-10-04")).toBe("28 Sep to 4 Oct");
     const quiet = reminderMessage([], monday, { weekly: true });
-    expect(quiet).toEqual({ title: "Week report · 12 to 18 Oct", body: "Nothing missing", url: "/report?week=2026-10-12" });
+    expect(quiet).toEqual({ title: "Weekly report · 12 to 18 Oct", body: "Where you're heading, what to fix and next week's targets.", url: "/report?week=2026-10-12" });
     const gaps = findGaps({ foodEntries: [food("2026-10-01"), food("2026-10-17"), food(monday)], dayFlags: {}, weighIns: [], sleepNights: [] }, monday);
     const m = reminderMessage(gaps, monday, { weekly: true });
-    expect(m?.body).toBe("6 gaps\nYesterday has no food logged\nFriday has no food logged\nThursday has no food logged\n3 more");
+    expect(m?.body).toBe("Where you're heading, what to fix and next week's targets.\n6 things not logged: yesterday has no food logged, and more.");
     expect(m?.url).toBe("/report?week=2026-10-12");
   });
 });

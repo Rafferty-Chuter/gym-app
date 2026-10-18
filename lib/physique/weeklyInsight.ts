@@ -24,8 +24,8 @@ import type { DeloadRead } from "@/lib/training/deload";
 
 // ── Constants ──
 
-/** Fixes shown at once. OURS: three is what a week can act on; the rest waits. */
-export const MAX_FIXES = 3;
+/** Fixes shown at once. OURS: two get done in a week; a third tends to dilute both (founder's call, W4). */
+export const MAX_FIXES = 2;
 /** Days of a food gap before it becomes a fix. OURS: one missed day is noise the engine absorbs. */
 export const FIX_FOOD_GAP_DAYS = 2;
 /** Missing weigh-ins before they become a fix. OURS: the trend steadies with five or more a week. */

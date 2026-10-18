@@ -198,6 +198,14 @@ The founder's review of rev 3: too bland in black and white, the planner asked f
 - **Night page** (`/sleep/night?date=`): the score and why, Asleep / Sleep period / Fell asleep / Woke, the stages across the night (lanes Awake, REM, Core, Deep, from unaggregated Health Auto Export segments; otherwise one stacked bar and a line on how to turn them on), four stage tiles with the usual share, what the score is made of (each part's word, bar and detail, then how the score works and why stages are not scored), that morning's HRV and resting heart rate against usual, and Edit for manual nights.
 - **Gone:** the "Not logged" rows (here and, for sleep, on Home), the wake-time stepper, the contributors grid (its parts live on the night page and in Trends).
 
+### 9.6b Weekly report (W4, 2026-10-18)
+
+A full report that reads like a coach's weekly check-in: numbers first, little prose. Week Monday to Sunday; ready Monday morning (after Sunday's food and night and Monday's weigh-in), when the decision starts.
+
+- **Where it lives:** Home's "Weekly report" row (the week and its headline numbers: weight trend change, calories a day, sleep; a green "Ready" tag while the decision is due); the Monday push at the reminder time, which says what is inside without numbers (none leave the phone); the Body tab's row; ‹ › for earlier weeks.
+- **Order:** Summary (verdict line with its dot, then where you're heading: target and date, rate, phase plan) · Scorecard (six tiles: weight trend, calories a day, protein a day, training, main lifts, sleep a night; each one number, a toned change or gap, a 7-day mini chart, what it is measured against; a tile opens its tab) · Focus for next week (two fixes at most, each what the numbers say and one action; "Going well" in one line) · This week's decision (targets and training, Accept or Keep) · All the numbers (folded) · what the report stands on (days logged, weigh-ins, nights, sessions) · Save as PDF.
+- **PDF:** the browser's print to PDF, always Mist light on white, controls hidden, every number unfolded.
+
 ### 9.7 Train (Hevy's home + feed)
 
 Start workout (white hero), Latest routines (template cards), "N workouts · last 7 days" with day circles, Volume bars, then the recent workouts feed (name, date, Time / Volume / Sets, first three exercises). Templates and History keep their routes and are linked from here. Hevy-style set logging (PREVIOUS column, completed-row tint, rest timer ±15 s, plate calculator) is ticket R5 and touches the sacred logger last.

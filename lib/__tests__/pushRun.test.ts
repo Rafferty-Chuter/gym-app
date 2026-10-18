@@ -126,7 +126,7 @@ describe("GET /api/push/run", () => {
     devices = [device({ summary_at: "2026-10-19T07:00:00.000Z", summary: { logged: { food: week, weight: week, sleep: [] }, first: { food: "2026-09-01", weight: "2026-10-01", sleep: null } } })];
     const res = await GET(req());
     expect(await res.json()).toMatchObject({ due: 1, sent: 1, quiet: 0 });
-    expect(sent[0].payload).toEqual({ title: "Week report · 12 to 18 Oct", body: "Nothing missing", url: "/report?week=2026-10-12", tag: "gaps" });
+    expect(sent[0].payload).toEqual({ title: "Weekly report · 12 to 18 Oct", body: "Where you're heading, what to fix and next week's targets.", url: "/report?week=2026-10-12", tag: "gaps" });
   });
 
   it("drops a device the push service says is gone, and one with a stale summary says nothing", async () => {

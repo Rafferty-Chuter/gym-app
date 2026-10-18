@@ -169,7 +169,7 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
                 </Link>
               </div>
             ) : d.kind === "accept" ? (
-              <div className="flex flex-col gap-2">
+              <div data-no-print className="flex flex-col gap-2">
                 <PrimaryButton onClick={() => void run("accept")} disabled={busy}>
                   Accept
                 </PrimaryButton>

@@ -3,8 +3,7 @@
 import { bandLabel, bandsFor } from "@/lib/training/volumeTargets";
 import type { Phase } from "@/lib/training/progression";
 import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
@@ -20,22 +19,21 @@ import { signedKcal } from "@/lib/physique/food/energy";
 import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { formatRate } from "@/components/physique/WeightChartCard";
-import { Caption, Row, RowGroup, StatusDot } from "@/components/physique/ui";
+import { Caption, Row, RowGroup } from "@/components/physique/ui";
 import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
-import { STATUS_HEX } from "@/lib/ui/status";
 import { loadOnboardingProfile } from "@/lib/onboardingProfile";
 import { goalEta } from "@/lib/physique/goalEta";
 import { goalProgress } from "@/lib/physique/goalProgress";
 import { phasePlan } from "@/lib/physique/phasePlan";
 import { recoveryRead } from "@/lib/physique/recovery";
-import { nutritionRead, sleepRead, trainingRead } from "@/lib/physique/review";
 import { buildWeeklyInsight } from "@/lib/physique/weeklyInsight";
 import { useReview } from "@/lib/physique/io/review";
 import { useDeload } from "@/lib/physique/io/deload";
 import { readDeload } from "@/lib/training/deload";
 import ReviewDecision from "@/components/report/ReviewDecision";
-import WeekReads from "@/components/report/WeekReads";
-import { FixesCard, HeadingCard } from "@/components/report/InsightCards";
+import { FixesCard, SummaryCard } from "@/components/report/InsightCards";
+import Scorecard from "@/components/report/Scorecard";
+import { coverageLine, scorecard } from "@/lib/physique/weekScorecard";
 
 /**
  * The weekly report (W1, W3, with G3's decision): the verdict, where the
@@ -72,32 +70,42 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const reviewModel = useReview(now, unit);
   const reviewWeek = reviewModel ? reportWeekStart(addDays(reviewModel.plan.weekStart, -1)) : null;
   const reviewDue = !!reviewModel && reviewModel.hasProgram && !reviewModel.reviewed;
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
+  // A saved or printed report shows every number.
+  useEffect(() => {
+    const open = () => {
+      if (detailsRef.current) detailsRef.current.open = true;
+    };
+    window.addEventListener("beforeprint", open);
+    return () => window.removeEventListener("beforeprint", open);
+  }, []);
   const [start, setStart] = useState<LocalDate>(() => weekFromQuery() ?? (reviewDue && reviewWeek ? reviewWeek : defaultReportWeek(today)));
   const thisWeek = reportWeekStart(today);
   const deloadRecord = useDeload();
 
-  const report: WeekReport = useMemo(
-    () =>
-      buildWeekReport(
-        {
-          weighIns: data.weighIns,
-          foodEntries: data.foodEntries,
-          dayFlags: data.dayFlags,
-          sleepNights: data.sleepNights,
-          workouts,
-          program: data.program,
-          goal: data.goal,
-          sleepGoalH: profile?.sleepGoalH,
-          weightUnit: unit,
-          volumeBands: bandsFor(priorities, phase),
-          expenditure: expenditure?.series ?? null,
-          verdict: start === thisWeek && analysis ? { title: analysis.verdict.title, detail: analysis.verdict.detail, state: analysis.status.state } : null,
-        },
-        start,
-        now
-      ),
-    [data, workouts, profile, unit, priorities, phase, expenditure, analysis, start, thisWeek, now]
+  const reportInputs = useMemo(
+    () => ({
+      weighIns: data.weighIns,
+      foodEntries: data.foodEntries,
+      dayFlags: data.dayFlags,
+      sleepNights: data.sleepNights,
+      workouts,
+      program: data.program,
+      goal: data.goal,
+      sleepGoalH: profile?.sleepGoalH,
+      weightUnit: unit,
+      volumeBands: bandsFor(priorities, phase),
+      expenditure: expenditure?.series ?? null,
+    }),
+    [data, workouts, profile, unit, priorities, phase, expenditure]
   );
+  const report: WeekReport = useMemo(
+    () => buildWeekReport({ ...reportInputs, verdict: start === thisWeek && analysis ? { title: analysis.verdict.title, detail: analysis.verdict.detail, state: analysis.status.state } : null }, start, now),
+    [reportInputs, analysis, start, thisWeek, now]
+  );
+  // Last week, for "vs last week" on the scorecard.
+  const prevReport: WeekReport = useMemo(() => buildWeekReport(reportInputs, addDays(start, -7), now), [reportInputs, start, now]);
+  const tiles = useMemo(() => scorecard({ report, prev: prevReport.hasData ? prevReport : null, unit, goalType: data.goal?.type ?? null }), [report, prevReport, unit, data.goal]);
 
   const plannedSessions = useMemo(() => {
     const n = Number(loadOnboardingProfile()?.daysPerWeek);
@@ -114,8 +122,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     // On the review's week, a pending decision that starts the deload already says so.
     const decisionDeload = reviewModel && start === reviewWeek && !reviewModel.reviewed && reviewModel.review.decision.kind === "accept" && reviewModel.review.decision.changes.some((c) => c.kind === "deload");
     const out = buildWeeklyInsight({ report, analysis, goal: data.goal, eta, plan, deload, recovery: recovery.status === "none" ? null : recovery, plannedSessions, today, fmt, exclude: decisionDeload ? ["deload"] : [] });
-    const reads = { nutrition: nutritionRead(report), training: trainingRead(report, deload, plannedSessions), sleep: sleepRead(report) };
-    return { ...out, reads };
+    return out;
   }, [analysis, data, workouts, unit, now, today, deloadRecord, report, plannedSessions, reviewModel, start, reviewWeek]);
 
   const caption = `${shortLocalDate(report.start)} to ${shortLocalDate(report.end)} · ${report.complete ? "complete" : `${report.daysCovered} of 7 days so far`}`;
@@ -128,7 +135,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <header className="sticky top-0 z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--background)" }}>
+        <header className="sticky top-0 z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--page-bg)" }}>
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
               <span className="block truncate text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
@@ -136,7 +143,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
               </span>
               <h1 className="mt-0.5 text-[34px] font-semibold leading-none tracking-[-0.02em]">Weekly report</h1>
             </div>
-            <div className="flex shrink-0 items-center gap-1 pb-0.5">
+            <div data-no-print className="flex shrink-0 items-center gap-1 pb-0.5">
               <button type="button" onClick={() => setStart(addDays(start, -7))} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Previous week">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
                   <path d="M15 6l-6 6 6 6" />
@@ -151,25 +158,13 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           </div>
         </header>
 
-        {insight?.heading && analysis && (
-          <Link href="/body" className="flex flex-col gap-1 rounded-[12px] px-4 py-3 transition-colors active:bg-[var(--surface-raised)]" style={{ background: "var(--surface)" }} aria-label={`${analysis.verdict.title}. Open Body`}>
-            <span className="flex items-center gap-2">
-              <StatusDot color={STATUS_HEX[analysis.status.state]} />
-              <span className="text-[15px] font-semibold">{analysis.verdict.title}</span>
-            </span>
-            <span className="pl-4 text-[13px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {analysis.verdict.detail}
-            </span>
-          </Link>
-        )}
+        <SummaryCard verdict={report.verdict} heading={insight?.heading ?? null} />
 
-        {insight?.heading && <HeadingCard heading={insight.heading} />}
+        {report.hasData && <Scorecard tiles={tiles} />}
 
         {insight && report.hasData && <FixesCard fixes={insight.fixes} more={insight.more} goingWell={insight.goingWell} />}
 
         {reviewModel && start === reviewWeek && reviewModel.hasProgram && <ReviewDecision key={reviewModel.plan.weekStart} model={reviewModel} now={now} unit={unit} />}
-
-        {insight && report.hasData && <WeekReads nutrition={insight.reads.nutrition} training={insight.reads.training} sleep={insight.reads.sleep} />}
 
         {!report.hasData && (
           <p className="rounded-[12px] px-4 py-3 text-[13px]" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>
@@ -177,7 +172,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           </p>
         )}
 
-        <details className="group">
+        <details ref={detailsRef} className="group">
           <summary className="flex cursor-pointer list-none items-center justify-between rounded-[12px] px-4 py-3 [&::-webkit-details-marker]:hidden" style={{ background: "var(--surface)" }}>
             <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
               All the numbers
@@ -296,9 +291,19 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           </div>
         </details>
 
-        <div className="pb-2">
+        <footer className="flex flex-col gap-3 pb-2">
+          {report.hasData && (
+            <p className="text-[12px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+              Based on {coverageLine(report)}.
+            </p>
+          )}
           <Caption>Numbers and fixes come from the engine. Nothing here is a guess.</Caption>
-        </div>
+          {report.hasData && (
+            <button type="button" data-no-print onClick={() => window.print()} className="h-[44px] w-full rounded-[12px] text-[15px] font-semibold transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
+              Save as PDF
+            </button>
+          )}
+        </footer>
       </div>
     </main>
   );

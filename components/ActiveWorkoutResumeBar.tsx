@@ -87,6 +87,7 @@ export default function ActiveWorkoutResumeBar() {
 
   return (
     <div
+      data-no-print
       className="pointer-events-none fixed inset-x-0 z-30 flex justify-center px-3"
       style={{ bottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))" }}
     >

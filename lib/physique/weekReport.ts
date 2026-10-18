@@ -17,6 +17,8 @@ import { dailyIntakeSeries, targetInEffect } from "@/lib/physique/intake";
 import { displayRate, segmentStart, trendSeries, weighInsByDate } from "@/lib/physique/weight";
 import { clampSleepGoal, nightsByDate, thresholdsForWindow, type NormalizedNight } from "@/lib/physique/sleep";
 import { isCompoundLift, liftSeries, workoutDate } from "@/lib/physique/strength";
+import { CONSISTENCY_MIN_NIGHTS, nightAxisMin } from "@/lib/physique/sleepScore";
+import { stdev } from "@/lib/stats";
 import { countHardSets } from "@/lib/completedSets";
 import { getDetailedVolumeByMuscleGroup, type DetailedMuscleGroup } from "@/lib/trainingMetrics";
 import { GROUP_LABEL } from "@/lib/volumeAnalysis";
@@ -28,6 +30,19 @@ import type { DayFlags, ExpenditurePoint, ExpenditureState, FoodEntry, PhysiqueG
 export const LIFT_BASELINE_WEEKS = 3;
 /** Muscles shown in the training section, most sets first. OURS. */
 export const MUSCLES_SHOWN = 8;
+/** A complete day hits protein at this share of the target or more. OURS: within 10% is on target for a day. */
+export const PROTEIN_HIT_SHARE = 0.9;
+
+/** One day of the week for the report's small charts (W4). Null where nothing was logged. */
+export type WeekDay = {
+  date: LocalDate;
+  trendKg: number | null;
+  kcal: number | null;
+  proteinG: number | null;
+  asleepH: number | null;
+  sessions: number;
+  hardSets: number;
+};
 
 export type WeekGapKind = "food" | "weight" | "sleep";
 export type WeekGap = { kind: WeekGapKind; date: LocalDate };
@@ -82,6 +97,8 @@ export type WeekReport = {
     meanProteinG: number | null;
     targetProteinG: number | null;
     proteinGPerKg: number | null;
+    /** Complete days at PROTEIN_HIT_SHARE of the target or more; null without a target. */
+    proteinDaysHit: number | null;
   };
   training: {
     sessions: number;
@@ -96,7 +113,11 @@ export type WeekReport = {
     debtH: number | null;
     goalH: number;
     shortNights: number;
+    /** Sample SD of the week's wake times in minutes, once CONSISTENCY_MIN_NIGHTS nights carry one. */
+    wakeSpreadMin: number | null;
   };
+  /** Each day from the start to `through`, for the small charts (W4). */
+  days: WeekDay[];
   verdict: WeekVerdict | null;
   gaps: WeekGap[];
   /** False when the week holds no food, weigh-in, night or workout at all. */
@@ -210,6 +231,35 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   const debtH = nights.length ? round1(nights.reduce((s, n) => s + Math.max(0, goalH - n.asleepH), 0)) : null;
   const acuteH = thresholdsForWindow(nights).acuteH;
   const shortNights = nights.filter((n) => n.asleepH < acuteH).length;
+  const wakes = nights.map((n) => nightAxisMin(n.night.wakeTime)).filter((x): x is number => x != null);
+  const wakeSpreadMin = wakes.length >= CONSISTENCY_MIN_NIGHTS ? Math.round(stdev(wakes)) : null;
+
+  // ── Days, for the small charts ──
+  const setsByDay = new Map<LocalDate, { sessions: number; hardSets: number }>();
+  for (const w of weekWorkouts) {
+    const d = workoutDate(w, now.tz);
+    if (!d) continue;
+    const cur = setsByDay.get(d) ?? { sessions: 0, hardSets: 0 };
+    cur.sessions += 1;
+    cur.hardSets += (w.exercises ?? []).reduce((m, ex) => m + countHardSets(ex.sets ?? []), 0);
+    setsByDay.set(d, cur);
+  }
+  const intakeByDay = new Map(intake.map((d) => [d.date, d]));
+  const weekDays: WeekDay[] = days.map((date) => {
+    const t = trendAt(date);
+    const f = intakeByDay.get(date);
+    const night = byDate.get(date);
+    const tr = setsByDay.get(date);
+    return {
+      date,
+      trendKg: t != null && weighDates.size > 0 && (firstWeigh == null || date >= firstWeigh) ? round1(t) : null,
+      kcal: f && f.status !== "unlogged" ? Math.round(f.kcal) : null,
+      proteinG: f && f.status === "complete" ? Math.round(f.proteinG) : null,
+      asleepH: night && night.valid ? round1(night.asleepH) : null,
+      sessions: tr?.sessions ?? 0,
+      hardSets: tr?.hardSets ?? 0,
+    };
+  });
 
   // ── Gaps ──
   const gaps: WeekGap[] = [
@@ -251,9 +301,11 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
       meanProteinG,
       targetProteinG: target ? target.proteinG : null,
       proteinGPerKg: meanProteinG != null && endTrendKg ? round1(meanProteinG / endTrendKg) : null,
+      proteinDaysHit: target ? completeDays.filter((d) => d.proteinG >= target.proteinG * PROTEIN_HIT_SHARE).length : null,
     },
     training: { sessions: weekWorkouts.length, hardSets, byMuscle, lifts },
-    sleep: { nights: nights.length, missing: sleepMissing, meanH, debtH, goalH, shortNights },
+    sleep: { nights: nights.length, missing: sleepMissing, meanH, debtH, goalH, shortNights, wakeSpreadMin },
+    days: weekDays,
     verdict: inputs.verdict ?? null,
     gaps,
     hasData: counted.length + intake.filter((d) => d.status === "partial").length > 0 || days.some((d) => weighDates.has(d)) || nights.length > 0 || weekWorkouts.length > 0,

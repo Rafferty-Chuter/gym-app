@@ -407,3 +407,71 @@ input[type="search"]::-webkit-search-cancel-button {
   background: linear-gradient(180deg, var(--sl-bg-top) 0px, var(--sl-bg) 520px);
   color: var(--sl-text);
 }
+
+/* ── Print and Save as PDF (W4) ──────────────────────────────
+   A saved report is always Mist light on white paper, without the tab
+   bar or floating bars, and keeps its colours. */
+@media print {
+  :root {
+    color-scheme: light;
+    --page-top: #d9e6ec;
+    --background: #edf2f0;
+    --foreground: #17272a;
+    --surface: #fafcfb;
+    --surface-raised: #e8eeeb;
+    --surface-pressed: #dbe4e0;
+    --border: #dce4e0;
+    --border-strong: #c2cfca;
+    --text: #17272a;
+    --text-secondary: #4a5d5f;
+    --text-tertiary: #677a7a;
+    --primary: #2f6b55;
+    --primary-pressed: #275a47;
+    --text-on-primary: #f4faf6;
+    --accent: 47 125 92;
+    --accent-foreground: 244 250 246;
+    --green: #7dbf9c;
+    --green-strong: #2f7d5c;
+    --green-dim: #d3e8dc;
+    --sky: #7ea8c6;
+    --sky-strong: #3d6d92;
+    --sky-dim: #d4e2ec;
+    --status-good: #2b875c;
+    --status-watch: #b0731a;
+    --status-attention: #c2475b;
+    --status-unknown: #8a9a9a;
+    --chart-trend: #17272a;
+    --chart-raw: #a7b6b3;
+    --chart-projection: #8a9a9a;
+    --chart-band: #e2eae7;
+    --macro-kcal: #5a84d4;
+    --macro-protein: #cf5f5a;
+    --macro-fat: #c4952b;
+    --macro-carb: #4b9f76;
+    --scrim: rgba(23, 39, 42, 0.38);
+    --tab-bg: #f6f9f8;
+    --sleep-top: #cfdeea;
+    --sleep-wind: #b6cadb;
+    --stage-awake: #df9467;
+    --stage-rem: #5fb0dc;
+    --stage-core: #5b88cc;
+    --stage-deep: #8a83cc;
+    --page: #ffffff;
+    --page-bg: #ffffff;
+  }
+  html, body {
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  nav[aria-label="Main"],
+  [data-no-print] {
+    display: none !important;
+  }
+  header.sticky {
+    position: static !important;
+  }
+  section {
+    break-inside: avoid;
+  }
+}

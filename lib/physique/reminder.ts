@@ -144,9 +144,9 @@ export function shortRange(start: LocalDate, end: LocalDate): string {
 
 /**
  * The notification, or null when nothing is missing (then nothing is sent).
- * On the report day the week report goes out whatever the gaps: its title
- * names the week, its body the gap count and the first sentences, and it
- * opens the report. The gap sentences keep the same rules on both days.
+ * On the report day the weekly report goes out whatever the gaps: its title
+ * names the week, its body what the report holds and the first gap if any,
+ * and it opens the report. The gap sentences keep the same rules on both days.
  */
 export function reminderMessage(gaps: readonly Gap[], today: LocalDate, opts: { weekly?: boolean } = {}): ReminderMessage | null {
   const lines = gapLines(gaps, today);
@@ -154,9 +154,11 @@ export function reminderMessage(gaps: readonly Gap[], today: LocalDate, opts: { 
   const more = lines.length - shown.length;
   const sentences = more > 0 ? `${shown.join("\n")}\n${more} more` : shown.join("\n");
   if (opts.weekly) {
+    // No numbers leave the phone (the server only knows which days were logged), so the push says what is inside.
     const start = addDays(today, -7);
-    const count = lines.length === 0 ? "Nothing missing" : `${lines.length} ${lines.length === 1 ? "gap" : "gaps"}`;
-    return { title: `Week report · ${shortRange(start, addDays(today, -1))}`, body: lines.length === 0 ? count : `${count}\n${sentences}`, url: `/report?week=${start}` };
+    const ready = "Where you're heading, what to fix and next week's targets.";
+    const missing = lines.length === 0 ? "" : `\n${lines.length} ${lines.length === 1 ? "thing" : "things"} not logged: ${shown[0].charAt(0).toLowerCase()}${shown[0].slice(1)}${lines.length > 1 ? ", and more" : ""}.`;
+    return { title: `Weekly report · ${shortRange(start, addDays(today, -1))}`, body: `${ready}${missing}`, url: `/report?week=${start}` };
   }
   if (lines.length === 0) return null;
   return { title: "Not logged", body: sentences, url: gapHref(lines[0]) };

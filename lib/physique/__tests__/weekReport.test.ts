@@ -59,6 +59,19 @@ describe("weekReport", () => {
     expect(r.verdict?.title).toBe("On track");
   });
 
+  it("carries one entry a day for the small charts, and protein days on target (W4)", () => {
+    const start = addDays(reportWeekStart(sc.today), -14);
+    const r = buildWeekReport(inputs, start, now);
+    expect(r.days.map((d) => d.date)).toEqual(Array.from({ length: 7 }, (_, i) => addDays(start, i)));
+    expect(r.days.every((d) => d.trendKg != null && d.kcal != null && d.asleepH != null)).toBe(true);
+    expect(r.days.reduce((n, d) => n + d.sessions, 0)).toBe(r.training.sessions);
+    expect(r.days.reduce((n, d) => n + d.hardSets, 0)).toBe(r.training.hardSets);
+    expect(r.food.proteinDaysHit).not.toBeNull();
+    expect(r.food.proteinDaysHit!).toBeLessThanOrEqual(r.food.complete);
+    // Seeded manual nights all wake at 07:00: no spread.
+    expect(r.sleep.wakeSpreadMin).toBe(0);
+  });
+
   it("lists gaps plainly and covers only elapsed days in the running week", () => {
     const start = reportWeekStart(sc.today);
     const elapsed = addDays(start, 2);
