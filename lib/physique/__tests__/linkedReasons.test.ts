@@ -69,7 +69,7 @@ function week(p: Patch, over: Partial<Parameters<typeof makeScenario>[0]> = {}, 
     ...r,
     weight: { ...r.weight, endTrendKg: 84.5, ratePctPerWeek: p.ratePct ?? -0.6, rateMarginPct: p.marginPct ?? 0.1, rateWindowDays: 28 },
     rateWindow: { from: addDays(r.through, -27), days: 28, foodDays: 28, unlogged: 0, partial: 0, meanKcal: 2140, meanTargetKcal: 2150, meanMaintenanceKcal: 2700, ...p.win },
-    food: { ...r.food, daysLogged: 7, unlogged: [], partial: 0, proteinGPerKg: 2.0, ...p.food },
+    food: { ...r.food, daysLogged: 7, unlogged: [], partial: 0, meanKcal: p.win?.meanKcal ?? 2140, targetKcal: p.win?.meanTargetKcal ?? 2150, deltaKcal: (p.win?.meanKcal ?? 2140) - (p.win?.meanTargetKcal ?? 2150), proteinGPerKg: 2.0, ...p.food },
     sleep: { ...r.sleep, nights: 7, meanH: 7.8, goalH: 8, shortNights: 0, ...p.sleep },
     health: { ...r.health, ...p.health },
   };
@@ -99,6 +99,13 @@ describe("linked reasons (W5)", () => {
     expect(w.causes[0]).toBe("Over the last 4 weeks you ate 2,500 kcal a day, 350 over the 2,150 target. Against maintenance of about 2,700, that is a 200 kcal deficit, about 0.2 kg of fat loss a week.");
     expect(w.note).toBe("The trend matches what you ate, so the plan works when the target is hit.");
     expect(weightLink(week({ ratePct: 0.05, win: { meanKcal: 2650 } }))!.title).toBe("Weight did not come down");
+  });
+
+  it("says this week's intake too when it differs from the window's, so the card and the calorie tile tell one story", () => {
+    const w = weightLink(week({ ratePct: -0.2, win: { meanKcal: 2450 }, food: { meanKcal: 2730, targetKcal: 2150, deltaKcal: 580 } }))!;
+    expect(w.causes[0]).toMatch(/^Over the last 4 weeks you ate 2,450 kcal a day, 300 over the 2,150 target\./);
+    expect(w.causes[1]).toBe("This week alone averaged 2,730 kcal a day, 580 over target.");
+    expect(weightLink(week({ ratePct: -0.2, win: { meanKcal: 2450 }, food: { meanKcal: 2480, targetKcal: 2150, deltaKcal: 330 } }))!.causes.some((c) => c.startsWith("This week alone"))).toBe(false);
   });
 
   it("agrees with the scorecard: inside the plan's tolerance plus the rate's margin is on plan", () => {

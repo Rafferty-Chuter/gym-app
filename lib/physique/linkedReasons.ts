@@ -50,6 +50,8 @@ export const LINK_STEPS_DROP = 2000;
 export const NET_KCAL_PER_KG_PER_STEP = 0.0004;
 /** Unlogged or partial days in the rate's window before logging counts as a cause. OURS: three days hide enough to move a month's mean by about 100 kcal a day. */
 export const LINK_LOGGING_DAYS = 3;
+/** The week's intake against target this far from the window's before the card says the week too. OURS: the adherence tolerance, so a gap the tiles would show is never hidden. */
+export const WEEK_DIFFERS_KCAL = ADHERENCE_TOLERANCE_KCAL;
 /** Intake this close to target reads "on" it rather than "close to" it. OURS: inside a day's logging rounding. */
 export const ON_TARGET_KCAL = 50;
 /** Intake under maintenance that reads as too little to build on, with no gain goal. OURS: about a 0.25 kg a week loss. */
@@ -199,6 +201,13 @@ export function weightLink(i: LinkInputs): Link | null {
   const targetWords = target == null ? "" : offTarget != null ? `, ${fmtKcal(Math.abs(offTarget))} ${offTarget > 0 ? "over" : "under"} the ${fmtKcal(target)} target` : `, ${Math.abs(delta ?? 0) <= ON_TARGET_KCAL ? "on" : "close to"} the ${fmtKcal(target)} target`;
   const intakeLine = `Over the last ${span} you ate ${fmtKcal(intake)} kcal a day${targetWords}. Against maintenance of about ${fmtKcal(maint)}, that is ${balanceWord}, about ${kg(Math.abs(expected))} of ${expected <= 0 ? "fat loss" : "gain"} a week.`;
   const matches = Math.abs(actual - expected) <= tol;
+  // The week's own intake, when it tells a different story from the window: the report's calorie tile shows the week, so the card says it too.
+  const wk = r.food;
+  const weekLine =
+    wk.meanKcal != null && wk.deltaKcal != null && wk.targetKcal != null && wk.daysLogged >= REVIEW_MIN_FOOD_DAYS && delta != null && Math.abs(wk.deltaKcal - delta) >= WEEK_DIFFERS_KCAL
+      ? `This week alone averaged ${fmtKcal(wk.meanKcal)} kcal a day, ${Math.abs(wk.deltaKcal) <= ADHERENCE_TOLERANCE_KCAL ? "close to target" : `${fmtKcal(Math.abs(wk.deltaKcal))} ${wk.deltaKcal > 0 ? "over" : "under"} target`}.`
+      : null;
+  const intakeCauses = weekLine ? [intakeLine, weekLine] : [intakeLine];
 
   if (!slower && !faster && !drift) {
     return {
@@ -206,7 +215,7 @@ export function weightLink(i: LinkInputs): Link | null {
       state: "good",
       title: goal.type === "maintain" ? "Weight holding, as planned" : "Weight moving as planned",
       detail: null,
-      causes: [intakeLine],
+      causes: intakeCauses,
       figures,
       figuresCaption,
       note: matches ? "The scale matches what you ate." : null,
@@ -218,7 +227,7 @@ export function weightLink(i: LinkInputs): Link | null {
   const tooMuch = goal.type === "lose" ? slower : goal.type === "gain" ? faster : gap > 0;
   // Intake on the wrong side of the target is the first suspect, and the numbers say how much of the gap it explains.
   const intakeExplains = offTarget != null && (tooMuch ? offTarget > 0 : offTarget < 0);
-  causes.push(intakeLine);
+  causes.push(...intakeCauses);
   if (intakeExplains) {
     note = matches
       ? `The trend matches what you ate, so the plan works when the target is hit${goal.type === "gain" && faster ? "; faster gain than planned adds more fat than muscle" : goal.type === "lose" && faster ? "; losing faster than planned costs more muscle and strength" : ""}.`
