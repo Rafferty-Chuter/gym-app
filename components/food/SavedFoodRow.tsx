@@ -20,9 +20,16 @@ export function PlusButton({ onClick, label, disabled }: { onClick: () => void; 
 export default function SavedFoodRow({ food, onPrefill, trailing }: { food: SavedFood; onPrefill: (s: SavedFood) => void; trailing: ReactNode }) {
   return (
     <li className="flex items-center gap-2">
-      <button type="button" onClick={() => onPrefill(food)} className="flex min-w-0 flex-1 flex-col rounded-[12px] px-3 py-2.5 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`${food.label}, ${n(food.kcal)} kcal. Adjust before logging`}>
-        <span className="truncate text-[15px]" style={{ color: "var(--text)" }}>
-          {food.label}
+      <button type="button" onClick={() => onPrefill(food)} className="flex min-w-0 flex-1 flex-col rounded-[12px] px-3 py-2.5 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`${food.label}, ${n(food.kcal)} kcal${food.recipe ? " a serving. Open the recipe" : ". Adjust before logging"}`}>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-[15px]" style={{ color: "var(--text)" }}>
+            {food.label}
+          </span>
+          {food.recipe && (
+            <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em]" style={{ background: "var(--green-dim)", color: "var(--green-strong)" }}>
+              Recipe
+            </span>
+          )}
         </span>
         <span className="truncate text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
           {n(food.kcal)} kcal · {Math.round(food.proteinG)}P {Math.round(food.fatG)}F {Math.round(food.carbsG)}C{food.serving ? ` · ${food.serving}` : ""}

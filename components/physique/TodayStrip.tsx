@@ -9,7 +9,7 @@ import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useSingleton } from "@/lib/storage/useStored";
 import { profileStore } from "@/lib/physique/io/repos";
 import { deleteWeighIn, saveSleepNight, saveWeighIn, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
-import { logFood, removeSavedFood, setFoodPrefs, toggleFavourite, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
+import { logFood, removeSavedFood, saveRecipe, setFoodPrefs, toggleFavourite, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
 import { dayTotals, formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { displayRate, latestTrend, segmentStart, trendSeries } from "@/lib/physique/weight";
 import { clampSleepGoal } from "@/lib/physique/sleep";
@@ -160,6 +160,7 @@ export default function TodayStrip() {
             onLog={(food: FoodInput, savedFoodId?: string) => logFood(today, food, nowIso(), savedFoodId)}
             onToggleFavourite={toggleFavourite}
             onRemoveSaved={removeSavedFood}
+            onSaveRecipe={(draft) => saveRecipe(draft, nowIso())}
           />
           <SleepSheet open={sheet === "sleep"} onClose={() => setSheet(null)} prefill={sleepPrefill(data.sleepNights)} existing={day.night} dateLabel="today" onSave={(input: SleepInput) => saveSleepNight(today, input, nowIso())} />
         </>

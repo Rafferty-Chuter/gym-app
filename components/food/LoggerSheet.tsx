@@ -6,6 +6,9 @@ import MacroPad, { EMPTY_MACROS, macroNumbers, macrosToValues, type MacroField, 
 import TimeChip from "@/components/food/TimeChip";
 import { ErrorLine, PrimaryButton } from "@/components/physique/ui";
 import DescribePanel, { DescribeFooter, useDescribe } from "@/components/food/DescribePanel";
+import RecipeEditor, { RecipeFooter, RecipeHeader, eatingMacros, type Eating } from "@/components/food/RecipeEditor";
+import { draftFromSaved, eatenLabel, emptyDraft, toSavedRecipe, type RecipeDraft } from "@/lib/food/recipeDraft";
+import { recipeConfidence } from "@/lib/food/recipe";
 import { hourLabel, localClock, macroKcal } from "@/lib/physique/food/timeline";
 import { filterSaved } from "@/lib/physique/food/goTos";
 import FoodSearch from "@/components/food/FoodSearch";
@@ -32,7 +35,12 @@ type Props = {
   onLog: (food: FoodInput, savedFoodId?: string) => Promise<SaveResult>;
   onToggleFavourite: (id: string) => Promise<SaveResult>;
   onRemoveSaved: (id: string) => Promise<SaveResult>;
+  /** Saves a recipe from Create Recipe; the id is the saved food's. */
+  onSaveRecipe: (draft: RecipeDraft) => Promise<SaveResult & { id?: string }>;
 };
+
+/** Create Recipe open over the logger, and where it was opened from. */
+type RecipeView = { draft: RecipeDraft; eating: Eating; from: "describe" | "saved" | "new"; back: LoggerTab };
 
 const TABS: ReadonlyArray<{ id: LoggerTab; label: string }> = [
   { id: "search", label: "Search" },
@@ -60,7 +68,7 @@ export default function LoggerSheet(props: Props) {
   return state ? <Inner key={`${props.date}-${state.hour ?? "now"}-${state.tab ?? "search"}`} {...props} state={state} /> : null;
 }
 
-function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entries, saved, onLog, onToggleFavourite, onRemoveSaved }: Props & { state: NonNullable<LoggerOpen> }) {
+function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entries, saved, onLog, onToggleFavourite, onRemoveSaved, onSaveRecipe }: Props & { state: NonNullable<LoggerOpen> }) {
   const [tab, setTab] = useState<LoggerTab>(state.tab ?? "search");
   const [time, setTime] = useState<string>(() => {
     if (state.hour != null) return hourLabel(state.hour);
@@ -82,6 +90,9 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   // Saved
   const [query, setQuery] = useState("");
   const [managing, setManaging] = useState(false);
+
+  // Create Recipe
+  const [recipeView, setRecipeView] = useState<RecipeView | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -105,7 +116,17 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
     void log({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, serving: s.serving, method: "saved" }, s.id);
   }
 
+  function openRecipe(draft: RecipeDraft, from: RecipeView["from"], eatingServings = 1) {
+    setError(null);
+    setRecipeView({ draft, eating: { amount: Math.min(eatingServings, draft.servings), unit: "servings" }, from, back: tab });
+  }
+
   function prefill(s: SavedFood) {
+    const draft = draftFromSaved(s);
+    if (draft) {
+      openRecipe(draft, "saved");
+      return;
+    }
     setValues(macrosToValues(s));
     setName(s.label);
     setServing(s.serving ?? "");
@@ -147,7 +168,54 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
     return true;
   }
 
-  const describe = useDescribe({ one: (f) => log(f), many: logMany });
+  const describe = useDescribe({ one: (f) => log(f), many: logMany, makeRecipe: (draft, eating) => openRecipe(draft, "describe", eating) });
+
+  /** Leaves Create Recipe for the tab it came from; a recipe made from Describe clears it once saved. */
+  function closeRecipe(saved: boolean) {
+    if (!recipeView) return;
+    if (saved && recipeView.from === "describe") describe.reset();
+    setTab(saved && recipeView.from !== "saved" ? (recipeView.from === "describe" ? "describe" : "saved") : recipeView.back);
+    setRecipeView(null);
+  }
+
+  async function saveRecipeOnly() {
+    if (!recipeView) return;
+    setBusy(true);
+    setError(null);
+    const r = await onSaveRecipe(recipeView.draft);
+    setBusy(false);
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    setToast(`Saved ${recipeView.draft.name.trim()} to your recipes`);
+    closeRecipe(true);
+  }
+
+  async function saveRecipeAndLog() {
+    if (!recipeView) return;
+    const { draft, eating } = recipeView;
+    setBusy(true);
+    setError(null);
+    const saved = await onSaveRecipe(draft);
+    if (!saved.ok) {
+      setBusy(false);
+      setError(saved.error);
+      return;
+    }
+    const ok = await log(
+      {
+        label: draft.name.trim(),
+        ...eatingMacros(draft, eating),
+        serving: eatenLabel(draft, eating.amount, eating.unit),
+        method: recipeView.from === "describe" ? "ai_text" : "saved",
+        confidence: recipeConfidence(draft.ingredients),
+        recipe: toSavedRecipe(draft),
+      },
+      saved.id
+    );
+    if (ok) closeRecipe(true);
+  }
 
   const header = (
     <div className="flex items-center justify-between gap-2 pb-2 pt-2">
@@ -191,6 +259,22 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   const plus = (onClick: () => void, label: string) => <PlusButton onClick={onClick} label={label} disabled={busy} />;
   const foodRow = (f: SavedFood, trailing: React.ReactNode) => <SavedFoodRow key={f.id} food={f} onPrefill={prefill} trailing={trailing} />;
 
+  if (recipeView) {
+    const title = recipeView.from === "saved" ? "Edit recipe" : "Create recipe";
+    return (
+      <Sheet
+        open
+        onClose={onClose}
+        full
+        ariaLabel={title}
+        header={<RecipeHeader title={title} onBack={() => closeRecipe(false)} time={time} onTime={setTime} />}
+        footer={<RecipeFooter draft={recipeView.draft} eating={recipeView.eating} busy={busy} error={error} onSave={() => void saveRecipeOnly()} onSaveAndLog={() => void saveRecipeAndLog()} />}
+      >
+        <RecipeEditor draft={recipeView.draft} onChange={(draft) => setRecipeView({ ...recipeView, draft })} eating={recipeView.eating} onEating={(eating) => setRecipeView({ ...recipeView, eating })} consumedKcal={consumedKcal} targetKcal={targetKcal} />
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet open onClose={onClose} header={header} full ariaLabel="Log food" footer={footer}>
       <div className="flex flex-col gap-3">
@@ -226,6 +310,9 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search saved foods" className={`${inputClass} min-w-0 flex-1`} style={inputStyle} aria-label="Search saved foods" autoComplete="off" />
+              <button type="button" onClick={() => openRecipe(emptyDraft(), "new")} className="h-11 shrink-0 rounded-[12px] px-3 text-[13px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
+                New recipe
+              </button>
               <button type="button" onClick={() => setManaging((m) => !m)} className="h-11 shrink-0 rounded-[12px] px-3 text-[13px] font-medium" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }} aria-pressed={managing}>
                 {managing ? "Done" : "Edit"}
               </button>

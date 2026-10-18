@@ -40,15 +40,16 @@ export default function PlateRow({ title, line, source, pill, open, onToggle, ch
 
 const roundBtn = "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[18px] leading-none transition-colors active:bg-[var(--surface-pressed)] disabled:opacity-40";
 
-/** − value + with 36 px targets; the value is plain text or a field. */
-export function Stepper({ onLess, onMore, lessDisabled, moreDisabled, label, children }: { onLess: () => void; onMore: () => void; lessDisabled?: boolean; moreDisabled?: boolean; label: string; children: ReactNode }) {
+/** − value + with 36 px targets; the value is plain text or a field. `onSurface` when it sits on a card rather than in a raised drawer, so the buttons stay visible. */
+export function Stepper({ onLess, onMore, lessDisabled, moreDisabled, label, children, onSurface = false }: { onLess: () => void; onMore: () => void; lessDisabled?: boolean; moreDisabled?: boolean; label: string; children: ReactNode; onSurface?: boolean }) {
+  const style = { background: onSurface ? "var(--surface-raised)" : "var(--surface)", color: "var(--text)" };
   return (
     <div className="flex items-center gap-1.5" role="group" aria-label={label}>
-      <button type="button" onClick={onLess} disabled={lessDisabled} className={roundBtn} style={{ background: "var(--surface)", color: "var(--text)" }} aria-label={`${label}: less`}>
+      <button type="button" onClick={onLess} disabled={lessDisabled} className={roundBtn} style={style} aria-label={`${label}: less`}>
         −
       </button>
       {children}
-      <button type="button" onClick={onMore} disabled={moreDisabled} className={roundBtn} style={{ background: "var(--surface)", color: "var(--text)" }} aria-label={`${label}: more`}>
+      <button type="button" onClick={onMore} disabled={moreDisabled} className={roundBtn} style={style} aria-label={`${label}: more`}>
         +
       </button>
     </div>

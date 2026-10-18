@@ -6,7 +6,8 @@
  * error instead of throwing. Keeps `bodyData.ts` unchanged.
  */
 
-import { perServing, servingLabel } from "@/lib/food/recipe";
+import { perServing } from "@/lib/food/recipe";
+import { draftMacros, toSavedRecipe, unitLabel, type RecipeDraft } from "@/lib/food/recipeDraft";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
 import { foodEntriesRepo, newId, savedFoodsRepo } from "@/lib/physique/io/repos";
@@ -92,7 +93,7 @@ export async function logFood(date: LocalDate, food: FoodInput, nowIso: string, 
     const base = clean(food);
     // A recipe is remembered as one serving, whatever was eaten this time.
     const savedBase = food.recipe ? clean({ ...food, ...perServing(food.recipe.ingredients, food.recipe.servings) }) : base;
-    const savedServing = food.recipe ? servingLabel(1, food.recipe.servings) : food.serving;
+    const savedServing = food.recipe ? unitLabel({ servings: food.recipe.servings, totalGrams: food.recipe.totalGrams ?? null }) : food.serving;
     const id = await rememberSaved(savedBase, savedServing, nowIso, savedFoodId, food.recipe);
     const entry: FoodEntry = {
       id: newId(),
@@ -109,6 +110,28 @@ export async function logFood(date: LocalDate, food: FoodInput, nowIso: string, 
     if (food.confidence) entry.confidence = food.confidence;
     await foodEntriesRepo.upsert(entry);
   });
+}
+
+/**
+ * Save a recipe from the Create Recipe view (F6) as a saved food whose
+ * macros are one serving. Editing keeps the saved food's id, star and
+ * use count. Returns the id so a log can point at it.
+ */
+export async function saveRecipe(draft: RecipeDraft, nowIso: string): Promise<SaveResult & { id?: string }> {
+  const id = draft.savedId ?? newId();
+  const r = await attempt(async () => {
+    const existing = draft.savedId ? savedFoodsRepo.snapshot().find((s) => s.id === draft.savedId) : undefined;
+    const one = clean({ label: draft.name, ...draftMacros(draft, "serving") });
+    const next: SavedFood = {
+      ...(existing ?? { lastUsedAt: nowIso, useCount: 0, schemaVersion: 1 as const }),
+      id,
+      ...one,
+      serving: unitLabel(draft),
+      recipe: toSavedRecipe(draft),
+    };
+    await savedFoodsRepo.upsert(next);
+  });
+  return r.ok ? { ...r, id } : r;
 }
 
 /** Edit an entry in place (label, macros, time, serving). The id and date never change. */

@@ -8,7 +8,7 @@ import { addDays, type LocalDate, type Now } from "@/lib/dates";
 import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { setDayOverride, setDayStatus, useBodyData } from "@/lib/physique/io/bodyData";
-import { clearDay, copyDay, logFood, removeFoodEntry, removeSavedFood, setFoodPrefs, toggleFavourite, updateFoodEntry, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
+import { clearDay, copyDay, logFood, removeFoodEntry, removeSavedFood, saveRecipe, setFoodPrefs, toggleFavourite, updateFoodEntry, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
 import { dayTimeline } from "@/lib/physique/food/timeline";
 import { weekDates, weekTotals } from "@/lib/physique/food/week";
 import { energyBalance, type EnergyLine } from "@/lib/physique/food/energy";
@@ -169,6 +169,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         onLog={(food: FoodInput, savedFoodId?: string) => logFood(date, food, nowIso(), savedFoodId)}
         onToggleFavourite={toggleFavourite}
         onRemoveSaved={removeSavedFood}
+        onSaveRecipe={(draft) => saveRecipe(draft, nowIso())}
       />
 
       <EntrySheet entry={editingLive} tz={tz} onClose={() => setEditing(null)} onSave={(patch) => (editingLive ? updateFoodEntry(editingLive.id, patch) : Promise.resolve({ ok: true as const }))} onRemove={() => (editingLive ? removeFoodEntry(editingLive.id) : Promise.resolve({ ok: true as const }))} />

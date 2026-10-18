@@ -55,7 +55,12 @@ export type SavedFood = {
   /** Starred in the logger's Saved tab (R2). */
   favourite?: boolean;
   /** When the food is a recipe (M4b): what it makes and what went in, so a serving can be re-logged or edited. The macros above are one serving. */
-  recipe?: { servings: number; ingredients: RecipeIngredient[] };
+  recipe?: {
+    servings: number;
+    ingredients: RecipeIngredient[];
+    /** Weight of the whole recipe once cooked, when weighed (F6): one serving is this divided by `servings`, so it can be logged in grams. */
+    totalGrams?: number;
+  };
   lastUsedAt: string;
   useCount: number;
   schemaVersion: 1;

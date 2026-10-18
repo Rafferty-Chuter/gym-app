@@ -9,6 +9,7 @@ import { PrimaryButton, StatusDot } from "@/components/physique/ui";
 import { MAX_DESCRIBE_CHARS, compactDescription, describeErrorText, errorFromStatus, modeFor } from "@/lib/food/describe";
 import { AMOUNT_CHOICES, AMOUNT_STEP, GRAMS_STEP, MAX_AMOUNT, MIN_AMOUNT, amountPill, choiceLabel, formatAmount, plateItemGrams, plateItemMacros, plateServing, plateTotals, sourceLine, toPlate, withAmount, withGrams, withMacros, type PlateItem } from "@/lib/food/plate";
 import { eatenMacros, estimateCount, recipeConfidence, servingLabel, type Recipe } from "@/lib/food/recipe";
+import { draftFromPlate, draftFromRecipe, type RecipeDraft } from "@/lib/food/recipeDraft";
 import { getClientId } from "@/lib/ui/clientId";
 import { FOOD_PARSE_ERRORS, type FoodParseError, type FoodParseResponse, type ParseKind, type ParseMode } from "@/lib/physique/food/parseSchema";
 import type { Macros } from "@/lib/food/types";
@@ -25,6 +26,8 @@ export type DescribeLoggers = {
   one: (food: FoodInput) => Promise<boolean>;
   /** Logs several foods at the sheet's time; true when all were saved. */
   many: (foods: FoodInput[]) => Promise<boolean>;
+  /** Opens Create Recipe with these ingredients in, eating this many servings. */
+  makeRecipe: (draft: RecipeDraft, eatingServings: number) => void;
 };
 
 type Phase = "input" | "loading" | "result";
@@ -137,10 +140,16 @@ export function useDescribe(loggers: DescribeLoggers) {
     if (ok) reset();
   }
 
+  /** "Make recipe": the plate's foods, or the recipe read, into Create Recipe. Nothing is asked of the model again. */
+  function makeRecipe() {
+    if (kind === "recipe" && recipe) loggers.makeRecipe(draftFromRecipe(recipe), eating);
+    else if (plate.length > 0) loggers.makeRecipe(draftFromPlate(plate), 1);
+  }
+
   const total: Macros = kind === "recipe" && recipe ? eatenMacros(recipe.ingredients, recipe.servings, eating) : plateTotals(plate);
   const count = kind === "recipe" ? (recipe?.ingredients.length ?? 0) : plate.length;
 
-  return { text, setText, phase, error, sent, mode, methodDropped, kind, plate, setPlate, recipe, setRecipe, eating, setEating, total, count, find, edit, logAll };
+  return { text, setText, phase, error, sent, mode, methodDropped, kind, plate, setPlate, recipe, setRecipe, eating, setEating, total, count, find, edit, logAll, makeRecipe, reset };
 }
 
 export type DescribeState = ReturnType<typeof useDescribe>;
@@ -233,16 +242,28 @@ function SentLine({ text, onEdit, label }: { text: string; onEdit: () => void; l
   );
 }
 
-function PlateHeading({ title, value }: { title: string; value?: string }) {
+function PlateHeading({ title, value, action }: { title: string; value?: string; action?: { label: string; onClick: () => void } }) {
   return (
-    <div className="flex items-baseline justify-between px-1 pt-1">
-      <h3 className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
-        {title}
-      </h3>
-      {value && (
-        <span className="text-[15px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-          {value}
+    <div className="flex items-center justify-between gap-3 px-1 pt-1">
+      <h3 className="flex items-baseline gap-2">
+        <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
+          {title}
         </span>
+        {value && (
+          <span className="text-[15px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+            {value}
+          </span>
+        )}
+      </h3>
+      {action && (
+        <button type="button" onClick={action.onClick} className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
+            <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" />
+            <path d="M5 17a3 3 0 0 1 3-3h11" />
+            <path d="M12 7v4M10 9h4" />
+          </svg>
+          {action.label}
+        </button>
       )}
     </div>
   );
@@ -284,16 +305,16 @@ function Result({ d, consumedKcal, targetKcal }: { d: DescribeState; consumedKca
       : `${estimates === d.plate.length ? "These are estimates" : `${estimates} of ${d.plate.length} are estimates, in amber; the rest come from the UK food database`}. Check the amounts before logging.`;
   return (
     <>
-      <PlateHeading title={isRecipe ? "Recipe" : "Plate"} value={`${n(d.total.kcal)} kcal`} />
+      <PlateHeading title={isRecipe ? "Recipe" : "Plate"} value={`${n(d.total.kcal)} kcal`} action={d.count > 0 ? { label: "Make recipe", onClick: d.makeRecipe } : undefined} />
       {isRecipe && d.recipe ? <RecipePlate recipe={d.recipe} onChange={d.setRecipe} eating={d.eating} onEating={d.setEating} /> : <MealPlate items={d.plate} onChange={d.setPlate} />}
       <p className="px-1 text-[11px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
         {note}
         {d.methodDropped ? " The method was left out to fit; it does not change the numbers." : ""}
       </p>
       {d.count > 0 && <DayAfter consumed={consumedKcal} plate={d.total} target={targetKcal} />}
-      {(isRecipe || d.plate.length >= 2) && (
-        <button type="button" onClick={() => void d.find(isRecipe ? "meal" : "recipe")} className="h-10 self-center rounded-full px-4 text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>
-          {isRecipe ? "Log it as separate foods instead" : "Read it as one recipe instead"}
+      {isRecipe && (
+        <button type="button" onClick={() => void d.find("meal")} className="h-10 self-center rounded-full px-4 text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>
+          Log it as separate foods instead
         </button>
       )}
     </>

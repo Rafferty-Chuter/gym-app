@@ -20,6 +20,13 @@ export type RecipeIngredient = {
   source: IngredientSource;
   /** The CoFID name the numbers came from, when `source` is "cofid". */
   matched?: string;
+  /**
+   * Set when the ingredient is counted, not weighed ("1 bowl" of a takeaway
+   * curry): `grams / 100` is then the number of portions and `per100` is one
+   * portion's numbers, so every sum below holds unchanged. Never counted in
+   * a weight.
+   */
+  portion?: string;
 };
 
 export type Recipe = { name: string; servings: number; ingredients: RecipeIngredient[] };
