@@ -13,25 +13,34 @@ import { savePhysiqueProfile } from "@/lib/physique/io/profile";
 import { SLEEP_WINDOW_NIGHTS, clampSleepGoal, nightsByDate } from "@/lib/physique/sleep";
 import { sleepPrefill } from "@/lib/physique/dayTotals";
 import { bedtimePlan, nightWord, sleepContributors, sleepInsight, trendBars } from "@/lib/physique/sleepView";
-import { recoveryRead } from "@/lib/physique/recovery";
+import { recoveryRead, stageSplit, stageTypical } from "@/lib/physique/recovery";
+import { STATUS_HEX } from "@/lib/ui/status";
 import PageHeader from "@/components/ui/PageHeader";
 import SleepSheet from "@/components/physique/SleepSheet";
 import GapRows from "@/components/physique/GapRows";
 import { findGaps, gapLines } from "@/lib/physique/gaps";
 import { Caption } from "@/components/physique/ui";
+import type { SleepStatus } from "@/lib/physique/types";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
+import { formatHoursMin } from "@/lib/physique/dayTotals";
 import SleepHero from "@/components/sleep/SleepHero";
-import RecoveryRow from "@/components/sleep/RecoveryRow";
-import SleepInsight from "@/components/sleep/SleepInsight";
+import StageCard from "@/components/sleep/StageCard";
+import RecoveryCard from "@/components/sleep/RecoveryCard";
 import SleepContributors from "@/components/sleep/SleepContributors";
 import BedtimePlanner from "@/components/sleep/BedtimePlanner";
 import SleepTrend from "@/components/sleep/SleepTrend";
-import NightsList from "@/components/sleep/NightsList";
+import { StatusDot } from "@/components/physique/ui";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
 import { pullHealth, useHealthLink } from "@/lib/physique/io/healthLink";
 import { useEffect } from "react";
 
-/** The Sleep tab (05-design §9.6): last night, the engine's read, contributors, the planner, 14 nights and the list. */
+const READ_DOT: Record<SleepStatus, string> = { ok: STATUS_HEX.good, short: STATUS_HEX.watch, severe: STATUS_HEX.attention, unknown: STATUS_HEX.unknown };
+
+/**
+ * The Sleep tab (05-design §9.6, rev 3 after Bevel and WHOOP): one night
+ * as a ring with its numbers and arrows to step back, its stages, recovery,
+ * tonight's lights-out, 14 nights with the engine's read, contributors.
+ */
 export default function SleepPage() {
   const hydrated = useIsHydrated();
   const now = useNow();
@@ -62,6 +71,7 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   useEffect(() => {
     if (healthLink?.token) void pullHealth(new Date().toISOString());
   }, [healthLink?.token]);
+  const [night, setNight] = useState<LocalDate>(today);
   const [sheetDate, setSheetDate] = useState<LocalDate | null>(() => {
     const q = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date");
     return q && /^\d{4}-\d{2}-\d{2}$/.test(q) && q <= today ? q : null;
@@ -74,7 +84,7 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
       .filter((n) => n.date >= from && n.date <= today)
       .sort((a, b) => (a.date < b.date ? 1 : -1))
       .map((n) => n.night);
-    const lastNight = byDate.get(today)?.night ?? null;
+    const lastNight = byDate.get(night)?.night ?? null;
     const prefill = sleepPrefill(data.sleepNights);
     const read = analysis?.sleep ?? null;
     const gapRows = gapLines(findGaps({ foodEntries: [], dayFlags: {}, weighIns: [], sleepNights: data.sleepNights }, today, ["sleep"]), today);
@@ -85,13 +95,15 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
       lastNight,
       prefill,
       word: lastNight ? nightWord(lastNight.asleepMin / 60, goalH) : null,
+      split: lastNight ? stageSplit(lastNight) : null,
+      typical: stageTypical(data.sleepNights, today),
       contributors: sleepContributors(data.sleepNights, now, goalH),
       plan: bedtimePlan(wakeSetting ?? prefill.wakeTime, goalH, read?.debt7h ?? null),
       bars: trendBars(data.sleepNights, now),
       insight: read ? sleepInsight(read, goalH) : null,
       recovery: recoveryRead(data.sleepNights, today, read ? read.status === "short" || read.status === "severe" : false),
     };
-  }, [data.sleepNights, today, now, goalH, wakeSetting, analysis]);
+  }, [data.sleepNights, today, night, now, goalH, wakeSetting, analysis]);
 
   const nowIso = () => new Date().toISOString();
   async function saveProfile(patch: { sleepGoalH?: number; wakeTimeHHMM?: string }) {
@@ -105,23 +117,32 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   return (
     <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <PageHeader caption={`Last night · ${longLocalDate(addDays(today, -1))} → ${longLocalDate(today)}`} title="Sleep" action={{ label: "Log sleep", onClick: () => setSheetDate(today) }} />
+        <PageHeader caption={`Sleep goal ${formatHoursMin(goalH * 60)}`} title="Sleep" action={{ label: "Log sleep", onClick: () => setSheetDate(night) }} />
 
-        <SleepHero night={model.lastNight} word={model.word} goalH={goalH} onLog={() => setSheetDate(today)} />
-
-        <RecoveryRow read={model.recovery} />
+        <SleepHero night={model.lastNight} date={night} today={today} word={model.word} goalH={goalH} onDateChange={(d) => setNight(d > today ? today : d)} onLog={() => setSheetDate(night)} />
 
         <GapRows lines={model.gapRows} onSelect={(l) => setSheetDate(l.date)} />
 
-        {analysis && model.insight && <SleepInsight read={analysis.sleep} text={model.insight} />}
+        {model.split && <StageCard split={model.split} typical={model.typical} />}
 
-        {model.nights.length > 0 && <SleepContributors items={model.contributors} />}
+        <RecoveryCard read={model.recovery} />
 
         <BedtimePlanner plan={model.plan} onWakeChange={(hhmm) => void saveProfile({ wakeTimeHHMM: hhmm })} />
 
-        {model.nights.length > 0 && <SleepTrend bars={model.bars} goalH={goalH} />}
+        {model.nights.length > 0 && (
+          <SleepTrend bars={model.bars} goalH={goalH} selected={night} onSelect={setNight}>
+            {analysis && model.insight && (
+              <p className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: "#a3a3a8" }}>
+                <span className="mt-[6px] flex">
+                  <StatusDot color={READ_DOT[analysis.sleep.status]} />
+                </span>
+                {model.insight}
+              </p>
+            )}
+          </SleepTrend>
+        )}
 
-        <NightsList nights={model.nights} today={today} onEdit={(n) => setSheetDate(n.date)} />
+        {model.nights.length > 0 && <SleepContributors items={model.contributors} />}
 
         <button type="button" onClick={() => setHealthOpen(true)} className="flex w-full items-center justify-between gap-3 rounded-[12px] px-4 py-3 text-left transition-colors active:bg-[#1d1d20]" style={{ background: "#141416" }} aria-label="Apple Health. Open settings">
           <span className="flex min-w-0 flex-col">

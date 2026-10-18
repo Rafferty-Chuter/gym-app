@@ -183,14 +183,15 @@ MacroFactor's caption-over-title: an 11px tracked caption (the date or the goal)
 
 - **Moving ETA** (added after R5): the Goal progress card ends with "ETA Fri 25 Dec · 2 weeks behind plan" from the trend's observed rate, with the likely window from the rate margin under it; the header caption carries the short form. Early read shows the planned date and what it needs; a trend moving away shows no date. Never a countdown, never red.
 
-### 9.6 Sleep (Bevel's Sleep tab, no percentage score)
+### 9.6 Sleep (rev 3, after Bevel and WHOOP, still no percentage score)
 
-- Header: caption "LAST NIGHT · THU → FRI", title "Sleep", + log.
-- Hero: hours asleep large ("7h 10m") with a word (Short / OK / Good) and the need ("of 8h 00m"). Two tiles: **Time in bed** and **Asleep**, with bed → wake under them.
-- One-sentence insight from the engine's sleep read (rule copy, no AI).
-- **Contributors** (label · word · thin bar): Duration vs goal, Efficiency (asleep ÷ in bed), Wake-ups, Consistency (bedtime spread over 7 nights), Debt (7 days vs goal). Words only, never a score.
-- **Bedtime planner**: "Wake up at 07:00 ›" (stepper) → "Lights out by 22:45 for 8 h"; "Tonight's sleep needed" = goal plus a share of the debt, clamped 7–9.5 h.
-- Trends: 14 nights as bars with the goal line; the nights list (date, hours, bed → wake, tap to edit).
+- Header: caption "SLEEP GOAL 8H 00M", title "Sleep", + log (acts on the selected night).
+- **Night card:** ‹ "Last night" › with the span under it; arrows step back through earlier nights (replaces the nights list). A ring of hours asleep against the goal, hours, word and "of 8h 00m" in the centre, ring in the word's colour. Beside it: In bed (bed to wake), Efficiency, Wake-ups. "Edit this night" for manual nights.
+- **Stages** (watch nights only): Awake, REM, Core, Deep, each with share, minutes and a grey bar; a white tick at the user's usual share once 5 nights carry stages. Display only, never coloured or judged.
+- **Recovery** (watch only): the word in the status colour, HRV and resting HR tiles against their usual; "Calibrating" until the windows fill.
+- **Tonight:** one lights-out time, for tonight's need (goal plus a share of the week's debt), and the wake time with ±15 min; one sentence on where the need comes from.
+- **Last 14 nights:** the engine's one-sentence read with its dot, then the bars with the goal line; tapping a night selects it in the night card.
+- **Contributors:** a 2 × 2 grid (Duration, Efficiency, Wake-ups, Consistency), word, label, thin bar. Debt is said in words in the 14-night card.
 
 ### 9.7 Train (Hevy's home + feed)
 

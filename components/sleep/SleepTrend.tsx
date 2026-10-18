@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { LocalDate } from "@/lib/dates";
 import { Caption } from "@/components/physique/ui";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
@@ -17,8 +18,12 @@ const PAD_TOP = 10;
 const PAD_BOTTOM = 18;
 const PAD_RIGHT = 32;
 
-/** 14 nights as bars with a dashed goal line. No bar on an unlogged night; the latest logged night is white. */
-export default function SleepTrend({ bars, goalH }: { bars: TrendBar[]; goalH: number }) {
+/**
+ * 14 nights as bars with a dashed goal line, the engine's one-sentence
+ * read above them. No bar on an unlogged night; the selected night is
+ * white, and tapping a night selects it.
+ */
+export default function SleepTrend({ bars, goalH, selected, onSelect, children }: { bars: TrendBar[]; goalH: number; selected?: LocalDate; onSelect?: (d: LocalDate) => void; children?: ReactNode }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
@@ -41,10 +46,10 @@ export default function SleepTrend({ bars, goalH }: { bars: TrendBar[]; goalH: n
   const slot = innerW / Math.max(1, bars.length);
   const barW = Math.max(4, slot * 0.55);
   const yOf = (h: number) => PAD_TOP + (1 - h / yMax) * innerH;
-  const latest = logged[logged.length - 1]?.date;
+  const highlight = selected ?? logged[logged.length - 1]?.date;
 
   return (
-    <section aria-label="Last 14 nights" className="rounded-[12px] p-4" style={{ background: "#141416" }}>
+    <section aria-label="Last 14 nights" className="rounded-[16px] p-4" style={{ background: "#141416" }}>
       <div className="flex items-baseline justify-between">
         <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
           Last 14 nights
@@ -53,6 +58,7 @@ export default function SleepTrend({ bars, goalH }: { bars: TrendBar[]; goalH: n
           {logged.length} logged{avgH != null ? ` · avg ${formatHoursMin(avgH * 60)}` : ""}
         </Caption>
       </div>
+      {children && <div className="mt-2">{children}</div>}
       <div ref={ref} className="mt-3 w-full" style={{ height: HEIGHT }}>
         {width > 0 && (
           <svg width={width} height={HEIGHT} viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={`Hours asleep over the last 14 nights against a ${goalH} hour goal`} className="block">
@@ -65,11 +71,16 @@ export default function SleepTrend({ bars, goalH }: { bars: TrendBar[]; goalH: n
               return (
                 <g key={b.date}>
                   {b.asleepH != null && (
-                    <rect x={cx - barW / 2} y={yOf(b.asleepH)} width={barW} height={Math.max(2, yOf(0) - yOf(b.asleepH))} rx={2} fill={b.date === latest ? COLOR_BAR_LATEST : COLOR_BAR} />
+                    <rect x={cx - barW / 2} y={yOf(b.asleepH)} width={barW} height={Math.max(2, yOf(0) - yOf(b.asleepH))} rx={2} fill={b.date === highlight ? COLOR_BAR_LATEST : COLOR_BAR} />
                   )}
-                  <text x={cx} y={HEIGHT - 4} fontSize={10} fontWeight={500} fill={COLOR_LABEL} textAnchor="middle">
+                  <text x={cx} y={HEIGHT - 4} fontSize={10} fontWeight={500} fill={b.date === highlight ? COLOR_BAR_LATEST : COLOR_LABEL} textAnchor="middle">
                     {longLocalDate(b.date).charAt(0)}
                   </text>
+                  {onSelect && (
+                    <rect x={i * slot} y={0} width={slot} height={HEIGHT} fill="transparent" style={{ cursor: "pointer" }} onClick={() => onSelect(b.date)}>
+                      <title>{`${longLocalDate(b.date)}${b.asleepH != null ? `, ${formatHoursMin(b.asleepH * 60)}` : ", not logged"}`}</title>
+                    </rect>
+                  )}
                 </g>
               );
             })}

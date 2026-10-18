@@ -170,3 +170,42 @@ export function stageSplit(night: SleepNight): StageSplit | null {
   if (deepMin + remMin + coreMin === 0) return null;
   return { deepMin, remMin, coreMin, awakeMin, asleepMin: deepMin + remMin + coreMin };
 }
+
+/** Nights with stages a "usual" marker needs. OURS: fewer and one odd night sets the marker. */
+export const STAGE_TYPICAL_MIN_NIGHTS = 5;
+/** Nights the "usual" marker looks back over. OURS: the Sleep tab's 14-night window. */
+export const STAGE_TYPICAL_WINDOW = 14;
+
+export type StageShares = { deep: number; rem: number; core: number; awake: number };
+
+function medianOf(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/**
+ * The user's usual share of each stage (of asleep plus awake) over the
+ * nights with stages in the window ending `endDate`: a marker on the
+ * stage bars, as WHOOP's typical range. Null below the gate. Display only.
+ */
+export function stageTypical(nights: readonly SleepNight[], endDate: LocalDate): StageShares | null {
+  const byDate = nightsByDate(nights);
+  const from = addDays(endDate, -(STAGE_TYPICAL_WINDOW - 1));
+  const shares: StageShares[] = [];
+  for (const [date, n] of byDate) {
+    if (date < from || date > endDate) continue;
+    const s = stageSplit(n.night);
+    if (!s) continue;
+    const total = s.asleepMin + s.awakeMin;
+    if (total <= 0) continue;
+    shares.push({ deep: s.deepMin / total, rem: s.remMin / total, core: s.coreMin / total, awake: s.awakeMin / total });
+  }
+  if (shares.length < STAGE_TYPICAL_MIN_NIGHTS) return null;
+  return {
+    deep: medianOf(shares.map((x) => x.deep)),
+    rem: medianOf(shares.map((x) => x.rem)),
+    core: medianOf(shares.map((x) => x.core)),
+    awake: medianOf(shares.map((x) => x.awake)),
+  };
+}

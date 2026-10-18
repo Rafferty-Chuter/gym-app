@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDays, type LocalDate } from "@/lib/dates";
-import { BASELINE_MIN_VALID, RECENT_MIN_VALID, recoveryRead, stageSplit } from "@/lib/physique/recovery";
+import { BASELINE_MIN_VALID, RECENT_MIN_VALID, STAGE_TYPICAL_MIN_NIGHTS, recoveryRead, stageSplit, stageTypical } from "@/lib/physique/recovery";
 import type { SleepNight } from "@/lib/physique/types";
 import { night } from "@/lib/physique/__tests__/helpers";
 
@@ -69,5 +69,17 @@ describe("recoveryRead (02 §7.4)", () => {
     expect(stageSplit(night(TODAY, 7))).toBeNull();
     expect(stageSplit({ ...night(TODAY, 7, "healthkit"), stages: { deepMin: 70, remMin: 95, coreMin: 240, awakeMin: 21 } })).toEqual({ deepMin: 70, remMin: 95, coreMin: 240, awakeMin: 21, asleepMin: 405 });
     expect(stageSplit({ ...night(TODAY, 7, "healthkit"), stages: { awakeMin: 21 } })).toBeNull();
+  });
+
+  it("the usual stage shares need five nights with stages, as medians", () => {
+    const staged = (i: number, deep: number) => ({ ...night(addDays(TODAY, -i), 7, "healthkit"), stages: { deepMin: deep, remMin: 90, coreMin: 300 - deep, awakeMin: 30 } });
+    const four = [0, 1, 2, 3].map((i) => staged(i, 60));
+    expect(stageTypical(four, TODAY)).toBeNull();
+    const five = [...four, staged(4, 90)];
+    expect(five.length).toBe(STAGE_TYPICAL_MIN_NIGHTS);
+    const t = stageTypical(five, TODAY)!;
+    expect(t.deep).toBeCloseTo(60 / 420, 5);
+    expect(t.awake).toBeCloseTo(30 / 420, 5);
+    expect(t.deep + t.rem + t.core + t.awake).toBeCloseTo(1, 5);
   });
 });
