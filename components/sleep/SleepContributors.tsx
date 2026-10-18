@@ -1,5 +1,6 @@
 "use client";
 
+import { Caption, Row, RowGroup } from "@/components/physique/ui";
 import type { Contributor, RatingWord } from "@/lib/physique/sleepView";
 import { STATUS_HEX } from "@/lib/ui/status";
 
@@ -10,38 +11,32 @@ const WORD_COLOR: Record<RatingWord, string> = {
   Excellent: STATUS_HEX.good,
 };
 
-/**
- * Contributors as Bevel's two-column grid: word in the status colour, the
- * label under it, a 4px bar. Debt is left out here; the 14-night card
- * says it in words. Never a score.
- */
+/** The contributors shown: the ones a watch or a manual log can both fill. Wake-ups is a manual count, shown per night instead. */
+const SHOWN: ReadonlyArray<Contributor["id"]> = ["duration", "efficiency", "consistency", "debt"];
+
+/** Contributors (DESIGN.md, from Bevel): label and detail, the word in the status colour, a thin bar. Never a score. */
 export default function SleepContributors({ items }: { items: Contributor[] }) {
-  const shown = items.filter((c) => c.id !== "debt");
+  const shown = SHOWN.map((id) => items.find((c) => c.id === id)).filter((c): c is Contributor => c != null);
   return (
-    <section aria-label="Contributors" className="rounded-[16px] p-4" style={{ background: "#141416" }}>
-      <div className="mb-3 flex items-baseline justify-between">
-        <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
-          Contributors
-        </span>
-        <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "#6f6f76" }}>
-          Last 7 nights
-        </span>
+    <section aria-label="Contributors">
+      <div className="mb-2">
+        <Caption>Contributors · last 7 nights</Caption>
       </div>
-      <ul className="grid grid-cols-2 gap-2">
+      <RowGroup>
         {shown.map((c) => (
-          <li key={c.id} className="flex flex-col rounded-[12px] px-3 py-2.5" style={{ background: "#1d1d20" }} aria-label={`${c.label}: ${c.word ?? "Early read"}. ${c.detail}`}>
-            <span className="text-[15px] font-semibold" style={{ color: c.word ? WORD_COLOR[c.word] : "#6f6f76" }}>
-              {c.word ?? "Early read"}
-            </span>
-            <span className="text-[12px]" style={{ color: "#a3a3a8" }}>
-              {c.label}
-            </span>
-            <div className="mt-2 h-1 w-full overflow-hidden rounded-full" style={{ background: "#2a2a2e" }} aria-hidden>
-              <div className="h-full rounded-full" style={{ width: `${Math.round(c.fill * 100)}%`, background: c.word ? WORD_COLOR[c.word] : "#6f6f76" }} />
-            </div>
-          </li>
+          <Row
+            key={c.id}
+            label={c.label}
+            sub={c.detail}
+            value={<span style={{ color: c.word ? WORD_COLOR[c.word] : "#6f6f76", fontSize: 15 }}>{c.word ?? "Early read"}</span>}
+            below={
+              <div className="h-1 w-full overflow-hidden rounded-full" style={{ background: "#1d1d20" }} aria-hidden>
+                <div className="h-full rounded-full" style={{ width: `${Math.round(c.fill * 100)}%`, background: "#a3a3a8" }} />
+              </div>
+            }
+          />
         ))}
-      </ul>
+      </RowGroup>
     </section>
   );
 }

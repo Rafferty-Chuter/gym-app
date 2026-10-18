@@ -2,19 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { bannedPhrasesIn } from "@/lib/physique/copy";
 import { debt7, nightsByDate } from "@/lib/physique/sleep";
-import {
-  CONTRIBUTOR_MIN_NIGHTS,
-  bedtimePlan,
-  bedtimeSpreadMin,
-  lightsOutFor,
-  nightWord,
-  sleepContributors,
-  sleepInsight,
-  tonightNeedH,
-  trendBars,
-  type Contributor,
-  type SleepReadLike,
-} from "@/lib/physique/sleepView";
+import { CONTRIBUTOR_MIN_NIGHTS, bedtimePlan, bedtimeSpreadMin, lightsOutFor, nightWord, sleepContributors, sleepInsight, tonightNeedH, trendBars, type Contributor, type SleepReadLike, bedTime, efficiencyOf } from "@/lib/physique/sleepView";
 import type { SleepNight } from "@/lib/physique/types";
 
 const TODAY = "2026-10-17";
@@ -234,5 +222,24 @@ describe("trend bars", () => {
     expect(bars.filter((b) => b.asleepH !== null)).toHaveLength(3);
     expect(bars[13].asleepH).toBeCloseTo(7.5, 6);
     expect(bars[10].asleepH).toBeNull();
+  });
+});
+
+describe("bedTime and efficiencyOf (watch nights without an in-bed time)", () => {
+  const base = { id: "n", date: "2026-10-17", loggedAt: "2026-10-17T07:00:00Z", source: "healthkit" as const, schemaVersion: 1 as const, asleepMin: 420 };
+  it("a logged time in bed wins", () => {
+    expect(bedTime({ ...base, inBedMin: 450, stages: { awakeMin: 20 } })).toEqual({ min: 450, kind: "in_bed" });
+    expect(efficiencyOf({ ...base, inBedMin: 450 })).toBeCloseTo(420 / 450, 5);
+  });
+  it("without one, the sleep period is asleep plus the watch's awake minutes", () => {
+    expect(bedTime({ ...base, inBedMin: 0, stages: { awakeMin: 21, deepMin: 60 } })).toEqual({ min: 441, kind: "period" });
+    expect(efficiencyOf({ ...base, stages: { awakeMin: 21 } })).toBeCloseTo(420 / 441, 5);
+  });
+  it("then the span from bedtime to wake, across midnight", () => {
+    expect(bedTime({ ...base, bedtime: "23:10", wakeTime: "07:00" })).toEqual({ min: 470, kind: "period" });
+  });
+  it("nothing to go on gives no efficiency", () => {
+    expect(bedTime(base)).toBeNull();
+    expect(efficiencyOf(base)).toBeNull();
   });
 });

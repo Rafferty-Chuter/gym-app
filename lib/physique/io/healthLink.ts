@@ -92,8 +92,9 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
       const asleepMin = num(v.asleepMin);
       if (asleepMin == null || asleepMin <= 0) continue;
       const n = { ...nightFor(s.day, s.received_at), asleepMin };
+      // Watch-only nights carry no "in bed" (0): leave it unset so the sleep period stands in.
       const inBed = num(v.inBedMin);
-      if (inBed != null) n.inBedMin = inBed;
+      if (inBed != null && inBed > 0) n.inBedMin = inBed;
       const bedtime = str(v.bedtime);
       if (bedtime) n.bedtime = bedtime;
       const wake = str(v.wakeTime);

@@ -97,6 +97,36 @@ function earlyDetail(n: number): string {
 
 // ── Contributors ──
 
+// ── Time in bed ──
+
+export type BedTime = { min: number; kind: "in_bed" | "period" };
+
+/**
+ * Time in bed for one night, for efficiency. A logged time in bed when
+ * there is one; otherwise the sleep period, asleep plus awake from the
+ * watch's stages, or the span from bedtime to wake. The Apple Watch alone
+ * records no "in bed" (the iPhone's Sleep schedule does), so watch nights
+ * usually arrive without it. Null when nothing gives a span.
+ */
+export function bedTime(night: SleepNight): BedTime | null {
+  if ((night.inBedMin ?? 0) > 0) return { min: night.inBedMin as number, kind: "in_bed" };
+  const awake = night.stages?.awakeMin;
+  if (typeof awake === "number" && Number.isFinite(awake) && awake >= 0 && night.asleepMin > 0) return { min: night.asleepMin + Math.round(awake), kind: "period" };
+  const b = parseClock(night.bedtime);
+  const w = parseClock(night.wakeTime);
+  if (b !== null && w !== null) {
+    const span = (w - b + 1440) % 1440;
+    if (span >= night.asleepMin && span > 0) return { min: span, kind: "period" };
+  }
+  return null;
+}
+
+/** Asleep ÷ time in bed, 0..1, or null without a time in bed. */
+export function efficiencyOf(night: SleepNight): number | null {
+  const t = bedTime(night);
+  return t && t.min > 0 ? clamp01(night.asleepMin / t.min) : null;
+}
+
 export type ContributorId = "duration" | "efficiency" | "wakeups" | "consistency" | "debt";
 
 export type Contributor = {
@@ -151,10 +181,8 @@ export function sleepContributors(nights: readonly SleepNight[], now: Now, sleep
         }
       : { id: "duration", label: "Duration", word: null, fill: 0, detail: earlyDetail(n) };
 
-  // Efficiency: asleep ÷ in bed, over the nights that logged time in bed.
-  const effs = week
-    .filter((x) => (x.night.inBedMin ?? 0) > 0)
-    .map((x) => clamp01(x.night.asleepMin / (x.night.inBedMin as number)));
+  // Efficiency: asleep ÷ time in bed (or the watch's sleep period), over the nights that have one.
+  const effs = week.map((x) => efficiencyOf(x.night)).filter((e): e is number => e !== null);
   let efficiency: Contributor;
   if (effs.length >= CONTRIBUTOR_MIN_NIGHTS) {
     const e = mean(effs);

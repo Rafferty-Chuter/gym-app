@@ -5,7 +5,7 @@ import SleepRing from "@/components/sleep/SleepRing";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
-import type { NightWord } from "@/lib/physique/sleepView";
+import { bedTime, efficiencyOf, type NightWord } from "@/lib/physique/sleepView";
 import type { SleepNight } from "@/lib/physique/types";
 import { STATUS_HEX } from "@/lib/ui/status";
 
@@ -78,11 +78,12 @@ export default function SleepHero({
 }) {
   const span = `${longLocalDate(addDays(date, -1))} to ${longLocalDate(date)}`;
   const btn = "flex h-9 w-9 items-center justify-center rounded-full transition-colors active:bg-[#26262a] disabled:opacity-30";
-  const inBed = night?.inBedMin ?? null;
-  const efficiency = night && inBed && inBed > 0 ? Math.round(Math.min(1, night.asleepMin / inBed) * 100) : null;
+  const bed = night ? bedTime(night) : null;
+  const eff = night ? efficiencyOf(night) : null;
+  const efficiency = eff != null ? Math.round(eff * 100) : null;
   const color = word ? WORD_COLOR[word] : "#a3a3a8";
   return (
-    <section aria-label="Night" className="flex flex-col gap-4 rounded-[16px] p-4" style={{ background: "#141416" }}>
+    <section aria-label="Night" className="flex flex-col gap-4 rounded-[12px] p-4" style={{ background: "#141416" }}>
       <div className="flex items-center justify-between gap-2">
         <button type="button" onClick={() => onDateChange(addDays(date, -1))} className={btn} style={{ background: "#1d1d20", color: "#f2f2f0" }} aria-label="Earlier night">
           {chevron("M15 6l-6 6 6 6")}
@@ -117,8 +118,8 @@ export default function SleepHero({
               </span>
             </SleepRing>
             <div className="flex min-w-0 flex-col gap-3">
-              <Stat label="In bed" value={inBed != null ? formatHoursMin(inBed) : "Not logged"} sub={night.bedtime && night.wakeTime ? `${night.bedtime} to ${night.wakeTime}` : null} />
-              {efficiency != null && <Stat label="Efficiency" value={`${efficiency} %`} sub="asleep of time in bed" />}
+              <Stat label={bed?.kind === "period" ? "Sleep period" : "In bed"} value={bed ? formatHoursMin(bed.min) : "Not logged"} sub={night.bedtime && night.wakeTime ? `${night.bedtime} to ${night.wakeTime}` : null} />
+              {efficiency != null && <Stat label="Efficiency" value={`${efficiency} %`} sub={bed?.kind === "period" ? "asleep of the sleep period" : "asleep of time in bed"} />}
               {night.wakeups && <Stat label="Wake-ups" value={WAKEUPS_COPY[night.wakeups]} />}
             </div>
           </div>

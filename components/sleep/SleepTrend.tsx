@@ -49,7 +49,7 @@ export default function SleepTrend({ bars, goalH, selected, onSelect, children }
   const highlight = selected ?? logged[logged.length - 1]?.date;
 
   return (
-    <section aria-label="Last 14 nights" className="rounded-[16px] p-4" style={{ background: "#141416" }}>
+    <section aria-label="Last 14 nights" className="rounded-[12px] p-4" style={{ background: "#141416" }}>
       <div className="flex items-baseline justify-between">
         <span className="text-[17px] font-semibold" style={{ color: "#f2f2f0" }}>
           Last 14 nights

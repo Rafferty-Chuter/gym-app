@@ -332,6 +332,9 @@ export function makeScenario(input: ScenarioSpec): Scenario {
         const deepMin = Math.round(asleepMin * Math.min(0.25, Math.max(0.1, 0.17 + gaussian(rand) * 0.03)));
         const remMin = Math.round(asleepMin * Math.min(0.3, Math.max(0.12, 0.22 + gaussian(rand) * 0.03)));
         nightRecord.stages = { deepMin, remMin, coreMin: asleepMin - deepMin - remMin, awakeMin: Math.round(asleepMin * 0.05) };
+        // As the watch sends it: no "in bed" without the iPhone's Sleep schedule, and no wake-up count.
+        delete nightRecord.inBedMin;
+        delete nightRecord.wakeups;
       }
       sleepNights.push(nightRecord);
     }
