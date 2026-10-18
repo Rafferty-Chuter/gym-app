@@ -92,7 +92,7 @@ export default function TodayStrip() {
           </button>
         </div>
         <NutritionRing eatenKcal={ready && day ? day.totals.kcal : 0} targetKcal={ready && day?.target ? day.target.kcal : null} view={prefs.view} onToggleView={() => void setFoodPrefs({ view: prefs.view === "remaining" ? "consumed" : "remaining" })} />
-        <MacroBars totals={ready && day ? day.totals : { proteinG: 0, fatG: 0, carbsG: 0 }} target={ready && day ? day.target : null} view={prefs.view} />
+        <MacroBars totals={ready && day ? day.totals : { proteinG: 0, fatG: 0, carbsG: 0 }} target={ready && day ? day.target : null} />
         {ready && day && !day.target && (
           <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
             No targets yet.{" "}
@@ -162,7 +162,7 @@ export default function TodayStrip() {
             onRemoveSaved={removeSavedFood}
             onSaveRecipe={(draft) => saveRecipe(draft, nowIso())}
           />
-          <SleepSheet open={sheet === "sleep"} onClose={() => setSheet(null)} prefill={sleepPrefill(data.sleepNights)} existing={day.night} dateLabel="today" onSave={(input: SleepInput) => saveSleepNight(today, input, nowIso())} />
+          <SleepSheet open={sheet === "sleep"} onClose={() => setSheet(null)} prefill={sleepPrefill(data.sleepNights)} existing={day.night} nightTitle="Last night" onSave={(input: SleepInput) => saveSleepNight(today, input, nowIso())} />
         </>
       )}
     </>

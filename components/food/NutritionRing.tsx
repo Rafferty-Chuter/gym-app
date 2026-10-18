@@ -79,11 +79,14 @@ export function NutritionRing({ eatenKcal, targetKcal, view, onToggleView, size 
   );
 }
 
-type BarsProps = { totals: { proteinG: number; fatG: number; carbsG: number }; target: ProgramTargets | null; view: NutritionView };
+type BarsProps = { totals: { proteinG: number; fatG: number; carbsG: number }; target: ProgramTargets | null };
 
-/** Protein · Fat · Carbs as thin bars in the macro colours, "24 / 137 g" under each. */
-export function MacroBars({ totals, target, view }: BarsProps) {
-  const remaining = view === "remaining";
+/**
+ * Protein · Fat · Carbs as thin bars in the macro colours, each as eaten
+ * of its target ("120 / 165 g") whichever way the ring reads: a remainder
+ * written over a target reads as an amount eaten.
+ */
+export function MacroBars({ totals, target }: BarsProps) {
   const macros = [
     { key: "p", label: "Protein", value: totals.proteinG, target: target?.proteinG ?? null, color: PROTEIN_COLOR },
     { key: "f", label: "Fat", value: totals.fatG, target: target?.fatG ?? null, color: FAT_COLOR },
@@ -92,7 +95,6 @@ export function MacroBars({ totals, target, view }: BarsProps) {
   return (
     <div className="grid grid-cols-3 gap-3" role="group" aria-label="Macros">
       {macros.map((m) => {
-        const shown = m.target != null && remaining ? Math.max(0, m.target - m.value) : m.value;
         const pct = m.target && m.target > 0 ? Math.min(1, m.value / m.target) : 0;
         return (
           <div key={m.key} className="flex flex-col gap-1.5" aria-label={`${m.label} ${Math.round(m.value)}${m.target != null ? ` of ${m.target}` : ""} g`}>
@@ -103,7 +105,7 @@ export function MacroBars({ totals, target, view }: BarsProps) {
               <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: m.color, transition: "width 150ms" }} />
             </div>
             <span className="text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {Math.round(shown)}
+              {Math.round(m.value)}
               {m.target != null ? ` / ${m.target}` : ""} g
             </span>
           </div>

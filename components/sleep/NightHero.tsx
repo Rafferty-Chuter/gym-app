@@ -9,11 +9,9 @@ import { efficiencyOf } from "@/lib/physique/sleepView";
 import type { NightScore } from "@/lib/physique/sleepScore";
 import type { SleepNight } from "@/lib/physique/types";
 
-function nightLabel(date: LocalDate, today: LocalDate): string {
-  const back = dayDiff(date, today);
-  if (back === 0) return "Last night";
-  if (back === 1) return "The night before";
-  return longLocalDate(date);
+/** "Last night", then each night by the evening it began ("Night of Fri 16 Oct"), never "the night before". */
+export function nightLabel(date: LocalDate, today: LocalDate): string {
+  return dayDiff(date, today) === 0 ? "Last night" : `Night of ${longLocalDate(addDays(date, -1))}`;
 }
 
 const arrow = (d: string) => (
@@ -37,9 +35,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 /**
  * One night, open on the page (S8, after Bevel's sleep home and WHOOP's
- * Sleep Performance): the score ring, time asleep against what the night
- * needed, the clock span, one sentence on why, and the way into the
- * night's detail. Arrows step back through earlier nights.
+ * Sleep Performance): the score ring, then time asleep, bedtime and wake
+ * time as plain numbers (S10), one sentence on why, and the way into the
+ * night's detail. Arrows step back through earlier nights. A night from
+ * Apple Health says so; it is not edited here.
  */
 export default function NightHero({
   night,
@@ -61,7 +60,6 @@ export default function NightHero({
 }) {
   const btn = "flex h-9 w-9 items-center justify-center rounded-full transition-colors active:bg-[var(--sl-surface-pressed)] disabled:opacity-30";
   const eff = night ? efficiencyOf(night) : null;
-  const span = night?.bedtime && night.wakeTime ? `${night.bedtime} to ${night.wakeTime}` : null;
   return (
     <section aria-label="Night" className="flex flex-col items-center gap-4 pt-1">
       <div className="flex w-full items-center justify-between gap-2">
@@ -82,17 +80,18 @@ export default function NightHero({
       {night && score ? (
         <>
           <ScoreRing score={score.score} word={score.word} label={`Sleep score ${score.score}, ${score.word}`} />
-          <div className="grid w-full grid-cols-2">
-            <Stat label="Time asleep" value={formatHoursMin(night.asleepMin)} />
+          <div className="grid w-full grid-cols-3">
+            <Stat label="Asleep" value={formatHoursMin(night.asleepMin)} />
             <div style={{ borderLeft: "1px solid var(--sl-border)" }}>
-              <Stat label="Sleep goal" value={formatHoursMin(score.goalH * 60)} />
+              <Stat label="Bedtime" value={night.bedtime ?? "–"} />
+            </div>
+            <div style={{ borderLeft: "1px solid var(--sl-border)" }}>
+              <Stat label="Woke" value={night.wakeTime ?? "–"} />
             </div>
           </div>
-          {(span || eff !== null) && (
-            <p className="-mt-1 text-[12px]" style={{ color: "var(--sl-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-              {[span, eff !== null ? `${Math.round(eff * 100)}% efficiency` : null].filter(Boolean).join(" · ")}
-            </p>
-          )}
+          <p className="-mt-1 text-[12px]" style={{ color: "var(--sl-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+            {[`Goal ${formatHoursMin(score.goalH * 60)}`, eff !== null ? `${Math.round(eff * 100)}% efficiency` : null, night.source === "healthkit" ? "From Apple Health" : null].filter(Boolean).join(" · ")}
+          </p>
           <p className="w-full rounded-[16px] px-4 py-3 text-[15px] leading-snug" style={{ background: "var(--sl-surface)", color: "var(--sl-text)" }}>
             {score.reason}
           </p>

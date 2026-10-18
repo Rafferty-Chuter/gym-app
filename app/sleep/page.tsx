@@ -11,30 +11,26 @@ import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { profileStore } from "@/lib/physique/io/repos";
 import { clampSleepGoal, nightsByDate } from "@/lib/physique/sleep";
 import { formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
-import { sleepInsight, trendBars } from "@/lib/physique/sleepView";
-import { nightScore, sleepTrends, wakeConsistency } from "@/lib/physique/sleepScore";
+import { trendBars } from "@/lib/physique/sleepView";
+import { nightAverages, nightScore, wakeConsistency, type NightAverages } from "@/lib/physique/sleepScore";
 import { recoveryRead } from "@/lib/physique/recovery";
-import { STATUS_HEX } from "@/lib/ui/status";
 import PageHeader from "@/components/ui/PageHeader";
 import SleepSheet from "@/components/physique/SleepSheet";
-import { longLocalDate } from "@/components/charts/TimeSeriesChart";
-import NightHero from "@/components/sleep/NightHero";
+import NightHero, { nightLabel } from "@/components/sleep/NightHero";
 import ConsistencyCard from "@/components/sleep/ConsistencyCard";
 import NightBars from "@/components/sleep/NightBars";
-import { TrendLines } from "@/components/sleep/TrendLines";
 import RecoveryCard from "@/components/sleep/RecoveryCard";
 import { Chevron, SCaption } from "@/components/sleep/parts";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
 import { useHealthAutoPull, useHealthLink } from "@/lib/physique/io/healthLink";
-import type { SleepStatus } from "@/lib/physique/types";
-
-const READ_DOT: Record<SleepStatus, string> = { ok: STATUS_HEX.good, short: STATUS_HEX.watch, severe: STATUS_HEX.attention, unknown: STATUS_HEX.unknown };
 
 /**
  * The Sleep tab (05-design §9.6, rev 4 after WHOOP and Bevel, in Sleep's
- * own colours): last night's score against the goal with why, wake-time
- * consistency, two weeks of nights, the last week against the 30 nights
- * before it, and recovery. Missing nights are empty slots, never a list.
+ * own colours): last night's score against the goal with its bedtime and
+ * wake time, wake-time consistency, two weeks of nights with their plain
+ * averages, and recovery. Missing nights are empty slots, never a list.
+ * Data here, reading in the weekly report (S10): no sentences about the
+ * average and no week-against-month trends.
  * The Tonight planner and sleep debt went in S9: the goal and a steady
  * wake time are what a person can act on.
  */
@@ -70,10 +66,8 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
       score: nightScore(data.sleepNights, night, goalH),
       consistency: wakeConsistency(data.sleepNights, today),
       bars: trendBars(data.sleepNights, now),
-      // HRV and resting heart rate have their own card below.
-      trends: sleepTrends(data.sleepNights, today).filter((r) => r.id !== "hrv" && r.id !== "rhr"),
+      averages: nightAverages(data.sleepNights, today),
       recovery: recoveryRead(data.sleepNights, today, read ? read.status === "short" || read.status === "severe" : false),
-      insight: read ? sleepInsight(read, goalH) : null,
       prefill: sleepPrefill(data.sleepNights),
       anyNight: byDate.size > 0,
     };
@@ -84,7 +78,8 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   return (
     <main className="theme-sleep min-h-screen pb-28">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-5 sm:px-6">
-        <PageHeader caption={`Sleep goal ${formatHoursMin(goalH * 60)}`} title="Sleep" action={{ label: "Add a night", onClick: () => setSheetDate(night) }} />
+        {/* With Apple Health connected the watch is the record; a missing night is added from the night itself. */}
+        <PageHeader caption={`Sleep goal ${formatHoursMin(goalH * 60)}`} title="Sleep" action={healthLink?.token ? undefined : { label: "Add a night", onClick: () => setSheetDate(night) }} />
 
         <NightHero night={model.selected} score={model.score} date={night} today={today} waiting={!!healthLink?.token} onDateChange={(d) => setNight(d > today ? today : d)} onLog={() => setSheetDate(night)} />
 
@@ -96,17 +91,7 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
             goalH={goalH}
             selected={night}
             onSelect={setNight}
-            note={
-              <div className="flex flex-col gap-3">
-                {analysis && model.insight && (
-                  <p className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: "var(--sl-text-secondary)" }}>
-                    <span className="mt-[5px] inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: READ_DOT[analysis.sleep.status] }} aria-hidden />
-                    {model.insight}
-                  </p>
-                )}
-                <TrendLines rows={model.trends} />
-              </div>
-            }
+            note={<AverageStats averages={model.averages} />}
           />
         )}
 
@@ -138,9 +123,32 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         onClose={() => setSheetDate(null)}
         prefill={model.prefill}
         existing={sheetDate ? (model.byDate.get(sheetDate)?.night ?? null) : null}
-        dateLabel={!sheetDate || sheetDate === today ? "today" : longLocalDate(sheetDate)}
+        nightTitle={nightLabel(sheetDate ?? today, today)}
         onSave={(input: SleepInput) => saveSleepNight(sheetDate ?? today, input, nowIso())}
       />
     </main>
+  );
+}
+
+/** The two weeks as three plain numbers: hours asleep, bedtime and wake time on average. */
+function AverageStats({ averages }: { averages: NightAverages }) {
+  const cells = [
+    { label: "Asleep", value: averages.asleepH == null ? "–" : formatHoursMin(averages.asleepH * 60) },
+    { label: "Bedtime", value: averages.bedtime ?? "–" },
+    { label: "Wake", value: averages.wake ?? "–" },
+  ];
+  return (
+    <div className="grid grid-cols-3" role="group" aria-label="Averages over the last 14 nights">
+      {cells.map((c, i) => (
+        <div key={c.label} className="flex flex-col" style={i > 0 ? { borderLeft: "1px solid var(--sl-border)", paddingLeft: 12 } : undefined}>
+          <span className="text-[12px]" style={{ color: "var(--sl-text-secondary)" }}>
+            Avg {c.label.toLowerCase()}
+          </span>
+          <span className="text-[20px] font-semibold tracking-[-0.01em]" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {c.value}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }

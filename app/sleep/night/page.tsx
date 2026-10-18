@@ -4,6 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import SleepSheet from "@/components/physique/SleepSheet";
+import { nightLabel } from "@/components/sleep/NightHero";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import Hypnogram from "@/components/sleep/Hypnogram";
 import StageTiles from "@/components/sleep/StageTiles";
@@ -57,7 +58,7 @@ function NightDetail() {
   if (!hydrated || !today || !date || !model) return <main className="theme-sleep min-h-screen" />;
 
   const { night, score, split, typical, bed } = model;
-  const title = date === today ? "Last night" : longLocalDate(date);
+  const title = nightLabel(date, today);
 
   return (
     <main className="theme-sleep min-h-screen pb-28">
@@ -131,7 +132,7 @@ function NightDetail() {
                 </div>
               ))}
               <p className="px-4 py-3 text-[12px] leading-snug" style={{ color: "var(--sl-text-tertiary)" }}>
-                The score is your hours against what the night needed. Waking off your usual time or a restless night takes points off. Stages are shown, not scored: a watch tells them apart less reliably than a sleep lab.
+                The score is your hours against your sleep goal. Waking off your usual time or a restless night takes points off. Stages are shown, not scored: a watch tells them apart less reliably than a sleep lab.
               </p>
             </SCard>
 
@@ -156,7 +157,7 @@ function NightDetail() {
         onClose={() => setEditing(false)}
         prefill={sleepPrefill(data.sleepNights)}
         existing={night}
-        dateLabel={date === today ? "today" : longLocalDate(date)}
+        nightTitle={nightLabel(date, today)}
         onSave={(input: SleepInput) => saveSleepNight(date, input, new Date().toISOString())}
       />
     </main>

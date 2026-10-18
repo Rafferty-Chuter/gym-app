@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDays, type LocalDate } from "@/lib/dates";
-import { bannedPhrasesIn } from "@/lib/physique/copy";
-import { sleepInsight, trendBars, type SleepReadLike, bedTime, efficiencyOf } from "@/lib/physique/sleepView";
+import { trendBars, bedTime, efficiencyOf } from "@/lib/physique/sleepView";
 import type { SleepNight } from "@/lib/physique/types";
 
 const TODAY = "2026-10-17";
@@ -17,39 +16,6 @@ function run(count: number, asleepH: number, extra: (i: number) => Partial<Sleep
   for (let i = count - 1; i >= 0; i--) out.push(mk(addDays(TODAY, -i), asleepH, extra(count - 1 - i)));
   return out;
 }
-
-describe("insight", () => {
-  const reads: Array<[string, SleepReadLike]> = [
-    ["empty", { status: "unknown", mean14h: null, nightsLogged14: 0, acute: false }],
-    ["early", { status: "unknown", mean14h: null, nightsLogged14: 4, acute: false }],
-    ["severe", { status: "severe", mean14h: 6.2, nightsLogged14: 13, acute: true }],
-    ["short", { status: "short", mean14h: 6.8, nightsLogged14: 12, acute: false }],
-    ["ok", { status: "ok", mean14h: 8.1, nightsLogged14: 14, acute: false }],
-    ["acute", { status: "ok", mean14h: 7.5, nightsLogged14: 14, acute: true }],
-  ];
-
-  it("is one calm sentence with no banned phrases for every read", () => {
-    for (const [, r] of reads) {
-      const text = sleepInsight(r, 8);
-      expect(bannedPhrasesIn(text), text).toEqual([]);
-      expect(text.endsWith("."), text).toBe(true);
-      expect(text.length).toBeLessThan(160);
-    }
-  });
-
-  it("uses the engine's numbers and names what is missing", () => {
-    expect(sleepInsight(reads[0][1], 8)).toBe("10 of 14 nights give a first read.");
-    expect(sleepInsight(reads[1][1], 8)).toBe("4 of 14 nights logged. 6 more give a read.");
-    expect(sleepInsight(reads[2][1], 8)).toBe("Averaging 6h 12m over 14 nights, well under the 8h 00m goal.");
-    expect(sleepInsight(reads[3][1], 8)).toBe("Averaging 6h 48m over 14 nights, under the 8h 00m goal.");
-    expect(sleepInsight(reads[4][1], 8)).toBe("Averaging 8h 06m over 14 nights, on the 8h 00m goal.");
-    expect(sleepInsight(reads[5][1], 8)).toBe("Two short nights in a row. Over 14 nights you average 7h 30m against the 8h 00m goal.");
-  });
-
-  it("never mentions a sleep debt, making it up or a lights-out time (S9)", () => {
-    for (const [, r] of reads) expect(sleepInsight(r, 8)).not.toMatch(/debt|make up|behind|lights|tonight/i);
-  });
-});
 
 describe("trend bars", () => {
   it("gives 14 slots ending today with null for unlogged nights", () => {

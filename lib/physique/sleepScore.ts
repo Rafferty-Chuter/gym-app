@@ -1,7 +1,8 @@
 /**
  * Sleep rev 4 (05-design §9.6 rev 4, after WHOOP and Bevel): a night's
  * score against the sleep goal, the usual wake time read from the nights,
- * wake-time consistency and the last week against the 30 nights before it.
+ * wake-time consistency and plain 14-night averages (S10, in place of the
+ * last week against the 30 nights before it).
  * The bedtime planner and the debt-inflated "need" went in S9: a running
  * sleep debt has little support as something to pay back hour for hour,
  * and the goal plus a steady wake time is what a person can act on.
@@ -17,7 +18,7 @@
 
 import { addDays, type LocalDate } from "@/lib/dates";
 import { mean, median, stdev } from "@/lib/stats";
-import { clampSleepGoal, nightsByDate, nightsInWindow, type NormalizedNight } from "@/lib/physique/sleep";
+import { SLEEP_WINDOW_NIGHTS, clampSleepGoal, nightsByDate, nightsInWindow, type NormalizedNight } from "@/lib/physique/sleep";
 import { formatClock, formatHoursMin, parseClock } from "@/lib/physique/dayTotals";
 import { EFFICIENCY, efficiencyOf, type RatingWord } from "@/lib/physique/sleepView";
 import type { SleepNight } from "@/lib/physique/types";
@@ -54,15 +55,6 @@ export const CONSISTENCY_MIN_NIGHTS = 4;
 /** Wake-time spread (sample SD, minutes). Good ≤ 30 keeps most mornings inside the hour that marks social jetlag (EVID, Wittmann 2006); Excellent ≤ 15 and Fair ≤ 60 are OURS. */
 export const WAKE_SPREAD_MIN = { excellent: 15, good: 30, fair: 60 } as const;
 
-
-/** Trends: the last week against the 30 nights before it, each with its fewest nights. OURS, after WHOOP's "vs previous 30 days". */
-export const TREND_RECENT_NIGHTS = 7;
-export const TREND_BASELINE_NIGHTS = 30;
-export const TREND_RECENT_MIN = 4;
-export const TREND_BASELINE_MIN = 10;
-
-/** Changes smaller than these read as steady. OURS: below what a night-to-night wobble moves. */
-export const TREND_STEADY = { asleepMin: 10, clockMin: 10, efficiencyPct: 1, hrvPct: 5, rhrBpm: 1 } as const;
 
 // ── Helpers ──
 
@@ -254,86 +246,35 @@ export function wakeConsistency(nights: readonly SleepNight[], today: LocalDate)
   return { word: enough ? rateSpread(spread) : null, spreadMin: spread, usual, days, nights: wakes.length };
 }
 
-// ── Trends ──
+// ── Averages ──
 
-export type TrendId = "asleep" | "bedtime" | "wake" | "efficiency" | "hrv" | "rhr";
+/** Nights an average needs before it shows. OURS: the same three nights the usual wake time needs. */
+export const AVERAGE_MIN_NIGHTS = USUAL_WAKE_MIN_NIGHTS;
 
-export type TrendRow = {
-  id: TrendId;
-  label: string;
-  recent: number;
-  baseline: number;
-  /** recent − baseline, in the metric's unit (minutes for clocks and hours, points for efficiency). */
-  delta: number;
-  direction: "up" | "down" | "steady";
-  /** Whether the change is good, bad or neither (clock shifts are neither). */
-  tone: "good" | "bad" | "neutral";
-  recentText: string;
-  deltaText: string;
+export type NightAverages = {
+  /** Valid nights in the window. */
+  nights: number;
+  asleepH: number | null;
+  /** Mean clocks, read on the night axis so 23:30 and 00:30 average to midnight; null below AVERAGE_MIN_NIGHTS nights that carry one. */
+  bedtime: string | null;
+  wake: string | null;
 };
-
-type Picker = (n: NormalizedNight) => number | null;
-
-const PICK: Record<TrendId, Picker> = {
-  asleep: (n) => n.night.asleepMin,
-  bedtime: (n) => nightAxisMin(n.night.bedtime),
-  wake: (n) => nightAxisMin(n.night.wakeTime),
-  efficiency: (n) => {
-    const e = efficiencyOf(n.night);
-    return e === null ? null : e * 100;
-  },
-  hrv: (n) => (typeof n.night.hrvMs === "number" && n.night.hrvMs > 0 ? n.night.hrvMs : null),
-  rhr: (n) => (typeof n.night.restingHr === "number" && n.night.restingHr > 0 ? n.night.restingHr : null),
-};
-
-const LABEL: Record<TrendId, string> = { asleep: "Time asleep", bedtime: "Bedtime", wake: "Wake time", efficiency: "Efficiency", hrv: "HRV", rhr: "Resting heart rate" };
 
 /**
- * The last TREND_RECENT_NIGHTS nights against the TREND_BASELINE_NIGHTS
- * before them, one row per measure that has enough nights in both. Clock
- * shifts are neutral; more sleep, efficiency and HRV and a lower resting
- * heart rate are good.
+ * Plain averages over the SLEEP_WINDOW_NIGHTS ending `today` (S10): hours
+ * asleep, bedtime and wake time. Data, not a judgement; the weekly report
+ * does the reading.
  */
-export function sleepTrends(nights: readonly SleepNight[], today: LocalDate): TrendRow[] {
-  const byDate = nightsByDate(nights);
-  const recent = nightsInWindow(byDate, today, TREND_RECENT_NIGHTS).filter((n) => n.valid);
-  const base = nightsInWindow(byDate, addDays(today, -TREND_RECENT_NIGHTS), TREND_BASELINE_NIGHTS).filter((n) => n.valid);
-  const out: TrendRow[] = [];
-  for (const id of ["asleep", "bedtime", "wake", "efficiency", "hrv", "rhr"] as const) {
-    const r = recent.map(PICK[id]).filter((x): x is number => x !== null);
-    const b = base.map(PICK[id]).filter((x): x is number => x !== null);
-    if (r.length < TREND_RECENT_MIN || b.length < TREND_BASELINE_MIN) continue;
-    const rv = mean(r);
-    const bv = mean(b);
-    const delta = rv - bv;
-    const steady =
-      id === "asleep" ? Math.abs(delta) < TREND_STEADY.asleepMin
-      : id === "bedtime" || id === "wake" ? Math.abs(delta) < TREND_STEADY.clockMin
-      : id === "efficiency" ? Math.abs(delta) < TREND_STEADY.efficiencyPct
-      : id === "hrv" ? Math.abs(delta) / bv * 100 < TREND_STEADY.hrvPct
-      : Math.abs(delta) < TREND_STEADY.rhrBpm;
-    const direction = steady ? "steady" : delta > 0 ? "up" : "down";
-    const better = id === "rhr" ? delta < 0 : delta > 0;
-    const tone = steady || id === "bedtime" || id === "wake" ? "neutral" : better ? "good" : "bad";
-    let recentText: string;
-    let deltaText: string;
-    if (id === "asleep") {
-      recentText = formatHoursMin(rv);
-      deltaText = steady ? "Steady" : `${shortMin(Math.abs(delta))} ${delta > 0 ? "more" : "less"}`;
-    } else if (id === "bedtime" || id === "wake") {
-      recentText = fromNightAxis(rv);
-      deltaText = steady ? "Steady" : `${shortMin(Math.abs(delta))} ${delta > 0 ? "later" : "earlier"}`;
-    } else if (id === "efficiency") {
-      recentText = `${Math.round(rv)}%`;
-      deltaText = steady ? "Steady" : `${Math.abs(Math.round(delta))} pts ${delta > 0 ? "up" : "down"}`;
-    } else if (id === "hrv") {
-      recentText = `${Math.round(rv)} ms`;
-      deltaText = steady ? "Steady" : `${Math.abs(Math.round(delta))} ms ${delta > 0 ? "up" : "down"}`;
-    } else {
-      recentText = `${Math.round(rv)} bpm`;
-      deltaText = steady ? "Steady" : `${Math.abs(Math.round(delta))} bpm ${delta > 0 ? "up" : "down"}`;
-    }
-    out.push({ id, label: LABEL[id], recent: rv, baseline: bv, delta, direction, tone, recentText, deltaText });
-  }
-  return out;
+export function nightAverages(nights: readonly SleepNight[], today: LocalDate): NightAverages {
+  const valid = nightsInWindow(nightsByDate(nights), today, SLEEP_WINDOW_NIGHTS).filter((n) => n.valid);
+  const clock = (pick: (n: NormalizedNight) => string | undefined): string | null => {
+    const xs = valid.map((n) => nightAxisMin(pick(n))).filter((x): x is number => x !== null);
+    return xs.length >= AVERAGE_MIN_NIGHTS ? fromNightAxis(mean(xs)) : null;
+  };
+  return {
+    nights: valid.length,
+    asleepH: valid.length >= AVERAGE_MIN_NIGHTS ? mean(valid.map((n) => n.asleepH)) : null,
+    bedtime: clock((n) => n.night.bedtime),
+    wake: clock((n) => n.night.wakeTime),
+  };
 }

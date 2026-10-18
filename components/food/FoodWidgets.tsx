@@ -85,7 +85,7 @@ export default function FoodWidgets(props: Props) {
         <Card ariaLabel={isToday ? "Today" : "Selected day"}>
           <NutritionRing eatenKcal={totals.kcal} targetKcal={target?.kcal ?? null} view={view} onToggleView={() => onViewChange(remaining ? "consumed" : "remaining")} />
           <div className="mt-4">
-            <MacroBars totals={totals} target={target} view={view} />
+            <MacroBars totals={totals} target={target} />
           </div>
           {fibreG != null && (
             <p className="mt-3 flex items-baseline justify-between text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>

@@ -13,9 +13,10 @@ const PAD_BOTTOM = 18;
 const PAD_RIGHT = 30;
 
 /**
- * Two weeks of nights (S8, after WHOOP's hours-vs-need bars): hours asleep
- * as bars against the goal line. A night with nothing recorded is an
- * empty slot, not a warning. Tapping a night opens it above.
+ * Two weeks of nights (S8, after WHOOP's hours bars): hours asleep as bars
+ * against the goal line, with the averages above them (S10). A night with
+ * nothing recorded is an empty slot, not a warning. Tapping a night opens
+ * it above.
  */
 export default function NightBars({ bars, goalH, selected, onSelect, note }: { bars: TrendBar[]; goalH: number; selected: LocalDate; onSelect: (d: LocalDate) => void; note?: ReactNode }) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -33,7 +34,6 @@ export default function NightBars({ bars, goalH, selected, onSelect, note }: { b
   }, []);
 
   const logged = bars.filter((b) => b.asleepH != null);
-  const avgH = logged.length ? logged.reduce((s, b) => s + (b.asleepH as number), 0) / logged.length : null;
   const yMax = Math.ceil(Math.max(goalH, ...logged.map((b) => b.asleepH as number)) + 1);
   const innerW = Math.max(1, width - PAD_RIGHT);
   const innerH = HEIGHT - PAD_TOP - PAD_BOTTOM;
@@ -44,13 +44,6 @@ export default function NightBars({ bars, goalH, selected, onSelect, note }: { b
   return (
     <SCard
       title="Last 14 nights"
-      aside={
-        avgH != null ? (
-          <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--sl-text-tertiary)" }}>
-            Avg {formatHoursMin(avgH * 60)}
-          </span>
-        ) : null
-      }
       label="Last 14 nights"
       className="px-4 pb-3 pt-4"
     >

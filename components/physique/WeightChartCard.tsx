@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import TimeSeriesChart, { type TimeSeriesPoint } from "@/components/charts/TimeSeriesChart";
+import TimeSeriesChart, { longLocalDate, type TimeSeriesPoint } from "@/components/charts/TimeSeriesChart";
 import { Caption } from "@/components/physique/ui";
 import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
 import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
@@ -27,13 +27,23 @@ type Props = {
   dayFlags: Readonly<Record<string, DayFlags>>;
   today: LocalDate;
   unit: WeightUnit;
-  /** Show the trend weight as the hero number above the chart (Body page). */
+  /**
+   * Hero numbers above the chart (Body page): the latest weigh-in, named by
+   * its day, then the trend weight labelled as such (C2). The trend is what
+   * the engine reads, but the big number is what the scale said, as on Home.
+   */
   hero?: boolean;
 };
 
 export function formatRate(pctPerWeek: number): string {
   const sign = pctPerWeek > 0 ? "+" : pctPerWeek < 0 ? "−" : "";
   return `${sign}${Math.abs(pctPerWeek).toFixed(2)} %/wk`;
+}
+
+/** "Today's weigh-in", "Yesterday's weigh-in", or "Weigh-in on Fri 16 Oct". */
+function weighInDay(date: LocalDate, today: LocalDate): string {
+  const back = dayDiff(date, today);
+  return back === 0 ? "Today's weigh-in" : back === 1 ? "Yesterday's weigh-in" : `Weigh-in on ${longLocalDate(date)}`;
 }
 
 export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit, hero = false }: Props) {
@@ -54,6 +64,8 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
     const needed = weighInsNeededForRate(weighIns, today);
     const maskDaysLeft = seg ? Math.max(0, dayDiff(today, addDays(seg, MIN_DAYS_FOR_RATE - 1))) : 0;
     const inWindow = [...raw.keys()].filter((d) => d >= from && d <= today).length;
+    const lastDate = [...raw.keys()].filter((d) => d <= today).sort().at(-1) ?? null;
+    const lastWeighIn = lastDate ? { date: lastDate, kg: raw.get(lastDate) as number } : null;
     const projection =
       goal && goal.type !== "maintain" && goal.startDate <= today
         ? (() => {
@@ -68,7 +80,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
             };
           })()
         : null;
-    return { points, latest, rate, needed, inWindow, projection, maskDaysLeft, spanDays: Math.max(1, dayDiff(from, today) + 1) };
+    return { points, latest, lastWeighIn, rate, needed, inWindow, projection, maskDaysLeft, spanDays: Math.max(1, dayDiff(from, today) + 1) };
   }, [weighIns, goal, dayFlags, today, unit, range]);
 
   const rateLine = model.latest
@@ -84,11 +96,16 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
       {hero ? (
         <div className="flex items-end justify-between gap-3">
           <div className="flex flex-col">
-            <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: model.latest ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-              {model.latest ? formatWeight(model.latest.trendKg, unit) : "–"}
+            <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: model.lastWeighIn ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              {model.lastWeighIn ? formatWeight(model.lastWeighIn.kg, unit) : "–"}
             </span>
-            <span className="mt-1 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {model.latest ? `Trend · ${rateLine}` : rateLine}
+            {model.lastWeighIn && (
+              <span className="mt-1 text-[12px] font-medium" style={{ color: "var(--text)" }}>
+                {weighInDay(model.lastWeighIn.date, today)}
+              </span>
+            )}
+            <span className="mt-0.5 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+              {model.latest ? `Trend ${formatWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
             </span>
           </div>
           <Caption>{model.inWindow} weigh-ins</Caption>

@@ -12,28 +12,57 @@ type Props = {
   onClose: () => void;
   prefill: { bedtime: string; wakeTime: string };
   existing: SleepNight | null;
-  dateLabel: string;
+  /** "Last night", or "Night of Fri 16 Oct" (NightHero's `nightLabel`). */
+  nightTitle: string;
   onSave: (input: SleepInput) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
-/** Sleep entry: bedtime and wake with ±15 min steppers, hours asleep prefilled, wake-ups. ≤4 taps. The sleep goal lives in Profile (B2). */
+/**
+ * Sleep entry (S10, simpler): bedtime and wake time with ±15 min steppers
+ * and hours asleep prefilled from them. Three numbers, nothing else; the
+ * sleep goal lives in Profile. A night from Apple Health is shown, not
+ * edited: the watch is the record, and the Health app is where it changes.
+ */
 export default function SleepSheet(props: Props) {
-  return props.open ? <Inner key={props.dateLabel} {...props} /> : null;
+  if (!props.open) return null;
+  return props.existing?.source === "healthkit" ? <WatchNight {...props} night={props.existing} /> : <Inner key={props.nightTitle} {...props} />;
 }
 
 const STEP_MIN = 15;
-const WAKEUPS: Array<{ v: NonNullable<SleepNight["wakeups"]>; label: string }> = [
-  { v: "0", label: "0" },
-  { v: "1-2", label: "1–2" },
-  { v: "3+", label: "3+" },
-];
 
-function Inner({ onClose, prefill, existing, dateLabel, onSave }: Props) {
+function WatchNight({ onClose, nightTitle, night }: Props & { night: SleepNight }) {
+  const rows = [
+    { label: "Bedtime", value: night.bedtime ?? "–" },
+    { label: "Woke up", value: night.wakeTime ?? "–" },
+    { label: "Asleep", value: formatHoursMin(night.asleepMin) },
+  ];
+  return (
+    <Sheet open onClose={onClose} title="Sleep" footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
+      <p className="mb-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+        {nightTitle} · from Apple Health
+      </p>
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-center justify-between py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+          <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
+            {r.label}
+          </span>
+          <span className="text-[17px] font-semibold" style={{ fontVariantNumeric: "tabular-nums" }}>
+            {r.value}
+          </span>
+        </div>
+      ))}
+      <p className="mt-3 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
+        Your watch recorded this night. To change it, edit it in the Health app.
+      </p>
+    </Sheet>
+  );
+}
+
+function Inner({ onClose, prefill, existing, nightTitle, onSave }: Props) {
   const [bed, setBed] = useState(existing?.bedtime ?? prefill.bedtime);
   const [wake, setWake] = useState(existing?.wakeTime ?? prefill.wakeTime);
   const [asleepTouched, setAsleepTouched] = useState(existing != null);
   const [asleep, setAsleep] = useState(existing?.asleepMin ?? Math.max(0, minutesInBed(prefill.bedtime, prefill.wakeTime) - ASLEEP_OFFSET_MIN));
-  const [wakeups, setWakeups] = useState<SleepNight["wakeups"]>(existing?.wakeups);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -45,10 +74,10 @@ function Inner({ onClose, prefill, existing, dateLabel, onSave }: Props) {
     setter(formatClock(m + delta));
   }
 
-
   async function save() {
     setSaving(true);
-    const r = await onSave({ bedtime: bed, wakeTime: wake, asleepMin: Math.round(asleepShown), inBedMin: inBed, wakeups });
+    // Wake-ups are no longer asked; a value logged before is kept.
+    const r = await onSave({ bedtime: bed, wakeTime: wake, asleepMin: Math.round(asleepShown), inBedMin: inBed, wakeups: existing?.wakeups });
     setSaving(false);
     if (r.ok) onClose();
     else setError(r.error);
@@ -69,9 +98,9 @@ function Inner({ onClose, prefill, existing, dateLabel, onSave }: Props) {
       }
     >
       <p className="mb-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
-        Night before {dateLabel}
+        {nightTitle}
       </p>
-      <Stepper label="Lights out" value={bed} onMinus={() => shift(setBed, bed, -STEP_MIN)} onPlus={() => shift(setBed, bed, STEP_MIN)} />
+      <Stepper label="Bedtime" value={bed} onMinus={() => shift(setBed, bed, -STEP_MIN)} onPlus={() => shift(setBed, bed, STEP_MIN)} />
       <Stepper label="Woke up" value={wake} onMinus={() => shift(setWake, wake, -STEP_MIN)} onPlus={() => shift(setWake, wake, STEP_MIN)} />
       <Stepper
         label="Asleep"
@@ -86,29 +115,6 @@ function Inner({ onClose, prefill, existing, dateLabel, onSave }: Props) {
           setAsleep(Math.min(inBed, asleepShown + STEP_MIN));
         }}
       />
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
-          Wake-ups
-        </span>
-        <div className="flex gap-1" role="radiogroup" aria-label="Wake-ups">
-          {WAKEUPS.map((w) => {
-            const selected = wakeups === w.v;
-            return (
-              <button
-                key={w.v}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => setWakeups(selected ? undefined : w.v)}
-                className="h-[30px] rounded-full px-3 text-[12px] font-medium"
-                style={{ background: selected ? "var(--primary)" : "var(--surface-raised)", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}
-              >
-                {w.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </Sheet>
   );
 }

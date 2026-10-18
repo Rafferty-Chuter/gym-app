@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { bannedPhrasesIn } from "@/lib/physique/copy";
-import { nightAxisMin, nightScore, sleepTrends, usualWake, wakeConsistency } from "@/lib/physique/sleepScore";
+import { nightAverages, nightAxisMin, nightScore, usualWake, wakeConsistency } from "@/lib/physique/sleepScore";
 import type { SleepNight } from "@/lib/physique/types";
 
 const TODAY = "2026-10-18";
@@ -112,20 +112,16 @@ describe("wake consistency", () => {
   });
 });
 
-describe("trends against the last 30 days", () => {
-  it("compares the last week with the 30 nights before it and tones the change", () => {
-    const base = run(30, 7, () => ({ wakeTime: "07:00", bedtime: "23:00", hrvMs: 50, restingHr: 52, stages: { awakeMin: 30 } }), addDays(TODAY, -7));
-    const recent = run(7, 8, () => ({ wakeTime: "07:00", bedtime: "22:00", hrvMs: 40, restingHr: 55, stages: { awakeMin: 30 } }));
-    const rows = sleepTrends([...base, ...recent], TODAY);
-    const by = Object.fromEntries(rows.map((r) => [r.id, r]));
-    expect(by.asleep).toMatchObject({ direction: "up", tone: "good", deltaText: "1h 00m more" });
-    expect(by.bedtime).toMatchObject({ direction: "down", tone: "neutral", deltaText: "1h 00m earlier", recentText: "22:00" });
-    expect(by.wake).toMatchObject({ direction: "steady", deltaText: "Steady" });
-    expect(by.hrv).toMatchObject({ tone: "bad", deltaText: "10 ms down" });
-    expect(by.rhr).toMatchObject({ tone: "bad", deltaText: "3 bpm up" });
+describe("14-night averages (S10)", () => {
+  it("averages hours asleep, bedtime and wake time, with bedtimes either side of midnight read together", () => {
+    const beds = ["23:30", "00:30", "23:45", "00:15"];
+    const a = nightAverages(run(4, 7.5, (i) => ({ bedtime: beds[i], wakeTime: "07:00" })), TODAY);
+    expect(a).toMatchObject({ nights: 4, bedtime: "00:00", wake: "07:00" });
+    expect(a.asleepH).toBeCloseTo(7.5, 6);
   });
 
-  it("shows nothing until both windows have enough nights", () => {
-    expect(sleepTrends(run(7, 8, () => ({ wakeTime: "07:00" })), TODAY)).toEqual([]);
+  it("needs three nights before it shows an average", () => {
+    const a = nightAverages(run(2, 8, () => ({ bedtime: "23:00", wakeTime: "07:00" })), TODAY);
+    expect(a).toEqual({ nights: 2, asleepH: null, bedtime: null, wake: null });
   });
 });
