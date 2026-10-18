@@ -261,7 +261,7 @@ export function allFixes(i: InsightInputs): Fix[] {
       state: r.sleep.meanH < r.sleep.goalH - 1 ? "attention" : "watch",
       title: "Sleep more",
       why: `${formatHoursMin(r.sleep.meanH * 60)} a night against the ${formatHoursMin(r.sleep.goalH * 60)} goal${r.sleep.shortNights ? `, ${plural(r.sleep.shortNights, "short night")}` : ""}${recLow ? ". Recovery is below your usual too" : ""}.`,
-      action: "Lights out 30 to 45 minutes earlier this week.",
+      action: "Keep your wake time and get to bed 30 to 45 minutes earlier.",
       href: "/sleep",
     });
   } else if (recovery?.status === "red") {

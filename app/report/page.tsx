@@ -264,7 +264,6 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
             </div>
             <RowGroup>
               <Row label="Average" value={report.sleep.meanH == null ? dash : formatHoursMin(report.sleep.meanH * 60)} sub={report.sleep.meanH == null ? "No nights logged" : `Goal ${formatHoursMin(report.sleep.goalH * 60)} · ${report.sleep.shortNights} short ${report.sleep.shortNights === 1 ? "night" : "nights"}`} />
-              <Row label="Debt" value={report.sleep.debtH == null ? dash : formatHoursMin(report.sleep.debtH * 60)} sub="Hours under the goal, added up over the logged nights" />
             </RowGroup>
           </section>
 

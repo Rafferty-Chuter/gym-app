@@ -5,22 +5,20 @@ import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 import { useSingleton } from "@/lib/storage/useStored";
-import { addDays, type LocalDate, type Now } from "@/lib/dates";
+import { type LocalDate, type Now } from "@/lib/dates";
 import { saveSleepNight, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { profileStore } from "@/lib/physique/io/repos";
-import { savePhysiqueProfile } from "@/lib/physique/io/profile";
 import { clampSleepGoal, nightsByDate } from "@/lib/physique/sleep";
 import { formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { sleepInsight, trendBars } from "@/lib/physique/sleepView";
-import { nightScore, sleepTrends, tonightPlan, wakeConsistency } from "@/lib/physique/sleepScore";
+import { nightScore, sleepTrends, wakeConsistency } from "@/lib/physique/sleepScore";
 import { recoveryRead } from "@/lib/physique/recovery";
 import { STATUS_HEX } from "@/lib/ui/status";
 import PageHeader from "@/components/ui/PageHeader";
 import SleepSheet from "@/components/physique/SleepSheet";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import NightHero from "@/components/sleep/NightHero";
-import TonightCard from "@/components/sleep/TonightCard";
 import ConsistencyCard from "@/components/sleep/ConsistencyCard";
 import NightBars from "@/components/sleep/NightBars";
 import { TrendLines } from "@/components/sleep/TrendLines";
@@ -34,10 +32,11 @@ const READ_DOT: Record<SleepStatus, string> = { ok: STATUS_HEX.good, short: STAT
 
 /**
  * The Sleep tab (05-design §9.6, rev 4 after WHOOP and Bevel, in Sleep's
- * own colours): last night's score with why, tonight's plan worked back
- * from your usual wake time, wake-time consistency, two weeks of nights,
- * the last week against the 30 nights before it, and recovery. Missing
- * nights are empty slots, never a list.
+ * own colours): last night's score against the goal with why, wake-time
+ * consistency, two weeks of nights, the last week against the 30 nights
+ * before it, and recovery. Missing nights are empty slots, never a list.
+ * The Tonight planner and sleep debt went in S9: the goal and a steady
+ * wake time are what a person can act on.
  */
 export default function SleepPage() {
   const hydrated = useIsHydrated();
@@ -69,7 +68,6 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
       byDate,
       selected: byDate.get(night)?.night ?? null,
       score: nightScore(data.sleepNights, night, goalH),
-      plan: tonightPlan(data.sleepNights, today, goalH, { override: profile?.wakeOverride ?? null, setting: profile?.wakeTimeHHMM ?? null }),
       consistency: wakeConsistency(data.sleepNights, today),
       bars: trendBars(data.sleepNights, now),
       // HRV and resting heart rate have their own card below.
@@ -79,16 +77,9 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
       prefill: sleepPrefill(data.sleepNights),
       anyNight: byDate.size > 0,
     };
-  }, [data.sleepNights, today, night, now, goalH, profile?.wakeOverride, profile?.wakeTimeHHMM, analysis]);
+  }, [data.sleepNights, today, night, now, goalH, analysis]);
 
   const nowIso = () => new Date().toISOString();
-  async function saveProfile(patch: Parameters<typeof savePhysiqueProfile>[0]) {
-    try {
-      await savePhysiqueProfile(patch);
-    } catch {
-      // Storage full or blocked: the plan keeps reading the usual wake time.
-    }
-  }
 
   return (
     <main className="theme-sleep min-h-screen pb-28">
@@ -96,8 +87,6 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         <PageHeader caption={`Sleep goal ${formatHoursMin(goalH * 60)}`} title="Sleep" action={{ label: "Add a night", onClick: () => setSheetDate(night) }} />
 
         <NightHero night={model.selected} score={model.score} date={night} today={today} waiting={!!healthLink?.token} onDateChange={(d) => setNight(d > today ? today : d)} onLog={() => setSheetDate(night)} />
-
-        <TonightCard plan={model.plan} onOverride={(hhmm) => void saveProfile({ wakeOverride: hhmm ? { date: addDays(today, 1), hhmm } : undefined })} />
 
         {model.anyNight && <ConsistencyCard read={model.consistency} />}
 

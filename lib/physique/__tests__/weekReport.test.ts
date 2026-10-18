@@ -54,7 +54,6 @@ describe("weekReport", () => {
     expect(r.training.lifts.every((l) => l.prevE1rmKg != null && l.changePct != null)).toBe(true);
     expect(r.sleep.nights).toBe(7);
     expect(r.sleep.meanH).toBeGreaterThan(6);
-    expect(r.sleep.debtH).not.toBeNull();
     expect(r.gaps).toEqual([]);
     expect(r.verdict?.title).toBe("On track");
   });

@@ -85,7 +85,7 @@ export default function NightHero({
           <div className="grid w-full grid-cols-2">
             <Stat label="Time asleep" value={formatHoursMin(night.asleepMin)} />
             <div style={{ borderLeft: "1px solid var(--sl-border)" }}>
-              <Stat label="Sleep needed" value={formatHoursMin(score.needH * 60)} />
+              <Stat label="Sleep goal" value={formatHoursMin(score.goalH * 60)} />
             </div>
           </div>
           {(span || eff !== null) && (

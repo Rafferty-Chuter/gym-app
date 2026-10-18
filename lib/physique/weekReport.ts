@@ -3,7 +3,7 @@
  * everything the user logged, as numbers and the engine's own words.
  * Weight trend and rate, expenditure move, intake against target, protein,
  * sessions and hard sets per muscle, main-lift e1RM changes, sleep mean
- * and debt, the week's verdict, and every gap; since B3 also fibre,
+ * and short nights, the week's verdict, and every gap; since B3 also fibre,
  * steps, resting heart rate, waist and the priority muscles' sets, so the
  * scorecard can lead with what the goal needs. Pure: the caller passes
  * the records, the expenditure series and the verdict.
@@ -134,7 +134,6 @@ export type WeekReport = {
     nights: number;
     missing: LocalDate[];
     meanH: number | null;
-    debtH: number | null;
     goalH: number;
     shortNights: number;
     /** Sample SD of the week's wake times in minutes, once CONSISTENCY_MIN_NIGHTS nights carry one. */
@@ -277,7 +276,6 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   const firstNight = earliest(byDate.keys());
   const sleepMissing = days.filter((d) => firstNight != null && d >= firstNight && !byDate.has(d));
   const meanH = nights.length ? round1(nights.reduce((s, n) => s + n.asleepH, 0) / nights.length) : null;
-  const debtH = nights.length ? round1(nights.reduce((s, n) => s + Math.max(0, goalH - n.asleepH), 0)) : null;
   const acuteH = thresholdsForWindow(nights).acuteH;
   const shortNights = nights.filter((n) => n.asleepH < acuteH).length;
   const wakes = nights.map((n) => nightAxisMin(n.night.wakeTime)).filter((x): x is number => x != null);
@@ -370,7 +368,7 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
       fibreDays,
     },
     training: { sessions: weekWorkouts.length, hardSets, byMuscle, lifts, days: trainingDays, priority },
-    sleep: { nights: nights.length, missing: sleepMissing, meanH, debtH, goalH, shortNights, wakeSpreadMin },
+    sleep: { nights: nights.length, missing: sleepMissing, meanH, goalH, shortNights, wakeSpreadMin },
     health: {
       stepDays: stepsByDay.size,
       meanSteps,

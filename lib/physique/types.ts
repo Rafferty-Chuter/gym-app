@@ -176,9 +176,8 @@ export type PhysiqueProfile = {
   proteinLevel: ProteinLevel;
   dietType: DietType;
   sleepGoalH: number;
-  /** Planner wake time, "HH:MM" local (R3). Since S8 only a fallback until three nights give a usual wake time. */
+  /** The bedtime planner's wake time (R3) and one-off override (S8). Unused since S9 removed the planner; kept so stored profiles still type-check. */
   wakeTimeHHMM?: string;
-  /** S8: a one-off wake time for one morning (`date` is that morning); ignored on other days. */
   wakeOverride?: { date: LocalDate; hhmm: string };
   /** Safety screen answers (U3). `redFlags` feeds SAFE-3 (research F §9); nothing writes it in M1. */
   safety?: { pregnantOrEdHistory?: boolean; answeredAt?: string; redFlags?: SafetyRedFlag[] };

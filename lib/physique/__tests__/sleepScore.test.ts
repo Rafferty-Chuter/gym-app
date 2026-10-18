@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { bannedPhrasesIn } from "@/lib/physique/copy";
-import { nightAxisMin, nightNeedH, nightScore, sleepTrends, tonightPlan, usualWake, wakeConsistency } from "@/lib/physique/sleepScore";
+import { nightAxisMin, nightScore, sleepTrends, usualWake, wakeConsistency } from "@/lib/physique/sleepScore";
 import type { SleepNight } from "@/lib/physique/types";
 
 const TODAY = "2026-10-18";
@@ -46,10 +46,10 @@ describe("night score", () => {
     expect(s.reason).toMatch(/usual time/);
   });
 
-  it("a short night names the shortfall against the need", () => {
+  it("a short night names the shortfall against the goal", () => {
     const s = nightScore([...steady, mk(TODAY, 6, { wakeTime: "07:00", stages: { awakeMin: 15 } })], TODAY, 8)!;
     expect(s.parts[0].score).toBe(75);
-    expect(s.reason).toBe("2h 00m short of the 8h 00m you needed.");
+    expect(s.reason).toBe("2h 00m short of the 8h 00m goal.");
   });
 
   it("a lie-in costs the timing part and is named", () => {
@@ -66,16 +66,18 @@ describe("night score", () => {
     expect(s.score).toBe(100);
   });
 
-  it("the score never beats the hours: a night well short of its need is not Excellent", () => {
+  it("the score never beats the hours: a night well short of the goal is not Excellent", () => {
     const s = nightScore([...steady, mk(TODAY, 6.5, { wakeTime: "07:00", stages: { awakeMin: 10 } })], TODAY, 8)!;
     expect(s.score).toBe(81);
     expect(s.word).toBe("Fair");
   });
 
-  it("the need includes a share of the week's debt before the night", () => {
+  it("judges a night against the goal alone, never a goal raised by earlier short nights (S9)", () => {
     const short = run(7, 6, () => ({}), addDays(TODAY, -1));
-    expect(nightNeedH(short, TODAY, 8)).toBe(9);
-    expect(nightNeedH([], TODAY, 8)).toBe(8);
+    const s = nightScore([...short, mk(TODAY, 8)], TODAY, 8)!;
+    expect(s.goalH).toBe(8);
+    expect(s.parts[0]).toMatchObject({ label: "Hours vs goal", score: 100 });
+    expect(nightScore([mk(TODAY, 7)], TODAY, 8)!.reason).toBe("1h 00m short of the 8h 00m goal.");
   });
 
   it("copy stays calm", () => {
@@ -107,24 +109,6 @@ describe("wake consistency", () => {
     const c = wakeConsistency(run(3, 8, () => ({ wakeTime: "07:00" })), TODAY);
     expect(c.word).toBeNull();
     expect(c.days[0]).toMatchObject({ wake: null, offsetMin: null });
-  });
-});
-
-describe("tonight's plan", () => {
-  it("reads the wake time from the nights and works back to bedtime and wind-down", () => {
-    const p = tonightPlan(run(7, 8, () => ({ wakeTime: "06:45" })), TODAY, 8);
-    expect(p).toMatchObject({ wake: "06:45", wakeSource: "usual", needH: 8, bedtime: "22:25", windDown: "21:55" });
-  });
-
-  it("a one-off for tomorrow wins; a stale one is ignored", () => {
-    const nights = run(7, 8, () => ({ wakeTime: "06:45" }));
-    expect(tonightPlan(nights, TODAY, 8, { override: { date: addDays(TODAY, 1), hhmm: "05:30" } })).toMatchObject({ wake: "05:30", wakeSource: "override" });
-    expect(tonightPlan(nights, TODAY, 8, { override: { date: TODAY, hhmm: "05:30" } }).wakeSource).toBe("usual");
-  });
-
-  it("falls back to an old setting, then 07:00, until three nights give a usual", () => {
-    expect(tonightPlan([], TODAY, 8, { setting: "06:30" })).toMatchObject({ wake: "06:30", wakeSource: "setting" });
-    expect(tonightPlan([], TODAY, 8)).toMatchObject({ wake: "07:00", wakeSource: "default" });
   });
 });
 

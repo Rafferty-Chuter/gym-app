@@ -55,7 +55,7 @@ export default function StrengthSleepRows({ analysis, showSleep = true }: { anal
         sub={
           sl.mean14h == null
             ? "Log 10 of 14 nights for a read"
-            : `${SLEEP_WORD[sl.status]}${sl.debt7h != null && sl.debt7h > 0.5 ? ` · ${sl.debt7h.toFixed(1)} h behind this week` : ""}${sl.acute ? " · short night" : ""}`
+            : `${SLEEP_WORD[sl.status]}${sl.acute ? " · short night" : ""}`
         }
       />}
     </RowGroup>

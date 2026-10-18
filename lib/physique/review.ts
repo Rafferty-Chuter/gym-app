@@ -164,7 +164,7 @@ export function trainingRead(r: WeekReport, deload: DeloadRead, plannedSessions 
   };
 }
 
-/** Mean against the goal, short nights and the week's debt. */
+/** Mean against the goal and short nights. */
 export function sleepRead(r: WeekReport): ReviewRead {
   const s = r.sleep;
   if (s.nights < REVIEW_MIN_NIGHTS || s.meanH == null) {
@@ -180,7 +180,6 @@ export function sleepRead(r: WeekReport): ReviewRead {
     `goal ${formatHoursMin(s.goalH * 60)}`,
     `${plural(s.nights, "night")}`,
     s.shortNights > 0 ? `${s.shortNights} short` : null,
-    s.debtH != null && s.debtH > 0 ? `${formatHoursMin(s.debtH * 60)} under over the week` : null,
   ]
     .filter(Boolean)
     .join(" · ");
