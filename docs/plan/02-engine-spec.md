@@ -636,3 +636,14 @@ The training-side spec is `research/B-training-apps.md` §5 and §8. It is norma
 - `strengthRetention(...) === "losing"` means STR-1 `dropping` (§6.2). `crossFlags` is replaced by §7–8 of this file. There is one cross-signal implementation, and it lives here.
 - Phase `cut` = `lose`; `lean_bulk` = `gain`; `maintain` = `maintain`.
 - `setE1RM` / `sessionE1RM` = §6.1's `e1RM_adj`, with the same exclusions, from `lib/physique/strength.ts`.
+
+
+## 12. Linked reasons (W5)
+
+`lib/physique/linkedReasons.ts` ties each outcome on the weekly report to its likely causes, with the numbers on both ends. Pure; it only links what the week report, the judge and the recovery read already decided.
+
+- **Weight against the plan, through energy balance.** Read over the weight rate's own window (`WeekReport.rateWindow`, usually 28 days): plan = goal rate × trend weight; expected = (mean intake − mean maintenance) × 7 / 7,716 kcal per kg (`ENERGY_DENSITY_KCAL_PER_KG`); actual = rate × trend weight. On plan, slower or faster is the scorecard's own call (`rateVsPlan` with `planMargin`), so the card, the weight tile and Home's rate row never disagree. Causes, in order: intake off target in the direction of the miss; the target itself drifted from the plan as maintenance moved (the Monday review moves it); fewer steps than last week (`NET_KCAL_PER_KG_PER_STEP` 0.0004, EVID: walking's net cost about 0.5 kcal/kg/km at about 1,300 steps a km; `LINK_STEPS_DROP` 2,000, OURS); unlogged or partial days (`LINK_LOGGING_DAYS` 3, OURS); else water or a settling estimate, said as such. Gate: `LINK_MIN_FOOD_SHARE` 0.5 of the window logged (OURS).
+- **`planMargin`.** The rate's margin is dropped when the window's intake against target points the same way as the rate's miss (over target with a slower cut or a faster gain, under it with the reverse): two independent reads agreeing are not noise. OURS.
+- **Lifts not growing.** From the judge's strength read since the phase began; on a cut only a drop links, elsewhere holding counts. Causes: sleep short of goal (the review's thresholds), HRV or resting heart rate flagged by the recovery read, protein under 1.6 g/kg (PRO-2), a cut faster than `CUT_GREEN_MAX` 0.75 %/wk, a gain under target, intake well under maintenance otherwise (`LINK_LOW_INTAKE_KCAL` 300, OURS), missed sessions, muscles under their set band. With none, it says what was checked and points at the program; with too little data, it says so. Rising lifts on a clean week say what supported them.
+- **Recovery below usual**, with sleep and a fast cut, when the lifts link has not carried it.
+- Lifts and recovery read as of today, so weeks before last week show the weight link only. Copy is hedged ("likely", "could"): the data shows things moved together, not that one caused the other.

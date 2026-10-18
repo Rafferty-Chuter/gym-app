@@ -23,7 +23,7 @@ import { RHR_FLAG_BPM } from "@/lib/physique/recovery";
 import { WAKE_SPREAD_MIN } from "@/lib/physique/sleepScore";
 import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import type { GoalType } from "@/lib/physique/types";
-import { FIBRE_GOOD_SHARE, FIBRE_TARGET_G, INTAKE_ON_TARGET_KCAL, MAINTAIN_BAND_KG, PROTEIN_GOOD_SHARE, SLEEP_GOOD_H, SLEEP_SHORT_H, STEPS_GOOD, TRAINING_DAYS_GOOD, WAIST_HOLD_CM, focusFor, rateVsPlan, type Focus, type Tone } from "@/lib/physique/weekScorecard";
+import { FIBRE_GOOD_SHARE, FIBRE_TARGET_G, INTAKE_ON_TARGET_KCAL, MAINTAIN_BAND_KG, PROTEIN_GOOD_SHARE, SLEEP_GOOD_H, SLEEP_SHORT_H, STEPS_GOOD, TRAINING_DAYS_GOOD, WAIST_HOLD_CM, focusFor, planMargin, rateVsPlan, type Focus, type Tone } from "@/lib/physique/weekScorecard";
 
 // ── Thresholds ──
 
@@ -177,7 +177,7 @@ const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(
 
 function rateRow({ recent, goalType, planRatePct, gainCeilingPct }: PulseInputs): PulseRow | null {
   const rate = recent.weight.ratePctPerWeek;
-  const vs = rateVsPlan(rate, planRatePct, focusFor(goalType), gainCeilingPct, recent.weight.rateMarginPct);
+  const vs = rateVsPlan(rate, planRatePct, focusFor(goalType), gainCeilingPct, planMargin(recent, planRatePct));
   if (!vs || rate == null) return null;
   return { id: "rate", label: "Weight", value: signedPct(rate), note: vs.text, tone: vs.tone, href: "/body" };
 }

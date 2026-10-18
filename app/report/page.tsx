@@ -8,7 +8,7 @@ import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 import { useSingleton } from "@/lib/storage/useStored";
-import { addDays, type LocalDate, type Now } from "@/lib/dates";
+import { addDays, dayDiff, type LocalDate, type Now } from "@/lib/dates";
 import { useBodyData } from "@/lib/physique/io/bodyData";
 import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
@@ -33,6 +33,8 @@ import { readDeload } from "@/lib/training/deload";
 import ReviewDecision from "@/components/report/ReviewDecision";
 import { FixesCard, SummaryCard } from "@/components/report/InsightCards";
 import Scorecard from "@/components/report/Scorecard";
+import LinkedReasonsCard from "@/components/report/LinkedReasons";
+import { linkedReasons } from "@/lib/physique/linkedReasons";
 import { FIBRE_TARGET_G, coverageLine, scorecard } from "@/lib/physique/weekScorecard";
 import { rateBands } from "@/lib/physique/targets";
 
@@ -133,6 +135,23 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     return out;
   }, [analysis, data, workouts, unit, now, today, deloadRecord, report, plannedSessions, reviewModel, start, reviewWeek]);
 
+  // W5: what happened tied to why. Lifts and recovery read as of today, so only this week and last week carry them.
+  const links = useMemo(() => {
+    if (!analysis || !report.hasData) return [];
+    const sleepShort = analysis.sleep.status === "short" || analysis.sleep.status === "severe";
+    const recovery = recoveryRead(data.sleepNights, today, sleepShort);
+    return linkedReasons({
+      report,
+      prev: prevReport.hasData ? prevReport : null,
+      analysis,
+      goal: activeGoal,
+      recovery: recovery.status === "none" ? null : recovery,
+      plannedSessions,
+      kg: (x: number) => formatWeight(x, unit, 1),
+      current: dayDiff(report.end, today) <= 7,
+    });
+  }, [analysis, report, prevReport, data.sleepNights, today, activeGoal, plannedSessions, unit]);
+
   const caption = `${shortLocalDate(report.start)} to ${shortLocalDate(report.end)} · ${report.complete ? "complete" : `${report.daysCovered} of 7 days so far`}`;
   const w = (kg: number | null) => (kg == null ? dash : formatBodyWeight(kg, unit));
   const kgDelta = (kg: number | null) => (kg == null ? dash : `${kg > 0 ? "+" : kg < 0 ? "−" : ""}${Math.abs(kgToDisplay(kg, unit)).toFixed(1)} ${unit}`);
@@ -164,6 +183,8 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         </header>
 
         <SummaryCard verdict={report.verdict} heading={insight?.heading ?? null} />
+
+        <LinkedReasonsCard links={links} />
 
         {report.hasData && <Scorecard tiles={tiles} />}
 

@@ -17,6 +17,7 @@
 
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { ON_TRACK_TOLERANCE } from "@/lib/physique/judge";
+import { ADHERENCE_TOLERANCE_KCAL } from "@/lib/physique/intake";
 import { RHR_FLAG_BPM } from "@/lib/physique/recovery";
 import { WAKE_SPREAD_MIN } from "@/lib/physique/sleepScore";
 import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
@@ -162,6 +163,28 @@ export function rateVsPlan(ratePct: number | null, planPct: number | null | unde
   return faster ? { text: "Faster than plan", tone: "watch" } : { text: "Slower than plan", tone: focus === "cut" ? "watch" : "neutral" };
 }
 
+/** Share of the rate's window with intake logged before intake can back a read of the rate. OURS: half the days keeps one odd week from standing for the month. */
+export const CORROBORATE_MIN_FOOD_SHARE = 0.5;
+
+/**
+ * The margin a rate is read with against the plan (W5). The rate's own
+ * margin keeps a noisy month from reading off plan; it is dropped when the
+ * same window's intake against target points the same way as the miss
+ * (over target with a slower cut or a faster gain, under it with the
+ * reverse), since two independent reads agreeing are not noise. Used by the
+ * weight tile, Home's rate row and the linked reasons, so all three agree.
+ */
+export function planMargin(report: WeekReport, planPct: number | null | undefined): number {
+  const margin = Math.max(0, report.weight.rateMarginPct ?? 0);
+  const rate = report.weight.ratePctPerWeek;
+  const w = report.rateWindow;
+  if (rate == null || planPct == null || !w || w.meanKcal == null || w.meanTargetKcal == null || w.foodDays < CORROBORATE_MIN_FOOD_SHARE * w.days) return margin;
+  const diff = rate - planPct;
+  const delta = w.meanKcal - w.meanTargetKcal;
+  if (Math.abs(diff) <= ON_TRACK_TOLERANCE || Math.abs(delta) <= ADHERENCE_TOLERANCE_KCAL) return margin;
+  return Math.sign(diff) === Math.sign(delta) ? 0 : margin;
+}
+
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)} %/wk`;
 
 function weightTile({ report, unit, goalType, planRatePct, gainCeilingPct }: ScorecardInputs): Tile {
@@ -169,7 +192,7 @@ function weightTile({ report, unit, goalType, planRatePct, gainCeilingPct }: Sco
   const focus = focusFor(goalType);
   const value = w.endTrendKg == null ? "–" : formatBodyWeight(w.endTrendKg, unit);
   const weighed = `${w.weighIns} of ${report.daysCovered} weighed`;
-  const vsPlan = rateVsPlan(w.ratePctPerWeek, planRatePct, focus, gainCeilingPct, w.rateMarginPct);
+  const vsPlan = rateVsPlan(w.ratePctPerWeek, planRatePct, focus, gainCeilingPct, planMargin(report, planRatePct));
   if (vsPlan && w.ratePctPerWeek != null) {
     return { id: "weight", label: "Weight trend", value, sub: `${signedPct(w.ratePctPerWeek)} · plan ${signedPct(planRatePct as number).replace(" %/wk", "")}`, delta: vsPlan, chart: { kind: "line", values: report.days.map((d) => d.trendKg) }, href: "/body" };
   }

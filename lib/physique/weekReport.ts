@@ -150,6 +150,22 @@ export type WeekReport = {
     /** Mean over the BASELINE_DAYS before the week, once BASELINE_MIN_VALID nights carry one. */
     usualRhr: number | null;
   };
+  /**
+   * Intake, target and maintenance over the weight rate's own window to the
+   * week's end (W5), so a link between eating and the rate compares like with
+   * like. Null without a rate.
+   */
+  rateWindow: {
+    from: LocalDate;
+    days: number;
+    /** Days whose intake counts toward a mean (complete or fasting). */
+    foodDays: number;
+    unlogged: number;
+    partial: number;
+    meanKcal: number | null;
+    meanTargetKcal: number | null;
+    meanMaintenanceKcal: number | null;
+  } | null;
   /** The judge's waist read over the WAIST_READ_DAYS to the week's end. */
   waist: { entries: number; latestCm: number | null; deltaCm: number | null; weeks: number };
   /** Each day from the start to `through`, for the small charts (W4). */
@@ -235,6 +251,26 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   }
   const fibreDays = fibreByDay.size;
   const meanFibreG = fibreDays >= MIN_DAYS_FOR_MEAN ? Math.round(mean([...fibreByDay.values()])) : null;
+
+  // ── The rate's window (W5) ──
+  let rateWindow: WeekReport["rateWindow"] = null;
+  if (rate) {
+    const from = addDays(through, -(rate.windowDays - 1));
+    const series = dailyIntakeSeries(inputs.foodEntries, inputs.dayFlags, from, through);
+    const countedW = series.filter((d) => countsForBalance(d.status));
+    const targetsW = countedW.map((d) => targetInEffect(inputs.program, d.date)?.kcal).filter((k): k is number => typeof k === "number");
+    const expW = (inputs.expenditure ?? []).filter((p) => p.date >= from && p.date <= through);
+    rateWindow = {
+      from,
+      days: rate.windowDays,
+      foodDays: countedW.length,
+      unlogged: series.filter((d) => d.status === "unlogged" && firstFood != null && d.date >= firstFood).length,
+      partial: series.filter((d) => d.status === "partial").length,
+      meanKcal: countedW.length ? Math.round(mean(countedW.map((d) => d.kcal))) : null,
+      meanTargetKcal: targetsW.length ? Math.round(mean(targetsW)) : null,
+      meanMaintenanceKcal: expW.length ? Math.round(mean(expW.map((p) => p.tdee))) : null,
+    };
+  }
 
   // ── Training ──
   const weekWorkouts = inputs.workouts.filter((w) => {
@@ -379,6 +415,7 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
       meanRhr: rhrs.length >= RECENT_MIN_VALID ? Math.round(mean(rhrs)) : null,
       usualRhr: usual.length >= BASELINE_MIN_VALID ? Math.round(mean(usual)) : null,
     },
+    rateWindow,
     waist: { entries: waistRead.entries, latestCm: lastWaist ? round1(lastWaist.cm) : null, deltaCm: waistRead.deltaCm != null ? round1(waistRead.deltaCm) : null, weeks: Math.round(waistRead.weeks) },
     days: weekDays,
     verdict: inputs.verdict ?? null,
