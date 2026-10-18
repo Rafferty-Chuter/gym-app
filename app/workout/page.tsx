@@ -35,6 +35,8 @@ import { getCompletedLoggedSets, nextSetType, SET_TYPE_LABEL, SET_TYPE_MARK, set
 import { getTemplateById } from "@/lib/templateStorage";
 import RestBar from "@/components/workout/RestBar";
 import PlateCalculator from "@/components/workout/PlateCalculator";
+import RestPicker from "@/components/workout/RestPicker";
+import SwipeToDelete from "@/components/workout/SwipeToDelete";
 import WorkoutComplete from "@/components/training/WorkoutComplete";
 import { exerciseHref } from "@/components/training/WorkoutViews";
 import { getWorkoutHistory, type StoredWorkout as HistoryWorkout } from "@/lib/trainingAnalysis";
@@ -384,15 +386,6 @@ export default function WorkoutPage() {
 
   useEffect(() => {
     if (restAdjustExerciseId === null) return;
-    function onKey(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") setRestAdjustExerciseId(null);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [restAdjustExerciseId]);
-
-  useEffect(() => {
-    if (restAdjustExerciseId === null) return;
     if (!exercises.some((e) => e.id === restAdjustExerciseId)) setRestAdjustExerciseId(null);
   }, [exercises, restAdjustExerciseId]);
 
@@ -590,8 +583,9 @@ export default function WorkoutPage() {
           : targetsForExercise(ex.name);
       const raw = suggestNext({ name: ex.name, targets, sessions: getSessionsForExercise({ exerciseId: ex.exerciseId, name: ex.name }), unit, phase });
       const s = deloadActive ? deloadSuggestion(raw, equipmentFor(ex.name)) : raw;
-      const label = suggestionLabel(s, unit);
-      targetMap[ex.name] = label && deloadActive && s.kind === "next" ? `${label.replace(/^Next/, "Deload")} · RIR ${s.rir}+` : label;
+      // C4: the "Next 82.5 kg × 6" line went at the founder's request; a deload week still says what to lift.
+      const label = deloadActive ? suggestionLabel(s, unit) : null;
+      targetMap[ex.name] = label && s.kind === "next" ? `${label.replace(/^Next/, "Deload")} · RIR ${s.rir}+` : null;
     }
     setLastPerformance(lastMap);
     setNextTarget(targetMap);
@@ -1430,7 +1424,7 @@ export default function WorkoutPage() {
                                 setExerciseMenuOpenId(null);
                               }}
                             >
-                              Adjust rest
+                              Rest time
                             </button>
                             <button
                               type="button"
@@ -1531,6 +1525,14 @@ export default function WorkoutPage() {
                                               </span>
                                             </div>
                                           )}
+                                          <SwipeToDelete
+                                            label={`Delete set ${index + 1}`}
+                                            onDelete={() => deleteSet(exercise.id, index)}
+                                            onSwipeStart={() => {
+                                              if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
+                                              longPressTimerRef.current = null;
+                                            }}
+                                          >
                                           <div
                                             className={`grid grid-cols-[1.125rem_minmax(3.25rem,0.8fr)_minmax(4.25rem,1.3fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center rounded-lg py-0.5 ${
                                               isNext
@@ -1789,6 +1791,7 @@ export default function WorkoutPage() {
                                               </button>
                                             </div>
                                           </div>
+                                          </SwipeToDelete>
 
                                           {setActionMenuKey === noteKey && (
                                             <div
@@ -1907,12 +1910,17 @@ export default function WorkoutPage() {
                                         {formatRest(timer.remainingSec)}
                                       </span>
                                     ) : (
-                                      <>
+                                      <button
+                                        type="button"
+                                        onClick={() => setRestAdjustExerciseId(exercise.id)}
+                                        className="-my-1.5 -ml-1 flex min-h-[32px] items-center gap-2 rounded-md px-1 touch-manipulation"
+                                        aria-label={`Rest ${rest === 0 ? "off" : formatRest(rest)}. Change rest time`}
+                                      >
                                         <span className="text-[var(--text-tertiary)]">Rest</span>
-                                        <span className="tabular-nums font-medium text-[var(--text)]">
-                                          {formatRest(rest)}
+                                        <span className="tabular-nums font-medium text-[var(--text)] underline decoration-dotted decoration-[var(--text-tertiary)] underline-offset-4">
+                                          {rest === 0 ? "Off" : formatRest(rest)}
                                         </span>
-                                      </>
+                                      </button>
                                     )}
                                     <button
                                       type="button"
@@ -2028,71 +2036,18 @@ export default function WorkoutPage() {
         </div>
       </div>
 
-      {restAdjustExerciseId !== null &&
-        (() => {
-          const exAdj = exercises.find((e) => e.id === restAdjustExerciseId);
-          if (!exAdj) return null;
-          const rAdj = exAdj.restSec ?? 90;
-          return (
-            <div
-              className="fixed inset-0 z-[55] flex items-end justify-center bg-[var(--scrim)] p-3 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:items-center sm:pb-3"
-              onClick={() => setRestAdjustExerciseId(null)}
-            >
-              <div
-                role="dialog"
-                aria-labelledby="rest-adjust-title"
-                aria-modal="true"
-                className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-black/55 ring-1 ring-[var(--border)]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h2 id="rest-adjust-title" className="text-sm font-semibold text-[var(--text)]">
-                  Adjust rest · {exAdj.name}
-                </h2>
-                <p className="mt-1 text-[11px] leading-snug text-[var(--text-tertiary)]">
-                  Default duration for this exercise when the timer runs after a set.
-                </p>
-                <div className="mt-3 flex items-center justify-between text-[10px] text-[var(--text-secondary)]">
-                  <span>Duration</span>
-                  <span className="tabular-nums text-[var(--text)]">{formatRest(rAdj)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={300}
-                  step={15}
-                  value={rAdj}
-                  onChange={(e) =>
-                    setExerciseRest(
-                      exAdj.id,
-                      Math.max(0, Math.min(300, Number(e.target.value) || 0))
-                    )
-                  }
-                  className="mt-1.5 w-full accent-[var(--status-good)] h-2"
-                  aria-label={`Rest duration for ${exAdj.name}`}
-                />
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {[60, 90, 120, 180].map((sec) => (
-                    <button
-                      key={sec}
-                      type="button"
-                      onClick={() => setExerciseRest(exAdj.id, sec)}
-                      className="text-[10px] px-2 py-1 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--border)]"
-                    >
-                      {sec}s
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] py-2.5 text-sm font-semibold text-[var(--text)] hover:bg-[var(--border)] transition"
-                  onClick={() => setRestAdjustExerciseId(null)}
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          );
-        })()}
+      {(() => {
+        const exAdj = restAdjustExerciseId !== null ? exercises.find((e) => e.id === restAdjustExerciseId) : undefined;
+        return (
+          <RestPicker
+            open={Boolean(exAdj)}
+            exerciseName={exAdj?.name ?? ""}
+            valueSec={exAdj?.restSec ?? 90}
+            onChange={(sec) => exAdj && setExerciseRest(exAdj.id, sec)}
+            onClose={() => setRestAdjustExerciseId(null)}
+          />
+        );
+      })()}
 
       {/* R5 (Hevy): the running rest as a bottom bar with −15 / +15 / Skip. */}
       {(() => {
