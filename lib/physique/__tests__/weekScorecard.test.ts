@@ -44,13 +44,23 @@ describe("weekly scorecard (W4)", () => {
     expect(kcal.delta?.tone).toBe(Math.abs(report.food.deltaKcal!) <= INTAKE_ON_TARGET_KCAL ? "good" : "watch");
   });
 
-  it("charts one value per day, and a rising lift reads good", () => {
+  it("charts one value per day", () => {
     const tiles = scorecard({ report, prev, unit: "kg", goalType: "lose" });
     const kcal = tiles.find((t) => t.id === "calories")!;
     expect(kcal.chart.kind === "bars" && kcal.chart.values.length).toBe(7);
-    const strength = tiles.find((t) => t.id === "strength")!;
-    expect(strength.value).toMatch(/^\+/);
-    expect(strength.delta?.tone).toBe("good");
+  });
+
+  it("reads the main lifts from the strength engine, never its own week-on-week change (A1)", () => {
+    const base = { baselineMissing: false, strOk: true, mainLifts: 2, liftsRead: 2 };
+    const at = (strength: Parameters<typeof scorecard>[0]["strength"]) => scorecard({ report, prev, unit: "kg", goalType: "lose", strength }).find((t) => t.id === "strength")!;
+    const rising = at({ ...base, status: "rising", lifts: [{ name: "Squat", changePct: 4 }, { name: "Bench Press", changePct: 1 }] });
+    expect(rising).toMatchObject({ value: "Rising", sub: "e1RM since the phase began", href: "/exercises" });
+    expect(rising.delta).toEqual({ text: "Squat +4%", tone: "good" });
+    const oneDown = at({ ...base, status: "one-lift", lifts: [{ name: "Squat", changePct: -1 }, { name: "Bench Press", changePct: -8 }] });
+    expect(oneDown.value).toBe("One down");
+    expect(oneDown.delta).toEqual({ text: "Bench Press −8%", tone: "watch" });
+    expect(at(null).value).toBe("–");
+    expect(at({ ...base, status: "unclear", lifts: [] }).delta).toBeNull();
   });
 
   it("an empty week says so and stays neutral", () => {

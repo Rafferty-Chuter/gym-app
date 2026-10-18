@@ -227,7 +227,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
               <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
                 {dayAction.to === today ? "Today" : dayAction.to === addDays(today, -1) ? "Yesterday" : dayAction.to === addDays(today, 1) ? "Tomorrow" : longLocalDate(dayAction.to)}
               </span>
-              <button type="button" onClick={() => setDayAction({ kind: "copy", to: addDays(dayAction.to, 1) })} className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: "var(--text-secondary)" }} aria-label="Later day">
+              <button type="button" onClick={() => setDayAction({ kind: "copy", to: addDays(dayAction.to, 1) })} disabled={dayAction.to >= today} className="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-30" style={{ color: "var(--text-secondary)" }} aria-label="Later day">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
                   <path d="M9 6l6 6-6 6" />
                 </svg>

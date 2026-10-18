@@ -19,8 +19,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { EXTRACT_MEMORY_MODEL } from "@/lib/ai/models";
 import { logAssistantCallCost } from "@/lib/assistantCostLogging";
+import { ASSISTANT_ENABLED } from "@/lib/features";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const VALID_CATEGORIES = new Set(["preferences", "goals", "findings", "facts"] as const);
 
@@ -65,6 +65,8 @@ function stripCodeFences(text: string): string {
 }
 
 export async function POST(req: Request) {
+  // Parked with the chat (A1): no paid call while it is switched off, and this route has no daily cap of its own.
+  if (!ASSISTANT_ENABLED) return NextResponse.json({ facts: [] }, { status: 404 });
   let body: unknown;
   try {
     body = await req.json();
@@ -105,6 +107,7 @@ export async function POST(req: Request) {
 
   try {
     const startedAt = Date.now();
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response = await anthropic.messages.create({
       model: EXTRACT_MEMORY_MODEL,
       max_tokens: 1024,

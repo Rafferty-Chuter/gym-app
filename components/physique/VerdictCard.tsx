@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ErrorLine, SecondaryButton, StatusDot } from "@/components/physique/ui";
 import { applyRecommendation } from "@/lib/physique/io/recommendations";
@@ -107,9 +106,10 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
             {note ?? analysis.recommendationLabel}
           </span>
           {rec.kind === "confirm_days" ? (
-            <Link href={`/body?date=${rec.dates[0] ?? ""}`} className="shrink-0 text-[13px] font-semibold" style={{ color: "var(--text)" }}>
+            // Partial food days are confirmed on Food, on that day. A plain anchor: Food reads `?date=` when it loads, which a soft navigation would miss (A1).
+            <a href={`/food?date=${rec.dates[0] ?? ""}`} className="shrink-0 text-[13px] font-semibold" style={{ color: "var(--text)" }}>
               Open day
-            </Link>
+            </a>
           ) : rec.kind === "log_more" && rec.what === "waist" ? null : button && !note ? (
             <SecondaryButton small onClick={apply} disabled={busy}>
               {button}

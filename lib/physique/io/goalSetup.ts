@@ -188,6 +188,8 @@ export async function saveBasics(input: { sex?: Sex; heightCm?: number; age?: nu
   if (input.sex) patch.sex = input.sex;
   if (input.heightCm) patch.heightCm = input.heightCm;
   if (input.age) patch.age = input.age;
+  // null clears a choice made earlier (tap again to deselect); undefined leaves it as it was (A1).
   if (input.bodyFatCategory) patch.bodyFatCategory = input.bodyFatCategory;
+  else if (input.bodyFatCategory === null) patch.bodyFatCategory = undefined;
   await savePhysiqueProfile(patch);
 }

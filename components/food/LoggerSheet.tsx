@@ -319,7 +319,7 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
             </div>
             {savedList.length === 0 ? (
               <p className="py-4 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
-                {saved.length === 0 ? "No saved foods yet. Anything you quick add is kept here." : "No match."}
+                {saved.length === 0 ? "No saved foods yet. Everything you log is kept here for next time." : "No match."}
               </p>
             ) : (
               <ul className="flex flex-col">

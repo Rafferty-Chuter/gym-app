@@ -59,7 +59,8 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
     [now, unit, weighIns, storedProfile, activeGoal, version]
   );
 
-  const needsBasics = ctx.profile.missing.length > 0;
+  // Fixed for the visit: once the basics are saved they are no longer missing, but the step count must not change under the user (A1).
+  const [needsBasics] = useState(() => ctx.profile.missing.length > 0);
   const [step, setStep] = useState<Step>(needsBasics ? "basics" : "target");
   const [targetText, setTargetText] = useState(() => {
     const start = activeGoal?.targetKg ?? ctx.trendKg;

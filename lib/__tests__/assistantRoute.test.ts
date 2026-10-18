@@ -1,6 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/assistant/route";
+import { POST as EXTRACT } from "@/app/api/assistant/extract-memory/route";
+
+// The chat is parked (lib/features.ts); these tests switch it on to check validation, then check it stays shut while parked.
+const flags = vi.hoisted(() => ({ enabled: true }));
+vi.mock("@/lib/features", () => ({
+  get ASSISTANT_ENABLED() {
+    return flags.enabled;
+  },
+}));
+afterEach(() => {
+  flags.enabled = true;
+});
 
 function post(body: unknown) {
   return new NextRequest("http://localhost/api/assistant", {
@@ -25,5 +37,15 @@ describe("assistant route: physique payload (I2)", () => {
     expect(res.status).toBe(400);
     const json = (await res.json()) as { error: string };
     expect(json.error).toMatch(/too large/);
+  });
+});
+
+describe("assistant routes while parked (A1)", () => {
+  it("answer 404 before reading the body, so no paid call can be made", async () => {
+    flags.enabled = false;
+    const res = await POST(post({ message: "hello", trainingSummary, client_id: "test-client-0001" }));
+    expect(res.status).toBe(404);
+    const mem = await EXTRACT(new Request("http://localhost/api/assistant/extract-memory", { method: "POST", body: JSON.stringify({ conversation: [{ role: "user", content: "hi" }] }) }));
+    expect(mem.status).toBe(404);
   });
 });

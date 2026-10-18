@@ -122,7 +122,7 @@ export default function ProfilePage() {
                   ))}
                 </span>
               }
-              sub="Display only. Stored values never change."
+              sub="Body weights stay in kg underneath. Logged workouts switch to the new unit."
             />
             <Row
               label="Appearance"

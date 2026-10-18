@@ -14,11 +14,6 @@
       "count": 1
     }
   },
-  "lib/assistantExplanation.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
   "lib/dayQuality.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2

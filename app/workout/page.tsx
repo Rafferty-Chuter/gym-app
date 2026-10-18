@@ -943,7 +943,8 @@ export default function WorkoutPage() {
     };
     // Records are judged against the history before this session is added.
     const records = workoutRecords(completed, getWorkoutHistory());
-    addWorkout(completed);
+    // A session with nothing ticked is not history; the summary says so (A1).
+    if (totalSets > 0) addWorkout(completed);
     setFinished({ workout: completed, records });
     clearActiveWorkout();
     persistEnabledRef.current = false;
@@ -973,7 +974,8 @@ export default function WorkoutPage() {
     setRestByExercise({});
     setShowSummary(false);
     setShowDiscardConfirm(false);
-    router.push("/");
+    // Back to Train, where Done also lands (A1).
+    router.push("/train");
   }
 
   function reorderExercisesByIds(nextIds: number[]) {
@@ -1216,6 +1218,8 @@ export default function WorkoutPage() {
   }
 
   function deleteExercise(exerciseId: number) {
+    // Same guard as Replace: logged sets need a confirm before they go (A1).
+    if (exerciseHasMeaningfulLoggedData(exerciseId) && !window.confirm("This exercise has logged sets. Deleting it removes them. Continue?")) return;
     setExerciseMenuOpenId(null);
     setRestAdjustExerciseId((id) => (id === exerciseId ? null : id));
     setExercises((prev) => prev.filter((exercise) => exercise.id !== exerciseId));

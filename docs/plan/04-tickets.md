@@ -651,6 +651,7 @@ Normative spec: `research/B-training-apps.md` §5 and §8, with the amendment in
 - **T6 · Mesocycles and deloads.** Scheduled and triggered deloads (Dr. Muscle's numbers: −50% sets, −10% load).
 - **T7 · Phase-aware training rules.** The cut and lean-bulk rules from research B §5, wired to `PhysiqueGoal`.
 - **T8 · Logging extras.** Warm-up generator, plate calculator, live PR mark (quiet, no confetti), supersets, rest timer ±15 s.
+- **T9 · Workout weights stored in kg.** Logged sets keep their weight as text in whatever unit was on at the time, so the kg/lb switch rewrites history (CLAUDE.md rule 4 says it should only change display). Store kg with a unit-free number, convert at every input and display (logger, routines, history, exercise pages, charts, e1RM, CSV import and export), and migrate existing history once using the current unit. Found in the A1 audit; the Profile copy now says what the switch does until this lands.
 
 ---
 

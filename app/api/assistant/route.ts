@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { logAssistantCallCost } from "@/lib/assistantCostLogging";
 import { ASSISTANT_MODEL } from "@/lib/ai/models";
+import { ASSISTANT_ENABLED } from "@/lib/features";
 import { getDailyUsage, isOverDailyCap } from "@/lib/assistantDailyCap";
 import { formatUserProfileBlock, type OnboardingProfile } from "@/lib/onboardingProfile";
 import {
@@ -3432,6 +3433,8 @@ function respondLLMStream(
 }
 
 export async function POST(request: NextRequest) {
+  // Parked: the paid route answers nobody while the chat is switched off (A1).
+  if (!ASSISTANT_ENABLED) return NextResponse.json({ error: "The assistant is switched off." }, { status: 404 });
   const wantsStream = clientWantsStream(request);
   try {
     const requestStartedAt = Date.now();

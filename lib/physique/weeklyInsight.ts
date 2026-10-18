@@ -16,7 +16,7 @@ import { ADHERENCE_TOLERANCE_KCAL } from "@/lib/physique/intake";
 import { PRO2_MIN_G_PER_KG } from "@/lib/physique/judge";
 import { planLine, type PhasePlan } from "@/lib/physique/phasePlan";
 import type { RecoveryRead } from "@/lib/physique/recovery";
-import { REVIEW_LIFT_MOVE_PCT, REVIEW_MIN_FOOD_DAYS, REVIEW_MIN_NIGHTS, REVIEW_SHORT_NIGHTS, REVIEW_SLEEP_SHORTFALL_H } from "@/lib/physique/review";
+import { REVIEW_MIN_FOOD_DAYS, REVIEW_MIN_NIGHTS, REVIEW_SHORT_NIGHTS, REVIEW_SLEEP_SHORTFALL_H } from "@/lib/physique/review";
 import type { WeekReport } from "@/lib/physique/weekReport";
 import type { PhysiqueAnalysis, PhysiqueGoal, SignalState } from "@/lib/physique/types";
 import { bandLabel } from "@/lib/training/volumeTargets";
@@ -91,13 +91,6 @@ export type InsightInputs = {
 const round10 = (n: number) => Math.round(n / 10) * 10;
 const pct = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)} %`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
-function liftsRead(r: WeekReport) {
-  const read = r.training.lifts.filter((l) => l.changePct != null);
-  const down = read.filter((l) => (l.changePct ?? 0) <= -REVIEW_LIFT_MOVE_PCT);
-  const up = read.filter((l) => (l.changePct ?? 0) >= REVIEW_LIFT_MOVE_PCT);
-  return { read, down, up };
-}
 
 function sleepShort(r: WeekReport): boolean {
   const s = r.sleep;
@@ -308,8 +301,9 @@ export function goingWell(i: InsightInputs): string[] {
   if (r.daysCovered >= 5 && r.weight.weighIns >= r.daysCovered - 1) out.push(`weighed in ${r.weight.weighIns} of ${r.daysCovered} days`);
   if (r.food.daysLogged >= REVIEW_MIN_FOOD_DAYS && r.food.deltaKcal != null && Math.abs(r.food.deltaKcal) <= ADHERENCE_TOLERANCE_KCAL) out.push("intake on target");
   if (r.food.proteinGPerKg != null && r.food.proteinGPerKg >= PRO2_MIN_G_PER_KG) out.push(`protein ${r.food.proteinGPerKg.toFixed(1)} g/kg`);
-  const { down, up } = liftsRead(r);
-  if (up.length > 0 && down.length === 0) out.push(up.length === 1 ? `${up[0].name.toLowerCase()} up` : "lifts up");
+  // From the strength engine, as the summary and the tile read it.
+  if (i.analysis.strength.status === "rising") out.push("lifts up");
+  else if (i.analysis.strength.status === "holding") out.push("lifts held");
   if (r.sleep.nights >= REVIEW_MIN_NIGHTS && !sleepShort(r)) out.push("sleep on goal");
   if (r.complete && i.plannedSessions && r.training.sessions >= i.plannedSessions) out.push("every session done");
   return out;

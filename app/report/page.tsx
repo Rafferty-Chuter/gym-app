@@ -105,7 +105,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   );
   // Last week, for "vs last week" on the scorecard.
   const prevReport: WeekReport = useMemo(() => buildWeekReport(reportInputs, addDays(start, -7), now), [reportInputs, start, now]);
-  const tiles = useMemo(() => scorecard({ report, prev: prevReport.hasData ? prevReport : null, unit, goalType: data.goal?.type ?? null }), [report, prevReport, unit, data.goal]);
+  const tiles = useMemo(() => scorecard({ report, prev: prevReport.hasData ? prevReport : null, unit, goalType: data.goal?.type ?? null, strength: analysis?.strength ?? null }), [report, prevReport, unit, data.goal, analysis]);
 
   const plannedSessions = useMemo(() => {
     const n = Number(loadOnboardingProfile()?.daysPerWeek);
@@ -247,9 +247,11 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
               </p>
             ) : (
               <RowGroup>
-                {report.training.lifts.map((l) => (
-                  <Row key={l.name} label={l.name} value={`${formatWeight(l.e1rmKg, unit)}`} sub={l.changePct == null ? "e1RM · no baseline in the previous 3 weeks" : `e1RM · ${l.changePct > 0 ? "+" : l.changePct < 0 ? "−" : ""}${Math.abs(l.changePct).toFixed(1)} % vs the previous 3 weeks`} />
-                ))}
+                {report.training.lifts.map((l) => {
+                  // The change shown is the strength engine's, since the phase began; this week's best e1RM is the raw number.
+                  const since = analysis?.strength.lifts.find((x) => x.name === l.name)?.changePct ?? null;
+                  return <Row key={l.name} label={l.name} value={`${formatWeight(l.e1rmKg, unit)}`} sub={since == null ? "Best e1RM this week" : `Best e1RM this week · ${since > 0 ? "+" : since < 0 ? "−" : ""}${Math.abs(since).toFixed(1)} % since the phase began`} />;
+                })}
                 <div className="px-4 py-3">
                   <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
                     Hard sets by muscle

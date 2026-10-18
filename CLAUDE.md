@@ -22,7 +22,7 @@ A Next.js 16 (app router) + React 19 + Tailwind 4 web app. It started as an assi
 | Production build | `npm run build` | run before pushing UI or route changes (catches Next-only errors) |
 | LLM evals | `npm run eval` | needs the dev server running and `ANTHROPIC_API_KEY` in `.env.local`; spends money |
 
-Environment: `.env.local` (gitignored) holds `ANTHROPIC_API_KEY` (required) and `OPENAI_API_KEY` (only the parked assistant routes: `/api/coach-analysis` and `lib/explainRoutineCoachLLM.ts`; the logger's progression rule is pure since T4).
+Environment: `.env.local` (gitignored) holds `ANTHROPIC_API_KEY` (required). No OpenAI code remains since A1 (the old `/api/coach-analysis` route and its helpers were removed), so `OPENAI_API_KEY` is unused.
 
 ## Map
 

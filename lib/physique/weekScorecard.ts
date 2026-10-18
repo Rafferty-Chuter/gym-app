@@ -9,7 +9,7 @@
 
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
-import type { GoalType } from "@/lib/physique/types";
+import type { GoalType, PhysiqueAnalysis, StrengthStatus } from "@/lib/physique/types";
 import type { WeekReport } from "@/lib/physique/weekReport";
 
 // ── Thresholds ──
@@ -22,6 +22,8 @@ export const PROTEIN_GOOD_SHARE = 0.7;
 export const MAINTAIN_BAND_KG = 0.3;
 /** Main lifts down this much on average read as watch. OURS, the same 2% the Monday review uses. */
 export const LIFTS_DOWN_PCT = 2;
+/** Lifts named on the main-lifts tile, biggest mover first. OURS: one fits the tile at 390 px. */
+export const STRENGTH_TILE_LIFTS = 1;
 /** Sleep within this of the goal reads as good; further than SLEEP_SHORT_H below as watch. OURS, matching the review's 0.5 h. */
 export const SLEEP_GOOD_H = 0.25;
 export const SLEEP_SHORT_H = 0.5;
@@ -56,6 +58,12 @@ export type ScorecardInputs = {
   prev: WeekReport | null;
   unit: WeightUnit;
   goalType: GoalType | null;
+  /**
+   * The strength engine's read since the phase began, the one Body, Home
+   * and the report's summary use. Null before there is one. The tile never
+   * computes its own lift change, so the report cannot disagree with itself.
+   */
+  strength?: PhysiqueAnalysis["strength"] | null;
 };
 
 // ── Helpers ──
@@ -116,22 +124,27 @@ function trainingTile({ report, prev }: ScorecardInputs): Tile {
   return { id: "training", label: "Training", value, sub, delta, chart: { kind: "bars", values: report.days.map((d) => (d.hardSets > 0 ? d.hardSets : null)), target: null }, href: "/train" };
 }
 
-function strengthTile({ report }: ScorecardInputs): Tile {
-  const moved = report.training.lifts.filter((l) => l.changePct != null);
-  if (moved.length === 0) {
-    return { id: "strength", label: "Main lifts", value: "–", sub: report.training.lifts.length ? "No baseline in the 3 weeks before" : "No main lifts this week", delta: null, chart: { kind: "none" }, href: "/train" };
-  }
-  const avg = moved.reduce((s, l) => s + (l.changePct as number), 0) / moved.length;
-  const up = moved.filter((l) => (l.changePct as number) > 0).length;
-  const down = moved.filter((l) => (l.changePct as number) < 0).length;
-  const tone: Tone = avg >= 0 ? "good" : avg <= -LIFTS_DOWN_PCT ? "watch" : "neutral";
-  const top = [...moved].sort((a, b) => Math.abs(b.changePct as number) - Math.abs(a.changePct as number))[0];
+const STRENGTH_WORD: Record<StrengthStatus, { value: string; tone: Tone }> = {
+  rising: { value: "Rising", tone: "good" },
+  holding: { value: "Holding", tone: "good" },
+  "one-lift": { value: "One down", tone: "watch" },
+  dropping: { value: "Dropping", tone: "watch" },
+  unclear: { value: "–", tone: "neutral" },
+};
+
+function strengthTile({ report, strength }: ScorecardInputs): Tile {
+  const none = (sub: string): Tile => ({ id: "strength", label: "Main lifts", value: "–", sub, delta: null, chart: { kind: "none" }, href: "/train" });
+  if (!strength) return none(report.training.lifts.length ? "Not enough sessions to read yet" : "No main lifts logged");
+  const moved = strength.lifts.filter((l) => l.changePct != null).sort((a, b) => Math.abs(b.changePct as number) - Math.abs(a.changePct as number));
+  if (strength.status === "unclear" || moved.length === 0) return none(strength.baselineMissing ? "No lifts from before the phase to compare" : "Not enough sessions to read yet");
+  const word = STRENGTH_WORD[strength.status];
+  const named = moved.slice(0, STRENGTH_TILE_LIFTS).map((l) => `${l.name} ${sign(l.changePct as number)}${Math.abs(l.changePct as number).toFixed(0)}%`);
   return {
     id: "strength",
     label: "Main lifts",
-    value: `${sign(avg)}${Math.abs(avg).toFixed(1)}%`,
-    sub: `e1RM vs the 3 weeks before · ${up} up, ${down} down`,
-    delta: { text: `${top.name} ${sign(top.changePct as number)}${Math.abs(top.changePct as number).toFixed(1)}%`, tone },
+    value: word.value,
+    sub: "e1RM since the phase began",
+    delta: { text: named.join(" · "), tone: word.tone },
     chart: { kind: "none" },
     href: "/exercises",
   };
