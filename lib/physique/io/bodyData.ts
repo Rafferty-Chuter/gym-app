@@ -60,14 +60,13 @@ function stamp(date: LocalDate, nowIso: string) {
 
 /**
  * One weigh-in per day for manual entries: a second entry on the same day
- * replaces the first. `bodyFatPct` undefined keeps what is stored, null clears it.
+ * replaces the first. A body-fat reading already on the entry (from a scale
+ * export) is kept.
  */
-export async function saveWeighIn(date: LocalDate, kg: number, nowIso: string, bodyFatPct?: number | null): Promise<SaveResult> {
+export async function saveWeighIn(date: LocalDate, kg: number, nowIso: string): Promise<SaveResult> {
   return attempt(async () => {
     const existing = weighInsRepo.snapshot().find((w) => w.date === date && w.source === "manual");
     const record: WeighIn = existing ? { ...existing, kg, loggedAt: nowIso } : { ...stamp(date, nowIso), kg };
-    if (bodyFatPct === null) delete record.bodyFatPct;
-    else if (typeof bodyFatPct === "number" && Number.isFinite(bodyFatPct)) record.bodyFatPct = bodyFatPct;
     await weighInsRepo.upsert(record);
   });
 }

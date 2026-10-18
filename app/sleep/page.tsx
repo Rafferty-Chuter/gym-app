@@ -19,7 +19,7 @@ import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import ConsistencyCard from "@/components/sleep/ConsistencyCard";
 import NightBars from "@/components/sleep/NightBars";
 import RecoveryCard from "@/components/sleep/RecoveryCard";
-import { Chevron, SCaption } from "@/components/sleep/parts";
+import { Chevron } from "@/components/sleep/parts";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
 import { useHealthAutoPull, useHealthLink } from "@/lib/physique/io/healthLink";
 
@@ -109,10 +109,6 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           </button>
         )}
         <AppleHealthSheet open={healthOpen} onClose={() => setHealthOpen(false)} />
-
-        <div className="pb-2">
-          <SCaption>Logged values stay on this device. Export a backup from Profile.</SCaption>
-        </div>
       </div>
 
       <SleepSheet

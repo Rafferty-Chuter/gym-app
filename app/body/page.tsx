@@ -19,7 +19,7 @@ import { goalEta } from "@/lib/physique/goalEta";
 import VerdictCard from "@/components/physique/VerdictCard";
 import StrengthSleepRows from "@/components/physique/StrengthSleepRows";
 import WeightEntries from "@/components/physique/WeightEntries";
-import { Caption, Chevron, Row, RowGroup } from "@/components/physique/ui";
+import { Chevron, Row, RowGroup } from "@/components/physique/ui";
 import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 
 type SheetKind = "weight" | "waist" | null;
@@ -123,10 +123,6 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
             setSheet("weight");
           }}
         />
-
-        <div className="pb-2">
-          <Caption>Logged values stay on this device. Export a backup from Profile.</Caption>
-        </div>
       </div>
 
       <WeightSheet
@@ -139,8 +135,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         lastKg={model.onDate?.kg ?? model.lastWeighIn?.kg ?? null}
         trendKg={model.trend?.trendKg ?? null}
         hasEntry={model.onDate != null}
-        bodyFatPct={model.onDate?.bodyFatPct ?? null}
-        onSave={(kg, d, bf) => saveWeighIn(d, kg, nowIso(), bf)}
+        onSave={(kg, d) => saveWeighIn(d, kg, nowIso())}
         onDelete={async () => (model.onDate ? deleteWeighIn(model.onDate.id) : { ok: true as const })}
       />
       <WaistSheet open={sheet === "waist"} onClose={() => setSheet(null)} lastCm={model.lastWaist?.cm ?? null} dateLabel="Today" onSave={(cm) => saveWaist(today, cm, nowIso())} />

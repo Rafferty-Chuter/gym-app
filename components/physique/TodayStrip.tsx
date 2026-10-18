@@ -139,8 +139,7 @@ export default function TodayStrip() {
             lastKg={day.onDate?.kg ?? day.lastWeighIn?.kg ?? null}
             trendKg={day.trend?.trendKg ?? null}
             hasEntry={day.onDate != null}
-            bodyFatPct={day.onDate?.bodyFatPct ?? null}
-            onSave={(kg, d, bf) => saveWeighIn(d, kg, nowIso(), bf)}
+            onSave={(kg, d) => saveWeighIn(d, kg, nowIso())}
             onDelete={async () => (day.onDate ? deleteWeighIn(day.onDate.id) : { ok: true as const })}
           />
           <LoggerSheet

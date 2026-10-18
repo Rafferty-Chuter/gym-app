@@ -109,14 +109,18 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
               })}
             </div>
             <div className="flex items-center gap-3 text-[11px]" style={{ color: "var(--text-tertiary)" }} aria-hidden>
-              <span className="flex items-center gap-1">
-                <span className="inline-block h-0.5 w-3 rounded" style={{ background: "var(--primary)" }} />
-                Updating
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: "var(--text-tertiary)" }} />
-                Holding
-              </span>
+              {model.summary.points.some((p) => p.state === "holding") && (
+                <>
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block h-0.5 w-3 rounded" style={{ background: "var(--text)" }} />
+                    Updating
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-3 border-t border-dashed" style={{ borderColor: "var(--text-tertiary)" }} />
+                    Holding
+                  </span>
+                </>
+              )}
               {e?.plusMinus && (
                 <span className="flex items-center gap-1">
                   <span className="inline-block h-2 w-3 rounded-sm" style={{ background: "color-mix(in srgb, var(--text) 12%, transparent)" }} />±{e.plusMinus}

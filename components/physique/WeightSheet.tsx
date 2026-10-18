@@ -25,26 +25,20 @@ type Props = {
   trendKg: number | null;
   /** True when `date` already has an entry (enables delete). */
   hasEntry?: boolean;
-  /** The entry's body fat on `date`, if any (R4). */
-  bodyFatPct?: number | null;
-  /** `bodyFatPct` undefined keeps what is stored, null clears it. */
-  onSave: (kg: number, date: LocalDate, bodyFatPct?: number | null) => Promise<Result>;
+  onSave: (kg: number, date: LocalDate) => Promise<Result>;
   onDelete?: (date: LocalDate) => Promise<Result>;
 };
 
 /** The date dropdown lists this many days back (backfill beyond it goes through the arrows). OURS. */
 export const DATE_PICKER_DAYS = 60;
 
-/** Body fat is a display-only reading; the engine never uses it. Plausible range for the check. OURS. */
-const BODY_FAT_RANGE = { min: 3, max: 60 };
-
-type Field = "weight" | "bodyFat";
-
 /**
  * Weight entry (MacroFactor's sheet): a date row (arrows plus a dropdown
  * of the last 60 days) for backfill, the value prefilled with the last
- * entry, ±0.1 steps, an optional body-fat field, the 3% sanity check on
- * save, and delete when the day already has an entry. Two taps: open, Save.
+ * entry, ±0.1 steps, the 3% sanity check on save, and delete when the day
+ * already has an entry. Two taps: open, Save. No body-fat field (C10): the
+ * engine never used it; a scale's reading from Apple Health still shows on
+ * the entry.
  */
 export default function WeightSheet(props: Props) {
   if (!props.open) return null;
@@ -52,29 +46,25 @@ export default function WeightSheet(props: Props) {
   return <Inner key={`${initial}-${props.date}`} {...props} initial={initial} />;
 }
 
-function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, hasEntry, bodyFatPct, onSave, onDelete }: Props & { initial: string }) {
+function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, hasEntry, onSave, onDelete }: Props & { initial: string }) {
   const [value, setValue] = useState(initial);
-  const [bodyFat, setBodyFat] = useState(typeof bodyFatPct === "number" ? formatPadValue(bodyFatPct, 1) : "");
-  const [field, setField] = useState<Field>("weight");
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const n = parsePadValue(value);
   const kg = n != null && n > 0 ? displayToKg(n, unit) : null;
-  const bf = parsePadValue(bodyFat);
-  const bfOk = bf == null || (bf >= BODY_FAT_RANGE.min && bf <= BODY_FAT_RANGE.max);
   const isToday = date === today;
   const dateLabel = (d: LocalDate) => (d === today ? "Today" : d === addDays(today, -1) ? "Yesterday" : longLocalDate(d));
 
   async function save(force: boolean) {
-    if (kg == null || !bfOk) return;
+    if (kg == null) return;
     const check = sanityCheck(kg, trendKg);
     if (!check.ok && !force) {
       setConfirm(true);
       return;
     }
     setSaving(true);
-    const r = await onSave(kg, date, bodyFat.trim() === "" ? (typeof bodyFatPct === "number" ? null : undefined) : bf);
+    const r = await onSave(kg, date);
     setSaving(false);
     if (r.ok) onClose();
     else setError(r.error);
@@ -114,8 +104,8 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            <ErrorLine text={error ?? (!bfOk ? `Body fat between ${BODY_FAT_RANGE.min} and ${BODY_FAT_RANGE.max} %, or leave it blank.` : null)} />
-            <PrimaryButton onClick={() => save(false)} disabled={kg == null || !bfOk || saving}>
+            <ErrorLine text={error} />
+            <PrimaryButton onClick={() => save(false)} disabled={kg == null || saving}>
               Save
             </PrimaryButton>
             {hasEntry && onDelete && (
@@ -155,47 +145,17 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
         </button>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-1" role="tablist" aria-label="Fields">
-        {(
-          [
-            { key: "weight", label: "Weight", shown: value === "" ? "–" : `${value} ${unit}` },
-            { key: "bodyFat", label: "Body fat", shown: bodyFat === "" ? "optional" : `${bodyFat} %` },
-          ] as const
-        ).map((f) => {
-          const selected = field === f.key;
-          return (
-            <button key={f.key} type="button" role="tab" aria-selected={selected} onClick={() => setField(f.key)} className="flex flex-col items-center rounded-[12px] py-2 transition-colors" style={{ background: selected ? "var(--primary)" : "var(--surface)", color: selected ? "var(--text-on-primary)" : "var(--text)", border: `1px solid ${selected ? "var(--primary)" : "var(--border)"}` }}>
-              <span className="text-[11px] font-medium tracking-[0.02em]" style={{ color: selected ? "color-mix(in srgb, var(--text-on-primary) 70%, transparent)" : "var(--text-tertiary)" }}>
-                {f.label}
-              </span>
-              <span className="text-[17px] font-semibold" style={{ fontVariantNumeric: "tabular-nums", color: f.key === "bodyFat" && bodyFat === "" ? (selected ? "var(--border-strong)" : "var(--text-tertiary)") : undefined }}>
-                {f.shown}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {field === "weight" ? (
-        <>
-          <NumberPadValue value={value} unit={unit} hint={hasEntry ? "Editing this day's entry" : "This morning, after the bathroom"} />
-          <NumberPad
-            value={value}
-            onChange={(v) => {
-              setValue(v);
-              setConfirm(false);
-            }}
-            decimals={BODYWEIGHT_DECIMALS[unit]}
-            step={0.1}
-            max={unit === "kg" ? 400 : 880}
-          />
-        </>
-      ) : (
-        <>
-          <NumberPadValue value={bodyFat} unit="%" placeholder="–" hint="From a scale or calipers. Shown with the entry; the engine does not use it." />
-          <NumberPad value={bodyFat} onChange={setBodyFat} decimals={1} step={0.1} maxIntDigits={2} max={BODY_FAT_RANGE.max} />
-        </>
-      )}
+      <NumberPadValue value={value} unit={unit} hint={hasEntry ? "Editing this day's entry" : "This morning, after the bathroom"} />
+      <NumberPad
+        value={value}
+        onChange={(v) => {
+          setValue(v);
+          setConfirm(false);
+        }}
+        decimals={BODYWEIGHT_DECIMALS[unit]}
+        step={0.1}
+        max={unit === "kg" ? 400 : 880}
+      />
     </Sheet>
   );
 }
