@@ -20,6 +20,7 @@ import type {
   PhysiqueProfile,
   PhysiqueProgram,
   SleepNight,
+  SleepSegment,
   TrainingStatus,
   WaistEntry,
   WeighIn,
@@ -331,10 +332,17 @@ export function makeScenario(input: ScenarioSpec): Scenario {
         nightRecord.restingHr = Math.round((s.hrv.rhrBpm ?? 52) + gaussian(rand) * 1.5 + (dropping ? (s.hrv.rhrRiseBpm ?? 0) : 0));
         const deepMin = Math.round(asleepMin * Math.min(0.25, Math.max(0.1, 0.17 + gaussian(rand) * 0.03)));
         const remMin = Math.round(asleepMin * Math.min(0.3, Math.max(0.12, 0.22 + gaussian(rand) * 0.03)));
-        nightRecord.stages = { deepMin, remMin, coreMin: asleepMin - deepMin - remMin, awakeMin: Math.round(asleepMin * 0.05) };
+        const awakeMin = Math.round(asleepMin * 0.05);
+        nightRecord.stages = { deepMin, remMin, coreMin: asleepMin - deepMin - remMin, awakeMin };
         // As the watch sends it: no "in bed" without the iPhone's Sleep schedule, and no wake-up count.
         delete nightRecord.inBedMin;
         delete nightRecord.wakeups;
+        // S8: real mornings wander, and weekends run later; bedtime follows from the night's length.
+        const weekend = [0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay());
+        const wakeMin = 7 * 60 + Math.round(gaussian(rand) * 12) + (weekend ? 35 : 0);
+        nightRecord.wakeTime = clockFromMin(wakeMin);
+        nightRecord.bedtime = clockFromMin(wakeMin - asleepMin - awakeMin);
+        nightRecord.segments = syntheticSegments(deepMin, remMin, asleepMin - deepMin - remMin, awakeMin);
       }
       sleepNights.push(nightRecord);
     }
@@ -402,4 +410,38 @@ export function makeScenario(input: ScenarioSpec): Scenario {
     intakeKcal,
     rand,
   };
+}
+
+function clockFromMin(min: number): string {
+  const m = ((Math.round(min) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Dev-only stage segments for seeded watch nights (S8): ~90 min cycles of
+ * core, deep, core and REM, deep front-loaded and REM back-loaded as in
+ * a real night, with brief wakes between cycles.
+ */
+function syntheticSegments(deepMin: number, remMin: number, coreMin: number, awakeMin: number): SleepSegment[] {
+  const cycles = Math.max(3, Math.round((deepMin + remMin + coreMin) / 90));
+  const deepW = Array.from({ length: cycles }, (_, k) => cycles - k);
+  const remW = Array.from({ length: cycles }, (_, k) => k + 1);
+  const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  const out: SleepSegment[] = [];
+  let o = 0;
+  const push = (st: SleepSegment["s"], d: number) => {
+    const len = Math.round(d);
+    if (len <= 0) return;
+    out.push({ s: st, o, d: len });
+    o += len;
+  };
+  for (let k = 0; k < cycles; k++) {
+    const core = coreMin / cycles;
+    push("core", core / 2);
+    push("deep", (deepMin * deepW[k]) / sum(deepW));
+    push("core", core / 2);
+    push("rem", (remMin * remW[k]) / sum(remW));
+    if (k < cycles - 1) push("awake", awakeMin / (cycles - 1));
+  }
+  return out;
 }

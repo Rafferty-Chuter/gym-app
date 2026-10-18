@@ -183,15 +183,20 @@ MacroFactor's caption-over-title: an 11px tracked caption (the date or the goal)
 
 - **Moving ETA** (added after R5): the Goal progress card ends with "ETA Fri 25 Dec · 2 weeks behind plan" from the trend's observed rate, with the likely window from the rate margin under it; the header caption carries the short form. Early read shows the planned date and what it needs; a trend moving away shows no date. Never a countdown, never red.
 
-### 9.6 Sleep (rev 3, after Bevel and WHOOP, still no percentage score)
+### 9.6 Sleep (rev 4, 2026-10-18, after WHOOP and Bevel, in Sleep's own colours)
 
-- Header: caption "SLEEP GOAL 8H 00M", title "Sleep", + log (acts on the selected night).
-- **Night card:** ‹ "Last night" › with the span under it; arrows step back through earlier nights (replaces the nights list). A ring of hours asleep against the goal, hours, word and "of 8h 00m" in the centre, ring in the word's colour. Beside it: In bed (bed to wake), Efficiency, Wake-ups. "Edit this night" for manual nights.
-- **Stages** (watch nights only): Awake, REM, Core, Deep, each with share, minutes and a grey bar; a white tick at the user's usual share once 5 nights carry stages. Display only, never coloured or judged.
-- **Recovery** (watch only): the word in the status colour, HRV and resting HR tiles against their usual; "Calibrating" until the windows fill.
-- **Tonight:** one lights-out time, for tonight's need (goal plus a share of the week's debt), and the wake time with ±15 min; one sentence on where the need comes from.
-- **Last 14 nights:** the engine's one-sentence read with its dot, then the bars with the goal line; tapping a night selects it in the night card.
-- **Contributors:** a 2 × 2 grid (Duration, Efficiency, Wake-ups, Consistency), word, label, thin bar. Debt is said in words in the 14-night card.
+The founder's review of rev 3: too bland in black and white, the planner asked for a wake time the data already knows, and "not logged" rows are not something WHOOP or Bevel do. Rev 4 answers each.
+
+- **Colour:** the page wears `.theme-sleep` (DESIGN.md rev 3): an indigo gradient into near-black, indigo surfaces, a periwinkle accent for Sleep's own data, a colour per stage and per rating word.
+- **Header:** caption "SLEEP GOAL 8H 00M", title "Sleep", + adds a night by hand.
+- **Last night** (open on the page, no card): ‹ "Last night" › with the span; a score ring (0 to 100, word in the rating colour), Time asleep beside Sleep needed, the clock span and efficiency, one sentence on why (the weakest part, or what went right), and "Night details". Score = hours ÷ need (WHOOP's Sleep Performance), minus up to 15 for waking off the usual time and 10 for a restless night; need = goal + a third of the week's debt, at most an hour. No night: "No sleep for this night" (or "on its way from Apple Health" for last night when connected) and "Add it yourself".
+- **Tonight:** Wind down and Lights out side by side, a 24-hour dial (midnight at the top) with the wind-down and the sleep window, tonight's need in the middle, one sentence on where the need comes from. "Wake up at 07:03 · Your usual, from 14 nights": read from the median of the last 14 wake times once 3 nights carry one. Tapping it sets a wake time for tomorrow only; nothing to set day to day.
+- **Consistency:** wake time, not bedtime (a fixed wake time is CBT-I's first rule; irregular timing predicts health beyond short sleep). Seven mornings as dots around the usual wake line, amber when more than 30 min off, the spread worded (Excellent ≤ 15 min SD, Good ≤ 30, Fair ≤ 60).
+- **Last 14 nights:** the engine's sentence with its dot, bars in the dim accent with the selected night bright, the goal line dashed. A missed night is an empty slot.
+- **Trends:** the last 7 nights against the 30 before them (time asleep, bedtime, wake time, efficiency), the week's value and the change in words with an arrow, green when it helps and amber when it does not; clock shifts are neutral. Hidden until both windows have enough nights.
+- **Recovery** (watch only): unchanged rules, in Sleep's colours.
+- **Night page** (`/sleep/night?date=`): the score and why, Asleep / Sleep period / Fell asleep / Woke, the stages across the night (lanes Awake, REM, Core, Deep, from unaggregated Health Auto Export segments; otherwise one stacked bar and a line on how to turn them on), four stage tiles with the usual share, what the score is made of (each part's word, bar and detail, then how the score works and why stages are not scored), that morning's HRV and resting heart rate against usual, and Edit for manual nights.
+- **Gone:** the "Not logged" rows (here and, for sleep, on Home), the wake-time stepper, the contributors grid (its parts live on the night page and in Trends).
 
 ### 9.7 Train (Hevy's home + feed)
 

@@ -20,7 +20,7 @@ const MAX_SAMPLES = 5000;
 
 function toRow(deviceHash: string, s: HealthSample): SampleRow {
   if (s.kind === "sleep") {
-    return { device_hash: deviceHash, metric: "sleep", day: s.day, value: { asleepMin: s.asleepMin, inBedMin: s.inBedMin, bedtime: s.bedtime, wakeTime: s.wakeTime, stages: s.stages }, source: s.source };
+    return { device_hash: deviceHash, metric: "sleep", day: s.day, value: { asleepMin: s.asleepMin, inBedMin: s.inBedMin, bedtime: s.bedtime, wakeTime: s.wakeTime, stages: s.stages, ...(s.segments?.length ? { segments: s.segments } : {}) }, source: s.source };
   }
   return { device_hash: deviceHash, metric: s.kind, day: s.day, value: { value: s.value, at: s.at }, source: s.source };
 }

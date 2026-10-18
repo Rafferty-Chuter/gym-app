@@ -46,10 +46,10 @@ Full types live in `lib/physique/types.ts` (ticket P1). Summary:
 | `WeighIn` | `id`, `date` (local `YYYY-MM-DD`), `loggedAt`, `kg`, `source` (`manual` \| `healthkit` \| `import`) |
 | `FoodEntry` | `id`, `date`, `loggedAt`, `label`, `kcal`, `proteinG`, `carbsG`, `fatG`, `method` (`quick` \| `saved` \| `ai_text` \| `ai_photo` \| `barcode` \| `search`), `confidence?`, `savedFoodId?` |
 | `DayFlags` | `date`, `status?` (`partial` \| `fasting`, set by the user), `kcalOverride?` (Edit Day total), `events?: Array<{type: "creatine_start" \| "carb_switch" \| "illness" \| "travel" \| "period", creatineLoading?: boolean}>` |
-| `SleepNight` | `id`, `date` (**local wake date**), `bedtime?`, `wakeTime?`, `asleepMin`, `inBedMin?`, `wakeups?` (`0` \| `1-2` \| `3+`), `quality?` (1–5), `source` (`manual` \| `healthkit`); M3: `hrvMs`, `hrvMethod`, `restingHr`; S6: `stages?` (core, deep, REM, awake minutes, display only) |
+| `SleepNight` | `id`, `date` (**local wake date**), `bedtime?`, `wakeTime?`, `asleepMin`, `inBedMin?`, `wakeups?` (`0` \| `1-2` \| `3+`), `quality?` (1–5), `source` (`manual` \| `healthkit`); M3: `hrvMs`, `hrvMethod`, `restingHr`; S6: `stages?` (core, deep, REM, awake minutes, display only); S8: `segments?` (`{s, o, d}` stage segments in minutes after bedtime, display only) |
 | `WaistEntry` | `id`, `date`, `cm` (protocol: navel, morning, after voiding, relaxed exhale, mean of 2 readings; EVID, research F §10) |
 | `PhysiqueGoal` | see §5.1 |
-| `PhysiqueProfile` | `sex` (`M` \| `F` \| `prefer_not_to_say`), `age` (from onboarding; **default 30**), `heightCm` (**required to create a goal**), `bodyFatCategory?` (§5.4), `bodyFatPctMeasured?`, `generalActivity` (`low` \| `moderate` \| `high`), `manualInitialTdee?`, `expenditureStartDate`, `checkInWeekday` (0–6, default 1), `proteinLevel` (`low` \| `moderate` \| `high` \| `extra`, default `moderate`), `dietType` (`balanced` \| `lowCarb`, default `balanced`), `sleepGoalH` (7–9, default 8) |
+| `PhysiqueProfile` | `sex` (`M` \| `F` \| `prefer_not_to_say`), `age` (from onboarding; **default 30**), `heightCm` (**required to create a goal**), `bodyFatCategory?` (§5.4), `bodyFatPctMeasured?`, `generalActivity` (`low` \| `moderate` \| `high`), `manualInitialTdee?`, `expenditureStartDate`, `checkInWeekday` (0–6, default 1), `proteinLevel` (`low` \| `moderate` \| `high` \| `extra`, default `moderate`), `dietType` (`balanced` \| `lowCarb`, default `balanced`), `sleepGoalH` (7–9, default 8), `wakeTimeHHMM?` (fallback until 3 nights give a usual wake), `wakeOverride?` (S8: `{date, hhmm}`, one morning only) |
 | `PhysiqueProgram` | `id`, `goalId`, `history: Array<{startDate, kcal, proteinG, fatG, carbsG, source: "goal_start" \| "check_in" \| "refresh" \| "apply_now", acceptedAt}>`; the entry in effect on day d is the latest with `startDate ≤ d` |
 
 Workouts come from the existing `StoredWorkout` history (`lib/trainingAnalysis.ts`). **Weights there are unitless strings in the current `weightUnit`** (the whole history is rewritten when the unit changes). The engine therefore takes `workoutWeightUnit: "kg" | "lb"` as an input and parses with `parseWeightText(text, unit)` from `lib/units.ts`. That returns `null` for "", "BW" or NaN, and those sets are skipped.
@@ -417,6 +417,22 @@ Source: `research/C-sleep-recovery.md` §5–6, reconciled with research F §6.
 - **Optional sleep score**, in the detail view only: Apple's 50/30/20 split (research C §6.3).
 
 ---
+
+### 7.5 Sleep score, usual wake, consistency, trends (S8, `lib/physique/sleepScore.ts`)
+
+Display-only reads for the Sleep tab; none of them feeds the judge.
+
+| Read | Rule | Gate | Tag |
+|---|---|---|---|
+| Need for a night | `tonightNeedH(goal, debt7(nights ending the day before))`: goal + ⅓ of the 7-night debt, at most +1 h, clamped 7–9.5 h | none | OURS |
+| Score | `100 × min(1, asleep ÷ need)` minus up to 15 for timing (0 off at ≤ 15 min from the usual wake, all 15 at ≥ 90 min) and up to 10 for efficiency (0 off at ≥ 90%, all 10 at ≤ 65%); clamped 0–100. Words: Excellent ≥ 92, Good ≥ 85, Fair ≥ 70, Poor below | a valid night (2–14 h); timing needs a usual wake from the nights before; efficiency needs a time in bed or sleep period | Good/Fair bands PUB (WHOOP Sleep Performance 85/70); rest OURS |
+| Reason | the lowest-scoring part that falls short (≥ 20 min under the need, > 30 min off the usual wake, efficiency < 85%), else what went right | with the score | OURS |
+| Usual wake | median wake time over the last 14 nights on an 18:00 origin | ≥ 3 nights with a wake time | PUB (WHOOP's planner waits for 3 nights) |
+| Tonight | wake = a one-off for tomorrow, else the usual wake, else an old fixed setting, else 07:00; lights out = wake − need − 20 min; wind-down = lights out − 30 min | none | OURS |
+| Consistency | sample SD of wake times over 7 mornings: Excellent ≤ 15 min, Good ≤ 30, Fair ≤ 60 | ≥ 4 mornings | Good anchored to the one-hour social-jetlag mark (EVID, Wittmann 2006); rest OURS |
+| Trends | mean of the last 7 nights against the 30 before them for time asleep, bedtime, wake time, efficiency, HRV and resting HR; steady under 10 min, 10 min, 1 pt, 5% and 1 bpm | ≥ 4 recent and ≥ 10 baseline nights per measure | OURS |
+
+Stages are never part of the score (research C §4.2). Unaggregated Health Auto Export sleep (one row per stage segment) is folded into nights in `lib/health/hae.ts` the same way `nightsFromHealthKitSamples` folds HealthKit samples (sessions across ≤ 15 min gaps, main sleep ending 03:00–14:00) and keeps the segments for the stage chart (`SleepNight.segments`).
 
 ## 8. The judge (Layer 2)
 

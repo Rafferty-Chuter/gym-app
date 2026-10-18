@@ -39,6 +39,14 @@ describe("mergeSamples", () => {
     expect(all).toHaveLength(2);
     expect(nightsByDate(all).get("2026-10-15")?.night.asleepMin).toBe(430);
   });
+
+  it("keeps well-formed stage segments and drops a malformed set (S8)", async () => {
+    const segments = [{ s: "core", o: 0, d: 90 }, { s: "deep", o: 90, d: 60 }];
+    await mergeSamples([{ metric: "sleep", day: "2026-10-15", value: { asleepMin: 426, segments }, source: null, received_at: at }]);
+    expect(sleepNightsRepo.snapshot()[0].segments).toEqual(segments);
+    await mergeSamples([{ metric: "sleep", day: "2026-10-16", value: { asleepMin: 426, segments: [{ s: "dreaming", o: 0, d: 5 }] }, source: null, received_at: at }]);
+    expect(sleepNightsRepo.snapshot().find((n) => n.date === "2026-10-16")?.segments).toBeUndefined();
+  });
 });
 
 describe("receivedLabel", () => {

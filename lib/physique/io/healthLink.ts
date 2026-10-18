@@ -13,7 +13,8 @@ import { useEffect } from "react";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
 import { sleepNightsRepo, weighInsRepo } from "@/lib/physique/io/repos";
-import type { SleepNight, WeighIn } from "@/lib/physique/types";
+import type { SleepNight, SleepSegment, SleepStage, WeighIn } from "@/lib/physique/types";
+import { MAX_SEGMENTS } from "@/lib/health/hae";
 
 export type HealthLink = {
   token: string;
@@ -69,6 +70,22 @@ type PullResponse = { device: { registered: boolean; lastPayloadAt: string | nul
 export type PullResult = { ok: true; merged: number; nights: number; weighIns: number } | { ok: false; error: "not_configured" | "unauthorized" | "network" | "storage" };
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+const STAGES = new Set<SleepStage>(["awake", "rem", "core", "deep", "asleep"]);
+
+/** Stage segments from the server, kept only when every one is well formed (S8). */
+function cleanSegments(v: unknown): SleepSegment[] | null {
+  if (!Array.isArray(v) || v.length === 0 || v.length > MAX_SEGMENTS) return null;
+  const out: SleepSegment[] = [];
+  for (const x of v) {
+    const r = x as { s?: unknown; o?: unknown; d?: unknown } | null;
+    const o = num(r?.o);
+    const d = num(r?.d);
+    if (!r || typeof r.s !== "string" || !STAGES.has(r.s as SleepStage) || o == null || d == null || o < 0 || d <= 0 || o + d > 24 * 60) return null;
+    out.push({ s: r.s as SleepStage, o: Math.round(o), d: Math.round(d) });
+  }
+  return out;
+}
 const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
 /**
@@ -109,6 +126,8 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
         }
         if (Object.keys(stages).length > 0) n.stages = stages;
       }
+      const segs = cleanSegments(v.segments);
+      if (segs) n.segments = segs;
       nights.set(s.day, n);
     } else if (s.metric === "hrv") {
       const ms = num(v.value);

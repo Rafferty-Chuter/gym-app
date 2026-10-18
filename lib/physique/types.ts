@@ -92,7 +92,13 @@ export type SleepNight = Record_ & {
   restingHr?: number;
   /** S6: stage minutes from the wearable, shown and never scored (research C §4.2). */
   stages?: { coreMin?: number; deepMin?: number; remMin?: number; awakeMin?: number };
+  /** S8: the night's stage segments when Health Auto Export sends sleep unaggregated, for the stage chart. `o` is minutes after `bedtime`, `d` the length in minutes. */
+  segments?: SleepSegment[];
 };
+
+export type SleepStage = "awake" | "rem" | "core" | "deep" | "asleep";
+
+export type SleepSegment = { s: SleepStage; o: number; d: number };
 
 export type WaistEntry = Record_ & { cm: number };
 
@@ -158,8 +164,10 @@ export type PhysiqueProfile = {
   proteinLevel: ProteinLevel;
   dietType: DietType;
   sleepGoalH: number;
-  /** Planner wake time, "HH:MM" local (R3). Unset means the median wake of the last 7 nights. */
+  /** Planner wake time, "HH:MM" local (R3). Since S8 only a fallback until three nights give a usual wake time. */
   wakeTimeHHMM?: string;
+  /** S8: a one-off wake time for one morning (`date` is that morning); ignored on other days. */
+  wakeOverride?: { date: LocalDate; hhmm: string };
   /** Safety screen answers (U3). `redFlags` feeds SAFE-3 (research F §9); nothing writes it in M1. */
   safety?: { pregnantOrEdHistory?: boolean; answeredAt?: string; redFlags?: SafetyRedFlag[] };
   schemaVersion: 1;

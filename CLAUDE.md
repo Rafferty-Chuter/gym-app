@@ -54,7 +54,7 @@ Environment: `.env.local` (gitignored) holds `ANTHROPIC_API_KEY` (required) and 
 - JSDoc on exported functions and constants explaining the rule and why. Section dividers look like `// ── Title ──`.
 - Storage access is always wrapped in `try/catch` with a `typeof window === "undefined"` guard.
 - UI copy: calm, specific, peer-level, hedged where data is thin ("Early read", "Trending up"). No hype, streaks, confetti or exclamation marks. See `PRODUCT.md` anti-references.
-- Visual language: **`DESIGN.md` is normative** (MacroFactor-style: near-black `#0a0a0b`, grey layers, white primary actions, mint only for good/selected, status colours good `#00e5b0` / watch `#f5b544` / attention `#f26d7d`). Use the CSS variables and utility classes it maps to in `app/globals.css`; don't hard-code hex in components. Charts are hand-rolled SVG. `bg-zinc-*` classes are globally re-skinned in `app/globals.css`.
+- Visual language: **`DESIGN.md` is normative** (dark layers, white primary actions, status colours good `#00e5b0` / watch `#f5b544` / attention `#f26d7d`, and since rev 3 a colour of its own for each tab: Sleep is the indigo `.theme-sleep` palette, the others follow). Use the CSS variables and utility classes it maps to in `app/globals.css` (on Sleep, the `--sl-*` variables); don't hard-code hex in new components. Charts are hand-rolled SVG. `bg-zinc-*` classes are globally re-skinned in `app/globals.css`.
 
 ## Commit style
 

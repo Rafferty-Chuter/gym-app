@@ -59,3 +59,49 @@ describe("parseHaePayload", () => {
     expect(parseHaePayload({ data: { metrics: [{ name: "resting_heart_rate", data: [{ date: "2026-10-15 00:00:00 +0100", qty: 400 }] }] } })).toEqual([]);
   });
 });
+
+describe("unaggregated sleep (S8)", () => {
+  const seg = (start: string, end: string, value: string) => ({ startDate: `2026-10-${start} +0100`, endDate: `2026-10-${end} +0100`, qty: 0, value, source: "Apple Watch" });
+  const unagg = {
+    data: {
+      metrics: [
+        {
+          name: "sleep_analysis",
+          units: "hr",
+          data: [
+            seg("17 22:50:00", "18 07:20:00", "In Bed"),
+            seg("17 23:00:00", "18 00:30:00", "Core"),
+            seg("18 00:30:00", "18 01:30:00", "Deep"),
+            seg("18 01:30:00", "18 01:40:00", "Awake"),
+            seg("18 01:40:00", "18 03:00:00", "Core"),
+            seg("18 03:00:00", "18 04:00:00", "REM"),
+            seg("18 04:05:00", "18 07:00:00", "Core"),
+            // A nap in the afternoon is not the night.
+            seg("18 14:30:00", "18 15:00:00", "Core"),
+          ],
+        },
+      ],
+    },
+  };
+
+  it("folds stage segments into one night with totals, times and the segments", () => {
+    const nights = parseHaePayload(unagg).filter((s) => s.kind === "sleep");
+    expect(nights).toHaveLength(1);
+    const n = nights[0];
+    if (n.kind !== "sleep") throw new Error("not sleep");
+    expect(n.day).toBe("2026-10-18");
+    expect(n.bedtime).toBe("23:00");
+    expect(n.wakeTime).toBe("07:00");
+    expect(n.stages).toEqual({ coreMin: 345, deepMin: 60, remMin: 60, awakeMin: 10 });
+    expect(n.asleepMin).toBe(465);
+    expect(n.inBedMin).toBe(510);
+    expect(n.segments?.[0]).toEqual({ s: "core", o: 0, d: 90 });
+    expect(n.segments?.find((x) => x.s === "awake")).toEqual({ s: "awake", o: 150, d: 10 });
+    expect(n.segments?.at(-1)).toEqual({ s: "core", o: 305, d: 175 });
+  });
+
+  it("aggregated nights carry no segments", () => {
+    const n = parseHaePayload(payload).find((s) => s.kind === "sleep");
+    expect(n && n.kind === "sleep" ? n.segments : "x").toBeUndefined();
+  });
+});
