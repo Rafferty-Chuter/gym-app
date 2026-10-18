@@ -58,6 +58,9 @@ describe("tailored to the goal (B3)", () => {
     expect(rateVsPlan(0.7, 0.75, "gain", 0.5)).toEqual({ text: "Above lean range", tone: "watch" });
     expect(rateVsPlan(0.6, 0.5, "gain", 0.5)).toEqual({ text: "On plan", tone: "good" });
     expect(rateVsPlan(-0.1, 0, "recomp")).toBeNull();
+    // A noisy rate is only off plan when it is confidently outside, as the judge's ON-TRACK reads it.
+    expect(rateVsPlan(-0.21, -0.6, "cut", null, 0.2)).toEqual({ text: "On plan", tone: "good" });
+    expect(rateVsPlan(-0.21, -0.6, "cut", null, 0.1)).toEqual({ text: "Slower than plan", tone: "watch" });
     expect(rateVsPlan(null, -0.6, "cut")).toBeNull();
   });
 

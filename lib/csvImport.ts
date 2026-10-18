@@ -31,8 +31,8 @@ function rpeToRir(rpe: number | undefined): number | undefined {
   return Math.max(0, Math.min(10, 10 - rpe));
 }
 
-/** Minimal CSV parser. Handles quoted fields with embedded commas, quotes ("") and newlines. */
-function parseCsv(text: string, separator: "," | ";" = ","): string[][] {
+/** Minimal CSV parser. Handles quoted fields with embedded commas, quotes ("") and newlines. Shared with the daily-log import (I1). */
+export function parseCsv(text: string, separator: "," | ";" = ","): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";

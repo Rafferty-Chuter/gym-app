@@ -97,6 +97,8 @@ export type WeekReport = {
     endTrendKg: number | null;
     deltaKg: number | null;
     ratePctPerWeek: number | null;
+    /** The rate's one-sided 95% margin in %/wk (weight.ts), so a read against the plan can allow for noise as the judge does. */
+    rateMarginPct: number | null;
     rateWindowDays: number | null;
     weighIns: number;
     missing: LocalDate[];
@@ -341,6 +343,7 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
       endTrendKg: endTrendKg != null ? round1(endTrendKg) : null,
       deltaKg: startTrendKg != null && endTrendKg != null ? round1(endTrendKg - startTrendKg) : null,
       ratePctPerWeek: rate ? Math.round(rate.result.ratePctPerWeek * 100) / 100 : null,
+      rateMarginPct: rate ? Math.round(rate.result.margin * 100) / 100 : null,
       rateWindowDays: rate ? rate.windowDays : null,
       weighIns: days.filter((d) => weighDates.has(d)).length,
       missing: weighMissing,

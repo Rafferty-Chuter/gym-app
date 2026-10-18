@@ -210,7 +210,7 @@ export default function ProfilePage() {
         <section className="flex flex-col gap-2" aria-label="Data">
           <Caption>Data</Caption>
           <RowGroup>
-            <Row label="Import CSV" sub="Hevy, Strong, Rep Count" value="" trailing={<Chevron />} onClick={() => router.push("/profile/import")} ariaLabel="Import CSV. Open" />
+            <Row label="Import" sub="Daily log, sample data, Hevy, Strong, Rep Count" value="" trailing={<Chevron />} onClick={() => router.push("/profile/import")} ariaLabel="Import. Open" />
             <Row label="Export workouts" sub={exportStatus ?? "A CSV of every logged set"} value="" trailing={<Chevron />} onClick={exportCsv} ariaLabel="Export workouts as CSV" />
             <Row label="Move to another phone" sub="Copy everything as text and paste it there" value="" trailing={<Chevron />} onClick={() => router.push("/dev/data-transfer")} ariaLabel="Move to another phone. Open" />
             {feedbackUrl && <Row label="Send feedback" sub="Opens a short form" value="" trailing={<Chevron />} onClick={() => window.open(feedbackUrl, "_blank", "noopener,noreferrer")} ariaLabel="Send feedback. Opens in a new tab" />}

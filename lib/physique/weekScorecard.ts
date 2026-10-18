@@ -140,20 +140,23 @@ function minutes(h: number): string {
 
 /**
  * "On plan", or which side of it, from the rate and the goal's planned
- * rate. Null without both. On a gain, a rate above the lean-gain ceiling
- * for the user's training status says so whatever the plan, as the judge's
- * GAIN-1 does, so the row never reads "On plan" under a "gaining too fast"
- * verdict.
+ * rate. Null without both. As the judge's ON-TRACK does, a rate is only
+ * off plan when it is confidently outside plan ± ON_TRACK_TOLERANCE, given
+ * the rate's own margin, so a noisy week never reads "Slower than plan"
+ * under an "On track" verdict. On a gain, a rate confidently above the
+ * lean-gain ceiling for the user's training status says so whatever the
+ * plan, as GAIN-1 does.
  */
-export function rateVsPlan(ratePct: number | null, planPct: number | null | undefined, focus: Focus, gainCeilingPct?: number | null): { text: string; tone: Tone } | null {
+export function rateVsPlan(ratePct: number | null, planPct: number | null | undefined, focus: Focus, gainCeilingPct?: number | null, marginPct: number | null = 0): { text: string; tone: Tone } | null {
   if (ratePct == null || planPct == null || (focus !== "cut" && focus !== "gain")) return null;
+  const margin = Math.max(0, marginPct ?? 0);
   if (focus === "gain" && gainCeilingPct != null) {
     // A plan already above the band is too fast once the rate reaches the band's top; otherwise the usual tolerance applies.
     const limit = planPct > gainCeilingPct ? gainCeilingPct : gainCeilingPct + ON_TRACK_TOLERANCE;
-    if (ratePct > limit) return { text: "Above lean range", tone: "watch" };
+    if (ratePct - margin > limit) return { text: "Above lean range", tone: "watch" };
   }
   const diff = ratePct - planPct;
-  if (Math.abs(diff) <= ON_TRACK_TOLERANCE) return { text: "On plan", tone: "good" };
+  if (Math.abs(diff) <= ON_TRACK_TOLERANCE + margin) return { text: "On plan", tone: "good" };
   // On a cut, faster (more negative) risks muscle and slower stalls the goal; on a gain, faster adds fat and slower only delays.
   const faster = focus === "cut" ? diff < 0 : diff > 0;
   return faster ? { text: "Faster than plan", tone: "watch" } : { text: "Slower than plan", tone: focus === "cut" ? "watch" : "neutral" };
@@ -166,7 +169,7 @@ function weightTile({ report, unit, goalType, planRatePct, gainCeilingPct }: Sco
   const focus = focusFor(goalType);
   const value = w.endTrendKg == null ? "–" : formatWeight(w.endTrendKg, unit);
   const weighed = `${w.weighIns} of ${report.daysCovered} weighed`;
-  const vsPlan = rateVsPlan(w.ratePctPerWeek, planRatePct, focus, gainCeilingPct);
+  const vsPlan = rateVsPlan(w.ratePctPerWeek, planRatePct, focus, gainCeilingPct, w.rateMarginPct);
   if (vsPlan && w.ratePctPerWeek != null) {
     return { id: "weight", label: "Weight trend", value, sub: `${signedPct(w.ratePctPerWeek)} · plan ${signedPct(planRatePct as number).replace(" %/wk", "")}`, delta: vsPlan, chart: { kind: "line", values: report.days.map((d) => d.trendKg) }, href: "/body" };
   }

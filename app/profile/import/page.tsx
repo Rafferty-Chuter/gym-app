@@ -12,6 +12,7 @@ import {
   type ParseResult,
 } from "@/lib/csvImport";
 import { weighInsRepo } from "@/lib/physique/io/repos";
+import DailyLogImport from "@/components/import/DailyLogImport";
 
 type FormatChoice = "auto" | "hevy" | "strong" | "repcount";
 
@@ -129,13 +130,15 @@ export default function ImportCsvPage() {
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <PageHeader caption="Profile" captionHref="/profile" title="Import CSV" />
-        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-          Workout history from Hevy, Strong or Rep Count. Pick the file or paste the CSV.
-        </p>
+        <PageHeader caption="Profile" captionHref="/profile" title="Import" />
+
+        <DailyLogImport />
 
         <section className="flex flex-col gap-2" aria-label="File settings">
-          <Caption>File</Caption>
+          <Caption>Workouts</Caption>
+          <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
+            History from Hevy, Strong or Rep Count. Pick the file or paste the CSV.
+          </p>
           <RowGroup>
             <Row
               label="Format"

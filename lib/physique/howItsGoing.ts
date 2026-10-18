@@ -177,7 +177,7 @@ const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(
 
 function rateRow({ recent, goalType, planRatePct, gainCeilingPct }: PulseInputs): PulseRow | null {
   const rate = recent.weight.ratePctPerWeek;
-  const vs = rateVsPlan(rate, planRatePct, focusFor(goalType), gainCeilingPct);
+  const vs = rateVsPlan(rate, planRatePct, focusFor(goalType), gainCeilingPct, recent.weight.rateMarginPct);
   if (!vs || rate == null) return null;
   return { id: "rate", label: "Weight", value: signedPct(rate), note: vs.text, tone: vs.tone, href: "/body" };
 }
