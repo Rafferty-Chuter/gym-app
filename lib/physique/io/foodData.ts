@@ -31,12 +31,11 @@ async function attempt(write: () => Promise<void>): Promise<SaveResult> {
 export type FoodPrefs = {
   hourStart: number;
   hourEnd: number;
-  hideEmptyHours: boolean;
   /** Carousel toggle: show consumed or remaining numbers. */
   view: "consumed" | "remaining";
 };
 
-export const DEFAULT_FOOD_PREFS: FoodPrefs = { hourStart: DEFAULT_HOUR_START, hourEnd: DEFAULT_HOUR_END, hideEmptyHours: false, view: "remaining" };
+export const DEFAULT_FOOD_PREFS: FoodPrefs = { hourStart: DEFAULT_HOUR_START, hourEnd: DEFAULT_HOUR_END, view: "remaining" };
 
 export const foodPrefsStore = createSingleton<FoodPrefs>("physique.v1.foodPrefs");
 

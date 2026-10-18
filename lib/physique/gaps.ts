@@ -123,9 +123,3 @@ export function gapLines(gaps: readonly Gap[], today: LocalDate): GapLine[] {
   single.sort((a, b) => (a.date > b.date ? -1 : a.date < b.date ? 1 : KIND_ORDER[a.kind] - KIND_ORDER[b.kind]));
   return [...single, ...whole];
 }
-
-/** Where a gap is fixed from Home. */
-export function gapHref(line: GapLine): string {
-  const path = line.kind === "food" ? "/food" : line.kind === "weight" ? "/body" : "/sleep";
-  return `${path}?date=${line.date}`;
-}

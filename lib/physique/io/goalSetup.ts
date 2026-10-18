@@ -12,6 +12,7 @@ import { getPhysiqueProfileSync, saveOnboardingBasics, savePhysiqueProfile, type
 import { dayFlagsStore, foodEntriesRepo, goalHistoryRepo, goalStore, newId, programStore, weighInsRepo } from "@/lib/physique/io/repos";
 import { computeExpenditure, snapshotSeed, type ExpenditureInputs } from "@/lib/physique/expenditure";
 import { newProgram, type ProgramUpdate } from "@/lib/physique/program";
+import { syncExperienceFromStatus } from "@/lib/experienceLevel";
 import { etaWeeks, goalTypeFor, rateBands, trainingStatus, validateRate, type RateValidation } from "@/lib/physique/targets";
 import { liftDerivedTrainingStatus } from "@/lib/physique/strength";
 import { latestTrend } from "@/lib/physique/weight";
@@ -174,6 +175,7 @@ export async function createGoal(ctx: GoalContext, draft: GoalDraft, now: Now, o
     const update = newProgram(goal, { ...ctx.inputs, profile, goals: goalsForSeed }, now, { acceptedAt: opts.nowIso });
     if (!update) return { ok: false, error: "Couldn't estimate your maintenance. Add your height in Profile." };
     await programStore.set(update.program);
+    syncExperienceFromStatus(draft.status);
     return { ok: true, goal, update };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -3,10 +3,8 @@
 import { MacroBars, NutritionRing } from "@/components/food/NutritionRing";
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
-import { CARBS_COLOR, EnergyBalanceChart, FAT_COLOR, KCAL_COLOR, PROTEIN_COLOR } from "@/components/food/EnergyCharts";
+import { EnergyBalanceChart, FAT_COLOR, KCAL_COLOR } from "@/components/food/EnergyCharts";
 import { signedKcal, type EnergyBalance, type EnergyLine } from "@/lib/physique/food/energy";
-import { targetMet, WEEKDAY_LETTERS, type WeekDay } from "@/lib/physique/food/week";
 import type { MacroSums } from "@/lib/physique/food/timeline";
 import type { ExpenditureState, ProgramTargets } from "@/lib/physique/types";
 import type { LocalDate } from "@/lib/dates";
@@ -24,8 +22,6 @@ type Props = {
   energyLine: EnergyLine;
   onEnergyLineChange: (l: EnergyLine) => void;
   expenditureState: ExpenditureState | null;
-  week: readonly WeekDay[];
-  onSelectDay: (date: LocalDate) => void;
 };
 
 const n = (v: number) => Math.round(v).toLocaleString("en-GB");
@@ -54,12 +50,13 @@ function Pills<T extends string>({ value, options, onChange, label }: { value: T
 }
 
 /**
- * Widget carousel (05-design §9.4): Today · Energy balance · Week, as
- * horizontal scroll-snap pages with dots, and the Consumed / Remaining
- * toggle under it.
+ * Widget carousel (05-design §9.4): Today · Energy balance, as horizontal
+ * scroll-snap pages with dots. Tapping the ring switches eaten and
+ * remaining. The week card and the Consumed / Remaining pills went in B2:
+ * the week strip and the ring already do their jobs.
  */
 export default function FoodWidgets(props: Props) {
-  const { date, today, totals, target, view, onViewChange, energy, energyLine, onEnergyLineChange, expenditureState, week, onSelectDay } = props;
+  const { date, today, totals, target, view, onViewChange, energy, energyLine, onEnergyLineChange, expenditureState } = props;
   const scroller = useRef<HTMLDivElement | null>(null);
   const [page, setPage] = useState(0);
   const remaining = view === "remaining";
@@ -76,8 +73,6 @@ export default function FoodWidgets(props: Props) {
     if (!el) return;
     el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
   }
-
-  const selectedWeek = week.find((d) => d.date === date) ?? null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -139,88 +134,12 @@ export default function FoodWidgets(props: Props) {
               : `Averages over ${energy.daysLogged} logged day${energy.daysLogged === 1 ? "" : "s"}${energyLine === "expenditure" && expenditureState && expenditureState !== "stable" ? ` · expenditure ${expenditureState}` : ""}.`}
           </p>
         </Card>
-
-        {/* Week */}
-        <Card ariaLabel="This week">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
-              This week
-            </span>
-            <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
-              {selectedWeek ? shortLocalDate(selectedWeek.date) : ""}
-            </span>
-          </div>
-          <div className="my-auto flex items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-1 items-end justify-between gap-0.5" role="group" aria-label="Days">
-              {week.map((d, i) => {
-                const selected = d.date === date;
-                const bars = [
-                  { v: d.kcal, t: d.target?.kcal ?? null, c: KCAL_COLOR },
-                  { v: d.proteinG, t: d.target?.proteinG ?? null, c: PROTEIN_COLOR },
-                  { v: d.fatG, t: d.target?.fatG ?? null, c: FAT_COLOR },
-                  { v: d.carbsG, t: d.target?.carbsG ?? null, c: CARBS_COLOR },
-                ];
-                return (
-                  <button
-                    key={d.date}
-                    type="button"
-                    onClick={() => onSelectDay(d.date)}
-                    disabled={d.future}
-                    aria-pressed={selected}
-                    aria-label={`${WEEKDAY_LETTERS[i]} ${Number(d.date.slice(8, 10))}, ${d.logged ? `${n(d.kcal)} kcal` : "nothing logged"}`}
-                    className="flex flex-col items-center gap-1 rounded-[8px] px-0.5 pb-1 pt-1.5 disabled:opacity-40"
-                    style={{ border: `1px solid ${selected ? "var(--border-strong)" : "transparent"}` }}
-                  >
-                    <div className="flex h-[52px] items-end gap-[2px]">
-                      {bars.map((b, j) => {
-                        const max = b.t && b.t > 0 ? b.t * 1.3 : Math.max(1, b.v);
-                        const h = Math.max(d.logged ? 2 : 0, Math.min(52, (b.v / max) * 52));
-                        const tick = b.t && b.t > 0 ? Math.min(52, (b.t / max) * 52) : null;
-                        const met = targetMet(b.v, b.t);
-                        return (
-                          <div key={j} className="relative flex h-full w-[4px] items-end">
-                            {tick != null && <span className="absolute left-0 right-0 h-px" style={{ bottom: tick, background: met ? "var(--text)" : "var(--border-strong)" }} aria-hidden />}
-                            <span className="w-full rounded-[1px]" style={{ height: h, background: b.c, opacity: d.logged ? 1 : 0.25 }} aria-hidden />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <span className="text-[10px] font-medium" style={{ color: selected ? "var(--text)" : "var(--text-tertiary)" }}>
-                      {WEEKDAY_LETTERS[i]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex w-[88px] shrink-0 flex-col gap-1.5" aria-label="Selected day">
-              {(
-                [
-                  { l: "kcal", v: selectedWeek?.kcal ?? 0, t: selectedWeek?.target?.kcal ?? null, c: KCAL_COLOR },
-                  { l: "P", v: selectedWeek?.proteinG ?? 0, t: selectedWeek?.target?.proteinG ?? null, c: PROTEIN_COLOR },
-                  { l: "F", v: selectedWeek?.fatG ?? 0, t: selectedWeek?.target?.fatG ?? null, c: FAT_COLOR },
-                  { l: "C", v: selectedWeek?.carbsG ?? 0, t: selectedWeek?.target?.carbsG ?? null, c: CARBS_COLOR },
-                ] as const
-              ).map((r) => (
-                <div key={r.l} className="flex items-baseline justify-between gap-1 whitespace-nowrap text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                  <span style={{ color: r.c }}>{r.l}</span>
-                  <span className="flex flex-col items-end leading-tight">
-                    <span style={{ color: "var(--text)" }}>{n(r.v)}</span>
-                    {r.t != null && <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>of {n(r.t)}</span>}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex gap-1.5 pl-1" aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <button key={i} type="button" tabIndex={-1} onClick={() => goTo(i)} className="h-1.5 w-1.5 rounded-full" style={{ background: i === page ? "var(--text)" : "var(--border-strong)" }} />
-          ))}
-        </div>
-        <Pills value={view} options={[{ id: "consumed", label: "Consumed" }, { id: "remaining", label: "Remaining" }]} onChange={onViewChange} label="Numbers" />
+      <div className="flex gap-1.5 pl-1" aria-hidden>
+        {[0, 1].map((i) => (
+          <button key={i} type="button" tabIndex={-1} onClick={() => goTo(i)} className="h-1.5 w-1.5 rounded-full" style={{ background: i === page ? "var(--text)" : "var(--border-strong)" }} />
+        ))}
       </div>
     </div>
   );

@@ -30,7 +30,7 @@ function device(over: Partial<Record<string, unknown>> = {}) {
     subscription: SUB,
     tz: "Europe/London",
     reminder_hhmm: "09:00",
-    summary: { logged: { food: ["2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-16"], weight: ["2026-10-15", "2026-10-16"], sleep: [] }, first: { food: "2026-09-01", weight: "2026-10-15", sleep: null } },
+    summary: { logged: { food: ["2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-16"], weight: ["2026-10-14", "2026-10-15"], sleep: [] }, first: { food: "2026-09-01", weight: "2026-10-14", sleep: null } },
     summary_at: "2026-10-16T07:00:00.000Z",
     health_hash: null,
     last_run_day: null,
@@ -84,14 +84,14 @@ describe("GET /api/push/run", () => {
     expect((await GET(req())).status).toBe(503);
   });
 
-  it("sends one push with the gap sentences to a device whose time has just passed", async () => {
+  it("sends one push about today to a device whose time has just passed", async () => {
     devices = [device()];
     const res = await GET(req());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ checked: 1, due: 1, sent: 1, quiet: 0, removed: 0, skipped: 0 });
     expect(sent).toHaveLength(1);
     expect(sent[0].endpoint).toBe(SUB.endpoint);
-    expect(sent[0].payload).toEqual({ title: "Not logged", body: "Yesterday has no food logged", url: "/food?date=2026-10-15", tag: "gaps" });
+    expect(sent[0].payload).toEqual({ title: "Today", body: "No weigh-in yet.", url: "/body?date=2026-10-16", tag: "daily" });
     const patch = calls.find((c) => c.method === "PATCH");
     expect(patch?.body).toMatchObject({ last_run_day: "2026-10-16", failures: 0 });
     expect(JSON.stringify(calls)).not.toContain("Oats");
@@ -109,15 +109,18 @@ describe("GET /api/push/run", () => {
     expect(sent).toHaveLength(0);
   });
 
-  it("counts Apple Health nights the server already holds", async () => {
-    devices = [device({ health_hash: "h1", summary: { logged: { food: ["2026-10-15", "2026-10-16"], weight: [], sleep: ["2026-10-16"] }, first: { food: "2026-10-15", weight: null, sleep: "2026-10-01" } } })];
+  it("counts Apple Health weigh-ins the server already holds", async () => {
+    devices = [device({ health_hash: "h1", summary: { logged: { food: ["2026-10-15"], weight: [], sleep: [] }, first: { food: "2026-10-15", weight: null, sleep: null } } })];
     healthRows = [
-      { metric: "sleep", day: "2026-10-15" },
-      { metric: "sleep", day: "2026-10-13" },
+      { metric: "weight", day: "2026-10-14" },
+      { metric: "weight", day: "2026-10-16" },
     ];
     const res = await GET(req());
-    expect(await res.json()).toMatchObject({ due: 1, sent: 1 });
-    expect(sent[0].payload.body).toBe("Wednesday has no sleep logged\nMonday has no sleep logged\nSunday has no sleep logged\n2 more");
+    expect(await res.json()).toMatchObject({ due: 1, sent: 0, quiet: 1 });
+    healthRows = [{ metric: "weight", day: "2026-10-14" }];
+    devices = [device({ device_hash: "d2", health_hash: "h1", summary: { logged: { food: ["2026-10-15"], weight: [], sleep: [] }, first: { food: "2026-10-15", weight: null, sleep: null } } })];
+    expect(await (await GET(req())).json()).toMatchObject({ due: 1, sent: 1 });
+    expect(sent[0].payload.body).toBe("No weigh-in yet.");
   });
 
   it("on a Monday sends the week report even when nothing is missing", async () => {
@@ -126,7 +129,7 @@ describe("GET /api/push/run", () => {
     devices = [device({ summary_at: "2026-10-19T07:00:00.000Z", summary: { logged: { food: week, weight: week, sleep: [] }, first: { food: "2026-09-01", weight: "2026-10-01", sleep: null } } })];
     const res = await GET(req());
     expect(await res.json()).toMatchObject({ due: 1, sent: 1, quiet: 0 });
-    expect(sent[0].payload).toEqual({ title: "Weekly report · 12 to 18 Oct", body: "Where you're heading, what to fix and next week's targets.", url: "/report?week=2026-10-12", tag: "gaps" });
+    expect(sent[0].payload).toEqual({ title: "Weekly report · 12 to 18 Oct", body: "Where you're heading, what to fix and next week's targets.", url: "/report?week=2026-10-12", tag: "daily" });
   });
 
   it("drops a device the push service says is gone, and one with a stale summary says nothing", async () => {

@@ -341,9 +341,10 @@ function LineChart({
 // in lib/volumeAnalysis.ts so the home Volume card and this detail page
 // classify identically. Local-only types below are presentation-specific.
 
+// Low sets is something to watch, not an alarm (B2): red is kept for what needs attention now.
 const VOLUME_STATUS_TO_STATE: Record<VolumeStatus, SignalState> = {
   "not-tracked": "unknown",
-  low: "attention",
+  low: "watch",
   "on-track": "good",
   warning: "watch",
   excessive: "attention",

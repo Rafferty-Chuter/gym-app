@@ -10,7 +10,8 @@ import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /** Entries shown before "Show 30 days". OURS. */
-const COLLAPSED_ENTRIES = 7;
+/** Weigh-ins shown before "Show all": editing an old one is rare (B2). OURS. */
+const COLLAPSED_ENTRIES = 3;
 
 /** Weigh-ins by month for the last 30 days, newest first, with edit (MacroFactor's Scale Weight list). */
 export default function WeightEntries({ weighIns, today, unit, onEdit }: { weighIns: readonly WeighIn[]; today: LocalDate; unit: WeightUnit; onEdit: (w: WeighIn) => void }) {

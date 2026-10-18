@@ -130,7 +130,8 @@ export default function Home() {
 
   const now = useNow();
   const ctaLabel = hasMounted && hasActive ? "Resume workout" : "Start workout";
-  const ctaHref = hasMounted && hasActive ? "/workout" : "/workout/start";
+  // One place to start (B2): Train holds the empty start and the routines.
+  const ctaHref = hasMounted && hasActive ? "/workout" : "/train";
 
   return (
     <main className="min-h-screen bg-zinc-950 text-[var(--text)] relative pb-28">

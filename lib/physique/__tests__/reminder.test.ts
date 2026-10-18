@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addDays } from "@/lib/dates";
-import { findGaps, gapWindow } from "@/lib/physique/gaps";
-import { REMINDER_WINDOW_MIN, buildGapSummary, dueNow, gapsFromSummary, isReportDay, localClock, reminderMessage, shortRange, summaryKey, withLoggedDays } from "@/lib/physique/reminder";
+import { gapWindow } from "@/lib/physique/gaps";
+import { REMINDER_HABIT_DAYS, REMINDER_WINDOW_MIN, buildGapSummary, dueNow, isReportDay, localClock, reminderMessage, shortRange, summaryKey, todayMissing, withLoggedDays } from "@/lib/physique/reminder";
 import type { DayFlags, FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
 
 const today = "2026-10-16"; // Friday
@@ -11,7 +11,7 @@ const weigh = (date: string): WeighIn => ({ ...base(date), id: `w-${date}`, kg: 
 const night = (date: string): SleepNight => ({ ...base(date), id: `n-${date}`, asleepMin: 420 });
 
 describe("reminder", () => {
-  it("round-trips the summary into the same gaps as the records", () => {
+  it("summarises logged days and the first record of each kind", () => {
     const foodEntries = [food("2026-09-01"), ...gapWindow(today).filter((d) => d !== "2026-10-15" && d !== "2026-10-13").map(food), food(today)];
     const dayFlags: Record<string, DayFlags> = { "2026-10-13": { date: "2026-10-13", status: "fasting" } };
     const weighIns = [weigh("2026-10-14"), weigh("2026-10-16")];
@@ -21,18 +21,35 @@ describe("reminder", () => {
     expect(summary.first).toEqual({ food: "2026-09-01", weight: "2026-10-14", sleep: "2026-09-20" });
     expect(summary.logged.food).toContain("2026-10-13"); // fasting counts as logged
     expect(summary.logged.food).not.toContain("2026-10-15");
-    expect(gapsFromSummary(summary, today)).toEqual(findGaps(inputs, today));
+    expect(summary.logged.weight).toEqual(["2026-10-14", today]);
     expect(summaryKey(summary)).toBe(summaryKey(buildGapSummary(inputs, today)));
   });
 
   it("merges days the server knows from Apple Health", () => {
-    const s = buildGapSummary({ foodEntries: [], dayFlags: {}, weighIns: [], sleepNights: [] }, today);
-    expect(gapsFromSummary(s, today)).toEqual([]);
-    const merged = withLoggedDays(s, { sleep: ["2026-10-15", "2026-10-14"] });
-    expect(merged.first.sleep).toBe("2026-10-14");
-    expect(gapsFromSummary(merged, today)).toEqual([]);
-    const gappy = withLoggedDays(s, { sleep: ["2026-10-15", "2026-10-13"] });
-    expect(gapsFromSummary(gappy, today)).toEqual([{ kind: "sleep", date: "2026-10-14" }]);
+    const s = buildGapSummary({ foodEntries: [], dayFlags: {}, weighIns: [weigh("2026-10-14")], sleepNights: [] }, today);
+    expect(todayMissing(s, today, "08:00")).toBe("weight");
+    const merged = withLoggedDays(s, { weight: [today], sleep: ["2026-10-15"] });
+    expect(merged.first.sleep).toBe("2026-10-15");
+    expect(todayMissing(merged, today, "08:00")).toBeNull();
+  });
+
+  it("asks about today only: the weigh-in in the morning, food from noon, for habits the user has", () => {
+    const s = buildGapSummary({ foodEntries: [food("2026-10-15")], dayFlags: {}, weighIns: [weigh("2026-10-14")], sleepNights: [] }, today);
+    expect(todayMissing(s, today, "09:00")).toBe("weight");
+    expect(todayMissing(s, today, "11:45")).toBe("weight");
+    expect(todayMissing(s, today, "12:00")).toBe("food");
+    expect(todayMissing(s, today, "20:30")).toBe("food");
+    expect(todayMissing(s, today, "nope")).toBeNull();
+    // Logged today: quiet.
+    const done = buildGapSummary({ foodEntries: [food(today)], dayFlags: {}, weighIns: [weigh(today)], sleepNights: [] }, today);
+    expect(todayMissing(done, today, "09:00")).toBeNull();
+    expect(todayMissing(done, today, "20:00")).toBeNull();
+    // A habit that lapsed before the window, or never started, is not asked about.
+    const lapsed = buildGapSummary({ foodEntries: [food(addDays(today, -(REMINDER_HABIT_DAYS + 1)))], dayFlags: {}, weighIns: [], sleepNights: [] }, today);
+    expect(todayMissing(lapsed, today, "09:00")).toBeNull();
+    expect(todayMissing(lapsed, today, "20:00")).toBeNull();
+    const edge = buildGapSummary({ foodEntries: [food(addDays(today, -REMINDER_HABIT_DAYS))], dayFlags: {}, weighIns: [], sleepNights: [] }, today);
+    expect(todayMissing(edge, today, "20:00")).toBe("food");
   });
 
   it("reads the local clock in the device's time zone", () => {
@@ -52,26 +69,20 @@ describe("reminder", () => {
     expect(dueNow({ ...d, reminderHHMM: "25:00" }, "2026-10-16T08:05:00.000Z")).toEqual({ due: false, day: null });
   });
 
-  it("writes the notification from the gap sentences, or nothing", () => {
-    expect(reminderMessage([], today)).toBeNull();
-    const gaps = findGaps({ foodEntries: [food("2026-10-01"), food("2026-10-14"), food(today)], dayFlags: {}, weighIns: [weigh("2026-10-14"), weigh(today)], sleepNights: [] }, today);
-    const m = reminderMessage(gaps, today);
-    expect(m?.title).toBe("Not logged");
-    expect(m?.body).toBe("Yesterday has no food logged\nYesterday has no weigh-in\nTuesday has no food logged\n4 more");
-    expect(m?.url).toBe(`/food?date=${addDays(today, -1)}`);
+  it("writes one plain line about today, or nothing", () => {
+    expect(reminderMessage(null, today)).toBeNull();
+    expect(reminderMessage("weight", today)).toEqual({ title: "Today", body: "No weigh-in yet.", url: `/body?date=${today}` });
+    expect(reminderMessage("food", today)).toEqual({ title: "Today", body: "Nothing logged yet.", url: "/food" });
   });
 
-  it("on Monday sends the week report whatever the gaps", () => {
+  it("on Monday sends the week report whatever today holds", () => {
     const monday = "2026-10-19";
     expect(isReportDay(monday)).toBe(true);
     expect(isReportDay(today)).toBe(false);
     expect(shortRange("2026-10-12", "2026-10-18")).toBe("12 to 18 Oct");
     expect(shortRange("2026-09-28", "2026-10-04")).toBe("28 Sep to 4 Oct");
-    const quiet = reminderMessage([], monday, { weekly: true });
-    expect(quiet).toEqual({ title: "Weekly report · 12 to 18 Oct", body: "Where you're heading, what to fix and next week's targets.", url: "/report?week=2026-10-12" });
-    const gaps = findGaps({ foodEntries: [food("2026-10-01"), food("2026-10-17"), food(monday)], dayFlags: {}, weighIns: [], sleepNights: [] }, monday);
-    const m = reminderMessage(gaps, monday, { weekly: true });
-    expect(m?.body).toBe("Where you're heading, what to fix and next week's targets.\n6 things not logged: yesterday has no food logged, and more.");
-    expect(m?.url).toBe("/report?week=2026-10-12");
+    const report = { title: "Weekly report · 12 to 18 Oct", body: "Where you're heading, what to fix and next week's targets.", url: "/report?week=2026-10-12" };
+    expect(reminderMessage(null, monday, { weekly: true })).toEqual(report);
+    expect(reminderMessage("weight", monday, { weekly: true })).toEqual(report);
   });
 });

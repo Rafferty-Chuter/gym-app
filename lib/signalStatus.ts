@@ -130,7 +130,8 @@ export function computeVolumeStatus(
   const isLowAttention =
     coach.keyFocusType === "low-volume" || lowEntries.length > 0 || lowRows.length > 0;
   if (isLowAttention) {
-    return { state: "attention", status: "Running low", rows };
+    // Watch, not attention (B2): fewer sets than the band is worth a look, not an alarm.
+    return { state: "watch", status: "Running low", rows };
   }
 
   if (warningRows.length > 0) {

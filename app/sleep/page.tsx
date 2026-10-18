@@ -23,11 +23,11 @@ import NightHero from "@/components/sleep/NightHero";
 import TonightCard from "@/components/sleep/TonightCard";
 import ConsistencyCard from "@/components/sleep/ConsistencyCard";
 import NightBars from "@/components/sleep/NightBars";
-import TrendRows from "@/components/sleep/TrendRows";
+import { TrendLines } from "@/components/sleep/TrendLines";
 import RecoveryCard from "@/components/sleep/RecoveryCard";
 import { Chevron, SCaption } from "@/components/sleep/parts";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
-import { receivedLabel, useHealthAutoPull, useHealthLink } from "@/lib/physique/io/healthLink";
+import { useHealthAutoPull, useHealthLink } from "@/lib/physique/io/healthLink";
 import type { SleepStatus } from "@/lib/physique/types";
 
 const READ_DOT: Record<SleepStatus, string> = { ok: STATUS_HEX.good, short: STATUS_HEX.watch, severe: STATUS_HEX.attention, unknown: STATUS_HEX.unknown };
@@ -108,31 +108,35 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
             selected={night}
             onSelect={setNight}
             note={
-              analysis && model.insight ? (
-                <p className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: "var(--sl-text-secondary)" }}>
-                  <span className="mt-[5px] inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: READ_DOT[analysis.sleep.status] }} aria-hidden />
-                  {model.insight}
-                </p>
-              ) : null
+              <div className="flex flex-col gap-3">
+                {analysis && model.insight && (
+                  <p className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: "var(--sl-text-secondary)" }}>
+                    <span className="mt-[5px] inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: READ_DOT[analysis.sleep.status] }} aria-hidden />
+                    {model.insight}
+                  </p>
+                )}
+                <TrendLines rows={model.trends} />
+              </div>
             }
           />
         )}
 
-        {model.anyNight && <TrendRows rows={model.trends} />}
-
         <RecoveryCard read={model.recovery} />
 
-        <button type="button" onClick={() => setHealthOpen(true)} className="flex w-full items-center justify-between gap-3 rounded-[16px] px-4 py-3 text-left transition-colors active:bg-[var(--sl-surface-raised)]" style={{ background: "var(--sl-surface)" }} aria-label="Apple Health. Open settings">
-          <span className="flex min-w-0 flex-col">
-            <span className="text-[15px] font-semibold">Apple Health</span>
-            <span className="text-[12px]" style={{ color: "var(--sl-text-secondary)" }}>
-              {healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${receivedLabel(healthLink.lastPayloadAt, new Date())}` : healthLink.lastError === "not_configured" ? "Token ready · server not set up yet" : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own"}
+        {/* Set up from here until connected; after that it is managed in Profile (B2). */}
+        {!healthLink && (
+          <button type="button" onClick={() => setHealthOpen(true)} className="flex w-full items-center justify-between gap-3 rounded-[16px] px-4 py-3 text-left transition-colors active:bg-[var(--sl-surface-raised)]" style={{ background: "var(--sl-surface)" }} aria-label="Apple Health. Open settings">
+            <span className="flex min-w-0 flex-col">
+              <span className="text-[15px] font-semibold">Apple Health</span>
+              <span className="text-[12px]" style={{ color: "var(--sl-text-secondary)" }}>
+                Sleep, HRV and weight arrive on their own
+              </span>
             </span>
-          </span>
-          <span style={{ color: "var(--sl-text-tertiary)" }}>
-            <Chevron />
-          </span>
-        </button>
+            <span style={{ color: "var(--sl-text-tertiary)" }}>
+              <Chevron />
+            </span>
+          </button>
+        )}
         <AppleHealthSheet open={healthOpen} onClose={() => setHealthOpen(false)} />
 
         <div className="pb-2">
@@ -147,8 +151,6 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         existing={sheetDate ? (model.byDate.get(sheetDate)?.night ?? null) : null}
         dateLabel={!sheetDate || sheetDate === today ? "today" : longLocalDate(sheetDate)}
         onSave={(input: SleepInput) => saveSleepNight(sheetDate ?? today, input, nowIso())}
-        goalH={goalH}
-        onGoalChange={(h) => saveProfile({ sleepGoalH: h })}
       />
     </main>
   );

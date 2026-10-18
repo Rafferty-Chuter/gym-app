@@ -13,7 +13,7 @@ export const SYNC_DEBOUNCE_MS = 1500;
 /**
  * Keeps the server's gap summary current while reminders are on (Sprint 0,
  * G5). Mounted once in the layout; renders nothing. Sends only when the
- * summary changed, so filling a gap on any tab cancels tomorrow's reminder.
+ * summary changed, so logging today on any tab cancels today's reminder.
  */
 export default function ReminderSync() {
   const hydrated = useIsHydrated();

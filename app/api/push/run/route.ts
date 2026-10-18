@@ -2,9 +2,10 @@
  * GET /api/push/run — the hourly scheduler for reminders (Sprint 0, G5).
  * Called by Supabase pg_cron (supabase/migrations/0002_push.sql) with the
  * CRON_SECRET. For each device whose local time has just passed its
- * chosen time today, rebuild the gaps from its summary (plus any Apple
- * Health days the server holds) and send one push only if something is
- * missing. Quiet days send nothing.
+ * chosen time today, read from its summary (plus any Apple Health days the
+ * server holds) whether today is missing its weigh-in or food, and send one
+ * push only if it is. On Mondays the weekly report goes out instead. Quiet
+ * days send nothing.
  *
  * This route is the one place the server's clock decides anything: it is
  * the scheduler, and each device's "today" is read in its own time zone.
@@ -14,7 +15,7 @@
 import { NextResponse } from "next/server";
 import { addDays, dayDiff } from "@/lib/dates";
 import { GAP_LOOKBACK_DAYS } from "@/lib/physique/gaps";
-import { SUMMARY_MAX_AGE_DAYS, dueNow, gapsFromSummary, isReportDay, reminderMessage, withLoggedDays } from "@/lib/physique/reminder";
+import { SUMMARY_MAX_AGE_DAYS, dueNow, isReportDay, reminderMessage, todayMissing, withLoggedDays } from "@/lib/physique/reminder";
 import { deletePushDevice, listHealthDays, listPushDevices, patchPushDevice, supabaseConfig, type PushDeviceRow } from "@/lib/server/supabaseRest";
 import { cronAuthorized, sendPush, vapidConfig, type PushSubscriptionJson } from "@/lib/server/push";
 import { asSummary } from "@/lib/server/pushSchemas";
@@ -51,13 +52,13 @@ async function runDevice(cfg: NonNullable<ReturnType<typeof supabaseConfig>>, va
     const rows = await listHealthDays(cfg, d.health_hash, addDays(day, -(GAP_LOOKBACK_DAYS + 1)));
     merged = withLoggedDays(summary, { sleep: rows.filter((r) => r.metric === "sleep").map((r) => r.day), weight: rows.filter((r) => r.metric === "weight").map((r) => r.day) });
   }
-  const message = reminderMessage(gapsFromSummary(merged, day), day, { weekly: isReportDay(day) });
+  const message = reminderMessage(todayMissing(merged, day, d.reminder_hhmm), day, { weekly: isReportDay(day) });
   if (!message) {
     report.quiet++;
     await patchPushDevice(cfg, d.device_hash, { last_run_day: day });
     return;
   }
-  const r = await sendPush(vapid, sub, { ...message, tag: "gaps" });
+  const r = await sendPush(vapid, sub, { ...message, tag: "daily" });
   if (r.ok) {
     report.sent++;
     await patchPushDevice(cfg, d.device_hash, { last_run_day: day, failures: 0 });

@@ -16,6 +16,8 @@ type Props = {
   flags: DayFlags | undefined;
   /** Sum of the day's entries, shown under the override. */
   entriesKcal: number;
+  /** Clears every entry on the day, after its own confirm; absent when there is nothing to clear. */
+  onClear?: () => void;
   onSave: (next: { status: Status; overrideKcal: number | null }) => Promise<SaveResult>;
 };
 
@@ -34,7 +36,7 @@ export default function EditDaySheet(props: Props) {
   return props.open ? <Inner key={props.dateLabel} {...props} /> : null;
 }
 
-function Inner({ onClose, dateLabel, flags, entriesKcal, onSave }: Props) {
+function Inner({ onClose, dateLabel, flags, entriesKcal, onClear, onSave }: Props) {
   const [status, setStatus] = useState<Status>(flags?.status ?? "complete");
   const [override, setOverride] = useState(typeof flags?.kcalOverride === "number" ? formatPadValue(flags.kcalOverride, 0) : "");
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +86,11 @@ function Inner({ onClose, dateLabel, flags, entriesKcal, onSave }: Props) {
           <NumberPadValue value={override} unit="kcal" placeholder="–" hint={override === "" ? `Using the entries: ${Math.round(entriesKcal).toLocaleString("en-GB")} kcal. Enter a total to override them.` : `Overrides the ${Math.round(entriesKcal).toLocaleString("en-GB")} kcal from entries. Clear to use them again.`} />
           <NumberPad value={override} onChange={setOverride} decimals={0} maxIntDigits={5} />
         </>
+      )}
+      {onClear && (
+        <button type="button" onClick={onClear} className="mt-4 h-10 w-full rounded-[12px] text-[13px] font-semibold" style={{ color: "var(--status-attention)" }}>
+          Clear every entry on this day
+        </button>
       )}
     </Sheet>
   );

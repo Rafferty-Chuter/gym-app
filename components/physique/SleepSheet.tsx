@@ -4,7 +4,6 @@ import { useState } from "react";
 import Sheet from "@/components/ui/Sheet";
 import { PrimaryButton, ErrorLine } from "@/components/physique/ui";
 import { ASLEEP_OFFSET_MIN, formatClock, formatHoursMin, minutesInBed, parseClock } from "@/lib/physique/dayTotals";
-import { SLEEP_GOAL_RANGE_H, clampSleepGoal } from "@/lib/physique/sleep";
 import type { SleepInput } from "@/lib/physique/io/bodyData";
 import type { SleepNight } from "@/lib/physique/types";
 
@@ -15,50 +14,37 @@ type Props = {
   existing: SleepNight | null;
   dateLabel: string;
   onSave: (input: SleepInput) => Promise<{ ok: true } | { ok: false; error: string }>;
-  /** The profile's sleep goal; with `onGoalChange`, shows a goal row (7–9 h, ±30 min) that saves on each tap. */
-  goalH?: number;
-  onGoalChange?: (h: number) => void | Promise<void>;
 };
 
-/** Sleep entry: bedtime and wake with ±15 min steppers, hours asleep prefilled, wake-ups, optional goal row. ≤4 taps. */
+/** Sleep entry: bedtime and wake with ±15 min steppers, hours asleep prefilled, wake-ups. ≤4 taps. The sleep goal lives in Profile (B2). */
 export default function SleepSheet(props: Props) {
   return props.open ? <Inner key={props.dateLabel} {...props} /> : null;
 }
 
 const STEP_MIN = 15;
-/** Goal stepper size. OURS: half-hour steps across the 7–9 h range. */
-const GOAL_STEP_H = 0.5;
 const WAKEUPS: Array<{ v: NonNullable<SleepNight["wakeups"]>; label: string }> = [
   { v: "0", label: "0" },
   { v: "1-2", label: "1–2" },
   { v: "3+", label: "3+" },
 ];
 
-function Inner({ onClose, prefill, existing, dateLabel, onSave, goalH, onGoalChange }: Props) {
+function Inner({ onClose, prefill, existing, dateLabel, onSave }: Props) {
   const [bed, setBed] = useState(existing?.bedtime ?? prefill.bedtime);
   const [wake, setWake] = useState(existing?.wakeTime ?? prefill.wakeTime);
   const [asleepTouched, setAsleepTouched] = useState(existing != null);
   const [asleep, setAsleep] = useState(existing?.asleepMin ?? Math.max(0, minutesInBed(prefill.bedtime, prefill.wakeTime) - ASLEEP_OFFSET_MIN));
   const [wakeups, setWakeups] = useState<SleepNight["wakeups"]>(existing?.wakeups);
-  const [goal, setGoal] = useState(clampSleepGoal(goalH));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const inBed = minutesInBed(bed, wake);
   const asleepShown = asleepTouched ? Math.min(asleep, inBed) : Math.max(0, inBed - ASLEEP_OFFSET_MIN);
-  const showGoal = goalH !== undefined && onGoalChange !== undefined;
 
   function shift(setter: (v: string) => void, current: string, delta: number) {
     const m = parseClock(current) ?? 0;
     setter(formatClock(m + delta));
   }
 
-  function stepGoal(delta: number) {
-    const next = clampSleepGoal(Math.round((goal + delta) * 2) / 2);
-    if (next === goal) return;
-    setGoal(next);
-    void onGoalChange?.(next);
-  }
 
   async function save() {
     setSaving(true);
@@ -123,20 +109,6 @@ function Inner({ onClose, prefill, existing, dateLabel, onSave, goalH, onGoalCha
           })}
         </div>
       </div>
-      {showGoal && (
-        <div className="mt-3" style={{ borderTop: "1px solid var(--border)" }}>
-          <Stepper
-            label="Sleep goal"
-            value={formatHoursMin(goal * 60)}
-            sub={`${SLEEP_GOAL_RANGE_H.min} to ${SLEEP_GOAL_RANGE_H.max} h · saved to your profile`}
-            stepText="30 minutes"
-            onMinus={() => stepGoal(-GOAL_STEP_H)}
-            onPlus={() => stepGoal(GOAL_STEP_H)}
-            minusDisabled={goal <= SLEEP_GOAL_RANGE_H.min}
-            plusDisabled={goal >= SLEEP_GOAL_RANGE_H.max}
-          />
-        </div>
-      )}
     </Sheet>
   );
 }

@@ -11,7 +11,6 @@ import { RATE_COLOR, SBar, SCaption, SCard, SRow, STAGE_COLOR, ScoreRing } from 
 import { addDays, type LocalDate } from "@/lib/dates";
 import { formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { saveSleepNight, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
-import { savePhysiqueProfile } from "@/lib/physique/io/profile";
 import { profileStore } from "@/lib/physique/io/repos";
 import { recoveryRead, stageSplit, stageTypical } from "@/lib/physique/recovery";
 import { clampSleepGoal, nightsByDate } from "@/lib/physique/sleep";
@@ -159,8 +158,6 @@ function NightDetail() {
         existing={night}
         dateLabel={date === today ? "today" : longLocalDate(date)}
         onSave={(input: SleepInput) => saveSleepNight(date, input, new Date().toISOString())}
-        goalH={goalH}
-        onGoalChange={(h) => void savePhysiqueProfile({ sleepGoalH: h }).catch(() => undefined)}
       />
     </main>
   );

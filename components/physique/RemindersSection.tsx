@@ -32,9 +32,10 @@ function errorCopy(e: PushError | null | undefined): string | null {
 }
 
 /**
- * Profile → Reminders (G5, restyled in CL1): one notification a day at a
- * chosen time, only when a day is missing. A switch, a time, and the
- * exact reason when it cannot.
+ * Profile → Reminders (G5, restyled in CL1, today only since B2): one
+ * notification a day at a chosen time, only when today is missing its
+ * weigh-in (morning) or food (from noon). Off until turned on. A switch, a
+ * time, and the exact reason when it cannot.
  */
 export default function RemindersSection() {
   const hydrated = useIsHydrated();
@@ -67,7 +68,7 @@ export default function RemindersSection() {
       <RowGroup>
         <Row
           label="Daily reminder"
-          sub={enabled ? "On. Only when a day is missing." : "Off"}
+          sub={enabled ? "On. Only when today is missing something." : "Off"}
           value={
             <button type="button" role="switch" aria-checked={enabled} aria-label={enabled ? "Turn reminders off" : "Turn reminders on"} onClick={toggle} disabled={!hydrated || busy || !now} className="relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50" style={{ background: enabled ? "var(--primary)" : "var(--border-strong)" }}>
               <span className="absolute top-0.5 h-6 w-6 rounded-full transition-transform" style={{ left: 2, background: enabled ? "var(--text-on-primary)" : "var(--surface)", transform: enabled ? "translateX(20px)" : "translateX(0)" }} />
@@ -95,7 +96,7 @@ export default function RemindersSection() {
         />
       </RowGroup>
       <p className="text-[11px]" style={{ color: err || iosNote ? "var(--status-watch)" : "var(--text-tertiary)" }}>
-        {err ?? iosNote ?? "It names the day and what is missing, nothing else."}
+        {err ?? iosNote ?? "Before noon it checks for a weigh-in, from noon for food. Days you already logged stay quiet."}
       </p>
     </section>
   );

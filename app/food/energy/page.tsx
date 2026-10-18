@@ -9,9 +9,9 @@ import { addDays, type Now } from "@/lib/dates";
 import { useBodyData } from "@/lib/physique/io/bodyData";
 import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
-import { expenditureChanges, expenditureSummary, signedKcal, targetsHistory } from "@/lib/physique/food/energy";
+import { expenditureSummary, signedKcal, targetsHistory } from "@/lib/physique/food/energy";
 import { RANGES, type RangeId } from "@/components/physique/WeightChartCard";
-import { ExpenditureChart, Sparkline } from "@/components/food/EnergyCharts";
+import { ExpenditureChart } from "@/components/food/EnergyCharts";
 import { Caption, Row, RowGroup } from "@/components/physique/ui";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import type { ExpenditureState } from "@/lib/physique/types";
@@ -42,10 +42,9 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
     const first = series[0]?.date ?? today;
     const from = days ? addDays(today, -(days - 1)) : first;
     const summary = expenditureSummary(series, { from, to: today });
-    const changes = expenditureChanges(series, today);
     const history = targetsHistory(data.program, today);
     const maturity = expenditure?.maturity ?? null;
-    return { summary, changes, history, maturity, from };
+    return { summary, history, maturity, from };
   }, [expenditure, range, today, data.program]);
 
   const e = analysis?.expenditure ?? null;
@@ -134,30 +133,6 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           </p>
         </section>
 
-        <section aria-label="Expenditure changes">
-          <div className="mb-2 flex items-baseline justify-between">
-            <span className="text-[17px] font-semibold">Expenditure changes</span>
-            <Caption>vs today</Caption>
-          </div>
-          <RowGroup>
-            {model.changes.map((c) => (
-              <div key={c.days} className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-2">
-                <span className="w-[56px] shrink-0 text-[15px]" style={{ color: "var(--text-secondary)" }}>
-                  {c.days}-day
-                </span>
-                <Sparkline values={c.spark} />
-                <span className="flex flex-1 items-baseline justify-end gap-2 whitespace-nowrap">
-                  <span className="text-[17px] font-semibold" style={{ color: c.deltaKcal == null ? "var(--text-tertiary)" : "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-                    {c.deltaKcal == null ? "–" : `${signedKcal(c.deltaKcal)} kcal`}
-                  </span>
-                  <span className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
-                    {c.word}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </RowGroup>
-        </section>
 
         <section className="grid grid-cols-2 gap-3" aria-label="Current">
           <div className="flex flex-col gap-1 rounded-[12px] p-4" style={{ background: "var(--surface)" }}>

@@ -1234,9 +1234,9 @@ export default function WorkoutPage() {
         <header className="mb-5">
           <div className="flex items-center gap-3 mb-3">
             <Link
-              href="/workout/start"
+              href="/train"
               className="shrink-0 flex touch-manipulation items-center justify-center h-10 w-10 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)] transition active:opacity-90"
-              aria-label="Back to workout start"
+              aria-label="Back to Train"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />

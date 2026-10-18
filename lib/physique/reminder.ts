@@ -1,23 +1,23 @@
 /**
- * Reminders on gaps only (06-execution Sprint 0, G5). Pure.
+ * The daily reminder, about today only (06-execution Sprint 0, G5; B2). Pure.
  *
- * The phone cannot wake itself, so the server sends one push a day at the
- * user's chosen time, and only when the W2 gap rules find something
- * missing. The server never sees the records: the phone uploads a
- * summary (which of the last few days have food, a weigh-in, a night, and
- * the first date of each kind), and `gapsFromSummary` turns it back into
- * synthetic records so `findGaps` applies exactly the same rules.
+ * The phone cannot wake itself, so the server sends at most one push a day
+ * at the user's chosen time, and only when today is missing the one thing
+ * that time of day is for: a weigh-in in the morning, food from noon. It
+ * never names earlier days. The server never sees the records: the phone
+ * uploads a summary (which of the last few days have food, a weigh-in, a
+ * night, and the first date of each kind), and `todayMissing` reads it.
  *
- * Copy rule: the notification names the day and what is missing, nothing
- * else. No streaks, no encouragement, no second notification.
+ * Copy rule: the notification says what today is missing, nothing else.
+ * No streaks, no encouragement, no second notification. Off until the
+ * user turns it on in Profile.
  */
 
 import { addDays, dateRange, isLocalDate, weekday, type LocalDate } from "@/lib/dates";
-import { GAP_LOOKBACK_DAYS, findGaps, gapHref, gapLines, type Gap, type GapInputs } from "@/lib/physique/gaps";
+import { GAP_LOOKBACK_DAYS, type GapInputs } from "@/lib/physique/gaps";
 import { dailyIntake, entriesByDate } from "@/lib/physique/intake";
 import { weighInsByDate } from "@/lib/physique/weight";
 import { nightsByDate } from "@/lib/physique/sleep";
-import type { FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
 
 export type LoggedDays = { food: LocalDate[]; weight: LocalDate[]; sleep: LocalDate[] };
 export type FirstDays = { food: LocalDate | null; weight: LocalDate | null; sleep: LocalDate | null };
@@ -29,10 +29,20 @@ export const SUMMARY_DAYS = GAP_LOOKBACK_DAYS + 2;
 export const SUMMARY_MAX_AGE_DAYS = 14;
 /** The push goes out within this many minutes after the chosen time; later than that the day is skipped. OURS. */
 export const REMINDER_WINDOW_MIN = 120;
-/** Morning, after the gap day is over and before the day fills up. OURS. */
+/** Morning, when a weigh-in is due (the trend assumes one taken on waking). OURS. */
 export const DEFAULT_REMINDER_HHMM = "09:00";
-/** Sentences in one notification; the rest is a count. OURS. */
-export const REMINDER_MAX_LINES = 3;
+/**
+ * Before this local time the reminder asks about the weigh-in, from it about
+ * food. OURS: weigh-ins belong to the morning, and a day only has food worth
+ * asking about once a meal is likely to have been eaten.
+ */
+export const REMINDER_FOOD_FROM_MIN = 12 * 60;
+/**
+ * A kind is only asked about when it was logged on one of this many days
+ * before today. OURS: the reminder follows a habit the user has; it does not
+ * start one they dropped or never had.
+ */
+export const REMINDER_HABIT_DAYS = GAP_LOOKBACK_DAYS;
 
 function earliest(dates: Iterable<LocalDate>): LocalDate | null {
   let first: LocalDate | null = null;
@@ -75,18 +85,21 @@ export function withLoggedDays(s: GapSummary, extra: { weight?: readonly LocalDa
   };
 }
 
-/** Synthetic records with the same dates, so the W2 rules run unchanged. */
-export function gapsFromSummary(s: GapSummary, today: LocalDate): Gap[] {
-  const rec = (date: LocalDate, id: string) => ({ id, date, loggedAt: `${date}T00:00:00.000Z`, source: "manual" as const, schemaVersion: 1 as const });
-  const days = (list: readonly LocalDate[], first: LocalDate | null): LocalDate[] => {
-    const set = new Set(list.filter(isLocalDate));
-    if (first && isLocalDate(first)) set.add(first);
-    return [...set];
-  };
-  const foodEntries: FoodEntry[] = days(s.logged.food, s.first.food).map((d) => ({ ...rec(d, `f-${d}`), label: "logged", kcal: 1, proteinG: 0, carbsG: 0, fatG: 0, method: "quick" }));
-  const weighIns: WeighIn[] = days(s.logged.weight, s.first.weight).map((d) => ({ ...rec(d, `w-${d}`), kg: 1 }));
-  const sleepNights: SleepNight[] = days(s.logged.sleep, s.first.sleep).map((d) => ({ ...rec(d, `n-${d}`), asleepMin: 1 }));
-  return findGaps({ foodEntries, dayFlags: {}, weighIns, sleepNights }, today);
+export type ReminderKind = "weight" | "food";
+
+/**
+ * What today is missing at the chosen time: the weigh-in before
+ * REMINDER_FOOD_FROM_MIN, food from it, each only for a habit the summary
+ * shows in the REMINDER_HABIT_DAYS before today. Null when nothing is.
+ */
+export function todayMissing(s: GapSummary, today: LocalDate, reminderHHMM: string): ReminderKind | null {
+  const at = parseHHMM(reminderHHMM);
+  if (at == null) return null;
+  const kind: ReminderKind = at < REMINDER_FOOD_FROM_MIN ? "weight" : "food";
+  const logged = kind === "weight" ? s.logged.weight : s.logged.food;
+  if (logged.includes(today)) return null;
+  const from = addDays(today, -REMINDER_HABIT_DAYS);
+  return logged.some((d) => d >= from && d < today) ? kind : null;
 }
 
 /** Local day and minutes since midnight in `tz` at `nowIso`; null when either is unusable. */
@@ -143,23 +156,17 @@ export function shortRange(start: LocalDate, end: LocalDate): string {
 }
 
 /**
- * The notification, or null when nothing is missing (then nothing is sent).
- * On the report day the weekly report goes out whatever the gaps: its title
- * names the week, its body what the report holds and the first gap if any,
- * and it opens the report. The gap sentences keep the same rules on both days.
+ * The notification, or null when nothing is sent. On the report day the
+ * weekly report goes out instead, whatever today holds: its title names the
+ * week, its body what the report holds, and it opens the report.
  */
-export function reminderMessage(gaps: readonly Gap[], today: LocalDate, opts: { weekly?: boolean } = {}): ReminderMessage | null {
-  const lines = gapLines(gaps, today);
-  const shown = lines.slice(0, REMINDER_MAX_LINES).map((l) => l.text);
-  const more = lines.length - shown.length;
-  const sentences = more > 0 ? `${shown.join("\n")}\n${more} more` : shown.join("\n");
+export function reminderMessage(missing: ReminderKind | null, today: LocalDate, opts: { weekly?: boolean } = {}): ReminderMessage | null {
   if (opts.weekly) {
     // No numbers leave the phone (the server only knows which days were logged), so the push says what is inside.
     const start = addDays(today, -7);
-    const ready = "Where you're heading, what to fix and next week's targets.";
-    const missing = lines.length === 0 ? "" : `\n${lines.length} ${lines.length === 1 ? "thing" : "things"} not logged: ${shown[0].charAt(0).toLowerCase()}${shown[0].slice(1)}${lines.length > 1 ? ", and more" : ""}.`;
-    return { title: `Weekly report · ${shortRange(start, addDays(today, -1))}`, body: `${ready}${missing}`, url: `/report?week=${start}` };
+    return { title: `Weekly report · ${shortRange(start, addDays(today, -1))}`, body: "Where you're heading, what to fix and next week's targets.", url: `/report?week=${start}` };
   }
-  if (lines.length === 0) return null;
-  return { title: "Not logged", body: sentences, url: gapHref(lines[0]) };
+  if (missing === "weight") return { title: "Today", body: "No weigh-in yet.", url: `/body?date=${today}` };
+  if (missing === "food") return { title: "Today", body: "Nothing logged yet.", url: "/food" };
+  return null;
 }

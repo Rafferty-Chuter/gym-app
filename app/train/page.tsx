@@ -27,7 +27,9 @@ import type { Phase } from "@/lib/training/progression";
 import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
 import { goalStore } from "@/lib/physique/io/repos";
 import { useSingleton } from "@/lib/storage/useStored";
-import { buildIndicators, INDICATOR_DOT_COLOR, INDICATOR_WINDOW_LABEL } from "@/lib/trainSignals";
+import { buildIndicators, INDICATOR_DOT_COLOR } from "@/lib/trainSignals";
+import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
+import type { PhysiqueAnalysis, StrengthStatus } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
 /**
@@ -109,11 +111,14 @@ function TrainContent({ now }: { now: Now }) {
     return { week, weekCount, weekVolume, latest, weekSets, total: workouts.length, exercises: loggedExercises(workouts).length };
   }, [workouts, now, unit]);
 
-  // The three training reads (plateau, volume, progress), from the same rules as their signal pages.
-  const indicators = useMemo(() => {
+  // Strength is the physique engine's read since the phase began: the same one Body, Home and the report use (B2).
+  const analysis = usePhysiqueAnalysis(now, unit);
+  // Volume only once muscle priorities are set: before that there is no band to read sets against. Same rules as its page.
+  const volume = useMemo(() => {
+    if (!priorities) return null;
     const list = [...workouts]; // the rules take a mutable array; the store hands out a readonly one
     const coach = list.length === 0 ? EMPTY_COACH_STRUCTURED_ANALYSIS : buildCoachStructuredAnalysis(list, { focus, experienceLevel, goal, unit });
-    return buildIndicators(coach, list, model.weekSets, model.weekCount, bandsFor(priorities, phase));
+    return buildIndicators(coach, list, model.weekSets, model.weekCount, bandsFor(priorities, phase)).find((i) => i.key === "volume") ?? null;
   }, [workouts, focus, experienceLevel, goal, unit, model.weekSets, model.weekCount, priorities, phase]);
 
   const maxVol = Math.max(1, ...model.week.map((d) => d.volume));
@@ -122,7 +127,8 @@ function TrainContent({ now }: { now: Now }) {
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <PageHeader caption={`${model.weekCount} ${model.weekCount === 1 ? "workout" : "workouts"} · last 7 days`} title="Train" action={{ label: "New routine", href: "/templates/new" }} />
+        {/* No header plus (B2): "New routine" sits with the routines it makes. */}
+        <PageHeader caption={`${model.weekCount} ${model.weekCount === 1 ? "workout" : "workouts"} · last 7 days`} title="Train" />
 
         <button
           type="button"
@@ -195,29 +201,31 @@ function TrainContent({ now }: { now: Now }) {
           </div>
         </section>
 
-        <section aria-label="Analysis">
-          <div className="mb-2">
-            <Caption>Analysis</Caption>
-          </div>
-          <RowGroup>
-            {indicators.map((ind) => (
-              <Row
-                key={ind.key}
-                label={ind.label}
-                sub={`${INDICATOR_WINDOW_LABEL[ind.key]} · ${ind.context}`}
-                value={
-                  <span className="flex items-center gap-2">
-                    <StatusDot color={INDICATOR_DOT_COLOR[ind.state]} />
-                    {ind.status}
-                  </span>
-                }
-                trailing={<Chevron />}
-                onClick={() => router.push(`/signal/${ind.key}`)}
-                ariaLabel={`${ind.label}: ${ind.status}. ${ind.context} Open`}
-              />
-            ))}
-          </RowGroup>
-        </section>
+        {(analysis || volume) && (
+          <section aria-label="How training is going">
+            <div className="mb-2">
+              <Caption>How training is going</Caption>
+            </div>
+            <RowGroup>
+              {analysis && <StrengthRow strength={analysis.strength} onOpen={() => router.push("/exercises")} />}
+              {volume && (
+                <Row
+                  label="Volume"
+                  sub={`Last 7 days · ${volume.context}`}
+                  value={
+                    <span className="flex items-center gap-2">
+                      <StatusDot color={INDICATOR_DOT_COLOR[volume.state]} />
+                      {volume.status}
+                    </span>
+                  }
+                  trailing={<Chevron />}
+                  onClick={() => router.push("/signal/volume")}
+                  ariaLabel={`Volume: ${volume.status}. ${volume.context} Open`}
+                />
+              )}
+            </RowGroup>
+          </section>
+        )}
 
         <RowGroup>
           <Row
@@ -239,5 +247,36 @@ function TrainContent({ now }: { now: Now }) {
         </RowGroup>
       </div>
     </main>
+  );
+}
+
+const STRENGTH_WORD: Record<StrengthStatus, { word: string; color: string }> = {
+  rising: { word: "Rising", color: "var(--status-good)" },
+  holding: { word: "Holding", color: "var(--status-good)" },
+  "one-lift": { word: "One lift down", color: "var(--status-watch)" },
+  dropping: { word: "Dropping", color: "var(--status-watch)" },
+  unclear: { word: "Early read", color: "var(--text-tertiary)" },
+};
+
+/** Main lifts since the phase began, from the strength engine: the status, and the two biggest movers. Opens the exercise charts. */
+function StrengthRow({ strength, onOpen }: { strength: PhysiqueAnalysis["strength"]; onOpen: () => void }) {
+  const w = STRENGTH_WORD[strength.status];
+  const moved = strength.lifts.filter((l) => l.changePct != null).sort((a, b) => Math.abs(b.changePct as number) - Math.abs(a.changePct as number));
+  const pct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(0)}%`;
+  const sub = moved.length ? `Since the phase began · ${moved.slice(0, 2).map((l) => `${l.name} ${pct(l.changePct as number)}`).join(", ")}` : strength.baselineMissing ? "Since the phase began · no lifts from before it to compare" : "Since the phase began · a few more sessions to read";
+  return (
+    <Row
+      label="Strength"
+      sub={sub}
+      value={
+        <span className="flex items-center gap-2">
+          <StatusDot color={w.color} />
+          {w.word}
+        </span>
+      }
+      trailing={<Chevron />}
+      onClick={onOpen}
+      ariaLabel={`Strength: ${w.word}. ${sub}. Open the exercise charts`}
+    />
   );
 }

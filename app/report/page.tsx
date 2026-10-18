@@ -14,13 +14,13 @@ import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { useWorkouts } from "@/lib/physique/io/workouts";
 import { profileStore } from "@/lib/physique/io/repos";
-import { buildWeekReport, defaultReportWeek, reportWeekStart, type WeekGap, type WeekReport } from "@/lib/physique/weekReport";
+import { buildWeekReport, defaultReportWeek, reportWeekStart, type WeekReport } from "@/lib/physique/weekReport";
 import { signedKcal } from "@/lib/physique/food/energy";
 import { formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { formatRate } from "@/components/physique/WeightChartCard";
 import { Caption, Row, RowGroup } from "@/components/physique/ui";
-import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
+import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import { loadOnboardingProfile } from "@/lib/onboardingProfile";
 import { goalEta } from "@/lib/physique/goalEta";
 import { goalProgress } from "@/lib/physique/goalProgress";
@@ -128,9 +128,6 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const caption = `${shortLocalDate(report.start)} to ${shortLocalDate(report.end)} · ${report.complete ? "complete" : `${report.daysCovered} of 7 days so far`}`;
   const w = (kg: number | null) => (kg == null ? dash : formatWeight(kg, unit));
   const kgDelta = (kg: number | null) => (kg == null ? dash : `${kg > 0 ? "+" : kg < 0 ? "−" : ""}${Math.abs(kgToDisplay(kg, unit)).toFixed(1)} ${unit}`);
-  const gapHref = (g: WeekGap) => (g.kind === "food" ? `/food?date=${g.date}` : g.kind === "weight" ? `/body?date=${g.date}` : `/sleep?date=${g.date}`);
-  const gapLabel = (g: WeekGap) => (g.kind === "food" ? "No food logged" : g.kind === "weight" ? "No weigh-in" : "No sleep logged");
-  const byKind = (kind: WeekGap["kind"]) => report.gaps.filter((g) => g.kind === kind);
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
@@ -182,36 +179,6 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
             </svg>
           </summary>
           <div className="mt-5 flex flex-col gap-5">
-          {report.gaps.length > 0 && (
-            <section aria-label="Gaps">
-              <div className="mb-2 flex items-baseline justify-between">
-                <span className="text-[17px] font-semibold">Not logged</span>
-                <Caption>{report.gaps.length} {report.gaps.length === 1 ? "gap" : "gaps"}</Caption>
-              </div>
-              <RowGroup>
-                {(["food", "weight", "sleep"] as const).map((kind) => {
-                  const items = byKind(kind);
-                  if (items.length === 0) return null;
-                  return (
-                    <div key={kind} className="flex flex-col gap-1.5 px-4 py-3">
-                      <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
-                        {gapLabel(items[0])} · {items.length} {items.length === 1 ? "day" : "days"}
-                      </span>
-                      {/* Plain anchors: the target page reads ?date= on mount, which a soft navigation would miss. */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {items.map((g) => (
-                          <a key={`${g.kind}-${g.date}`} href={gapHref(g)} className="h-[30px] rounded-full px-3 text-[12px] font-medium leading-[30px] transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label={`${gapLabel(g)} ${longLocalDate(g.date)}. Log it`}>
-                            {longLocalDate(g.date)}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </RowGroup>
-            </section>
-          )}
-
           <section aria-label="Weight">
             <div className="mb-2 flex items-baseline justify-between">
               <span className="text-[17px] font-semibold">Weight</span>

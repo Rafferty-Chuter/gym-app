@@ -119,7 +119,8 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   return (
     <main className="min-h-screen pb-40" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 sm:px-6">
-        <PageHeader caption={caption} title="Food" action={{ label: "Add food", onClick: () => setLogger({}) }} />
+        {/* No header plus: the "Add a food" bar at thumb height opens the same search (B2). */}
+        <PageHeader caption={caption} title="Food" />
 
         <WeekStrip dates={week} selected={date} today={today} logged={model.logged} onSelect={setDate} onPrevWeek={() => setDate(addDays(date, -7))} onNextWeek={() => setDate((d) => (addDays(d, 7) > today ? today : addDays(d, 7)))} />
 
@@ -136,20 +137,15 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           energyLine={energyLine}
           onEnergyLineChange={setEnergyLine}
           expenditureState={analysis?.expenditure.state ?? null}
-          week={model.weekRows}
-          onSelectDay={setDate}
         />
 
         <FoodTimeline
           timeline={model.timeline}
           tz={tz}
-          hideEmpty={prefs.hideEmptyHours}
           onAddAt={(hour) => setLogger({ hour })}
           onEdit={setEditing}
           onCopyDay={() => setDayAction({ kind: "copy", to: isToday ? addDays(today, -1) : today })}
-          onClearDay={() => setDayAction({ kind: "clear" })}
           onEditDay={() => setDayAction({ kind: "edit" })}
-          onToggleHideEmpty={() => void setFoodPrefs({ hideEmptyHours: !prefs.hideEmptyHours })}
           dayNote={model.dayNote}
         />
       </div>
@@ -180,6 +176,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         dateLabel={caption}
         flags={model.flags}
         entriesKcal={model.timeline.totals.kcal}
+        onClear={model.timeline.entries > 0 ? () => setDayAction({ kind: "clear" }) : undefined}
         onSave={async ({ status, overrideKcal }) => {
           const a = await setDayStatus(date, status === "complete" ? null : status);
           if (!a.ok) return a;

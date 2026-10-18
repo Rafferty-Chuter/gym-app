@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 
 const STORAGE_KEY = "experienceLevel";
+/** Fired when the level is set outside the provider (goal setup), so open screens pick it up. */
+export const EXPERIENCE_LEVEL_CHANGED_EVENT = "experienceLevelChanged";
 
 export type ExperienceLevel = "Beginner" | "Intermediate" | "Advanced";
 
@@ -37,6 +39,9 @@ export function ExperienceLevelProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setState(readExperienceLevel());
     setMounted(true);
+    const reread = () => setState(readExperienceLevel());
+    window.addEventListener(EXPERIENCE_LEVEL_CHANGED_EVENT, reread);
+    return () => window.removeEventListener(EXPERIENCE_LEVEL_CHANGED_EVENT, reread);
   }, []);
 
   function setExperienceLevel(e: ExperienceLevel) {
@@ -65,4 +70,22 @@ export function useExperienceLevel(): ExperienceLevelContextValue {
   const ctx = useContext(ExperienceLevelContext);
   if (!ctx) throw new Error("useExperienceLevel must be used within ExperienceLevelProvider");
   return ctx;
+}
+
+/** Goal setup's training status, in this setting's words. */
+const FROM_STATUS = { novice: "Beginner", intermediate: "Intermediate", advanced: "Advanced" } as const;
+
+/**
+ * The training status chosen in goal setup becomes the experience level
+ * (B2): the question is asked once, there, and Profile no longer asks it
+ * again. Wrapped like every storage write; a failure leaves the old level.
+ */
+export function syncExperienceFromStatus(status: keyof typeof FROM_STATUS): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, FROM_STATUS[status]);
+    window.dispatchEvent(new Event(EXPERIENCE_LEVEL_CHANGED_EVENT));
+  } catch {
+    /* ignore */
+  }
 }

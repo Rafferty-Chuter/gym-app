@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDays } from "@/lib/dates";
-import { GAP_LOOKBACK_DAYS, findGaps, gapDayWord, gapHref, gapLines, gapWindow } from "@/lib/physique/gaps";
+import { GAP_LOOKBACK_DAYS, findGaps, gapDayWord, gapLines, gapWindow } from "@/lib/physique/gaps";
 import type { DayFlags, FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
 
 const today = "2026-10-16"; // a Friday
@@ -53,7 +53,6 @@ describe("gaps", () => {
     expect(lines[0].text).toBe("Wednesday has no food logged");
     expect(lines[2].text).toBe("Tuesday has no weigh-in");
     expect(lines.at(-1)).toMatchObject({ kind: "weight", date: "2026-10-09", text: "Last Friday has no weigh-in" });
-    expect(gapHref(lines[0])).toBe("/food?date=2026-10-14");
   });
 
   it("collapses a kind with nothing in the window into one line", () => {
@@ -62,7 +61,6 @@ describe("gaps", () => {
     expect(gaps).toHaveLength(GAP_LOOKBACK_DAYS);
     const lines = gapLines(gaps, today);
     expect(lines).toEqual([{ kind: "sleep", date: "2026-10-15", text: "No sleep logged in the last 7 days", count: 7 }]);
-    expect(gapHref(lines[0])).toBe("/sleep?date=2026-10-15");
   });
 
   it("names days relative to today", () => {

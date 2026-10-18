@@ -6,13 +6,10 @@ import type { FoodEntry } from "@/lib/physique/types";
 type Props = {
   timeline: DayTimeline;
   tz: string;
-  hideEmpty: boolean;
   onAddAt: (hour: number) => void;
   onEdit: (entry: FoodEntry) => void;
   onCopyDay: () => void;
-  onClearDay: () => void;
   onEditDay: () => void;
-  onToggleHideEmpty: () => void;
   /** Day status or override line shown above the hours ("Partial day", "Total set to 2,100 kcal"). */
   dayNote?: string | null;
 };
@@ -20,12 +17,15 @@ type Props = {
 const n = (v: number) => Math.round(v).toLocaleString("en-GB");
 
 /**
- * Hour timeline (05-design §9.4): one row per hour with a small + at the
- * right, entries under their hour with name, macro line and an edit
- * pencil, and hour totals on the hour row. Actions sit under the list.
+ * Hour timeline (05-design §9.4): the hours you ate in, each with its
+ * total and a small + to add at that hour, entries under their hour with
+ * name, macro line and an edit pencil. Empty hours are not shown (B2): the
+ * "Add a food" bar logs at the current time and the logger's time chip
+ * moves it. Copy day and Edit day sit under the list; Clear day lives
+ * inside Edit day.
  */
-export default function FoodTimeline({ timeline, tz, hideEmpty, onAddAt, onEdit, onCopyDay, onClearDay, onEditDay, onToggleHideEmpty, dayNote }: Props) {
-  const rows = hideEmpty ? timeline.hours.filter((h) => h.entries.length > 0) : timeline.hours;
+export default function FoodTimeline({ timeline, tz, onAddAt, onEdit, onCopyDay, onEditDay, dayNote }: Props) {
+  const rows = timeline.hours.filter((h) => h.entries.length > 0);
   return (
     <section aria-label="Timeline" className="flex flex-col">
       {dayNote && (
@@ -36,7 +36,7 @@ export default function FoodTimeline({ timeline, tz, hideEmpty, onAddAt, onEdit,
       )}
       {rows.length === 0 && (
         <p className="py-6 text-center text-[13px]" style={{ color: "var(--text-tertiary)" }}>
-          Nothing logged. Show empty hours to add at a time, or use the bar below.
+          Nothing logged on this day yet.
         </p>
       )}
       <ol className="flex flex-col">
@@ -108,9 +108,7 @@ export default function FoodTimeline({ timeline, tz, hideEmpty, onAddAt, onEdit,
       <div className="mt-3 flex flex-wrap gap-2 pl-[56px]">
         {[
           { label: "Copy day", onClick: onCopyDay, disabled: timeline.entries === 0 },
-          { label: "Clear day", onClick: onClearDay, disabled: timeline.entries === 0 },
           { label: "Edit day", onClick: onEditDay, disabled: false },
-          { label: hideEmpty ? "Show empty hours" : "Hide empty hours", onClick: onToggleHideEmpty, disabled: false },
         ].map((a) => (
           <button key={a.label} type="button" onClick={a.onClick} disabled={a.disabled} className="h-[30px] rounded-full px-3 text-[12px] font-medium transition-colors active:bg-[var(--surface-pressed)] disabled:opacity-40" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }}>
             {a.label}

@@ -23,8 +23,6 @@ import { clampSleepGoal } from "@/lib/physique/sleep";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { useUnit } from "@/lib/unit-preference";
 import { readAppearance, setAppearance, type Appearance } from "@/lib/ui/appearance";
-import { useTrainingFocus, TRAINING_FOCUS_OPTIONS, type TrainingFocus } from "@/lib/trainingFocus";
-import { useExperienceLevel, EXPERIENCE_LEVEL_OPTIONS, type ExperienceLevel } from "@/lib/experienceLevel";
 import { getRestTimerSettings, REST_TIMER_SETTINGS_EVENT, setRestTimerSettings, type RestTimerSettings } from "@/lib/restTimerSettings";
 import { downloadAllWorkoutsCsv } from "@/lib/exportWorkoutsCsv";
 import type { Sex } from "@/lib/physique/types";
@@ -33,7 +31,6 @@ import type { Sex } from "@/lib/physique/types";
 const SLEEP_GOAL_STEP_H = 0.5;
 
 const pill = (on: boolean) => ({ background: on ? "var(--primary)" : "var(--surface-raised)", color: on ? "var(--text-on-primary)" : "var(--text-secondary)" });
-const selectStyle = { background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" };
 
 /** On / off as a small switch inside a row. */
 function Switch({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) {
@@ -65,8 +62,6 @@ export default function ProfilePage() {
   const phase: Phase = physiqueGoal?.type === "lose" ? "cut" : physiqueGoal?.type === "gain" ? "lean_bulk" : "maintain";
   const emphasised = VOLUME_GROUP_ORDER.filter((g) => priorityOf(priorities, g) === "emphasise").map((g) => GROUP_LABEL[g]);
   const prioritiesSub = emphasised.length > 0 ? `Emphasising ${emphasised.join(", ").toLowerCase()}` : "Every muscle set to grow";
-  const { focus, setFocus } = useTrainingFocus();
-  const { experienceLevel, setExperienceLevel } = useExperienceLevel();
   const profile = useSingleton(profileStore);
   const resolved = hydrated ? getPhysiqueProfileSync() : null;
   const healthLink = useHealthLink();
@@ -204,31 +199,6 @@ export default function ProfilePage() {
         <section className="flex flex-col gap-2" aria-label="Training">
           <Caption>Training</Caption>
           <RowGroup>
-            <Row
-              label="Focus"
-              sub="Shapes the volume reads on Train."
-              value={
-                <select value={focus} onChange={(e) => setFocus(e.target.value as TrainingFocus)} className="h-9 rounded-[10px] px-2 text-[13px] outline-none" style={selectStyle} aria-label="Training focus">
-                  {TRAINING_FOCUS_OPTIONS.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              }
-            />
-            <Row
-              label="Experience"
-              value={
-                <select value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value as ExperienceLevel)} className="h-9 rounded-[10px] px-2 text-[13px] outline-none" style={selectStyle} aria-label="Experience level">
-                  {EXPERIENCE_LEVEL_OPTIONS.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              }
-            />
             <Row label="Muscle priorities" sub={prioritiesSub} value="" trailing={<Chevron />} onClick={() => setSheet("priorities")} ariaLabel="Muscle priorities. Edit" />
             <Row label="Rest timer vibration" value={<Switch on={rest.vibrate} onChange={() => toggleRest("vibrate")} label="Vibrate when the rest timer ends" />} />
             <Row label="Rest timer sound" value={<Switch on={rest.sound} onChange={() => toggleRest("sound")} label="Play a sound when the rest timer ends" />} />
