@@ -153,7 +153,7 @@ MacroFactor's caption-over-title: an 11px tracked caption (the date or the goal)
 ### 9.3 Home
 
 1. **Today strip**: three tiles, Weight · Food · Sleep. Each shows today's value ("81.1 kg", "1,840 / 3,010", "7h 10m") or its action ("Weigh in", "Log food", "Log sleep") and taps straight into that log sheet. Bevel's three rings and MacroFactor's Habits, without rings.
-2. **Verdict line** (unchanged component).
+2. **How it's going** (H1): one card with the verdict (dot, title, one line), then "Last 7 days" as one row per pillar (Calories, Protein, Training, Sleep), each one number and one judgement in its tone, then the weekly report link (with "Ready" while the review is due). A row without three days of its kind is left out. No list of missed days on Home: Home says how things are going, not what was skipped.
 3. **Start workout** (white, the only primary button above the fold).
 4. Assistant insight card, quieter; takes the physique verdict when watch/attention (as now).
 5. Signals, with quiet pills.

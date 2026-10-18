@@ -28,7 +28,7 @@ export default function WelcomePage() {
           <ul className="flex flex-col gap-3 text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>
             <li>Log food, weight, sleep and training. Food by search or barcode, weight in a tap, sleep from Apple Health if you want.</li>
             <li>The engine reads the weight trend against what you eat and says whether the plan is working, in numbers.</li>
-            <li>Nothing cheers and nothing nags. A missed day is stated once, with the fix a tap away.</li>
+            <li>Nothing cheers and nothing nags. Home shows how the last week went, in a few lines.</li>
           </ul>
         </div>
         <div className="flex flex-col gap-2">

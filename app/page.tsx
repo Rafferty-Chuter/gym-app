@@ -14,12 +14,10 @@ import {
   type DraftWorkout,
 } from "@/lib/activeWorkout";
 import { useWorkoutStore } from "@/lib/workout-store";
-import PhysiqueHomeCard from "@/components/physique/PhysiqueHomeCard";
-import WeekReportLine from "@/components/physique/WeekReportLine";
+import HowItsGoing from "@/components/physique/HowItsGoing";
 import TodayStrip from "@/components/physique/TodayStrip";
 import PageHeader from "@/components/ui/PageHeader";
 import { fullLocalDate } from "@/components/charts/TimeSeriesChart";
-import GapLines from "@/components/physique/GapLines";
 import WelcomeRedirect from "@/components/physique/WelcomeRedirect";
 import { askWhyPrompt } from "@/components/physique/VerdictCard";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
@@ -306,20 +304,11 @@ export default function Home() {
 
         <section aria-label="Today">
           <TodayStrip />
-          <div className="mt-2">
-            <GapLines />
-          </div>
         </section>
 
-        <section className="pt-3" aria-labelledby="physique-heading">
-          <h2 id="physique-heading" className="sr-only">
-            Body
-          </h2>
-          <PhysiqueHomeCard />
-          <div className="mt-2">
-            <WeekReportLine />
-          </div>
-        </section>
+        <div className="pt-3">
+          <HowItsGoing />
+        </div>
 
         <section className="pt-3 pb-1">
           <Link
