@@ -106,6 +106,19 @@ export function detectFormat(headers: string[]): CsvFormat {
 }
 
 /**
+ * The workout app a CSV came from, read from its header row alone; null
+ * when it is not a Hevy, Strong or Rep Count export. Lets the daily-log box
+ * take a workout file instead of failing on its dates (C7).
+ */
+export function workoutFormatOf(text: string): Exclude<CsvFormat, "unknown"> | null {
+  const first = text.replace(/^\uFEFF/, "").trim().split(/\r?\n/)[0] ?? "";
+  if (!first) return null;
+  const headers = parseCsv(first, pickSeparator(first))[0] ?? [];
+  const f = detectFormat(headers);
+  return f === "unknown" ? null : f;
+}
+
+/**
  * Rep Count dates are local wall-clock, "2026-10-16 18:34", with no zone.
  * Built with the Date constructor so the device's own timezone applies.
  */

@@ -7,11 +7,14 @@ import { useNow } from "@/lib/ui/useToday";
 import { useUnit } from "@/lib/unit-preference";
 import { useBodyData } from "@/lib/physique/io/bodyData";
 import { useWorkouts } from "@/lib/physique/io/workouts";
-import { commitDailyLog, removeImportedData } from "@/lib/physique/io/dailyLogImport";
+import { commitDailyLog, commitWorkoutImport, removeImportedData } from "@/lib/physique/io/dailyLogImport";
 import { dailyLogRecords, parseDailyLog, type DailyLogParse } from "@/lib/import/dailyLog";
 import { SAMPLE_WORKOUT_SUFFIX, sampleDailyLog, sampleWorkoutsCsv } from "@/lib/import/sample";
-import { commitImportedWorkouts, parseImportCsv } from "@/lib/csvImport";
+import { commitImportedWorkouts, parseImportCsv, workoutFormatOf, type ParseResult } from "@/lib/csvImport";
 import { formatWeight } from "@/lib/units";
+
+const APP_NAME = { hevy: "Hevy", strong: "Strong", repcount: "Rep Count" } as const;
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
 const FORMAT_LINE = "date, weight_kg, calories, protein_g, carbs_g, fat_g, fibre_g, bedtime, wake, asleep_min, steps";
 
@@ -40,6 +43,8 @@ export default function DailyLogImport() {
   const [text, setText] = useState("");
   const [fromSample, setFromSample] = useState(false);
   const [parsed, setParsed] = useState<DailyLogParse | null>(null);
+  // C7: a Hevy, Strong or Rep Count export put in this box is read as workouts.
+  const [workoutFile, setWorkoutFile] = useState<Extract<ParseResult, { ok: true }> | null>(null);
   const [setGoal, setSetGoal] = useState(true);
   const [safety, setSafety] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,6 +65,7 @@ export default function DailyLogImport() {
     setText(next);
     setFromSample(sample);
     setParsed(null);
+    setWorkoutFile(null);
     setStatus(null);
     setError(null);
   }
@@ -70,10 +76,20 @@ export default function DailyLogImport() {
     const reader = new FileReader();
     reader.onload = () => typeof reader.result === "string" && reset(reader.result);
     reader.readAsText(file);
+    // Let the same file be chosen again after an import.
+    e.target.value = "";
   }
 
   function runPreview(source = text) {
     if (!now) return;
+    const fmt = workoutFormatOf(source);
+    if (fmt) {
+      const w = parseImportCsv(source, { format: fmt, targetUnit: unit, sourceUnit: unit });
+      setParsed(null);
+      setWorkoutFile(w.ok && w.workouts.length > 0 ? w : null);
+      setError(!w.ok ? w.error : w.workouts.length === 0 ? `No workouts found in that ${APP_NAME[fmt]} file.` : null);
+      return;
+    }
     const p = parseDailyLog(source, now.today);
     setParsed(p);
     setError(p.rows.length === 0 ? (p.issues[0] ?? "No days found in that file.") : null);
@@ -105,6 +121,22 @@ export default function DailyLogImport() {
       setFromSample(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save the import.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importWorkouts() {
+    if (!workoutFile || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await commitWorkoutImport(workoutFile.workouts, workoutFile.weighIns, "append");
+      setStatus(`Imported ${r.written} workout${r.written === 1 ? "" : "s"} from ${APP_NAME[workoutFile.format]}${r.duplicatesSkipped ? `, ${r.duplicatesSkipped} already there` : ""}.`);
+      setText("");
+      setWorkoutFile(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save the workouts.");
     } finally {
       setBusy(false);
     }
@@ -156,7 +188,7 @@ export default function DailyLogImport() {
       <section className="flex flex-col gap-2" aria-label="Daily log">
         <Caption>Daily log</Caption>
         <p className="text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
-          One day per row: {FORMAT_LINE}. Any column but the date can be blank. A first line like <span className="font-mono">{"# goal start=2026-08-24 target_kg=80 rate_pct_per_week=-0.6"}</span> sets a goal from that date.
+          One day per row: {FORMAT_LINE}. Any column but the date can be blank. A first line like <span className="font-mono">{"# goal start=2026-08-24 target_kg=80 rate_pct_per_week=-0.6"}</span> sets a goal from that date. A workout export from Hevy, Strong or Rep Count works here too.
         </p>
         <div className="flex items-center gap-3">
           <label className="inline-flex h-9 cursor-pointer items-center rounded-full px-4 text-[13px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
@@ -188,7 +220,18 @@ export default function DailyLogImport() {
             {preview.recs.kept.weight + preview.recs.kept.food + preview.recs.kept.sleep + preview.recs.kept.steps > 0 && <Row label="Kept" sub="Days you logged yourself are not overwritten" value={preview.recs.kept.weight + preview.recs.kept.food + preview.recs.kept.sleep + preview.recs.kept.steps} />}
           </RowGroup>
         )}
-        {parsed && parsed.issues.length > 0 && (
+        {workoutFile && (
+          <RowGroup>
+            <Row
+              label="Workouts"
+              sub={`From ${APP_NAME[workoutFile.format]} · ${shortDate(workoutFile.workouts.reduce((a, w) => (w.completedAt < a ? w.completedAt : a), workoutFile.workouts[0].completedAt))} to ${shortDate(workoutFile.workouts.reduce((a, w) => (w.completedAt > a ? w.completedAt : a), workoutFile.workouts[0].completedAt))}`}
+              value={workoutFile.workouts.length}
+            />
+            <Row label="Sets" value={workoutFile.workouts.reduce((t, w) => t + w.exercises.reduce((u, e) => u + e.sets.length, 0), 0)} />
+            {workoutFile.weighIns.length > 0 && <Row label="Weigh-ins" sub="Bodyweight the file carries" value={workoutFile.weighIns.length} />}
+          </RowGroup>
+        )}
+        {preview && parsed && parsed.issues.length > 0 && (
           <ul className="flex flex-col gap-1 text-[12px]" style={{ color: "var(--status-watch)" }}>
             {parsed.issues.map((i) => (
               <li key={i}>{i}</li>
@@ -229,7 +272,11 @@ export default function DailyLogImport() {
           </div>
         )}
 
-        {preview ? (
+        {workoutFile ? (
+          <PrimaryButton onClick={() => void importWorkouts()} disabled={busy}>
+            {busy ? "Importing" : `Import ${workoutFile.workouts.length} workouts`}
+          </PrimaryButton>
+        ) : preview ? (
           <PrimaryButton onClick={runImport} disabled={busy || !goalReady}>
             {busy ? "Importing" : `Import ${parsed?.rows.length ?? 0} days`}
           </PrimaryButton>

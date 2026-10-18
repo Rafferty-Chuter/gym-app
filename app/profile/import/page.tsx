@@ -5,13 +5,12 @@ import PageHeader from "@/components/ui/PageHeader";
 import { Caption, ErrorLine, PrimaryButton, Row, RowGroup } from "@/components/physique/ui";
 import { useUnit } from "@/lib/unit-preference";
 import {
-  commitImportedWorkouts,
   parseImportCsv,
   type CommitMode,
   type ImportableWorkout,
   type ParseResult,
 } from "@/lib/csvImport";
-import { weighInsRepo } from "@/lib/physique/io/repos";
+import { commitWorkoutImport } from "@/lib/physique/io/dailyLogImport";
 import DailyLogImport from "@/components/import/DailyLogImport";
 
 type FormatChoice = "auto" | "hevy" | "strong" | "repcount";
@@ -49,6 +48,7 @@ export default function ImportCsvPage() {
       }
     };
     reader.readAsText(file);
+    e.target.value = "";
   }
 
   function handlePreview() {
@@ -68,7 +68,7 @@ export default function ImportCsvPage() {
     if (!result.ok) setError(result.error);
   }
 
-  function handleCommit() {
+  async function handleCommit() {
     if (!parseResult || !parseResult.ok) return;
     if (mode === "replace") {
       const ok = window.confirm(
@@ -77,13 +77,7 @@ export default function ImportCsvPage() {
       if (!ok) return;
     }
     try {
-      const r = commitImportedWorkouts(parseResult.workouts, mode);
-      if (parseResult.weighIns.length > 0) {
-        // Bodyweights the file carried become weigh-ins; a re-import replaces the same day's import.
-        void weighInsRepo.bulkUpsert(
-          parseResult.weighIns.map((w) => ({ id: `import-w-${w.date}`, date: w.date, loggedAt: `${w.date}T08:00:00.000Z`, source: "import" as const, schemaVersion: 1 as const, kg: w.kg }))
-        );
-      }
+      const r = await commitWorkoutImport(parseResult.workouts, parseResult.weighIns, mode);
       setStatus(
         mode === "replace"
           ? `Replaced history. ${r.written} workouts saved (total ${r.total}).`

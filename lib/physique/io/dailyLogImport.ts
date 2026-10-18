@@ -17,6 +17,7 @@ import { latestTrend } from "@/lib/physique/weight";
 import { dailyLogRecords, type DailyLogParse } from "@/lib/import/dailyLog";
 import { SAMPLE_WORKOUT_SUFFIX } from "@/lib/import/sample";
 import type { WeightUnit } from "@/lib/units";
+import { commitImportedWorkouts, type CommitMode, type CommitResult, type ImportableWorkout, type ImportedWeighIn } from "@/lib/csvImport";
 
 type ImportMeta = { goalId?: string; at: string };
 
@@ -118,4 +119,17 @@ export async function removeImportedData(): Promise<void> {
     await goalHistoryRepo.remove(meta.goalId);
   }
   await importMetaStore.clear();
+}
+
+/**
+ * Save parsed workouts, and the bodyweights a Rep Count file carries as
+ * weigh-ins (a re-import replaces the same day's import). Shared by the
+ * Workouts section and the daily-log box when it is handed a workout file.
+ */
+export async function commitWorkoutImport(workouts: ImportableWorkout[], weighIns: ImportedWeighIn[], mode: CommitMode): Promise<CommitResult> {
+  const r = commitImportedWorkouts(workouts, mode);
+  if (weighIns.length > 0) {
+    await weighInsRepo.bulkUpsert(weighIns.map((w) => ({ id: `import-w-${w.date}`, date: w.date, loggedAt: `${w.date}T08:00:00.000Z`, source: "import" as const, schemaVersion: 1 as const, kg: w.kg })));
+  }
+  return r;
 }
