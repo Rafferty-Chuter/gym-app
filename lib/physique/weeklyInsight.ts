@@ -303,7 +303,8 @@ export function goingWell(i: InsightInputs): string[] {
   if (r.food.proteinGPerKg != null && r.food.proteinGPerKg >= PRO2_MIN_G_PER_KG) out.push(`protein ${r.food.proteinGPerKg.toFixed(1)} g/kg`);
   // From the strength engine, as the summary and the tile read it.
   if (i.analysis.strength.status === "rising") out.push("lifts up");
-  else if (i.analysis.strength.status === "holding") out.push("lifts held");
+  // Held lifts are the aim on a cut; a gain or a recomp aims higher, so it is not listed there (B3).
+  else if (i.analysis.strength.status === "holding" && i.goal?.type !== "gain" && i.goal?.type !== "maintain") out.push("lifts held");
   if (r.sleep.nights >= REVIEW_MIN_NIGHTS && !sleepShort(r)) out.push("sleep on goal");
   if (r.complete && i.plannedSessions && r.training.sessions >= i.plannedSessions) out.push("every session done");
   return out;

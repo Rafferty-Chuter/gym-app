@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
 import { mergeSamples, receivedLabel } from "@/lib/physique/io/healthLink";
-import { sleepNightsRepo, weighInsRepo } from "@/lib/physique/io/repos";
+import { sleepNightsRepo, stepsRepo, weighInsRepo } from "@/lib/physique/io/repos";
 import { nightsByDate } from "@/lib/physique/sleep";
 
 const at = "2026-10-15T08:00:00.000Z";
@@ -10,6 +10,7 @@ describe("mergeSamples", () => {
   beforeEach(async () => {
     await sleepNightsRepo.clear();
     await weighInsRepo.clear();
+    await stepsRepo.clear();
   });
 
   it("makes one healthkit night per wake date with HRV and RHR attached, and one weigh-in per day", async () => {
@@ -38,6 +39,20 @@ describe("mergeSamples", () => {
     const all = sleepNightsRepo.snapshot();
     expect(all).toHaveLength(2);
     expect(nightsByDate(all).get("2026-10-15")?.night.asleepMin).toBe(430);
+  });
+
+  it("keeps one step count per day, replacing it on replay (B3)", async () => {
+    await mergeSamples([
+      { metric: "steps", day: "2026-10-14", value: { value: 8123.6, at: "2026-10-14T00:00:00" }, source: "iPhone", received_at: at },
+      { metric: "steps", day: "2026-10-15", value: { value: 2100, at: "2026-10-15T00:00:00" }, source: "iPhone", received_at: at },
+      { metric: "steps", day: "2026-10-16", value: { value: -4, at: "2026-10-16T00:00:00" }, source: "iPhone", received_at: at },
+    ]);
+    await mergeSamples([{ metric: "steps", day: "2026-10-15", value: { value: 9400, at: "2026-10-15T00:00:00" }, source: "iPhone", received_at: at }]);
+    const steps = [...stepsRepo.snapshot()].sort((a, b) => (a.date < b.date ? -1 : 1));
+    expect(steps.map((s) => [s.id, s.steps, s.source])).toEqual([
+      ["hk-s-2026-10-14", 8124, "healthkit"],
+      ["hk-s-2026-10-15", 9400, "healthkit"],
+    ]);
   });
 
   it("keeps well-formed stage segments and drops a malformed set (S8)", async () => {

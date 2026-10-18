@@ -64,13 +64,16 @@ export type FoodInput = {
   serving?: string;
   method?: FoodMethod;
   confidence?: FoodEntry["confidence"];
+  /** Fibre in g when the source has it (B3). */
+  fibreG?: number;
   /** Present when the log is servings of a recipe; the saved food keeps one serving and the ingredients. */
   recipe?: SavedFood["recipe"];
 };
 
 function clean(food: FoodInput) {
   const r = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0);
-  return { label: food.label.trim() || "Food", kcal: r(food.kcal), proteinG: r(food.proteinG), carbsG: r(food.carbsG), fatG: r(food.fatG) };
+  const fibre = food.fibreG != null && Number.isFinite(food.fibreG) ? Math.max(0, Math.round(food.fibreG * 10) / 10) : null;
+  return { label: food.label.trim() || "Food", kcal: r(food.kcal), proteinG: r(food.proteinG), carbsG: r(food.carbsG), fatG: r(food.fatG), ...(fibre != null ? { fibreG: fibre } : {}) };
 }
 
 /** Remember a logged food for Recent and Saved; a same-label-and-kcal match is reused. */
@@ -80,7 +83,7 @@ async function rememberSaved(food: ReturnType<typeof clean>, serving: string | u
     (savedFoodId ? saved.find((s) => s.id === savedFoodId) : undefined) ??
     saved.find((s) => s.label.toLowerCase() === food.label.toLowerCase() && s.kcal === food.kcal);
   const next: SavedFood = match
-    ? { ...match, lastUsedAt: nowIso, useCount: match.useCount + 1, serving: serving ?? match.serving, ...(recipe ? { recipe } : {}) }
+    ? { ...match, lastUsedAt: nowIso, useCount: match.useCount + 1, serving: serving ?? match.serving, ...(match.fibreG == null && food.fibreG != null ? { fibreG: food.fibreG } : {}), ...(recipe ? { recipe } : {}) }
     : { id: newId(), ...food, serving, lastUsedAt: nowIso, useCount: 1, schemaVersion: 1, ...(recipe ? { recipe } : {}) };
   await savedFoodsRepo.upsert(next);
   return next.id;
@@ -140,6 +143,9 @@ export async function updateFoodEntry(id: string, patch: Partial<FoodInput>): Pr
     if (!existing) throw new Error("That entry is gone.");
     const merged = clean({ ...existing, ...patch, label: patch.label ?? existing.label });
     const next: FoodEntry = { ...existing, ...merged, loggedAt: existing.loggedAt };
+    // Fibre was known for the numbers first logged; once energy or carbs are edited it is unknown (B3).
+    const edited = (["kcal", "carbsG"] as const).some((k) => patch[k] !== undefined && merged[k] !== existing[k]);
+    if (edited && patch.fibreG === undefined) delete next.fibreG;
     if (patch.time !== undefined) {
       if (patch.time) next.time = patch.time;
       else delete next.time;

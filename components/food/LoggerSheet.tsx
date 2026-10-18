@@ -113,7 +113,7 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   }
 
   function logSaved(s: SavedFood) {
-    void log({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, serving: s.serving, method: "saved" }, s.id);
+    void log({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id);
   }
 
   function openRecipe(draft: RecipeDraft, from: RecipeView["from"], eatingServings = 1) {

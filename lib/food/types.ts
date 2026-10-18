@@ -27,5 +27,5 @@ export type FoodItem = {
   group?: string;
 };
 
-/** Macros for an amount of a food. */
-export type Macros = { kcal: number; proteinG: number; carbsG: number; fatG: number };
+/** Macros for an amount of a food; fibre only when the source has it. */
+export type Macros = { kcal: number; proteinG: number; carbsG: number; fatG: number; fibreG?: number };

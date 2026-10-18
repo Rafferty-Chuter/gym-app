@@ -1,6 +1,6 @@
 "use client";
 
-import { bandLabel, bandsFor } from "@/lib/training/volumeTargets";
+import { bandLabel, bandsFor, emphasisedGroups } from "@/lib/training/volumeTargets";
 import type { Phase } from "@/lib/training/progression";
 import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -33,7 +33,8 @@ import { readDeload } from "@/lib/training/deload";
 import ReviewDecision from "@/components/report/ReviewDecision";
 import { FixesCard, SummaryCard } from "@/components/report/InsightCards";
 import Scorecard from "@/components/report/Scorecard";
-import { coverageLine, scorecard } from "@/lib/physique/weekScorecard";
+import { FIBRE_TARGET_G, coverageLine, scorecard } from "@/lib/physique/weekScorecard";
+import { rateBands } from "@/lib/physique/targets";
 
 /**
  * The weekly report (W1, W3, with G3's decision): the verdict, where the
@@ -95,6 +96,9 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
       sleepGoalH: profile?.sleepGoalH,
       weightUnit: unit,
       volumeBands: bandsFor(priorities, phase),
+      emphasised: emphasisedGroups(priorities),
+      waist: data.waist,
+      steps: data.steps,
       expenditure: expenditure?.series ?? null,
     }),
     [data, workouts, profile, unit, priorities, phase, expenditure]
@@ -105,7 +109,11 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   );
   // Last week, for "vs last week" on the scorecard.
   const prevReport: WeekReport = useMemo(() => buildWeekReport(reportInputs, addDays(start, -7), now), [reportInputs, start, now]);
-  const tiles = useMemo(() => scorecard({ report, prev: prevReport.hasData ? prevReport : null, unit, goalType: data.goal?.type ?? null, strength: analysis?.strength ?? null }), [report, prevReport, unit, data.goal, analysis]);
+  const activeGoal = data.goal && !data.goal.completedAt ? data.goal : null;
+  const tiles = useMemo(
+    () => scorecard({ report, prev: prevReport.hasData ? prevReport : null, unit, goalType: activeGoal?.type ?? null, strength: analysis?.strength ?? null, planRatePct: activeGoal?.ratePctPerWeek ?? null, gainCeilingPct: activeGoal?.type === "gain" ? rateBands(activeGoal.trainingStatusAtCreation).gain.ceiling : null }),
+    [report, prevReport, unit, activeGoal, analysis]
+  );
 
   const plannedSessions = useMemo(() => {
     const n = Number(loadOnboardingProfile()?.daysPerWeek);
@@ -187,6 +195,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
             <RowGroup>
               <Row label="Trend" value={report.weight.endTrendKg == null ? dash : `${w(report.weight.startTrendKg)} → ${w(report.weight.endTrendKg)}`} sub={report.weight.deltaKg == null ? "Needs weigh-ins on both ends of the week" : `${kgDelta(report.weight.deltaKg)} over the week`} />
               <Row label="Rate" value={report.weight.ratePctPerWeek == null ? dash : formatRate(report.weight.ratePctPerWeek)} sub={report.weight.rateWindowDays ? `Over the last ${report.weight.rateWindowDays} days` : "Early read · not enough weigh-ins for a rate"} />
+              {report.waist.latestCm != null && <Row label="Waist" value={`${report.waist.latestCm.toFixed(1)} cm`} sub={report.waist.deltaCm == null ? `${report.waist.entries} of 4 weekly measures in the last 4 weeks` : `${report.waist.deltaCm > 0 ? "+" : report.waist.deltaCm < 0 ? "−" : ""}${Math.abs(report.waist.deltaCm).toFixed(1)} cm over ${report.waist.weeks} weeks`} />}
             </RowGroup>
           </section>
 
@@ -199,6 +208,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
               <Row label="Expenditure" value={report.expenditure.endKcal == null ? dash : `${n(report.expenditure.endKcal)} kcal`} sub={report.expenditure.deltaKcal == null ? "Needs food and weigh-ins on the same days" : report.expenditure.state === "holding" ? "Holding until logging resumes" : `${signedKcal(report.expenditure.deltaKcal)} kcal over the week`} />
               <Row label="Intake" value={report.food.meanKcal == null ? dash : `${n(report.food.meanKcal)} kcal`} sub={report.food.targetKcal == null ? "Average of logged days · no target set" : report.food.deltaKcal == null ? `Target ${n(report.food.targetKcal)} kcal` : `${signedKcal(report.food.deltaKcal)} vs the ${n(report.food.targetKcal)} kcal target, averaged over logged days`} />
               <Row label="Protein" value={report.food.meanProteinG == null ? dash : `${n(report.food.meanProteinG)} g`} sub={report.food.meanProteinG == null ? "No complete days" : `${report.food.proteinGPerKg != null ? `${report.food.proteinGPerKg.toFixed(1)} g/kg` : ""}${report.food.targetProteinG != null ? ` · target ${n(report.food.targetProteinG)} g` : ""}`} />
+              <Row label="Fibre" value={report.food.meanFibreG == null ? dash : `${n(report.food.meanFibreG)} g`} sub={report.food.meanFibreG == null ? `Read on days where most foods carry a fibre value · ${report.food.fibreDays} so far` : `Target ${FIBRE_TARGET_G} g · ${report.food.fibreDays} days read`} />
               {(report.food.partial > 0 || report.food.fasting > 0) && <Row label="Day status" value={`${report.food.complete} complete`} sub={`${report.food.partial} partial · ${report.food.fasting} fasting`} />}
             </RowGroup>
           </section>
@@ -257,6 +267,19 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
               <Row label="Debt" value={report.sleep.debtH == null ? dash : formatHoursMin(report.sleep.debtH * 60)} sub="Hours under the goal, added up over the logged nights" />
             </RowGroup>
           </section>
+
+          {(report.health.meanSteps != null || report.health.meanRhr != null) && (
+            <section aria-label="Health">
+              <div className="mb-2 flex items-baseline justify-between">
+                <span className="text-[17px] font-semibold">Health</span>
+                <Caption>From Apple Health</Caption>
+              </div>
+              <RowGroup>
+                {report.health.meanSteps != null && <Row label="Steps" value={n(report.health.meanSteps)} sub={`A day, over ${report.health.stepDays} days`} />}
+                {report.health.meanRhr != null && <Row label="Resting heart rate" value={`${report.health.meanRhr} bpm`} sub={report.health.usualRhr != null ? `Usually ${report.health.usualRhr} bpm` : `${report.health.rhrNights} nights`} />}
+              </RowGroup>
+            </section>
+          )}
           </div>
         </details>
 

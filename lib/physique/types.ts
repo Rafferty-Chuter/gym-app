@@ -41,6 +41,8 @@ export type FoodEntry = Record_ & {
   time?: string;
   /** Free-text serving description ("1 bowl", "150 g"). */
   serving?: string;
+  /** Dietary fibre (AOAC) in g, when the food's source had it (B3). Absent means unknown, not zero. */
+  fibreG?: number;
 };
 
 export type SavedFood = {
@@ -52,6 +54,8 @@ export type SavedFood = {
   fatG: number;
   /** Free-text serving description shown on re-log ("1 scoop", "150 g"). */
   serving?: string;
+  /** Fibre in g for the same amount, when known (B3). */
+  fibreG?: number;
   /** Starred in the logger's Saved tab (R2). */
   favourite?: boolean;
   /** When the food is a recipe (M4b): what it makes and what went in, so a serving can be re-logged or edited. The macros above are one serving. */
@@ -106,6 +110,9 @@ export type SleepStage = "awake" | "rem" | "core" | "deep" | "asleep";
 export type SleepSegment = { s: SleepStage; o: number; d: number };
 
 export type WaistEntry = Record_ & { cm: number };
+
+/** One day's step count from Apple Health (B3), id `hk-s-<date>`. Read only after the day is over. */
+export type DailySteps = Record_ & { steps: number };
 
 export type GoalType = "lose" | "maintain" | "gain";
 export type TrainingStatus = "novice" | "intermediate" | "advanced";

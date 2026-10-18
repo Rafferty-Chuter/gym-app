@@ -17,6 +17,7 @@ import {
   savedFoodsRepo,
   sleepNightsRepo,
   waistRepo,
+  stepsRepo,
   weighInsRepo,
 } from "@/lib/physique/io/repos";
 import type { DayFlags, FoodEntry, SavedFood, SleepNight, WaistEntry, WeighIn } from "@/lib/physique/types";
@@ -43,12 +44,13 @@ export function useBodyData() {
   const savedFoods = useRepo(savedFoodsRepo);
   const sleepNights = useRepo(sleepNightsRepo);
   const waist = useRepo(waistRepo);
+  const steps = useRepo(stepsRepo);
   const dayFlags = useRecordStore(dayFlagsStore);
   const goal = useSingleton(goalStore);
   const program = useSingleton(programStore);
   return useMemo(
-    () => ({ weighIns, foodEntries, savedFoods, sleepNights, waist, dayFlags, goal, program }),
-    [weighIns, foodEntries, savedFoods, sleepNights, waist, dayFlags, goal, program]
+    () => ({ weighIns, foodEntries, savedFoods, sleepNights, waist, steps, dayFlags, goal, program }),
+    [weighIns, foodEntries, savedFoods, sleepNights, waist, steps, dayFlags, goal, program]
   );
 }
 

@@ -25,7 +25,7 @@ describe("How it's going (H1)", () => {
   const build = (over: Partial<typeof inputs> = {}, strength: StrengthStatus | null = "holding"): PulseInputs => {
     const i = { ...inputs, ...over };
     const { recentStart, foodStart } = pulseWindows(now.today);
-    return { recent: buildWeekReport(i, recentStart, now), food: buildWeekReport(i, foodStart, now), trainedRecently: trainedRecently(i.workouts, now), strength };
+    return { recent: buildWeekReport(i, recentStart, now), food: buildWeekReport(i, foodStart, now), trainedRecently: trainedRecently(i.workouts, now), strength, goalType: "lose", planRatePct: -0.6 };
   };
 
   it("reads the 7 days through today, and food through yesterday", () => {
@@ -34,13 +34,13 @@ describe("How it's going (H1)", () => {
     expect(foodStart).toBe("2026-10-11");
   });
 
-  it("gives one row per pillar, each a number and a plain judgement linking to its tab", () => {
+  it("gives a cut its rows, each a number and a plain judgement linking to its tab", () => {
     const rows = howItsGoing(build());
-    expect(rows.map((r) => r.id)).toEqual(["calories", "protein", "training", "sleep"]);
+    expect(rows.map((r) => r.id)).toEqual(["rate", "calories", "protein", "training", "sleep"]);
     for (const r of rows) {
       expect(r.value.length).toBeGreaterThan(0);
       expect(r.note.length).toBeGreaterThan(0);
-      expect(r.href.startsWith("/")).toBe(true);
+      expect(r.href?.startsWith("/")).toBe(true);
       expect(`${r.value} ${r.note}`).not.toMatch(/not logged|missed|no weigh/i);
       expect(bannedPhrasesIn(`${r.value} ${r.note}`)).toEqual([]);
     }
@@ -51,7 +51,7 @@ describe("How it's going (H1)", () => {
 
   it("leaves a pillar out until it has three days, rather than showing it empty", () => {
     const rows = howItsGoing(build({ foodEntries: [], sleepNights: [] }));
-    expect(rows.map((r) => r.id)).toEqual(["training"]);
+    expect(rows.map((r) => r.id)).toEqual(["rate", "training"]);
     const cut = addDays(now.today, -1);
     const twoNights = sc.sleepNights.filter((n) => n.date >= cut);
     expect(howItsGoing(build({ sleepNights: twoNights })).some((r) => r.id === "sleep")).toBe(false);

@@ -50,30 +50,43 @@ function MiniChart({ chart, tone }: { chart: Chart; tone: Tone }) {
  * The week at a glance (W4, after the summary grids in Gentler Streak and
  * WHOOP's weekly): six tiles, each one number, what it is measured
  * against, the change in its tone and the week as a tiny chart. A tile
- * opens the tab it comes from.
+ * opens the tab it comes from, when it has one.
  */
 export default function Scorecard({ tiles }: { tiles: Tile[] }) {
   return (
     <section aria-label="The week in numbers" className="grid grid-cols-2 gap-2">
-      {tiles.map((t) => (
-        <Link key={t.id} href={t.href} className="flex min-w-0 flex-col gap-1 rounded-[16px] px-3.5 pb-3 pt-3 transition-colors active:bg-[var(--surface-raised)]" style={{ background: "var(--surface)" }} aria-label={`${t.label}: ${t.value}. ${t.sub}.${t.delta ? ` ${t.delta.text}.` : ""} Open`}>
-          <span className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
-            {t.label}
-          </span>
-          <span className="truncate text-[22px] font-semibold leading-tight tracking-[-0.01em]" style={{ color: t.value === "–" ? "var(--text-tertiary)" : "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-            {t.value}
-          </span>
-          <span className="truncate text-[11px] font-semibold" style={{ color: t.delta ? TONE_COLOR[t.delta.tone] : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-            {t.delta ? t.delta.text : " "}
-          </span>
-          <div className="mt-1">
-            <MiniChart chart={t.chart} tone={t.delta?.tone ?? "neutral"} />
+      {tiles.map((t) => {
+        const inner = (
+          <>
+            <span className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+              {t.label}
+            </span>
+            <span className="truncate text-[22px] font-semibold leading-tight tracking-[-0.01em]" style={{ color: t.value === "–" ? "var(--text-tertiary)" : "var(--text)", fontVariantNumeric: "tabular-nums" }}>
+              {t.value}
+            </span>
+            <span className="truncate text-[11px] font-semibold" style={{ color: t.delta ? TONE_COLOR[t.delta.tone] : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              {t.delta ? t.delta.text : " "}
+            </span>
+            <div className="mt-1">
+              <MiniChart chart={t.chart} tone={t.delta?.tone ?? "neutral"} />
+            </div>
+            <span className="mt-1 line-clamp-2 text-[11px] leading-snug" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              {t.sub}
+            </span>
+          </>
+        );
+        const label = `${t.label}: ${t.value}. ${t.sub}.${t.delta ? ` ${t.delta.text}.` : ""}`;
+        const cls = "flex min-w-0 flex-col gap-1 rounded-[16px] px-3.5 pb-3 pt-3";
+        return t.href ? (
+          <Link key={t.id} href={t.href} className={`${cls} transition-colors active:bg-[var(--surface-raised)]`} style={{ background: "var(--surface)" }} aria-label={`${label} Open`}>
+            {inner}
+          </Link>
+        ) : (
+          <div key={t.id} className={cls} style={{ background: "var(--surface)" }} role="group" aria-label={label}>
+            {inner}
           </div>
-          <span className="mt-1 line-clamp-2 text-[11px] leading-snug" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-            {t.sub}
-          </span>
-        </Link>
-      ))}
+        );
+      })}
     </section>
   );
 }

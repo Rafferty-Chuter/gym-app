@@ -17,15 +17,34 @@ import type { FoodItem } from "@/lib/food/types";
 export type CofidRow = [string, string, string, number, number, number, number, number | null];
 export type CofidData = { meta: { source: string; licence: string; url: string; columns: string[]; foods: number }; foods: CofidRow[] };
 
+/**
+ * CoFID food groups with no dietary fibre: milk and dairy (B), eggs (C),
+ * fish (J), meat (M), fats and oils (O). CoFID leaves fibre blank for many
+ * of them; a blank on one with almost no carbohydrate is read as 0, so a
+ * day of chicken and eggs still has a fibre total. PUB (fibre is plant
+ * cell-wall material; McCance and Widdowson's group definitions).
+ */
+export const NO_FIBRE_GROUPS = new Set(["B", "C", "J", "M", "O"]);
+/** A no-fibre group's row only counts as fibre-free at or under this much carbohydrate per 100 g; above it there may be a coating, rusk or filling. OURS. */
+export const NO_FIBRE_MAX_CARBS_G = 1;
+
+function fibreFor(group: string, carbsG: number, fibreG: number | null): number | null {
+  if (fibreG != null) return fibreG;
+  return NO_FIBRE_GROUPS.has(group.charAt(0)) && carbsG <= NO_FIBRE_MAX_CARBS_G ? 0 : null;
+}
+
 export function cofidToItems(rows: readonly CofidRow[]): FoodItem[] {
-  return rows.map(([code, name, group, kcal, proteinG, fatG, carbsG, fibreG]) => ({
-    id: `cofid:${code}`,
-    source: "cofid" as const,
-    name,
-    group,
-    per100: { kcal, proteinG, carbsG, fatG, ...(fibreG == null ? {} : { fibreG }) },
-    portions: [],
-  }));
+  return rows.map(([code, name, group, kcal, proteinG, fatG, carbsG, fibreG]) => {
+    const fibre = fibreFor(group, carbsG, fibreG);
+    return {
+      id: `cofid:${code}`,
+      source: "cofid" as const,
+      name,
+      group,
+      per100: { kcal, proteinG, carbsG, fatG, ...(fibre == null ? {} : { fibreG: fibre }) },
+      portions: [],
+    };
+  });
 }
 
 let cache: Promise<FoodItem[]> | null = null;

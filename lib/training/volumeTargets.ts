@@ -45,8 +45,13 @@ export function priorityOf(priorities: Priorities | null | undefined, group: Mus
 
 /** How many muscles are set to Emphasise. */
 export function emphasisedCount(priorities: Priorities | null | undefined): number {
-  if (!priorities) return 0;
-  return Object.values(priorities).filter((p) => p === "emphasise").length;
+  return emphasisedGroups(priorities).length;
+}
+
+/** The muscles set to Emphasise: the "priority muscles" a lean gain is read on (B3). */
+export function emphasisedGroups(priorities: Priorities | null | undefined): MuscleGroup[] {
+  if (!priorities) return [];
+  return (Object.entries(priorities) as Array<[MuscleGroup, Priority]>).filter(([, p]) => p === "emphasise").map(([g]) => g);
 }
 
 /**

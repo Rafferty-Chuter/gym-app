@@ -115,7 +115,7 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
   async function logAmount(item: FoodItem, grams: number, portionLabel: string | null, viaBarcode: boolean): Promise<boolean> {
     const m = scaleMacros(item, grams);
     const serving = portionLabel && portionLabel !== "100 g" ? `${portionLabel} · ${Math.round(grams)} g` : `${Math.round(grams)} g`;
-    return onLog({ label: labelFor(item), kcal: m.kcal, proteinG: m.proteinG, fatG: m.fatG, carbsG: m.carbsG, serving, method: viaBarcode ? "barcode" : "search" });
+    return onLog({ label: labelFor(item), kcal: m.kcal, proteinG: m.proteinG, fatG: m.fatG, carbsG: m.carbsG, fibreG: m.fibreG, serving, method: viaBarcode ? "barcode" : "search" });
   }
 
   const resultRow = (item: FoodItem) => {
@@ -203,7 +203,7 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {recent.goTos.length > 0 && section(`Go-tos for ${hourLabel(hour)}`, <ul className="flex flex-col">{recent.goTos.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>)}
+          {recent.goTos.length > 0 && section(`Go-tos for ${hourLabel(hour)}`, <ul className="flex flex-col">{recent.goTos.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>)}
           {section(
             "Latest",
             recent.latest.length === 0 && recent.goTos.length === 0 ? (
@@ -211,7 +211,7 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
                 Nothing logged yet. Search a food above, or scan a barcode.
               </p>
             ) : (
-              <ul className="flex flex-col">{recent.latest.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>
+              <ul className="flex flex-col">{recent.latest.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>
             )
           )}
           <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>

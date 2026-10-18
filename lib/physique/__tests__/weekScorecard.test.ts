@@ -23,13 +23,13 @@ describe("weekly scorecard (W4)", () => {
   const report = buildWeekReport(inputs, start, now);
   const prev = buildWeekReport(inputs, addDays(start, -7), now);
 
-  it("gives six tiles in reading order, each with a value, a line and a link", () => {
+  it("gives a cut six tiles in its order, each with a value, a line and a link", () => {
     const tiles = scorecard({ report, prev, unit: "kg", goalType: "lose" });
-    expect(tiles.map((t) => t.id)).toEqual(["weight", "calories", "protein", "training", "strength", "sleep"]);
+    expect(tiles.map((t) => t.id)).toEqual(["weight", "calories", "protein", "strength", "sleep", "training"]);
     for (const t of tiles) {
       expect(t.value).not.toBe("");
       expect(t.sub.length).toBeGreaterThan(0);
-      expect(t.href.startsWith("/")).toBe(true);
+      expect(t.href?.startsWith("/")).toBe(true);
       expect(bannedPhrasesIn(`${t.value} ${t.sub} ${t.delta?.text ?? ""}`)).toEqual([]);
     }
   });

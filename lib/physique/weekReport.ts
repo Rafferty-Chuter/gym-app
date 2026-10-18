@@ -3,7 +3,9 @@
  * everything the user logged, as numbers and the engine's own words.
  * Weight trend and rate, expenditure move, intake against target, protein,
  * sessions and hard sets per muscle, main-lift e1RM changes, sleep mean
- * and debt, the week's verdict, and every gap. Pure: the caller passes
+ * and debt, the week's verdict, and every gap; since B3 also fibre,
+ * steps, resting heart rate, waist and the priority muscles' sets, so the
+ * scorecard can lead with what the goal needs. Pure: the caller passes
  * the records, the expenditure series and the verdict.
  *
  * Copy rule for anything built on this: state what is, never cheer.
@@ -18,13 +20,15 @@ import { displayRate, segmentStart, trendSeries, weighInsByDate } from "@/lib/ph
 import { clampSleepGoal, nightsByDate, thresholdsForWindow, type NormalizedNight } from "@/lib/physique/sleep";
 import { isCompoundLift, liftSeries, workoutDate } from "@/lib/physique/strength";
 import { CONSISTENCY_MIN_NIGHTS, nightAxisMin } from "@/lib/physique/sleepScore";
-import { stdev } from "@/lib/stats";
+import { mean, stdev } from "@/lib/stats";
+import { waistChange } from "@/lib/physique/judge";
+import { BASELINE_DAYS, BASELINE_MIN_VALID, RECENT_MIN_VALID } from "@/lib/physique/recovery";
 import { countHardSets } from "@/lib/completedSets";
 import { getDetailedVolumeByMuscleGroup, type DetailedMuscleGroup } from "@/lib/trainingMetrics";
 import { GROUP_LABEL } from "@/lib/volumeAnalysis";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import type { WeightUnit } from "@/lib/units";
-import type { DayFlags, ExpenditurePoint, ExpenditureState, FoodEntry, PhysiqueGoal, PhysiqueProgram, SignalState, SleepNight, WeighIn } from "@/lib/physique/types";
+import type { DailySteps, DayFlags, ExpenditurePoint, ExpenditureState, FoodEntry, PhysiqueGoal, PhysiqueProgram, SignalState, SleepNight, WaistEntry, WeighIn } from "@/lib/physique/types";
 
 /** Lift changes compare this week's best e1RM with the best of the previous 3 weeks. OURS. */
 export const LIFT_BASELINE_WEEKS = 3;
@@ -32,6 +36,15 @@ export const LIFT_BASELINE_WEEKS = 3;
 export const MUSCLES_SHOWN = 8;
 /** A complete day hits protein at this share of the target or more. OURS: within 10% is on target for a day. */
 export const PROTEIN_HIT_SHARE = 0.9;
+/**
+ * A day's fibre is read only when foods with a known fibre value make up
+ * this share of its energy; below it the total would undercount. OURS.
+ */
+export const FIBRE_KNOWN_SHARE = 0.8;
+/** Days a fibre or step average needs. OURS: three, the weekly report's floor for any average. */
+export const MIN_DAYS_FOR_MEAN = 3;
+/** Waist is read over this many days to the week's end. EVID: the judge's 28-day waist window (research F §10). */
+export const WAIST_READ_DAYS = 28;
 
 /** One day of the week for the report's small charts (W4). Null where nothing was logged. */
 export type WeekDay = {
@@ -40,6 +53,9 @@ export type WeekDay = {
   kcal: number | null;
   proteinG: number | null;
   asleepH: number | null;
+  /** Null when the day's fibre cannot be read (FIBRE_KNOWN_SHARE). */
+  fibreG: number | null;
+  steps: number | null;
   sessions: number;
   hardSets: number;
 };
@@ -65,6 +81,11 @@ export type WeekReportInputs = {
   expenditure: readonly ExpenditurePoint[] | null;
   /** The judge's verdict as of today; shown on the current week only. */
   verdict?: WeekVerdict | null;
+  waist?: readonly WaistEntry[];
+  /** Apple Health step counts (B3). */
+  steps?: readonly DailySteps[];
+  /** Muscles the user chose to emphasise; their sets are read against `volumeBands`. */
+  emphasised?: readonly DetailedMuscleGroup[];
 };
 
 export type WeekReport = {
@@ -99,12 +120,19 @@ export type WeekReport = {
     proteinGPerKg: number | null;
     /** Complete days at PROTEIN_HIT_SHARE of the target or more; null without a target. */
     proteinDaysHit: number | null;
+    /** Mean fibre over the days it can be read, once MIN_DAYS_FOR_MEAN have it. */
+    meanFibreG: number | null;
+    fibreDays: number;
   };
   training: {
     sessions: number;
     hardSets: number;
     byMuscle: Array<{ group: DetailedMuscleGroup; label: string; sets: number; band?: Band; read?: VolumeRead }>;
     lifts: Array<{ name: string; e1rmKg: number; prevE1rmKg: number | null; changePct: number | null }>;
+    /** Distinct days with a session. */
+    days: number;
+    /** The emphasised muscles against their bands; null when none are emphasised. */
+    priority: { muscles: number; inRange: number; over: string[]; under: string[] } | null;
   };
   sleep: {
     nights: number;
@@ -116,6 +144,17 @@ export type WeekReport = {
     /** Sample SD of the week's wake times in minutes, once CONSISTENCY_MIN_NIGHTS nights carry one. */
     wakeSpreadMin: number | null;
   };
+  /** Daily steps and resting heart rate, from Apple Health when connected (B3). */
+  health: {
+    stepDays: number;
+    meanSteps: number | null;
+    rhrNights: number;
+    meanRhr: number | null;
+    /** Mean over the BASELINE_DAYS before the week, once BASELINE_MIN_VALID nights carry one. */
+    usualRhr: number | null;
+  };
+  /** The judge's waist read over the WAIST_READ_DAYS to the week's end. */
+  waist: { entries: number; latestCm: number | null; deltaCm: number | null; weeks: number };
   /** Each day from the start to `through`, for the small charts (W4). */
   days: WeekDay[];
   verdict: WeekVerdict | null;
@@ -191,6 +230,17 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   const meanProteinG = completeDays.length ? Math.round(completeDays.reduce((s, d) => s + d.proteinG, 0) / completeDays.length) : null;
   const firstFood = earliest([...inputs.foodEntries.map((e) => e.date), ...Object.values(inputs.dayFlags).filter((f) => f.status === "fasting" || typeof f.kcalOverride === "number").map((f) => f.date)]);
   const unlogged = intake.filter((d) => d.status === "unlogged" && firstFood != null && d.date >= firstFood).map((d) => d.date);
+  // Fibre: complete days only, and only when foods with a known value carry most of the day's energy.
+  const fibreByDay = new Map<LocalDate, number>();
+  for (const d of completeDays) {
+    const entries = inputs.foodEntries.filter((e) => e.date === d.date);
+    const kcal = entries.reduce((s, e) => s + e.kcal, 0);
+    const known = entries.filter((e) => typeof e.fibreG === "number");
+    if (kcal <= 0 || known.reduce((s, e) => s + e.kcal, 0) / kcal < FIBRE_KNOWN_SHARE) continue;
+    fibreByDay.set(d.date, round1(known.reduce((s, e) => s + (e.fibreG as number), 0)));
+  }
+  const fibreDays = fibreByDay.size;
+  const meanFibreG = fibreDays >= MIN_DAYS_FOR_MEAN ? Math.round(mean([...fibreByDay.values()])) : null;
 
   // ── Training ──
   const weekWorkouts = inputs.workouts.filter((w) => {
@@ -207,6 +257,12 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
       const band = inputs.volumeBands?.[group];
       return { group, label: GROUP_LABEL[group] ?? group, sets, ...(band ? { band, read: readVolume(sets, band, { tracked: true, complete }) } : {}) };
     });
+  const trainingDays = new Set(weekWorkouts.map((w) => workoutDate(w, now.tz)).filter((d): d is LocalDate => d != null)).size;
+  const emphasised = (inputs.emphasised ?? []).filter((g) => inputs.volumeBands?.[g]);
+  const priorityReads = emphasised.map((g) => ({ label: GROUP_LABEL[g] ?? g, read: readVolume(volume[g] ?? 0, inputs.volumeBands![g]!, { tracked: true, complete }) }));
+  const priority = priorityReads.length
+    ? { muscles: priorityReads.length, inRange: priorityReads.filter((p) => p.read === "in_range").length, over: priorityReads.filter((p) => p.read === "over").map((p) => p.label), under: priorityReads.filter((p) => p.read === "under").map((p) => p.label) }
+    : null;
   const baselineFrom = addDays(start, -LIFT_BASELINE_WEEKS * 7);
   const lifts = liftSeries(inputs.workouts, inputs.weightUnit, { today: through, tz: now.tz })
     .filter((s) => isCompoundLift(s.name, s.exerciseId))
@@ -234,6 +290,19 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   const wakes = nights.map((n) => nightAxisMin(n.night.wakeTime)).filter((x): x is number => x != null);
   const wakeSpreadMin = wakes.length >= CONSISTENCY_MIN_NIGHTS ? Math.round(stdev(wakes)) : null;
 
+  // ── Steps and resting heart rate (Apple Health) ──
+  // Today's steps are still counting, so a running week reads through yesterday.
+  const stepsByDay = new Map((inputs.steps ?? []).filter((s) => s.date >= start && s.date <= through && s.date < today && Number.isFinite(s.steps)).map((s) => [s.date, s.steps]));
+  const meanSteps = stepsByDay.size >= MIN_DAYS_FOR_MEAN ? Math.round(mean([...stepsByDay.values()])) : null;
+  const rhrs = days.map((d) => byDate.get(d)?.night.restingHr).filter((x): x is number => typeof x === "number" && x > 0);
+  const usualFrom = addDays(start, -BASELINE_DAYS);
+  const usual = inputs.sleepNights.filter((n) => n.date >= usualFrom && n.date < start && typeof n.restingHr === "number" && n.restingHr > 0).map((n) => n.restingHr as number);
+
+  // ── Waist ──
+  const waist = inputs.waist ?? [];
+  const waistRead = waistChange(waist, addDays(through, -(WAIST_READ_DAYS - 1)), through);
+  const lastWaist = waist.filter((w) => w.date <= through && w.cm > 0).sort((a, b) => (a.date < b.date ? -1 : 1)).at(-1) ?? null;
+
   // ── Days, for the small charts ──
   const setsByDay = new Map<LocalDate, { sessions: number; hardSets: number }>();
   for (const w of weekWorkouts) {
@@ -256,6 +325,8 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
       kcal: f && f.status !== "unlogged" ? Math.round(f.kcal) : null,
       proteinG: f && f.status === "complete" ? Math.round(f.proteinG) : null,
       asleepH: night && night.valid ? round1(night.asleepH) : null,
+      fibreG: fibreByDay.get(date) ?? null,
+      steps: stepsByDay.get(date) ?? null,
       sessions: tr?.sessions ?? 0,
       hardSets: tr?.hardSets ?? 0,
     };
@@ -302,9 +373,19 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
       targetProteinG: target ? target.proteinG : null,
       proteinGPerKg: meanProteinG != null && endTrendKg ? round1(meanProteinG / endTrendKg) : null,
       proteinDaysHit: target ? completeDays.filter((d) => d.proteinG >= target.proteinG * PROTEIN_HIT_SHARE).length : null,
+      meanFibreG,
+      fibreDays,
     },
-    training: { sessions: weekWorkouts.length, hardSets, byMuscle, lifts },
+    training: { sessions: weekWorkouts.length, hardSets, byMuscle, lifts, days: trainingDays, priority },
     sleep: { nights: nights.length, missing: sleepMissing, meanH, debtH, goalH, shortNights, wakeSpreadMin },
+    health: {
+      stepDays: stepsByDay.size,
+      meanSteps,
+      rhrNights: rhrs.length,
+      meanRhr: rhrs.length >= RECENT_MIN_VALID ? Math.round(mean(rhrs)) : null,
+      usualRhr: usual.length >= BASELINE_MIN_VALID ? Math.round(mean(usual)) : null,
+    },
+    waist: { entries: waistRead.entries, latestCm: lastWaist ? round1(lastWaist.cm) : null, deltaCm: waistRead.deltaCm != null ? round1(waistRead.deltaCm) : null, weeks: Math.round(waistRead.weeks) },
     days: weekDays,
     verdict: inputs.verdict ?? null,
     gaps,

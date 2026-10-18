@@ -12,8 +12,8 @@
 import { useEffect } from "react";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
-import { sleepNightsRepo, weighInsRepo } from "@/lib/physique/io/repos";
-import type { SleepNight, SleepSegment, SleepStage, WeighIn } from "@/lib/physique/types";
+import { sleepNightsRepo, stepsRepo, weighInsRepo } from "@/lib/physique/io/repos";
+import type { DailySteps, SleepNight, SleepSegment, SleepStage, WeighIn } from "@/lib/physique/types";
 import { MAX_SEGMENTS } from "@/lib/health/hae";
 
 export type HealthLink = {
@@ -91,11 +91,13 @@ const str = (v: unknown): string | null => (typeof v === "string" && v ? v : nul
 /**
  * Merge pulled samples into the repos. Sleep rows become one `healthkit`
  * night per wake date (id `hk-<date>`); HRV and resting HR attach to that
- * night; weight and body fat become one `healthkit` weigh-in per day.
+ * night; weight and body fat become one `healthkit` weigh-in per day;
+ * steps become one day's count (B3).
  */
 export async function mergeSamples(samples: readonly PullSample[]): Promise<{ nights: number; weighIns: number }> {
   const nights = new Map<string, SleepNight>();
   const weights = new Map<string, WeighIn>();
+  const steps = new Map<string, DailySteps>();
   const existingNights = sleepNightsRepo.snapshot();
   const existingWeights = weighInsRepo.snapshot();
   const nightFor = (day: string, receivedAt: string): SleepNight =>
@@ -142,6 +144,10 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
       if (kg == null || kg <= 0) continue;
       const at = str(v.at);
       weights.set(s.day, { ...weightFor(s.day, at ? `${at}Z` : s.received_at), kg });
+    } else if (s.metric === "steps") {
+      const count = num(v.value);
+      if (count == null || count < 0) continue;
+      steps.set(s.day, { id: `hk-s-${s.day}`, date: s.day, loggedAt: s.received_at, source: "healthkit", schemaVersion: 1, steps: Math.round(count) });
     } else if (s.metric === "bodyFat") {
       const pct = num(v.value);
       if (pct == null) continue;
@@ -153,6 +159,7 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
   const weightRows = [...weights.values()].filter((w) => w.kg > 0);
   if (nightRows.length) await sleepNightsRepo.bulkUpsert(nightRows);
   if (weightRows.length) await weighInsRepo.bulkUpsert(weightRows);
+  if (steps.size) await stepsRepo.bulkUpsert([...steps.values()]);
   return { nights: nightRows.length, weighIns: weightRows.length };
 }
 

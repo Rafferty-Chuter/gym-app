@@ -10,7 +10,7 @@ type Props = { open: boolean; onClose: () => void };
 const STEPS: readonly string[] = [
   "Install Health Auto Export from the App Store and buy Premium (automations need it).",
   "Automations → + → REST API. Format JSON, data type Health Metrics.",
-  "Metrics: Sleep Analysis, Heart Rate Variability, Resting Heart Rate, Body Mass, Body Fat Percentage.",
+  "Metrics: Sleep Analysis, Heart Rate Variability, Resting Heart Rate, Body Mass, Body Fat Percentage, Step Count.",
   "Aggregation on, Batch Requests on, date range Since Last Sync.",
   "Paste the URL and the header below, then run a Manual Export of the last 60 days as a backfill.",
 ];
@@ -119,7 +119,7 @@ export default function AppleHealthSheet({ open, onClose }: Props) {
     >
       <div className="flex flex-col gap-3">
         <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-          Sleep, HRV, resting heart rate and weight arrive on their own through the Health Auto Export app. Manual logging stays as the fallback. Data lands within hours of unlocking the phone, not minutes.
+          Sleep, HRV, resting heart rate, weight and steps arrive on their own through the Health Auto Export app. Manual logging stays as the fallback. Data lands within hours of unlocking the phone, not minutes.
         </p>
         <p className="text-[13px]" style={{ color: "var(--text)" }}>
           {status}

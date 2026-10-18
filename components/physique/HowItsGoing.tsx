@@ -9,6 +9,10 @@ import { useBodyData } from "@/lib/physique/io/bodyData";
 import { useWorkouts } from "@/lib/physique/io/workouts";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { useRepo, useSingleton } from "@/lib/storage/useStored";
+import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
+import { bandsFor, emphasisedGroups } from "@/lib/training/volumeTargets";
+import type { Phase } from "@/lib/training/progression";
+import { rateBands } from "@/lib/physique/targets";
 import { checkInsRepo, profileStore } from "@/lib/physique/io/repos";
 import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { checkInWeekStart, isCheckInDue } from "@/lib/physique/judge";
@@ -31,9 +35,11 @@ function ChevronRight() {
 }
 
 /**
- * Home's "How it's going" (H1): the engine's verdict, then the last 7
- * days as one row per pillar (calories, protein, training, sleep), each
- * one number and one judgement, then the way into the weekly report. It
+ * Home's "How it's going" (H1, tailored in B3): the engine's verdict, then
+ * the last 7 days as up to six rows chosen by the goal (a cut leads with
+ * the rate against plan, a recomp with the waist, no goal with the health
+ * reads), each one number and one judgement, then the way into the
+ * weekly report. It
  * replaces the separate verdict card, the report line and the list of
  * missed days: Home says how things are going, not what was skipped.
  */
@@ -41,7 +47,9 @@ export default function HowItsGoing() {
   const hydrated = useIsHydrated();
   const now = useNow();
   const { unit: rawUnit } = useUnit();
-  const analysis = usePhysiqueAnalysis(hydrated ? now : null, rawUnit === "lb" ? "lb" : "kg");
+  const unit = rawUnit === "lb" ? "lb" : "kg";
+  const analysis = usePhysiqueAnalysis(hydrated ? now : null, unit);
+  const priorities = useMusclePriorities();
   const data = useBodyData();
   const workouts = useWorkouts();
   const checkIns = useRepo(checkInsRepo);
@@ -52,14 +60,16 @@ export default function HowItsGoing() {
     // The stored profile is a dependency so a changed goal or check-in day recomputes; the resolver fills defaults.
     void profile;
     const p = getPhysiqueProfileSync();
-    const inputs: WeekReportInputs = { weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, program: data.program, goal: data.goal, sleepGoalH: p.sleepGoalH, weightUnit: "kg", expenditure: null };
+    const phase: Phase = data.goal?.type === "lose" ? "cut" : data.goal?.type === "gain" ? "lean_bulk" : "maintain";
+    const inputs: WeekReportInputs = { weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, program: data.program, goal: data.goal, sleepGoalH: p.sleepGoalH, weightUnit: "kg", expenditure: null, waist: data.waist, steps: data.steps, volumeBands: bandsFor(priorities, phase), emphasised: emphasisedGroups(priorities) };
     const { recentStart, foodStart } = pulseWindows(now.today);
-    const rows = howItsGoing({ recent: buildWeekReport(inputs, recentStart, now), food: buildWeekReport(inputs, foodStart, now), trainedRecently: trainedRecently(workouts, now), strength });
+    const goal = data.goal && !data.goal.completedAt ? data.goal : null;
+    const rows = howItsGoing({ recent: buildWeekReport(inputs, recentStart, now), food: buildWeekReport(inputs, foodStart, now), trainedRecently: trainedRecently(workouts, now), strength, goalType: goal?.type ?? null, planRatePct: goal?.ratePctPerWeek ?? null, gainCeilingPct: goal?.type === "gain" ? rateBands(goal.trainingStatusAtCreation).gain.ceiling : null, unit });
     // The report link names the week it opens: last week while its review is due, else the default week.
     const due = isCheckInDue(data.goal, data.program, checkIns, now.today, p.checkInWeekday);
     const weekStart = due ? reportWeekStart(addDays(checkInWeekStart(now.today, p.checkInWeekday), -1)) : defaultReportWeek(now.today);
     return { rows, due, weekStart, weekEnd: addDays(weekStart, 6) };
-  }, [hydrated, now, data, workouts, checkIns, profile, strength]);
+  }, [hydrated, now, data, workouts, checkIns, profile, strength, priorities, unit]);
 
   if (!analysis || !model) return <div className="h-[220px] rounded-[16px]" style={{ background: "var(--surface)" }} aria-hidden />;
   const v = analysis.verdict;
@@ -86,10 +96,10 @@ export default function HowItsGoing() {
             Last 7 days
           </span>
           <ul className="flex flex-col">
-            {model.rows.map((r) => (
-              <li key={r.id}>
-                <Link href={r.href} className="flex min-h-[44px] items-center gap-3 px-4 py-2 transition-colors active:bg-[var(--surface-raised)]" aria-label={`${r.label}: ${r.value}, ${r.note}. Open`}>
-                  <span className="w-[68px] shrink-0 text-[14px]" style={{ color: "var(--text-secondary)" }}>
+            {model.rows.map((r) => {
+              const inner = (
+                <>
+                  <span className="w-[84px] shrink-0 text-[14px]" style={{ color: "var(--text-secondary)" }}>
                     {r.label}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[15px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
@@ -98,9 +108,21 @@ export default function HowItsGoing() {
                   <span className="shrink-0 text-right text-[13px] font-medium" style={{ color: TONE_COLOR[r.tone], fontVariantNumeric: "tabular-nums" }}>
                     {r.note}
                   </span>
-                </Link>
-              </li>
-            ))}
+                </>
+              );
+              const cls = "flex min-h-[44px] items-center gap-3 px-4 py-2";
+              return (
+                <li key={r.id}>
+                  {r.href ? (
+                    <Link href={r.href} className={`${cls} transition-colors active:bg-[var(--surface-raised)]`} aria-label={`${r.label}: ${r.value}, ${r.note}. Open`}>
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div className={cls}>{inner}</div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
