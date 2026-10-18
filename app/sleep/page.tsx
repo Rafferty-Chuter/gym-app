@@ -31,8 +31,7 @@ import BedtimePlanner from "@/components/sleep/BedtimePlanner";
 import SleepTrend from "@/components/sleep/SleepTrend";
 import { StatusDot } from "@/components/physique/ui";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
-import { pullHealth, useHealthLink } from "@/lib/physique/io/healthLink";
-import { useEffect } from "react";
+import { receivedLabel, useHealthAutoPull, useHealthLink } from "@/lib/physique/io/healthLink";
 
 const READ_DOT: Record<SleepStatus, string> = { ok: STATUS_HEX.good, short: STATUS_HEX.watch, severe: STATUS_HEX.attention, unknown: STATUS_HEX.unknown };
 
@@ -68,9 +67,7 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const wakeSetting = profile?.wakeTimeHHMM;
   const healthLink = useHealthLink();
   const [healthOpen, setHealthOpen] = useState(false);
-  useEffect(() => {
-    if (healthLink?.token) void pullHealth(new Date().toISOString());
-  }, [healthLink?.token]);
+  useHealthAutoPull(!!healthLink?.token);
   const [night, setNight] = useState<LocalDate>(today);
   const [sheetDate, setSheetDate] = useState<LocalDate | null>(() => {
     const q = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date");
@@ -150,7 +147,7 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
               Apple Health
             </span>
             <span className="text-[12px]" style={{ color: "#a3a3a8" }}>
-              {healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${longLocalDate(healthLink.lastPayloadAt.slice(0, 10))}` : healthLink.lastError === "not_configured" ? "Token ready · server not set up yet" : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own"}
+              {healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${receivedLabel(healthLink.lastPayloadAt, new Date())}` : healthLink.lastError === "not_configured" ? "Token ready · server not set up yet" : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own"}
             </span>
           </span>
           <svg viewBox="0 0 24 24" fill="none" stroke="#6f6f76" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0" aria-hidden>

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
-import { mergeSamples } from "@/lib/physique/io/healthLink";
+import { mergeSamples, receivedLabel } from "@/lib/physique/io/healthLink";
 import { sleepNightsRepo, weighInsRepo } from "@/lib/physique/io/repos";
 import { nightsByDate } from "@/lib/physique/sleep";
 
@@ -38,5 +38,15 @@ describe("mergeSamples", () => {
     const all = sleepNightsRepo.snapshot();
     expect(all).toHaveLength(2);
     expect(nightsByDate(all).get("2026-10-15")?.night.asleepMin).toBe(430);
+  });
+});
+
+describe("receivedLabel", () => {
+  it("says today, yesterday or the date, with the local time", () => {
+    const now = new Date(2026, 9, 18, 9, 0);
+    expect(receivedLabel(new Date(2026, 9, 18, 7, 42).toISOString(), now)).toBe("today at 07:42");
+    expect(receivedLabel(new Date(2026, 9, 17, 23, 10).toISOString(), now)).toBe("yesterday at 23:10");
+    expect(receivedLabel(new Date(2026, 9, 15, 9, 5).toISOString(), now)).toBe("Thu 15 Oct at 09:05");
+    expect(receivedLabel("not a date", now)).toBe("");
   });
 });

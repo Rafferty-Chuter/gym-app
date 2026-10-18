@@ -9,6 +9,7 @@
  * the engine already ranks above manual entries.
  */
 
+import { useEffect } from "react";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
 import { sleepNightsRepo, weighInsRepo } from "@/lib/physique/io/repos";
@@ -28,8 +29,8 @@ export type HealthLink = {
 
 export const healthLinkStore = createSingleton<HealthLink>("physique.v1.healthLink");
 
-/** Pull at most this often on open. OURS. */
-export const PULL_INTERVAL_MS = 10 * 60 * 1000;
+/** Pull at most this often on open or return to the app. OURS: one small request; uploads arrive whenever the phone sends them. */
+export const PULL_INTERVAL_MS = 2 * 60 * 1000;
 
 export function useHealthLink(): HealthLink | null {
   return useSingleton(healthLinkStore);
@@ -177,4 +178,37 @@ export async function pullHealth(nowIso: string, force = false): Promise<PullRes
   } finally {
     inflight = null;
   }
+}
+
+/**
+ * Pull on open and again whenever the app comes back to the screen. A home
+ * screen app resumed from the background does not remount its pages, so
+ * pulling only on mount missed uploads that landed while it sat open.
+ */
+export function useHealthAutoPull(enabled: boolean): void {
+  useEffect(() => {
+    if (!enabled) return;
+    const run = () => void pullHealth(new Date().toISOString());
+    run();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") run();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", run);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", run);
+    };
+  }, [enabled]);
+}
+
+/** "today at 07:42", "yesterday at 23:10", "Sat 17 Oct at 09:05" for the last upload, in the viewer's zone. */
+export function receivedLabel(iso: string, now: Date): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "";
+  const key = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const day = key(d) === key(now) ? "today" : key(d) === key(yesterday) ? "yesterday" : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
+  return `${day} at ${time}`;
 }

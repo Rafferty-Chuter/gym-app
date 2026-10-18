@@ -3,8 +3,7 @@
 import { useState } from "react";
 import Sheet from "@/components/ui/Sheet";
 import { PrimaryButton, SecondaryButton } from "@/components/physique/ui";
-import { disconnectHealthLink, ensureHealthLink, ingestUrl, pullHealth, useHealthLink, type PullResult } from "@/lib/physique/io/healthLink";
-import { longLocalDate } from "@/components/charts/TimeSeriesChart";
+import { disconnectHealthLink, ensureHealthLink, ingestUrl, pullHealth, receivedLabel, useHealthLink, type PullResult } from "@/lib/physique/io/healthLink";
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -84,7 +83,7 @@ export default function AppleHealthSheet({ open, onClose }: Props) {
   const status = !link
     ? "Not connected."
     : link.lastPayloadAt
-      ? `Last received ${longLocalDate(link.lastPayloadAt.slice(0, 10))} · ${link.serverSamples ?? 0} samples on the server.`
+      ? `Last received ${receivedLabel(link.lastPayloadAt, new Date())} · ${link.serverSamples ?? 0} samples on the server.`
       : link.lastPullAt
         ? "Connected. Nothing received yet."
         : "Connected. Not pulled yet.";

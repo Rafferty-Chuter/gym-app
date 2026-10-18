@@ -17,7 +17,7 @@ import { useSingleton } from "@/lib/storage/useStored";
 import { goalStore, profileStore } from "@/lib/physique/io/repos";
 import { getPhysiqueProfileSync, savePhysiqueProfile } from "@/lib/physique/io/profile";
 import { saveBasics } from "@/lib/physique/io/goalSetup";
-import { useHealthLink } from "@/lib/physique/io/healthLink";
+import { receivedLabel, useHealthLink } from "@/lib/physique/io/healthLink";
 import { BODY_FAT_OPTIONS, SEX_OPTIONS } from "@/lib/physique/profileOptions";
 import { clampSleepGoal } from "@/lib/physique/sleep";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
@@ -26,7 +26,6 @@ import { useTrainingFocus, TRAINING_FOCUS_OPTIONS, type TrainingFocus } from "@/
 import { useExperienceLevel, EXPERIENCE_LEVEL_OPTIONS, type ExperienceLevel } from "@/lib/experienceLevel";
 import { getRestTimerSettings, REST_TIMER_SETTINGS_EVENT, setRestTimerSettings, type RestTimerSettings } from "@/lib/restTimerSettings";
 import { downloadAllWorkoutsCsv } from "@/lib/exportWorkoutsCsv";
-import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import type { Sex } from "@/lib/physique/types";
 
 /** Sleep goal steps. OURS: half hours across the allowed range. */
@@ -94,7 +93,7 @@ export default function ProfilePage() {
 
   const feedbackUrl = process.env.NEXT_PUBLIC_TALLY_FEEDBACK_URL;
   const sex: Sex | undefined = resolved?.sex && resolved.missing.includes("sex") ? undefined : resolved?.sex;
-  const healthSub = healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${longLocalDate(healthLink.lastPayloadAt.slice(0, 10))}` : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own";
+  const healthSub = healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${receivedLabel(healthLink.lastPayloadAt, new Date())}` : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own";
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "#0a0a0b", color: "#f2f2f0" }}>
