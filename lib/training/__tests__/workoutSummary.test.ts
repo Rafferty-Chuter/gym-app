@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import { bestSet, formatDuration, formatSet, groupByMonth, recordLine, recordsByWorkout, workoutRecords, workoutStats } from "@/lib/training/workoutSummary";
-import { chartMetricsFor, chartSeries, exerciseRecords, exerciseSessions } from "@/lib/training/exerciseHistory";
+import { chartMetricsFor, chartSeries, exerciseRecords, exerciseSessions, loggedExercises } from "@/lib/training/exerciseHistory";
 
 const s = (weight: string, reps: string, type?: "warmup" | "drop" | "failure") => ({ weight, reps, ...(type ? { type } : {}) });
 
@@ -105,5 +105,12 @@ describe("exercise history (TR6)", () => {
     expect(chartMetricsFor(pu)).toEqual(["reps"]);
     expect(chartSeries(pu, "reps").map((p) => p.value)).toEqual([20, 22]);
     expect(exerciseRecords(pu).mostReps?.value).toBe(22);
+  });
+
+  it("the exercise index joins old names to the library entry, newest first", () => {
+    const idx = loggedExercises([w1, w2]);
+    expect(idx.map((x) => x.name)).toEqual(["Barbell Bench Press", "Push Up", "Cable Fly"]);
+    expect(idx[0]).toMatchObject({ sessions: 2, lastAt: w2.completedAt });
+    expect(idx[2].sessions).toBe(1);
   });
 });

@@ -6,7 +6,7 @@
  */
 
 import { getCompletedLoggedSets, getE1rmSets, setTypeOf, type SetType } from "@/lib/completedSets";
-import { sameExercise } from "@/lib/exerciseLibrary";
+import { exerciseIdentity, resolveLoggedExerciseMeta, sameExercise } from "@/lib/exerciseLibrary";
 import { estimateE1RM } from "@/lib/trainingMetrics";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import { bestSet, setNumber, setsVolume, type BestSet } from "@/lib/training/workoutSummary";
@@ -146,4 +146,33 @@ export function chartSeries(sessions: readonly ExerciseSession[], metric: ChartM
 export function chartMetricsFor(sessions: readonly ExerciseSession[]): ChartMetric[] {
   const weighted = sessions.some((s) => s.e1rm != null);
   return weighted ? ["e1rm", "heaviest", "volume"] : ["reps"];
+}
+
+// ── Index ──
+
+export type LoggedExercise = { name: string; exerciseId?: string; sessions: number; lastAt: string };
+
+/**
+ * Every exercise ever logged, one entry per movement (an old name joins its
+ * library entry and shows the library name), most recent first.
+ */
+export function loggedExercises(history: readonly StoredWorkout[]): LoggedExercise[] {
+  const byKey = new Map<string, LoggedExercise>();
+  const newestFirst = [...history].sort((a, b) => (a.completedAt < b.completedAt ? 1 : a.completedAt > b.completedAt ? -1 : 0));
+  for (const w of newestFirst) {
+    const seen = new Set<string>();
+    for (const ex of w.exercises ?? []) {
+      if (!ex.name?.trim() || getCompletedLoggedSets(ex.sets ?? []).length === 0) continue;
+      const key = exerciseIdentity(ex);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const cur = byKey.get(key);
+      if (cur) cur.sessions += 1;
+      else {
+        const meta = resolveLoggedExerciseMeta(ex);
+        byKey.set(key, { name: meta?.name ?? ex.name.trim(), ...(meta?.id ?? ex.exerciseId ? { exerciseId: meta?.id ?? ex.exerciseId } : {}), sessions: 1, lastAt: w.completedAt });
+      }
+    }
+  }
+  return [...byKey.values()];
 }

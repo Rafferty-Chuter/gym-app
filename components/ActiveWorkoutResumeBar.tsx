@@ -35,7 +35,7 @@ function shouldShowResumeStrip(pathname: string | null): boolean {
   if (pathname === "/") return false;
   if (pathname.startsWith("/templates")) return true;
   // TR3: the session stays one tap away from every tab, as in Hevy.
-  if (["/train", "/history", "/exercise", "/food", "/body", "/sleep", "/report"].some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
+  if (["/train", "/history", "/exercise", "/exercises", "/food", "/body", "/sleep", "/report"].some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
   if (pathname === "/coach" || pathname.startsWith("/coach/")) return true;
   if (pathname === "/profile" || pathname.startsWith("/profile/")) return true;
   return false;

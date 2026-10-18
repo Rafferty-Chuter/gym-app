@@ -9,6 +9,7 @@ import { useWorkouts } from "@/lib/physique/io/workouts";
 import { getStoredTemplates } from "@/lib/templateStorage";
 import RoutineList from "@/components/training/RoutineList";
 import { queueEmptyWorkout, workoutInProgress } from "@/lib/training/startWorkout";
+import { loggedExercises } from "@/lib/training/exerciseHistory";
 import { getHardSets } from "@/lib/completedSets";
 import { localDateKey, addDays, type Now } from "@/lib/dates";
 import { useUnit } from "@/lib/unit-preference";
@@ -32,7 +33,7 @@ import type { StoredWorkout } from "@/lib/trainingAnalysis";
 /**
  * Train (TR3, after Hevy's Workout tab): start an empty workout or resume
  * one, every routine with its own Start, then the week, the deload, the
- * analysis rows and one row into History.
+ * analysis rows, then History and Exercises.
  */
 export default function TrainPage() {
   const hydrated = useIsHydrated();
@@ -105,7 +106,7 @@ function TrainContent({ now }: { now: Now }) {
       const d = workoutDay(w, now.tz);
       return d && d >= from && d <= today ? n + setCount(w) : n;
     }, 0);
-    return { week, weekCount, weekVolume, latest, weekSets, total: workouts.length };
+    return { week, weekCount, weekVolume, latest, weekSets, total: workouts.length, exercises: loggedExercises(workouts).length };
   }, [workouts, now, unit]);
 
   // The three training reads (plateau, volume, progress), from the same rules as their signal pages.
@@ -226,6 +227,14 @@ function TrainContent({ now }: { now: Now }) {
             trailing={<Chevron />}
             onClick={() => router.push("/history")}
             ariaLabel={`History, ${model.total} workouts. Open`}
+          />
+          <Row
+            label="Exercises"
+            sub="Charts, records and past sessions"
+            value={`${model.exercises}`}
+            trailing={<Chevron />}
+            onClick={() => router.push("/exercises")}
+            ariaLabel={`Exercises, ${model.exercises} logged. Open`}
           />
         </RowGroup>
       </div>
