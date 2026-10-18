@@ -17,7 +17,7 @@ import { weekStart } from "@/lib/physique/food/week";
 import { countsForBalance } from "@/lib/physique/food/energy";
 import { dailyIntakeSeries, targetInEffect } from "@/lib/physique/intake";
 import { displayRate, segmentStart, trendSeries, weighInsByDate } from "@/lib/physique/weight";
-import { clampSleepGoal, nightsByDate, thresholdsForWindow, type NormalizedNight } from "@/lib/physique/sleep";
+import { SLEEP_REFERENCE_H, nightsByDate, thresholdsForWindow, type NormalizedNight } from "@/lib/physique/sleep";
 import { isCompoundLift, liftSeries, workoutDate } from "@/lib/physique/strength";
 import { CONSISTENCY_MIN_NIGHTS, nightAxisMin } from "@/lib/physique/sleepScore";
 import { mean, stdev } from "@/lib/stats";
@@ -69,7 +69,6 @@ export type WeekReportInputs = {
   workouts: readonly StoredWorkout[];
   program: PhysiqueProgram | null;
   goal: PhysiqueGoal | null;
-  sleepGoalH?: number;
   weightUnit: WeightUnit;
   /** Weekly set bands per muscle from the user's priorities (T5); absent before priorities exist. */
   volumeBands?: Partial<Record<DetailedMuscleGroup, Band>>;
@@ -308,7 +307,7 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
     .sort((a, b) => a.name.localeCompare(b.name));
 
   // ── Sleep ──
-  const goalH = clampSleepGoal(inputs.sleepGoalH);
+  const goalH = SLEEP_REFERENCE_H;
   const byDate = nightsByDate(inputs.sleepNights);
   const nights: NormalizedNight[] = days.map((d) => byDate.get(d)).filter((n): n is NormalizedNight => n != null && n.valid);
   const firstNight = earliest(byDate.keys());

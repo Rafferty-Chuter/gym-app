@@ -166,8 +166,8 @@ describe("linked reasons (W5)", () => {
     expect(l.state).toBe("attention");
     expect(l.title).toBe("Lifts are down");
     expect(l.detail).toBe("Bench press −6.2% and squat −3.1% since the phase began.");
-    expect(l.causes[0]).toBe("Sleep averaged 6h 06m a night, 1h 54m under your 8h 00m goal, with 4 short nights.");
-    expect(liftsLink(week({ sleep: { meanH: 7.3, shortNights: 1 }, strength: { status: "dropping" } }))!.causes[0]).toBe("Sleep averaged 7h 18m a night, 42 min under your 8h 00m goal, with 1 short night.");
+    expect(l.causes[0]).toBe("Sleep averaged 6h 06m a night, 1h 54m under 8 hours, with 4 short nights.");
+    expect(liftsLink(week({ sleep: { meanH: 7.3, shortNights: 1 }, strength: { status: "dropping" } }))!.causes[0]).toBe("Sleep averaged 7h 18m a night, 42 min under 8 hours, with 1 short night.");
     expect(l.causes[1]).toBe("HRV ran 21% below usual (41 ms against 52).");
     expect(l.note).toMatch(/fix those before changing the program/);
   });

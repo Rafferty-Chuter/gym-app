@@ -61,7 +61,7 @@ export default function HowItsGoing() {
     void profile;
     const p = getPhysiqueProfileSync();
     const phase: Phase = data.goal?.type === "lose" ? "cut" : data.goal?.type === "gain" ? "lean_bulk" : "maintain";
-    const inputs: WeekReportInputs = { weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, program: data.program, goal: data.goal, sleepGoalH: p.sleepGoalH, weightUnit: "kg", expenditure: null, waist: data.waist, steps: data.steps, volumeBands: bandsFor(priorities, phase), emphasised: emphasisedGroups(priorities) };
+    const inputs: WeekReportInputs = { weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, program: data.program, goal: data.goal, weightUnit: "kg", expenditure: null, waist: data.waist, steps: data.steps, volumeBands: bandsFor(priorities, phase), emphasised: emphasisedGroups(priorities) };
     const { recentStart, foodStart } = pulseWindows(now.today);
     const goal = data.goal && !data.goal.completedAt ? data.goal : null;
     const rows = howItsGoing({ recent: buildWeekReport(inputs, recentStart, now), food: buildWeekReport(inputs, foodStart, now), trainedRecently: trainedRecently(workouts, now), strength, goalType: goal?.type ?? null, planRatePct: goal?.ratePctPerWeek ?? null, gainCeilingPct: goal?.type === "gain" ? rateBands(goal.trainingStatusAtCreation).gain.ceiling : null, unit });

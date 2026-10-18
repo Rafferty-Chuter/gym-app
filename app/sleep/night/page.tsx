@@ -12,12 +12,10 @@ import { SCaption, SCard, SRow, ScoreRing } from "@/components/sleep/parts";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { saveSleepNight, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
-import { profileStore } from "@/lib/physique/io/repos";
 import { recoveryRead, stageSplit, stageTypical } from "@/lib/physique/recovery";
-import { clampSleepGoal, nightsByDate } from "@/lib/physique/sleep";
+import { nightsByDate } from "@/lib/physique/sleep";
 import { nightScore } from "@/lib/physique/sleepScore";
 import { bedTime } from "@/lib/physique/sleepView";
-import { useSingleton } from "@/lib/storage/useStored";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 
@@ -32,8 +30,6 @@ function NightDetail() {
   const hydrated = useIsHydrated();
   const now = useNow();
   const data = useBodyData();
-  const profile = useSingleton(profileStore);
-  const goalH = clampSleepGoal(profile?.sleepGoalH);
   const today = now?.today ?? null;
   const q = params.get("date");
   const date: LocalDate | null = q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : today;
@@ -46,14 +42,14 @@ function NightDetail() {
     const rec = recoveryRead(data.sleepNights, date);
     return {
       night,
-      score: nightScore(data.sleepNights, date, goalH),
+      score: nightScore(data.sleepNights, date),
       split: night ? stageSplit(night) : null,
       typical: stageTypical(data.sleepNights, addDays(date, -1)),
       bed: night ? bedTime(night) : null,
       hrvUsual: rec.hrv?.baseline ?? null,
       rhrUsual: rec.rhr?.baseline ?? null,
     };
-  }, [data.sleepNights, date, goalH]);
+  }, [data.sleepNights, date]);
 
   if (!hydrated || !today || !date || !model) return <main className="theme-sleep min-h-screen" />;
 

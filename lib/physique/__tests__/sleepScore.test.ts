@@ -34,26 +34,26 @@ describe("night score", () => {
   const steady = run(10, 8, () => ({ wakeTime: "07:00", bedtime: "22:40", stages: { awakeMin: 20 } }), addDays(TODAY, -1));
 
   it("is silent without a valid night", () => {
-    expect(nightScore(steady, TODAY, 8)).toBeNull();
-    expect(nightScore([...steady, mk(TODAY, 1)], TODAY, 8)).toBeNull();
+    expect(nightScore(steady, TODAY)).toBeNull();
+    expect(nightScore([...steady, mk(TODAY, 1)], TODAY)).toBeNull();
   });
 
   it("a full night at the usual time scores high and says so", () => {
-    const s = nightScore([...steady, mk(TODAY, 8.2, { wakeTime: "07:05", bedtime: "22:35", stages: { awakeMin: 15 } })], TODAY, 8)!;
+    const s = nightScore([...steady, mk(TODAY, 8.2, { wakeTime: "07:05", bedtime: "22:35", stages: { awakeMin: 15 } })], TODAY)!;
     expect(s.parts.map((p) => p.id)).toEqual(["duration", "timing", "efficiency"]);
     expect(s.score).toBeGreaterThanOrEqual(90);
     expect(s.word).toBe("Excellent");
     expect(s.reason).toMatch(/usual time/);
   });
 
-  it("a short night names the shortfall against the goal", () => {
-    const s = nightScore([...steady, mk(TODAY, 6, { wakeTime: "07:00", stages: { awakeMin: 15 } })], TODAY, 8)!;
+  it("a short night names the shortfall under 8 hours", () => {
+    const s = nightScore([...steady, mk(TODAY, 6, { wakeTime: "07:00", stages: { awakeMin: 15 } })], TODAY)!;
     expect(s.parts[0].score).toBe(75);
-    expect(s.reason).toBe("2h 00m short of the 8h 00m goal.");
+    expect(s.reason).toBe("2h 00m under 8 hours.");
   });
 
   it("a lie-in costs the timing part and is named", () => {
-    const s = nightScore([...steady, mk(TODAY, 8, { wakeTime: "09:00", stages: { awakeMin: 15 } })], TODAY, 8)!;
+    const s = nightScore([...steady, mk(TODAY, 8, { wakeTime: "09:00", stages: { awakeMin: 15 } })], TODAY)!;
     const timing = s.parts.find((p) => p.id === "timing")!;
     expect(timing.score).toBe(0);
     expect(s.reason).toMatch(/^Up 2h 00m later than your usual 07:00/);
@@ -61,42 +61,42 @@ describe("night score", () => {
   });
 
   it("parts without data take nothing off", () => {
-    const s = nightScore([mk(TODAY, 8)], TODAY, 8)!;
+    const s = nightScore([mk(TODAY, 8)], TODAY)!;
     expect(s.parts.map((p) => p.id)).toEqual(["duration"]);
     expect(s.score).toBe(100);
   });
 
   it("the score never beats the hours: a night well short of the goal is not Excellent", () => {
-    const s = nightScore([...steady, mk(TODAY, 6.5, { wakeTime: "07:00", stages: { awakeMin: 10 } })], TODAY, 8)!;
+    const s = nightScore([...steady, mk(TODAY, 6.5, { wakeTime: "07:00", stages: { awakeMin: 10 } })], TODAY)!;
     expect(s.score).toBe(81);
     expect(s.word).toBe("Fair");
   });
 
   it("judges a night against the goal alone, never a goal raised by earlier short nights (S9)", () => {
     const short = run(7, 6, () => ({}), addDays(TODAY, -1));
-    const s = nightScore([...short, mk(TODAY, 8)], TODAY, 8)!;
+    const s = nightScore([...short, mk(TODAY, 8)], TODAY)!;
     expect(s.goalH).toBe(8);
     expect(s.parts[0]).toMatchObject({ label: "Asleep", score: 100 });
-    expect(nightScore([mk(TODAY, 7)], TODAY, 8)!.reason).toBe("1h 00m short of the 8h 00m goal.");
+    expect(nightScore([mk(TODAY, 7)], TODAY)!.reason).toBe("1h 00m under 8 hours.");
   });
 
   it("shows each part as data with whole points that add up to the score (C3)", () => {
     for (const [asleep, wake, awake] of [[6.2, "08:10", 55], [7.4, "06:20", 30], [8.3, "07:00", 12]] as const) {
-      const s = nightScore([...steady, mk(TODAY, asleep, { wakeTime: wake, stages: { awakeMin: awake } })], TODAY, 8)!;
+      const s = nightScore([...steady, mk(TODAY, asleep, { wakeTime: wake, stages: { awakeMin: awake } })], TODAY)!;
       expect(s.parts.reduce((sum, p) => sum + p.points, 0)).toBe(s.score);
       for (const p of s.parts) {
         expect(Number.isInteger(p.points)).toBe(true);
         if (p.id !== "duration") expect(p.points).toBeLessThanOrEqual(0);
       }
     }
-    const s = nightScore([...steady, mk(TODAY, 7.2, { wakeTime: "07:40", stages: { awakeMin: 30 } })], TODAY, 8)!;
-    expect(s.parts.map((p) => p.value)).toEqual(["7h 12m of 8h 00m", "07:40 · usual 07:00", "94% asleep"]);
+    const s = nightScore([...steady, mk(TODAY, 7.2, { wakeTime: "07:40", stages: { awakeMin: 30 } })], TODAY)!;
+    expect(s.parts.map((p) => p.value)).toEqual(["7h 12m", "07:40 · usual 07:00", "94% asleep"]);
   });
 
   it("copy stays calm", () => {
     for (const asleep of [5, 6.5, 8]) {
       for (const wake of ["05:30", "07:00", "10:00"]) {
-        const s = nightScore([...steady, mk(TODAY, asleep, { wakeTime: wake, stages: { awakeMin: 70 } })], TODAY, 8)!;
+        const s = nightScore([...steady, mk(TODAY, asleep, { wakeTime: wake, stages: { awakeMin: 70 } })], TODAY)!;
         expect(bannedPhrasesIn(s.reason)).toEqual([]);
         expect(s.reason).not.toMatch(/—|!/);
       }

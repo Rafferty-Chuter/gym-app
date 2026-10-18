@@ -15,12 +15,10 @@ import { GROUP_LABEL, VOLUME_GROUP_ORDER } from "@/lib/volumeAnalysis";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useSingleton } from "@/lib/storage/useStored";
 import { goalStore, profileStore } from "@/lib/physique/io/repos";
-import { getPhysiqueProfileSync, savePhysiqueProfile } from "@/lib/physique/io/profile";
+import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { saveBasics } from "@/lib/physique/io/goalSetup";
 import { receivedLabel, useHealthLink } from "@/lib/physique/io/healthLink";
 import { BODY_FAT_OPTIONS, SEX_OPTIONS } from "@/lib/physique/profileOptions";
-import { clampSleepGoal } from "@/lib/physique/sleep";
-import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { useUnit } from "@/lib/unit-preference";
 import { setHeightUnit, useHeightUnit } from "@/lib/ui/heightUnit";
 import { formatHeight } from "@/lib/units";
@@ -30,8 +28,6 @@ import { getRestTimerSettings, REST_TIMER_SETTINGS_EVENT, setRestTimerSettings, 
 import { downloadAllWorkoutsCsv } from "@/lib/exportWorkoutsCsv";
 import type { Sex } from "@/lib/physique/types";
 
-/** Sleep goal steps. OURS: half hours across the allowed range. */
-const SLEEP_GOAL_STEP_H = 0.5;
 
 const pill = (on: boolean) => ({ background: on ? "var(--primary)" : "var(--surface-raised)", color: on ? "var(--text-on-primary)" : "var(--text-secondary)" });
 
@@ -45,7 +41,7 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: () => void; la
 }
 
 /**
- * Profile (CL1): units, who you are, sleep goal, training settings,
+ * Profile (CL1): units, who you are, Apple Health, training settings,
  * reminders, Apple Health, data. Every row saves on the tap. Nothing here
  * is a form to submit.
  */
@@ -66,8 +62,9 @@ export default function ProfilePage() {
   const phase: Phase = physiqueGoal?.type === "lose" ? "cut" : physiqueGoal?.type === "gain" ? "lean_bulk" : "maintain";
   const emphasised = VOLUME_GROUP_ORDER.filter((g) => priorityOf(priorities, g) === "emphasise").map((g) => GROUP_LABEL[g]);
   const prioritiesSub = emphasised.length > 0 ? `Emphasising ${emphasised.join(", ").toLowerCase()}` : "Every muscle set to grow";
+  // Subscribed so a saved height, age or sex re-renders; the resolver reads storage and fills defaults.
   const profile = useSingleton(profileStore);
-  const resolved = hydrated ? getPhysiqueProfileSync() : null;
+  const resolved = hydrated && profile !== undefined ? getPhysiqueProfileSync() : null;
   const healthLink = useHealthLink();
   const [sheet, setSheet] = useState<"height" | "age" | "health" | "priorities" | null>(null);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -83,10 +80,6 @@ export default function ProfilePage() {
     setRestTimerSettings(next);
   }
 
-  const goalH = clampSleepGoal(profile?.sleepGoalH);
-  async function stepSleepGoal(delta: number) {
-    await savePhysiqueProfile({ sleepGoalH: clampSleepGoal(goalH + delta) });
-  }
 
   function exportCsv() {
     try {
@@ -188,26 +181,9 @@ export default function ProfilePage() {
           </p>
         </section>
 
-        <section className="flex flex-col gap-2" aria-label="Sleep">
-          <Caption>Sleep</Caption>
+        <section className="flex flex-col gap-2" aria-label="Connected">
+          <Caption>Connected</Caption>
           <RowGroup>
-            <Row
-              label="Sleep goal"
-              sub="7 to 9 h. Each night is scored against it."
-              value={
-                <span className="flex items-center gap-1">
-                  <button type="button" onClick={() => void stepSleepGoal(-SLEEP_GOAL_STEP_H)} className="flex h-8 w-8 items-center justify-center rounded-full text-[17px]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Shorter sleep goal">
-                    −
-                  </button>
-                  <span className="w-[72px] text-center" style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {formatHoursMin(goalH * 60)}
-                  </span>
-                  <button type="button" onClick={() => void stepSleepGoal(SLEEP_GOAL_STEP_H)} className="flex h-8 w-8 items-center justify-center rounded-full text-[17px]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Longer sleep goal">
-                    +
-                  </button>
-                </span>
-              }
-            />
             <Row label="Apple Health" sub={healthSub} value="" trailing={<Chevron />} onClick={() => setSheet("health")} ariaLabel="Apple Health. Open settings" />
           </RowGroup>
         </section>

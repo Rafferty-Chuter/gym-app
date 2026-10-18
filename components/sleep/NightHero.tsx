@@ -90,7 +90,7 @@ export default function NightHero({
             </div>
           </div>
           <p className="-mt-1 text-[12px]" style={{ color: "var(--sl-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-            {[`Goal ${formatHoursMin(score.goalH * 60)}`, eff !== null ? `${Math.round(eff * 100)}% efficiency` : null, night.source === "healthkit" ? "From Apple Health" : null].filter(Boolean).join(" · ")}
+            {[eff !== null ? `${Math.round(eff * 100)}% efficiency` : null, night.source === "healthkit" ? "From Apple Health" : null].filter(Boolean).join(" · ")}
           </p>
           <p className="w-full rounded-[16px] px-4 py-3 text-[15px] leading-snug" style={{ background: "var(--sl-surface)", color: "var(--sl-text)" }}>
             {score.reason}

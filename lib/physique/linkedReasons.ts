@@ -123,7 +123,7 @@ function sleepShortfall(r: WeekReport): { meanH: number; shortH: number } | null
 function sleepCause(r: WeekReport): string | null {
   const s = sleepShortfall(r);
   if (!s) return null;
-  const under = s.shortH > 0 ? `, ${dur(Math.round(s.shortH * 60))} under your ${formatHoursMin(r.sleep.goalH * 60)} goal` : "";
+  const under = s.shortH > 0 ? `, ${dur(Math.round(s.shortH * 60))} under ${r.sleep.goalH} hours` : "";
   const nights = r.sleep.shortNights ? `, with ${plural(r.sleep.shortNights, "short night")}` : "";
   return `Sleep averaged ${formatHoursMin(Math.round(s.meanH * 60))} a night${under}${nights}.`;
 }

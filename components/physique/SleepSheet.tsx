@@ -20,7 +20,7 @@ type Props = {
 /**
  * Sleep entry (S10, simpler): bedtime and wake time with ±15 min steppers
  * and hours asleep prefilled from them. Three numbers, nothing else; the
- * sleep goal lives in Profile. A night from Apple Health is shown, not
+ * 8-hour reference is fixed (C8). A night from Apple Health is shown, not
  * edited: the watch is the record, and the Health app is where it changes.
  */
 export default function SleepSheet(props: Props) {

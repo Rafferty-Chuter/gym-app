@@ -468,7 +468,7 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
 
   // ── Strength, sleep, training status ──
   const str: StrengthResult = strengthStatus({ workouts: inputs.workouts, weightUnit: inputs.weightUnit, goal, sleepNights: inputs.sleepNights, now });
-  const slp: SleepRead = sleepStatus({ nights: inputs.sleepNights, now, sleepGoalH: profile.sleepGoalH });
+  const slp: SleepRead = sleepStatus({ nights: inputs.sleepNights, now });
   const corr = sleepCorroboration(mainLiftSeries(inputs.workouts, inputs.weightUnit, now), now);
   const liftStatus = liftDerivedTrainingStatus({ workouts: inputs.workouts, weightUnit: inputs.weightUnit, now, goals });
   const trainingNow = trainingStatus(inputs.onboarding?.yearsTrainingBand, liftStatus?.status ?? null);

@@ -36,7 +36,7 @@ export const MAINTAIN_BAND_KG = 0.3;
 export const LIFTS_DOWN_PCT = 2;
 /** Lifts named on the main-lifts tile, biggest mover first. OURS: one fits the tile at 390 px. */
 export const STRENGTH_TILE_LIFTS = 1;
-/** Sleep within this of the goal reads as good; further than SLEEP_SHORT_H below as watch. OURS, matching the review's 0.5 h. */
+/** Sleep within this of 8 hours (SLEEP_REFERENCE_H) reads as good; further than SLEEP_SHORT_H below as watch. OURS, matching the review's 0.5 h. */
 export const SLEEP_GOOD_H = 0.25;
 export const SLEEP_SHORT_H = 0.5;
 /** Daily fibre for adults. PUB: SACN 2015, Carbohydrates and Health (30 g AOAC fibre, the measure CoFID carries). */
@@ -271,13 +271,13 @@ function strengthTile({ report, strength, goalType }: ScorecardInputs): Tile {
 function sleepTile({ report, prev }: ScorecardInputs): Tile {
   const s = report.sleep;
   const value = s.meanH == null ? "–" : minutes(s.meanH);
-  const sub = `Goal ${minutes(s.goalH)}${s.wakeSpreadMin != null ? ` · wake ±${s.wakeSpreadMin} min` : ""}`;
+  const sub = [`${s.shortNights} short ${s.shortNights === 1 ? "night" : "nights"}`, s.wakeSpreadMin != null ? `wake ±${s.wakeSpreadMin} min` : null].filter(Boolean).join(" · ");
   let delta: Tile["delta"] = null;
   if (s.meanH != null) {
     const gap = s.goalH - s.meanH;
     const tone: Tone = gap <= SLEEP_GOOD_H ? "good" : gap > SLEEP_SHORT_H ? "watch" : "neutral";
     const vsLast = prev?.sleep.meanH != null ? s.meanH - prev.sleep.meanH : null;
-    const text = vsLast != null && Math.abs(vsLast) >= 1 / 6 ? `${sign(vsLast)}${minutes(Math.abs(vsLast))} vs last week` : gap <= SLEEP_GOOD_H ? "On the goal" : `${minutes(gap)} under the goal`;
+    const text = vsLast != null && Math.abs(vsLast) >= 1 / 6 ? `${sign(vsLast)}${minutes(Math.abs(vsLast))} vs last week` : gap <= SLEEP_GOOD_H ? `${minutes(s.goalH)} or more` : `${minutes(gap)} under ${minutes(s.goalH)}`;
     delta = { text, tone };
   }
   return { id: "sleep", label: "Sleep a night", value, sub, delta, chart: { kind: "bars", values: report.days.map((d) => d.asleepH), target: s.goalH }, href: "/sleep" };

@@ -14,11 +14,11 @@ const PAD_RIGHT = 30;
 
 /**
  * Two weeks of nights (S8, after WHOOP's hours bars): hours asleep as bars
- * against the goal line, with the averages above them (S10). A night with
+ * against a line at 8 hours, with the averages above them (S10). A night with
  * nothing recorded is an empty slot, not a warning. Tapping a night opens
  * it above.
  */
-export default function NightBars({ bars, goalH, selected, onSelect, note }: { bars: TrendBar[]; goalH: number; selected: LocalDate; onSelect: (d: LocalDate) => void; note?: ReactNode }) {
+export default function NightBars({ bars, refH, selected, onSelect, note }: { bars: TrendBar[]; refH: number; selected: LocalDate; onSelect: (d: LocalDate) => void; note?: ReactNode }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function NightBars({ bars, goalH, selected, onSelect, note }: { b
   }, []);
 
   const logged = bars.filter((b) => b.asleepH != null);
-  const yMax = Math.ceil(Math.max(goalH, ...logged.map((b) => b.asleepH as number)) + 1);
+  const yMax = Math.ceil(Math.max(refH, ...logged.map((b) => b.asleepH as number)) + 1);
   const innerW = Math.max(1, width - PAD_RIGHT);
   const innerH = HEIGHT - PAD_TOP - PAD_BOTTOM;
   const slot = innerW / Math.max(1, bars.length);
@@ -50,10 +50,10 @@ export default function NightBars({ bars, goalH, selected, onSelect, note }: { b
       {note && <div className="pb-3">{note}</div>}
       <div ref={ref} className="w-full" style={{ height: HEIGHT }}>
         {width > 0 && (
-          <svg width={width} height={HEIGHT} viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={`Hours asleep over the last 14 nights against a ${goalH} hour goal`} className="block">
-            <line x1={0} x2={innerW} y1={yOf(goalH)} y2={yOf(goalH)} style={{ stroke: "var(--sl-text-tertiary)" }} strokeWidth={1} strokeDasharray="4 4" />
-            <text x={innerW + 6} y={yOf(goalH) + 4} fontSize={11} fontWeight={500} style={{ fill: "var(--sl-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-              {goalH}h
+          <svg width={width} height={HEIGHT} viewBox={`0 0 ${width} ${HEIGHT}`} role="img" aria-label={`Hours asleep over the last 14 nights, with a line at ${refH} hours`} className="block">
+            <line x1={0} x2={innerW} y1={yOf(refH)} y2={yOf(refH)} style={{ stroke: "var(--sl-text-tertiary)" }} strokeWidth={1} strokeDasharray="4 4" />
+            <text x={innerW + 6} y={yOf(refH) + 4} fontSize={11} fontWeight={500} style={{ fill: "var(--sl-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              {refH}h
             </text>
             {bars.map((b, i) => {
               const cx = i * slot + slot / 2;

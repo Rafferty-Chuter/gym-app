@@ -1,16 +1,16 @@
 /**
  * Sleep rev 4 (05-design §9.6 rev 4, after WHOOP and Bevel): a night's
- * score against the sleep goal, the usual wake time read from the nights,
+ * score against 8 hours, the usual wake time read from the nights,
  * wake-time consistency and plain 14-night averages (S10, in place of the
  * last week against the 30 nights before it).
  * The bedtime planner and the debt-inflated "need" went in S9: a running
  * sleep debt has little support as something to pay back hour for hour,
- * and the goal plus a steady wake time is what a person can act on.
+ * and enough hours plus a steady wake time is what a person can act on.
  *
  * Pure. Clocks are "HH:MM" local; minutes on the night axis are measured
  * from 18:00 so a 23:30 bedtime sits before a 00:30 one.
  *
- * The score is hours asleep as a share of the goal (after WHOOP's Sleep
+ * The score is hours asleep as a share of 8 hours (after WHOOP's Sleep
  * Performance); waking off your usual time and a restless night
  * take points off. Stages are shown and never scored: a watch's stage
  * split is only moderately accurate against a sleep lab (research C §4.2).
@@ -18,7 +18,7 @@
 
 import { addDays, type LocalDate } from "@/lib/dates";
 import { mean, median, stdev } from "@/lib/stats";
-import { SLEEP_WINDOW_NIGHTS, clampSleepGoal, nightsByDate, nightsInWindow, type NormalizedNight } from "@/lib/physique/sleep";
+import { SLEEP_WINDOW_NIGHTS, SLEEP_REFERENCE_H, nightsByDate, nightsInWindow, type NormalizedNight } from "@/lib/physique/sleep";
 import { formatClock, formatHoursMin, parseClock } from "@/lib/physique/dayTotals";
 import { EFFICIENCY, efficiencyOf, type RatingWord } from "@/lib/physique/sleepView";
 import type { SleepNight } from "@/lib/physique/types";
@@ -116,6 +116,10 @@ export function usualWake(nights: readonly SleepNight[] | ReadonlyMap<LocalDate,
 
 // ── Score ──
 
+/** "8 hours", the reference as words. */
+const hoursWord = (h: number) => `${Number.isInteger(h) ? h : h.toFixed(1)} hours`;
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
 /** Whole points a part takes off: its share of the most it can take, by how far its own 0..100 falls short. */
 function penaltyFor(id: "timing" | "efficiency", partScore: number): number {
   return Math.round(SCORE_PENALTY_MAX[id] * (1 - partScore / 100));
@@ -141,7 +145,7 @@ export type NightScore = {
   /** 0..100, rounded. */
   score: number;
   word: RatingWord;
-  /** The sleep goal the night was scored against. */
+  /** The hours the night was scored against (SLEEP_REFERENCE_H). */
   goalH: number;
   asleepMin: number;
   /** The parts that had data, in display order. */
@@ -155,12 +159,12 @@ export type NightScore = {
  * Score one night (dated by the morning it ended). Null when there is no
  * valid night: silence beats a score from a stray entry.
  */
-export function nightScore(nights: readonly SleepNight[], date: LocalDate, sleepGoalH?: number): NightScore | null {
+export function nightScore(nights: readonly SleepNight[], date: LocalDate): NightScore | null {
   const byDate = nightsByDate(nights);
   const n = byDate.get(date);
   if (!n || !n.valid) return null;
   const night = n.night;
-  const goalH = clampSleepGoal(sleepGoalH);
+  const goalH = SLEEP_REFERENCE_H;
   const parts: ScorePart[] = [];
 
   const ratio = night.asleepMin / (goalH * 60);
@@ -169,11 +173,11 @@ export function nightScore(nights: readonly SleepNight[], date: LocalDate, sleep
   parts.push({
     id: "duration",
     label: "Asleep",
-    value: `${formatHoursMin(night.asleepMin)} of ${formatHoursMin(goalH * 60)}`,
+    value: formatHoursMin(night.asleepMin),
     points: dScore,
     score: dScore,
     word: rate(dScore),
-    detail: short > 1 ? `${formatHoursMin(night.asleepMin)} of the ${formatHoursMin(goalH * 60)} goal` : `${formatHoursMin(night.asleepMin)}, the ${formatHoursMin(goalH * 60)} goal met`,
+    detail: short > 1 ? `${formatHoursMin(night.asleepMin)}, under ${hoursWord(goalH)}` : `${formatHoursMin(night.asleepMin)}, ${hoursWord(goalH)} or more`,
   });
 
   // The usual wake is read from the nights before this one, so one late morning cannot move its own yardstick.
@@ -210,9 +214,9 @@ export function nightScore(nights: readonly SleepNight[], date: LocalDate, sleep
   const weakest = [...parts].filter(fallsShort).sort((a, b) => a.score - b.score)[0];
   let reason: string;
   if (!weakest) {
-    reason = parts.some((p) => p.id === "timing") ? "The goal met, and up at your usual time." : "The goal met.";
+    reason = parts.some((p) => p.id === "timing") ? `${cap(hoursWord(goalH))} or more, and up at your usual time.` : `${cap(hoursWord(goalH))} or more.`;
   } else if (weakest.id === "duration") {
-    reason = `${shortMin(short)} short of the ${formatHoursMin(goalH * 60)} goal.`;
+    reason = `${shortMin(short)} under ${hoursWord(goalH)}.`;
   } else if (weakest.id === "timing" && offset !== null && usual) {
     reason = `Up ${shortMin(Math.abs(offset))} ${offset > 0 ? "later" : "earlier"} than your usual ${usual.hhmm}. A steady wake time does more than a lie-in.`;
   } else {

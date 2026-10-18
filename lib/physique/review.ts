@@ -25,7 +25,7 @@ import { deloadLine, type DeloadRead } from "@/lib/training/deload";
 export const REVIEW_MIN_FOOD_DAYS = 4;
 /** Fewer nights than this and the sleep read stays "Early read". OURS: same reasoning as food. */
 export const REVIEW_MIN_NIGHTS = 4;
-/** A week's mean this far under the sleep goal reads "watch". OURS: half an hour a night is the smallest shortfall worth a sentence. */
+/** A week's mean this far under 8 hours (SLEEP_REFERENCE_H) reads "watch". OURS: half an hour a night is the smallest shortfall worth a sentence. */
 export const REVIEW_SLEEP_SHORTFALL_H = 0.5;
 /** This many short nights in one week reads "watch" whatever the mean. OURS: three is a pattern, two can be a weekend. */
 export const REVIEW_SHORT_NIGHTS = 3;
@@ -164,7 +164,7 @@ export function trainingRead(r: WeekReport, deload: DeloadRead, plannedSessions 
   };
 }
 
-/** Mean against the goal and short nights. */
+/** Mean against 8 hours and short nights. */
 export function sleepRead(r: WeekReport): ReviewRead {
   const s = r.sleep;
   if (s.nights < REVIEW_MIN_NIGHTS || s.meanH == null) {
@@ -177,7 +177,6 @@ export function sleepRead(r: WeekReport): ReviewRead {
   const shortMean = s.meanH < s.goalH - REVIEW_SLEEP_SHORTFALL_H;
   const manyShort = s.shortNights >= REVIEW_SHORT_NIGHTS;
   const detail = [
-    `goal ${formatHoursMin(s.goalH * 60)}`,
     `${plural(s.nights, "night")}`,
     s.shortNights > 0 ? `${s.shortNights} short` : null,
   ]

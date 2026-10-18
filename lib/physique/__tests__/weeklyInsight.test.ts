@@ -95,7 +95,7 @@ describe("weekly insight (W3)", () => {
     const all = allFixes(i);
     expect(all.map((f) => f.id)).toEqual(expect.arrayContaining(["intake", "sleep", "sessions", "deload"]));
     const sleep = all.find((f) => f.id === "sleep")!;
-    expect(sleep.why).toMatch(/^6h \d\dm a night against the 8h 00m goal, \d short nights?\.$/);
+    expect(sleep.why).toMatch(/^6h \d\dm a night, under 8 hours, \d short nights?\.$/);
     const out = buildWeeklyInsight(i);
     expect(out.fixes).toHaveLength(MAX_FIXES);
     expect(out.more).toBe(all.length - MAX_FIXES);
@@ -111,7 +111,7 @@ describe("weekly insight (W3)", () => {
     const i = inputs(sc);
     const fixes = allFixes(i).filter((f) => f.id !== "intake" && f.id !== "protein");
     expect(fixes).toEqual([]);
-    expect(buildWeeklyInsight(i).goingWell).toEqual(expect.arrayContaining(["weighed in 7 of 7 days", "sleep on goal", "every session done"]));
+    expect(buildWeeklyInsight(i).goingWell).toEqual(expect.arrayContaining(["weighed in 7 of 7 days", "sleep near 8 hours", "every session done"]));
   });
 
   it("no goal: the heading asks for one; old weeks carry no heading", () => {

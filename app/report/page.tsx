@@ -7,13 +7,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
-import { useSingleton } from "@/lib/storage/useStored";
 import { addDays, dayDiff, type LocalDate, type Now } from "@/lib/dates";
 import { useBodyData } from "@/lib/physique/io/bodyData";
 import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { useWorkouts } from "@/lib/physique/io/workouts";
-import { profileStore } from "@/lib/physique/io/repos";
 import { buildWeekReport, defaultReportWeek, reportWeekStart, type WeekReport } from "@/lib/physique/weekReport";
 import { signedKcal } from "@/lib/physique/food/energy";
 import { formatBodyWeight, formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
@@ -67,7 +65,6 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const workouts = useWorkouts();
   const expenditure = useExpenditure(now);
   const analysis = usePhysiqueAnalysis(now, unit);
-  const profile = useSingleton(profileStore);
   const priorities = useMusclePriorities();
   const phase: Phase = data.goal?.type === "lose" ? "cut" : data.goal?.type === "gain" ? "lean_bulk" : "maintain";
   const reviewModel = useReview(now, unit);
@@ -95,7 +92,6 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
       workouts,
       program: data.program,
       goal: data.goal,
-      sleepGoalH: profile?.sleepGoalH,
       weightUnit: unit,
       volumeBands: bandsFor(priorities, phase),
       emphasised: emphasisedGroups(priorities),
@@ -103,7 +99,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
       steps: data.steps,
       expenditure: expenditure?.series ?? null,
     }),
-    [data, workouts, profile, unit, priorities, phase, expenditure]
+    [data, workouts, unit, priorities, phase, expenditure]
   );
   const report: WeekReport = useMemo(
     () => buildWeekReport({ ...reportInputs, verdict: start === thisWeek && analysis ? { title: analysis.verdict.title, detail: analysis.verdict.detail, state: analysis.status.state } : null }, start, now),
@@ -284,7 +280,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
               <Caption>{report.sleep.nights} of {report.daysCovered} nights</Caption>
             </div>
             <RowGroup>
-              <Row label="Average" value={report.sleep.meanH == null ? dash : formatHoursMin(report.sleep.meanH * 60)} sub={report.sleep.meanH == null ? "No nights logged" : `Goal ${formatHoursMin(report.sleep.goalH * 60)} · ${report.sleep.shortNights} short ${report.sleep.shortNights === 1 ? "night" : "nights"}`} />
+              <Row label="Average" value={report.sleep.meanH == null ? dash : formatHoursMin(report.sleep.meanH * 60)} sub={report.sleep.meanH == null ? "No nights logged" : `${report.sleep.shortNights} short ${report.sleep.shortNights === 1 ? "night" : "nights"}`} />
             </RowGroup>
           </section>
 

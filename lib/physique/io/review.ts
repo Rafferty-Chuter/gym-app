@@ -52,6 +52,8 @@ export function useReview(now: Now | null, unit: WeightUnit): ReviewModel | null
   const priorities = useMusclePriorities();
   return useMemo(() => {
     if (!now || !analysis) return null;
+    // The stored profile is a dependency so a changed check-in day recomputes; the resolver fills defaults.
+    void storedProfile;
     const profile = getPhysiqueProfileSync();
     const onboarding = loadOnboardingProfile();
     const goals: PhysiqueGoal[] = goalHistory.map((g) => {
@@ -80,7 +82,6 @@ export function useReview(now: Now | null, unit: WeightUnit): ReviewModel | null
         workouts,
         program: data.program,
         goal: data.goal,
-        sleepGoalH: storedProfile?.sleepGoalH,
         weightUnit: unit,
         volumeBands: bandsFor(priorities, phase),
         expenditure: expenditure?.series ?? null,

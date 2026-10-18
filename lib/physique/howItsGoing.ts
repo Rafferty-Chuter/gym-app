@@ -169,8 +169,8 @@ function sleepRow({ recent }: PulseInputs): PulseRow | null {
   if (s.nights < PULSE_MIN_DAYS || s.meanH == null) return null;
   const gap = s.goalH - s.meanH;
   const base = { id: "sleep" as const, label: "Sleep", value: `${minutes(s.meanH)} a night`, href: "/sleep" };
-  if (gap <= SLEEP_GOOD_H) return { ...base, note: "On goal", tone: "good" };
-  return { ...base, note: `${minutes(gap)} short`, tone: gap > SLEEP_SHORT_H ? "watch" : "neutral" };
+  if (gap <= SLEEP_GOOD_H) return { ...base, note: `${minutes(s.goalH)} or more`, tone: "good" };
+  return { ...base, note: `${minutes(gap)} under ${minutes(s.goalH)}`, tone: gap > SLEEP_SHORT_H ? "watch" : "neutral" };
 }
 
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)} %/wk`;

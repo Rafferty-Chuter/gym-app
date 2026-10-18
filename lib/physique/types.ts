@@ -175,6 +175,7 @@ export type PhysiqueProfile = {
   checkInWeekday: number;
   proteinLevel: ProteinLevel;
   dietType: DietType;
+  /** Unused since C8: the sleep goal setting went; nights read against SLEEP_REFERENCE_H. Kept so stored profiles still parse. */
   sleepGoalH: number;
   /** The bedtime planner's wake time (R3) and one-off override (S8). Unused since S9 removed the planner; kept so stored profiles still type-check. */
   wakeTimeHHMM?: string;

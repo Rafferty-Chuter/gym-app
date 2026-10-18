@@ -260,7 +260,7 @@ export function allFixes(i: InsightInputs): Fix[] {
       id: "sleep",
       state: r.sleep.meanH < r.sleep.goalH - 1 ? "attention" : "watch",
       title: "Sleep more",
-      why: `${formatHoursMin(r.sleep.meanH * 60)} a night against the ${formatHoursMin(r.sleep.goalH * 60)} goal${r.sleep.shortNights ? `, ${plural(r.sleep.shortNights, "short night")}` : ""}${recLow ? ". Recovery is below your usual too" : ""}.`,
+      why: `${formatHoursMin(r.sleep.meanH * 60)} a night, under ${r.sleep.goalH} hours${r.sleep.shortNights ? `, ${plural(r.sleep.shortNights, "short night")}` : ""}${recLow ? ". Recovery is below your usual too" : ""}.`,
       action: "Keep your wake time and get to bed 30 to 45 minutes earlier.",
       href: "/sleep",
     });
@@ -305,7 +305,7 @@ export function goingWell(i: InsightInputs): string[] {
   if (i.analysis.strength.status === "rising") out.push("lifts up");
   // Held lifts are the aim on a cut; a gain or a recomp aims higher, so it is not listed there (B3).
   else if (i.analysis.strength.status === "holding" && i.goal?.type !== "gain" && i.goal?.type !== "maintain") out.push("lifts held");
-  if (r.sleep.nights >= REVIEW_MIN_NIGHTS && !sleepShort(r)) out.push("sleep on goal");
+  if (r.sleep.nights >= REVIEW_MIN_NIGHTS && !sleepShort(r)) out.push("sleep near 8 hours");
   if (r.complete && i.plannedSessions && r.training.sessions >= i.plannedSessions) out.push("every session done");
   return out;
 }

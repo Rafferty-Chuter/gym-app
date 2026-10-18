@@ -14,6 +14,7 @@ import {
   weekdayMeanH,
   windowSource,
   nightsInWindow,
+  SLEEP_REFERENCE_H,
 } from "@/lib/physique/sleep";
 import { mainLiftSeries } from "@/lib/physique/strength";
 import { liftWorkouts, night, nightsRun, pathWith } from "@/lib/physique/__tests__/helpers";
@@ -24,7 +25,7 @@ const NOW = { today: TODAY, tz: "UTC" };
 describe("sleep status thresholds (02 §7.2)", () => {
   function scenarioStatus(meanH: number, source: "manual" | "healthkit") {
     const sc = makeScenario({ seed: 1, days: 28, bodyweightKg: 85, goal: null, sleep: { meanH, sdH: 0, source } });
-    return sleepStatus({ nights: sc.sleepNights, now: { today: sc.today, tz: "UTC" }, sleepGoalH: 8 });
+    return sleepStatus({ nights: sc.sleepNights, now: { today: sc.today, tz: "UTC" } });
   }
 
   it("manual 6.8 h → short", () => {
@@ -115,9 +116,9 @@ describe("acute, debt and session exclusion", () => {
     expect(debt7(by, TODAY, 8)).toBeCloseTo(7, 6);
     expect(debt7(by, TODAY, 7)).toBeCloseTo(0, 6);
     expect(debt7(nightsByDate([]), TODAY, 8)).toBeNull();
-    // The goal is clamped to 7–9 h and defaults to 8.
-    expect(sleepStatus({ nights: nightsRun(TODAY, 7, 7), now: NOW, sleepGoalH: 12 }).goalH).toBe(9);
-    expect(sleepStatus({ nights: [], now: NOW }).goalH).toBe(8);
+    // A fixed 8-hour reference since the sleep goal setting went (C8).
+    expect(sleepStatus({ nights: nightsRun(TODAY, 7, 7), now: NOW }).goalH).toBe(SLEEP_REFERENCE_H);
+    expect(SLEEP_REFERENCE_H).toBe(8);
   });
 
   it("session exclusion: under 5 h (manual 5.5 h) alone, or two nights under 6 h (manual 6.5 h)", () => {

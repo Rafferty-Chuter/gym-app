@@ -6,13 +6,11 @@ import { useHealthAutoPull, useHealthLink } from "@/lib/physique/io/healthLink";
 import { useUnit } from "@/lib/unit-preference";
 import { useNow } from "@/lib/ui/useToday";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
-import { useSingleton } from "@/lib/storage/useStored";
-import { profileStore } from "@/lib/physique/io/repos";
 import { deleteWeighIn, saveSleepNight, saveWeighIn, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
 import { logFood, removeSavedFood, saveRecipe, setFoodPrefs, toggleFavourite, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
 import { dayTotals, formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { displayRate, latestTrend, segmentStart, trendSeries } from "@/lib/physique/weight";
-import { clampSleepGoal } from "@/lib/physique/sleep";
+import { SLEEP_REFERENCE_H } from "@/lib/physique/sleep";
 import { trendBars } from "@/lib/physique/sleepView";
 import { targetInEffect } from "@/lib/physique/intake";
 import { formatBodyWeight } from "@/lib/units";
@@ -45,7 +43,6 @@ export default function TodayStrip() {
   const unit = rawUnit === "lb" ? "lb" : "kg";
   const data = useBodyData();
   const prefs = useFoodPrefs();
-  const profile = useSingleton(profileStore);
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [weightDate, setWeightDate] = useState<LocalDate | null>(null);
   const today = now?.today ?? null;
@@ -68,7 +65,6 @@ export default function TodayStrip() {
     return { weighIn, lastWeighIn, totals, target, night, trend, series, rate, nights, onDate };
   }, [data, today, now, wDate]);
 
-  const goalH = clampSleepGoal(profile?.sleepGoalH);
   const ready = hydrated && now && day;
   const nowIso = () => new Date().toISOString();
   const tile = "flex min-h-[112px] flex-col justify-between rounded-[12px] px-3 py-2.5 text-left transition-colors active:bg-[var(--surface-raised)] disabled:opacity-60";
@@ -76,7 +72,7 @@ export default function TodayStrip() {
 
   // Weight tile words: the trend and its rate when the engine has one, else the last entry.
   const weightSub = !ready || !day ? " " : day.rate ? `Trend ${formatBodyWeight(day.rate.result.bw, unit)} · ${formatRate(day.rate.result.ratePctPerWeek)}` : day.trend ? `Trend ${formatBodyWeight(day.trend.trendKg, unit)}` : day.lastWeighIn ? `Last ${formatBodyWeight(day.lastWeighIn.kg, unit)}` : "No entries yet";
-  const sleepSub = !ready || !day ? " " : day.night ? `of ${formatHoursMin(goalH * 60)} goal` : "Last night";
+  const sleepSub = !ready || !day ? " " : "Last night";
 
   return (
     <>
@@ -124,7 +120,7 @@ export default function TodayStrip() {
           <span className="text-[22px] font-semibold leading-tight" style={{ color: ready && day?.night ? "var(--text)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
             {ready && day?.night ? formatHoursMin(day.night.asleepMin) : "Log sleep"}
           </span>
-          <NightBars nights={ready && day ? day.nights : []} goalH={goalH} />
+          <NightBars nights={ready && day ? day.nights : []} refH={SLEEP_REFERENCE_H} />
           <span className="truncate text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             {sleepSub}
           </span>
@@ -185,14 +181,14 @@ function Sparkline({ points }: { points: readonly number[] }) {
   );
 }
 
-/** Seven nights as bars against the goal; a missing night is a short grey stub. */
-function NightBars({ nights, goalH }: { nights: ReadonlyArray<{ date: string; asleepH: number | null }>; goalH: number }) {
+/** Seven nights as bars, full colour from 8 hours; a missing night is a short grey stub. */
+function NightBars({ nights, refH }: { nights: ReadonlyArray<{ date: string; asleepH: number | null }>; refH: number }) {
   const h = 28;
-  const max = Math.max(goalH, ...nights.map((x) => x.asleepH ?? 0), 1);
+  const max = Math.max(refH, ...nights.map((x) => x.asleepH ?? 0), 1);
   return (
     <span className="flex items-end gap-1" style={{ height: h }} aria-hidden>
       {nights.map((x) => (
-        <span key={x.date} className="flex-1 rounded-[2px]" style={{ height: x.asleepH != null ? `${Math.max(3, (x.asleepH / max) * h)}px` : "3px", background: x.asleepH != null ? (x.asleepH >= goalH ? "var(--sky)" : "color-mix(in srgb, var(--sky) 50%, transparent)") : "var(--border)" }} />
+        <span key={x.date} className="flex-1 rounded-[2px]" style={{ height: x.asleepH != null ? `${Math.max(3, (x.asleepH / max) * h)}px` : "3px", background: x.asleepH != null ? (x.asleepH >= refH ? "var(--sky)" : "color-mix(in srgb, var(--sky) 50%, transparent)") : "var(--border)" }} />
       ))}
     </span>
   );

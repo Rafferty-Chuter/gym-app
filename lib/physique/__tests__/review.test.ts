@@ -69,7 +69,7 @@ describe("review (G3)", () => {
     expect(review.reads.nutrition).toEqual({ state: "watch", title: "267 kcal under target", detail: "1,680 of 1,947 kcal a day · 7 of 7 days logged · protein 1.6 g/kg" });
     expect(review.reads.training.title).toBe("2 of 2 sessions · 12 hard sets");
     expect(review.reads.training.detail).toBe("2 lifts: 1 down, 1 flat");
-    expect(review.reads.sleep).toEqual({ state: "good", title: "7h 42m a night", detail: "goal 8h 00m · 7 nights" });
+    expect(review.reads.sleep).toEqual({ state: "good", title: "7h 42m a night", detail: "7 nights" });
     expect(review.verdict.title).toBe("Eat to target first");
     expect(review.verdict.recommendationLabel).toBe("Eat to target (about 220 kcal/day more)");
     expect(review.decision).toEqual({

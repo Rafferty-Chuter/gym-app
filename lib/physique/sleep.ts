@@ -39,9 +39,14 @@ export const MANUAL_SHARE_FOR_MANUAL_THRESHOLDS = 0.5;
 export const VALID_NIGHT_H = { min: 2, max: 14 } as const;
 /** Weekday nights needed before the weekday mean counts. OURS. */
 export const MIN_WEEKDAY_NIGHTS = 5;
-/** Default sleep goal and its clamp. PUB (research C §6.4: never learned from history). */
-export const DEFAULT_SLEEP_GOAL_H = 8;
-export const SLEEP_GOAL_RANGE_H = { min: 7, max: 9 } as const;
+/**
+ * The hours a night is read against. PUB: adults need 7 to 9 hours (AASM and
+ * SRS consensus; National Sleep Foundation); 8 is the middle, as WHOOP's
+ * baseline need. Fixed since C8: the user-set sleep goal went at the
+ * founder's request ("sleep goal, what is this, it should go"), and a value
+ * stored before is ignored. Fields and parameters named goalH carry this.
+ */
+export const SLEEP_REFERENCE_H = 8;
 /** SLEEP-1 corroboration: ≥2 main lifts down at least this much, last 2 weeks vs the 3 before. OURS (02 §7.3). */
 export const SLEEP1_LIFT_DROP_PCT = 2.5;
 export const SLEEP1_RECENT_DAYS = 14;
@@ -159,10 +164,6 @@ export function acute(byDate: ReadonlyMap<LocalDate, NormalizedNight>, date: Loc
   return true;
 }
 
-export function clampSleepGoal(goalH: number | undefined): number {
-  if (goalH === undefined || !Number.isFinite(goalH)) return DEFAULT_SLEEP_GOAL_H;
-  return Math.min(SLEEP_GOAL_RANGE_H.max, Math.max(SLEEP_GOAL_RANGE_H.min, goalH));
-}
 
 /**
  * Hours short of the goal, summed over the logged valid nights of the last 7
@@ -198,17 +199,15 @@ export type SleepRead = {
 export type SleepStatusInput = {
   nights: readonly SleepNight[];
   now: Now;
-  /** Profile `sleepGoalH`; clamped to 7–9, default 8. */
-  sleepGoalH?: number;
 };
 
 /** The 14-night sleep status (02 §7.2) and everything the analysis shows beside it. */
-export function sleepStatus({ nights, now, sleepGoalH }: SleepStatusInput): SleepRead {
+export function sleepStatus({ nights, now }: SleepStatusInput): SleepRead {
   const byDate = nightsByDate(nights);
   const windowNights = nightsInWindow(byDate, now.today);
   const valid = windowNights.filter((n) => n.valid);
   const thresholds = thresholdsForWindow(valid);
-  const goalH = clampSleepGoal(sleepGoalH);
+  const goalH = SLEEP_REFERENCE_H;
   const m14 = mean14h(byDate, now.today);
   const wk = weekdayMeanH(byDate, now.today);
   const last = byDate.get(now.today);
