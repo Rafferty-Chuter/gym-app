@@ -10,7 +10,7 @@ import { deleteWeighIn, saveSleepNight, saveWeighIn, useBodyData, type SleepInpu
 import { logFood, removeSavedFood, saveRecipe, setFoodPrefs, toggleFavourite, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
 import { dayTotals, formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { displayRate, latestTrend, segmentStart, trendSeries } from "@/lib/physique/weight";
-import { SLEEP_REFERENCE_H } from "@/lib/physique/sleep";
+import { SLEEP_REFERENCE_H, nightsByDate } from "@/lib/physique/sleep";
 import { trendBars } from "@/lib/physique/sleepView";
 import { targetInEffect } from "@/lib/physique/intake";
 import { formatBodyWeight } from "@/lib/units";
@@ -56,7 +56,8 @@ export default function TodayStrip() {
     const lastWeighIn = data.weighIns.at(-1) ?? null;
     const totals = dayTotals(data.foodEntries, today);
     const target = targetInEffect(data.program, today);
-    const night = data.sleepNights.find((n) => n.date === today) ?? null;
+    // The same night the Sleep tab shows: the watch's first, never an imported or typed one stored earlier.
+    const night = nightsByDate(data.sleepNights).get(today)?.night ?? null;
     const trend = latestTrend(data.weighIns);
     const series = trendSeries(data.weighIns).slice(-SPARK_DAYS);
     const rate = data.weighIns.length ? displayRate(data.weighIns, today, segmentStart({ goal: data.goal, dayFlags: data.dayFlags, today }), data.dayFlags) : null;
