@@ -55,6 +55,15 @@ export async function upsertSamples(cfg: SupabaseConfig, rows: readonly SampleRo
   if (!res.ok) throw new Error(`samples upsert failed: ${res.status}`);
 }
 
+/** Stored sleep rows for these days, so an upload can be merged with what is there (S11). */
+export async function listSleepRows(cfg: SupabaseConfig, deviceHash: string, days: readonly string[]): Promise<Array<{ day: string; value: unknown }>> {
+  if (days.length === 0) return [];
+  const params = new URLSearchParams({ device_hash: `eq.${deviceHash}`, metric: "eq.sleep", day: `in.(${days.join(",")})`, select: "day,value" });
+  const res = await fetch(`${cfg.url}/rest/v1/health_samples?${params.toString()}`, { headers: headers(cfg) });
+  if (!res.ok) throw new Error(`sleep rows read failed: ${res.status}`);
+  return (await res.json()) as Array<{ day: string; value: unknown }>;
+}
+
 /** Create the device row on first contact and bump its counters. */
 export async function touchDevice(cfg: SupabaseConfig, deviceHash: string, patch: { samples?: number; payload?: boolean }): Promise<void> {
   const nowIso = new Date().toISOString();

@@ -137,6 +137,7 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
       }
       const segs = cleanSegments(v.segments);
       if (segs) n.segments = segs;
+      else delete n.segments;
       nights.set(s.day, n);
     } else if (s.metric === "hrv") {
       const ms = num(v.value);

@@ -3,12 +3,16 @@
  * (06-execution Sprint 0, S5). Bearer token = the device token the user
  * pasted into the app; only its hash is stored. The body is parsed with
  * `parseHaePayload` and upserted per (device, metric, day), so "Since Last
- * Sync" replays are no-ops. Values are never logged.
+ * Sync" replays are no-ops. A sleep row is merged with the night already
+ * stored for its day (`mergeNight`, S11), so a night split across two
+ * uploads adds up and a later partial upload never replaces a fuller
+ * night. Values are never logged.
  */
 
 import { NextResponse } from "next/server";
 import { parseHaePayload, type HealthSample } from "@/lib/health/hae";
-import { bearerToken, hashToken, supabaseConfig, touchDevice, upsertSamples, type SampleRow } from "@/lib/server/supabaseRest";
+import { mergeNight, type StoredNight } from "@/lib/health/sleepMerge";
+import { bearerToken, hashToken, listSleepRows, supabaseConfig, touchDevice, upsertSamples, type SampleRow } from "@/lib/server/supabaseRest";
 
 export const runtime = "nodejs";
 export const preferredRegion = "lhr1";
@@ -52,12 +56,20 @@ export async function POST(request: Request): Promise<Response> {
   const deviceHash = hashToken(token);
   try {
     await touchDevice(cfg, deviceHash, { samples: samples.length, payload: true });
-    // One row per (metric, day): the last in the payload wins, as the upsert would.
+    // One row per (metric, day): the last in the payload wins, as the upsert would, except sleep,
+    // which is merged with the stored night and with any other part of it in this payload.
     const byKey = new Map<string, SampleRow>();
     const receivedAt = new Date().toISOString();
+    const sleepDays = [...new Set(samples.filter((s) => s.kind === "sleep").map((s) => s.day))];
+    const stored = new Map((await listSleepRows(cfg, deviceHash, sleepDays)).map((r) => [r.day, r.value as StoredNight] as const));
     for (const s of samples) {
       const row = toRow(deviceHash, s, receivedAt);
-      byKey.set(`${row.metric}|${row.day}`, row);
+      const key = `${row.metric}|${row.day}`;
+      if (row.metric === "sleep") {
+        const before = (byKey.get(key)?.value as StoredNight | undefined) ?? stored.get(row.day) ?? null;
+        row.value = mergeNight(before, row.value as StoredNight);
+      }
+      byKey.set(key, row);
     }
     await upsertSamples(cfg, [...byKey.values()]);
     return NextResponse.json({ received: byKey.size });
