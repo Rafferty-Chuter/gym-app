@@ -18,6 +18,7 @@ import { goalStore, profileStore } from "@/lib/physique/io/repos";
 import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { saveBasics } from "@/lib/physique/io/goalSetup";
 import { receivedLabel, useHealthLink } from "@/lib/physique/io/healthLink";
+import { useNativeHealth } from "@/lib/physique/io/nativeHealth";
 import { BODY_FAT_OPTIONS, SEX_OPTIONS } from "@/lib/physique/profileOptions";
 import { useUnit } from "@/lib/unit-preference";
 import { setHeightUnit, useHeightUnit } from "@/lib/ui/heightUnit";
@@ -66,6 +67,7 @@ export default function ProfilePage() {
   const profile = useSingleton(profileStore);
   const resolved = hydrated && profile !== undefined ? getPhysiqueProfileSync() : null;
   const healthLink = useHealthLink();
+  const nativeHealth = useNativeHealth();
   const [sheet, setSheet] = useState<"height" | "age" | "health" | "priorities" | null>(null);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [rest, setRest] = useState<RestTimerSettings>(() => getRestTimerSettings());
@@ -93,7 +95,7 @@ export default function ProfilePage() {
 
   const feedbackUrl = process.env.NEXT_PUBLIC_TALLY_FEEDBACK_URL;
   const sex: Sex | undefined = resolved?.sex && resolved.missing.includes("sex") ? undefined : resolved?.sex;
-  const healthSub = healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${receivedLabel(healthLink.lastPayloadAt, new Date())}` : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own";
+  const healthSub = nativeHealth ? (nativeHealth.lastSyncAt ? `Read on this iPhone · last ${receivedLabel(nativeHealth.lastSyncAt, new Date())}` : "Connected · not read yet") : healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${receivedLabel(healthLink.lastPayloadAt, new Date())}` : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own";
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>

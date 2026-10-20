@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useHealthAutoPull, useHealthLink } from "@/lib/physique/io/healthLink";
+import { useNativeHealth, useNativeHealthSync } from "@/lib/physique/io/nativeHealth";
 import { useUnit } from "@/lib/unit-preference";
 import { useNow } from "@/lib/ui/useToday";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
@@ -48,7 +49,10 @@ export default function TodayStrip() {
   const today = now?.today ?? null;
   const wDate = weightDate ?? today ?? "";
   const healthLink = useHealthLink();
-  useHealthAutoPull(hydrated && !!healthLink?.token);
+  const nativeHealth = useNativeHealth();
+  // In the iPhone app, Apple Health is read on the phone (B11) and replaces the Health Auto Export pull.
+  useHealthAutoPull(hydrated && !!healthLink?.token && !nativeHealth);
+  useNativeHealthSync(hydrated && !!nativeHealth);
 
   const day = useMemo(() => {
     if (!today || !now) return null;

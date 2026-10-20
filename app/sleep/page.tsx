@@ -22,6 +22,7 @@ import RecoveryCard from "@/components/sleep/RecoveryCard";
 import { Chevron } from "@/components/sleep/parts";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
 import { useHealthAutoPull, useHealthLink } from "@/lib/physique/io/healthLink";
+import { useNativeHealth, useNativeHealthSync } from "@/lib/physique/io/nativeHealth";
 
 /**
  * The Sleep tab (05-design §9.6, rev 4 after WHOOP and Bevel, in Sleep's
@@ -46,8 +47,12 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   const data = useBodyData();
   const analysis = usePhysiqueAnalysis(now, unit);
   const healthLink = useHealthLink();
+  const nativeHealth = useNativeHealth();
   const [healthOpen, setHealthOpen] = useState(false);
-  useHealthAutoPull(!!healthLink?.token);
+  useHealthAutoPull(!!healthLink?.token && !nativeHealth);
+  useNativeHealthSync(!!nativeHealth);
+  // Nights arrive on their own from Health Auto Export or, in the iPhone app, from Apple Health directly (B11).
+  const healthOn = !!healthLink?.token || !!nativeHealth;
   const [night, setNight] = useState<LocalDate>(today);
   const [sheetDate, setSheetDate] = useState<LocalDate | null>(() => {
     const q = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date");
@@ -76,9 +81,9 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
     <main className="theme-sleep min-h-screen pb-28">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-5 sm:px-6">
         {/* With Apple Health connected the watch is the record; a missing night is added from the night itself. */}
-        <PageHeader caption={`Today · ${longLocalDate(today)}`} title="Sleep" action={healthLink?.token ? undefined : { label: "Add a night", onClick: () => setSheetDate(night) }} />
+        <PageHeader caption={`Today · ${longLocalDate(today)}`} title="Sleep" action={healthOn ? undefined : { label: "Add a night", onClick: () => setSheetDate(night) }} />
 
-        <NightHero night={model.selected} score={model.score} date={night} today={today} waiting={!!healthLink?.token} onDateChange={(d) => setNight(d > today ? today : d)} onLog={() => setSheetDate(night)} />
+        <NightHero night={model.selected} score={model.score} date={night} today={today} waiting={healthOn} onDateChange={(d) => setNight(d > today ? today : d)} onLog={() => setSheetDate(night)} />
 
         {model.anyNight && <ConsistencyCard read={model.consistency} />}
 
@@ -95,7 +100,7 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         <RecoveryCard read={model.recovery} />
 
         {/* Set up from here until connected; after that it is managed in Profile (B2). */}
-        {!healthLink && (
+        {!healthLink && !nativeHealth && (
           <button type="button" onClick={() => setHealthOpen(true)} className="flex w-full items-center justify-between gap-3 rounded-[16px] px-4 py-3 text-left transition-colors active:bg-[var(--sl-surface-raised)]" style={{ background: "var(--sl-surface)" }} aria-label="Apple Health. Open settings">
             <span className="flex min-w-0 flex-col">
               <span className="text-[15px] font-semibold">Apple Health</span>

@@ -99,10 +99,12 @@ function metricKind(name: string): ScalarSample["kind"] | "sleep" | null {
 /** Segments kept per night. OURS: a long night has a few hundred at most. */
 export const MAX_SEGMENTS = 500;
 
-type Seg = { stage: SleepStage | "inbed"; start: number; end: number; source: string | null };
+/** One stage segment on the local clock (minutes since 1970-01-01, local), as `sleepFromSegments` folds them. */
+export type StageSeg = { stage: SleepStage | "inbed"; start: number; end: number; source: string | null };
+type Seg = StageSeg;
 
 /** Minutes since 1970-01-01 on the local clock: day and clock as written, no timezone maths. */
-function localMinute(d: { day: string; clock: string }): number {
+export function localMinute(d: { day: string; clock: string }): number {
   const [y, m, dd] = d.day.split("-").map(Number);
   const [hh, mm] = d.clock.split(":").map(Number);
   return Math.round(Date.UTC(y, m - 1, dd) / 60_000) + hh * 60 + mm;
@@ -197,6 +199,29 @@ export function sleepFromSegments(segs: readonly Seg[]): SleepSample[] {
 }
 
 /**
+ * A scalar in its stored unit and rounding, or null when it can't be real:
+ * kg (2 dp), body fat % (1 dp; a fraction like 0.18 is read as 18 %), HRV
+ * ms (1 dp), resting HR bpm, steps. Shared by both Apple Health paths.
+ */
+export function cleanScalar(kind: ScalarSample["kind"], value: number): number | null {
+  if (!Number.isFinite(value)) return null;
+  if (kind === "weight") return value <= 0 || value > 500 ? null : Math.round(value * 100) / 100;
+  if (kind === "bodyFat") {
+    const pct = value > 0 && value <= 1 ? value * 100 : value;
+    return pct <= 0 || pct > 80 ? null : Math.round(pct * 10) / 10;
+  }
+  if (kind === "hrv") return value <= 0 || value > 500 ? null : Math.round(value * 10) / 10;
+  if (kind === "rhr") return value < 25 || value > 200 ? null : Math.round(value);
+  return value < 0 ? null : Math.round(value);
+}
+
+/** The stored `value` of a sample: the night's fields, or `{value, at}`. Shared by the ingest route and the iPhone app's merge (B11). */
+export function sampleValue(s: HealthSample): Record<string, unknown> {
+  if (s.kind === "sleep") return { asleepMin: s.asleepMin, inBedMin: s.inBedMin, bedtime: s.bedtime, wakeTime: s.wakeTime, stages: s.stages, ...(s.segments?.length ? { segments: s.segments } : {}) };
+  return { value: s.value, at: s.at };
+}
+
+/**
  * Every recognised sample in a payload. Unknown metrics and malformed rows
  * are skipped silently; the caller reports the count it kept.
  */
@@ -250,25 +275,10 @@ export function parseHaePayload(payload: unknown): HealthSample[] {
         continue;
       }
       const at = splitLocalDate(r.date);
-      let value = num(r.qty ?? r.value ?? r.avg);
-      if (!at || value == null) continue;
-      if (kind === "weight") {
-        if (units === "lb" || units === "lbs") value *= LB_TO_KG;
-        if (value <= 0 || value > 500) continue;
-        value = Math.round(value * 100) / 100;
-      } else if (kind === "bodyFat") {
-        if (value > 0 && value <= 1) value *= 100;
-        if (value <= 0 || value > 80) continue;
-        value = Math.round(value * 10) / 10;
-      } else if (kind === "hrv") {
-        if (value <= 0 || value > 500) continue;
-        value = Math.round(value * 10) / 10;
-      } else if (kind === "rhr") {
-        if (value < 25 || value > 200) continue;
-        value = Math.round(value);
-      } else {
-        value = Math.round(value);
-      }
+      const raw = num(r.qty ?? r.value ?? r.avg);
+      if (!at || raw == null) continue;
+      const value = cleanScalar(kind, kind === "weight" && (units === "lb" || units === "lbs") ? raw * LB_TO_KG : raw);
+      if (value == null) continue;
       out.push({ kind, day: at.day, value, at: `${at.day}T${at.clock}:00`, source });
     }
   }

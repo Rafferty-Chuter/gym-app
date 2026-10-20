@@ -10,7 +10,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { parseHaePayload, type HealthSample } from "@/lib/health/hae";
+import { parseHaePayload, sampleValue, type HealthSample } from "@/lib/health/hae";
 import { mergeNight, type StoredNight } from "@/lib/health/sleepMerge";
 import { bearerToken, hashToken, listSleepRows, supabaseConfig, touchDevice, upsertSamples, type SampleRow } from "@/lib/server/supabaseRest";
 
@@ -28,10 +28,7 @@ const MAX_SAMPLES = 5000;
  * next pull, which asks for rows received since its last one.
  */
 function toRow(deviceHash: string, s: HealthSample, receivedAt: string): SampleRow {
-  if (s.kind === "sleep") {
-    return { device_hash: deviceHash, metric: "sleep", day: s.day, value: { asleepMin: s.asleepMin, inBedMin: s.inBedMin, bedtime: s.bedtime, wakeTime: s.wakeTime, stages: s.stages, ...(s.segments?.length ? { segments: s.segments } : {}) }, source: s.source, received_at: receivedAt };
-  }
-  return { device_hash: deviceHash, metric: s.kind, day: s.day, value: { value: s.value, at: s.at }, source: s.source, received_at: receivedAt };
+  return { device_hash: deviceHash, metric: s.kind, day: s.day, value: sampleValue(s), source: s.source, received_at: receivedAt };
 }
 
 export async function POST(request: Request): Promise<Response> {

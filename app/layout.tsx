@@ -6,6 +6,7 @@ import BottomTabs from "@/components/BottomTabs";
 import ActiveWorkoutResumeBar from "@/components/ActiveWorkoutResumeBar";
 import RestTimerBanner from "@/components/RestTimerBanner";
 import ReminderSync from "@/components/physique/ReminderSync";
+import NativeShell from "@/components/NativeShell";
 import { APPEARANCE_BOOT } from "@/lib/ui/appearance";
 
 const geistSans = Geist({
@@ -51,6 +52,7 @@ export default function RootLayout({
         <AppProviders>
           {children}
           <ReminderSync />
+          <NativeShell />
           <RestTimerBanner />
           <ActiveWorkoutResumeBar />
           <BottomTabs />

@@ -4,6 +4,9 @@ import { useState } from "react";
 import Sheet from "@/components/ui/Sheet";
 import { PrimaryButton, SecondaryButton } from "@/components/physique/ui";
 import { disconnectHealthLink, ensureHealthLink, ingestUrl, pullHealth, receivedLabel, useHealthLink, type PullResult } from "@/lib/physique/io/healthLink";
+import { connectNativeHealth, disconnectNativeHealth, syncNativeHealth, useNativeHealth, type SyncResult } from "@/lib/physique/io/nativeHealth";
+import { isNativeApp } from "@/lib/nativeApp";
+import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -30,11 +33,108 @@ function errorCopy(e: NonNullable<Extract<PullResult, { ok: false }>["error"]> |
   }
 }
 
+function nativeErrorCopy(e: Extract<SyncResult, { ok: false }>["error"] | string | null | undefined): string | null {
+  switch (e) {
+    case "unavailable":
+      return "Apple Health isn't available on this device.";
+    case "read_failed":
+      return "Apple Health could not be read. Check Settings → Health → Data Access & Devices → Gym AI.";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Apple Health inside the iPhone app (B11): read straight from HealthKit,
+ * so there is no token or second app. Connect asks for read access once;
+ * reads then run on open and on return to the app.
+ */
+function NativeAppleHealthSheet({ open, onClose }: Props) {
+  const state = useNativeHealth();
+  const haeLink = useHealthLink();
+  const [busy, setBusy] = useState(false);
+  const [last, setLast] = useState<SyncResult | null>(null);
+  const nowIso = () => new Date().toISOString();
+
+  async function run(fn: () => Promise<SyncResult>) {
+    setBusy(true);
+    setLast(await fn());
+    setBusy(false);
+  }
+
+  const status = !state
+    ? "Not connected."
+    : state.lastSyncAt
+      ? `Last read ${receivedLabel(state.lastSyncAt, new Date())}.`
+      : "Connected. Not read yet.";
+  const err = nativeErrorCopy(last && !last.ok ? last.error : state?.lastError);
+
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Apple Health"
+      footer={
+        state ? (
+          <div className="flex flex-col gap-2">
+            <PrimaryButton onClick={() => run(() => syncNativeHealth(nowIso(), true))} disabled={busy}>
+              {busy ? "Reading…" : "Read now"}
+            </PrimaryButton>
+            <SecondaryButton
+              onClick={async () => {
+                await disconnectNativeHealth();
+                setLast(null);
+              }}
+              disabled={busy}
+            >
+              Stop reading
+            </SecondaryButton>
+          </div>
+        ) : (
+          <PrimaryButton onClick={() => run(() => connectNativeHealth(nowIso()))} disabled={busy}>
+            {busy ? "Connecting…" : "Connect Apple Health"}
+          </PrimaryButton>
+        )
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+          Sleep, HRV, resting heart rate, weight, body fat and steps are read straight from Apple Health on this iPhone, each time the app opens. Manual logging stays as the fallback.
+        </p>
+        <p className="text-[13px]" style={{ color: "var(--text)" }}>
+          {status}
+          {last?.ok ? ` Read ${last.nights} ${last.nights === 1 ? "night" : "nights"}, ${last.weighIns} ${last.weighIns === 1 ? "weigh-in" : "weigh-ins"}.` : ""}
+        </p>
+        {err && (
+          <p className="text-[13px]" style={{ color: "var(--status-watch)" }}>
+            {err}
+          </p>
+        )}
+        {haeLink && (
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+            Health Auto Export isn&apos;t needed in the app. You can turn its automation off.
+          </p>
+        )}
+        <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+          Gym AI only reads. To change which data it can read, use Settings → Health → Data Access & Devices.
+        </p>
+      </div>
+    </Sheet>
+  );
+}
+
 /**
  * Connect Apple Health (Sprint 0, S5): the token shown with a copy button,
  * the URL, the five settings, the state of the link, Pull now, Disconnect.
+ * Inside the iPhone app, the native sheet above instead (B11).
  */
-export default function AppleHealthSheet({ open, onClose }: Props) {
+export default function AppleHealthSheet(props: Props) {
+  const hydrated = useIsHydrated();
+  if (hydrated && isNativeApp()) return <NativeAppleHealthSheet {...props} />;
+  return <HealthAutoExportSheet {...props} />;
+}
+
+function HealthAutoExportSheet({ open, onClose }: Props) {
   const link = useHealthLink();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<"token" | "url" | "header" | null>(null);

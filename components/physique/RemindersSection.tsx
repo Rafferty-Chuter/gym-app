@@ -7,6 +7,7 @@ import { useNow } from "@/lib/ui/useToday";
 import { useBodyData } from "@/lib/physique/io/bodyData";
 import { disableReminders, enableReminders, pushSupport, setReminderTime, usePushLink, type PushError, type PushSupport } from "@/lib/physique/io/pushLink";
 import { DEFAULT_REMINDER_HHMM, buildGapSummary } from "@/lib/physique/reminder";
+import { isNativeApp } from "@/lib/nativeApp";
 
 function errorCopy(e: PushError | null | undefined): string | null {
   switch (e) {
@@ -61,6 +62,18 @@ export default function RemindersSection() {
 
   const err = errorCopy(link?.lastError);
   const iosNote = support && support.ios && !support.standalone && !enabled ? errorCopy("needs_home_screen") : null;
+
+  // The iPhone app's web view has no web push; native reminders come with B11 step 2.
+  if (hydrated && isNativeApp()) {
+    return (
+      <section className="flex flex-col gap-2" aria-label="Reminders">
+        <Caption>Reminders</Caption>
+        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+          Reminders aren&apos;t in the iPhone app yet. The Home Screen web app can still send them.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="flex flex-col gap-2" aria-label="Reminders">

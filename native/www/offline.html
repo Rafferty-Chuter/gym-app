@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gym AI</title>
+<style>
+  /* The light and dark --background, --text, --text-secondary, --primary and --text-on-primary of app/globals.css: this page loads before the app's own CSS can. */
+  :root { color-scheme: light dark; --bg: #edf2f0; --text: #17272a; --muted: #4a5d5f; --primary: #2f6b55; --on-primary: #f4faf6; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #10191b; --text: #e6efeb; --muted: #a1b3af; --primary: #a8d8bc; --on-primary: #0f201a; } }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.45 -apple-system, system-ui, sans-serif; }
+  main { min-height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 24px; box-sizing: border-box; max-width: 420px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { color: var(--muted); margin: 0 0 20px; }
+  button { height: 48px; border: 0; border-radius: 999px; background: var(--primary); color: var(--on-primary); font: 600 15px -apple-system, system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Can't reach Gym AI</h1>
+  <p>The app needs a connection to open. Your data is safe on this phone; try again once you're back online.</p>
+  <button type="button" onclick="location.replace('https://gym-app-eta-nine.vercel.app/')">Try again</button>
+</main>
+</body>
+</html>
