@@ -1,0 +1,13 @@
+# The CLI uploads everything except its own short default list (it does not
+# read .gitignore). Each upload counts towards the team's Deployment Storage,
+# so leave out what the build never reads: plan docs and their screenshots
+# (about 42 MB), agent tooling, offline scripts and evals.
+/docs
+/.agents
+/.claude
+/scripts
+/evals
+/coverage
+*.tsbuildinfo
+.env*
+!.env.example
