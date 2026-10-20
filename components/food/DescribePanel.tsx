@@ -7,7 +7,7 @@ import RecipePlate from "@/components/food/RecipePlate";
 import { CARBS_COLOR, FAT_COLOR, PROTEIN_COLOR } from "@/components/food/EnergyCharts";
 import { PrimaryButton, StatusDot } from "@/components/physique/ui";
 import { MAX_DESCRIBE_CHARS, compactDescription, describeErrorText, errorFromStatus, modeFor } from "@/lib/food/describe";
-import { AMOUNT_CHOICES, AMOUNT_STEP, GRAMS_STEP, MAX_AMOUNT, MIN_AMOUNT, amountPill, choiceLabel, formatAmount, plateItemGrams, plateItemMacros, plateServing, plateTotals, sourceLine, toPlate, withAmount, withGrams, withMacros, type PlateItem } from "@/lib/food/plate";
+import { AMOUNT_CHOICES, AMOUNT_STEP, GRAMS_STEP, MAX_AMOUNT, MIN_AMOUNT, amountPill, choiceLabel, formatAmount, isPortion, plateItemGrams, plateItemMacros, plateServing, plateTotals, portionChoices, rowSize, sourceLine, toPlate, withAmount, withGrams, withMacros, withPortion, type PlateItem } from "@/lib/food/plate";
 import { eatenMacros, estimateCount, recipeConfidence, servingLabel, type Recipe } from "@/lib/food/recipe";
 import { draftFromPlate, draftFromRecipe, type RecipeDraft } from "@/lib/food/recipeDraft";
 import { getClientId } from "@/lib/ui/clientId";
@@ -209,7 +209,7 @@ function DescribeInput({ d }: { d: DescribeState }) {
       </div>
       <div className="flex items-center justify-between gap-3 px-1 text-[11px]">
         <span id="describe-hint" style={{ color: "var(--text-tertiary)" }}>
-          Meals, takeaway orders and recipes. Numbers come from the UK food database.
+          Meals, takeaways and recipes. Numbers come from the UK food database and chains&apos; published figures.
         </span>
         {/* The count only matters near the limit (C9). */}
         {len > MAX_DESCRIBE_CHARS * 0.8 && (
@@ -290,7 +290,7 @@ function Reading({ recipe }: { recipe: boolean }) {
         ))}
       </ul>
       <p className="px-1 text-[12px]" style={{ color: "var(--text-tertiary)" }} aria-live="polite">
-        {recipe ? "Matching each ingredient to the UK food database. A long recipe takes up to half a minute." : "Matching each food to the UK food database. This takes a few seconds."}
+        {recipe ? "Matching each ingredient to the UK food database. A long recipe takes up to half a minute." : "Matching each food to the UK food database. A chain's dish is checked against its published figures, which takes up to 20 seconds."}
       </p>
     </>
   );
@@ -298,14 +298,15 @@ function Reading({ recipe }: { recipe: boolean }) {
 
 function Result({ d, consumedKcal, targetKcal }: { d: DescribeState; consumedKcal: number; targetKcal: number | null }) {
   const isRecipe = d.kind === "recipe" && d.recipe;
-  const estimates = isRecipe && d.recipe ? estimateCount(d.recipe.ingredients) : d.plate.filter((p) => !p.matched).length;
+  const estimates = isRecipe && d.recipe ? estimateCount(d.recipe.ingredients) : d.plate.filter((p) => !p.matched && !p.publishedBy).length;
+  const from = !isRecipe && d.plate.some((p) => p.publishedBy) ? "the UK food database or a chain's published figures" : "the UK food database";
   const note = isRecipe
     ? estimates === 0
       ? "Every ingredient matched the UK food database. Check the grams; logging it keeps one serving under Saved."
       : `${estimates} ${estimates === 1 ? "ingredient is an estimate" : "ingredients are estimates"}, in amber; the rest come from the UK food database. Check the grams; logging it keeps one serving under Saved.`
     : estimates === 0
-      ? "Every food matched the UK food database. Check the amounts before logging."
-      : `${estimates === d.plate.length ? "These are estimates" : `${estimates} of ${d.plate.length} are estimates, in amber; the rest come from the UK food database`}. Check the amounts before logging.`;
+      ? `Every food matched ${from}. Check the amounts before logging.`
+      : `${estimates === d.plate.length ? "These are estimates" : `${estimates} of ${d.plate.length} are estimates, in amber; the rest come from ${from}`}. Check the amounts before logging.`;
   return (
     <>
       <PlateHeading title={isRecipe ? "Recipe" : "Plate"} value={`${n(d.total.kcal)} kcal`} action={d.count > 0 ? { label: "Make recipe", onClick: d.makeRecipe } : undefined} />
@@ -341,12 +342,15 @@ function MealPlate({ items, onChange }: { items: PlateItem[]; onChange: (next: P
       {items.map((p, idx) => {
         const m = plateItemMacros(p);
         const g = plateItemGrams(p);
+        const size = rowSize(p);
+        const choices = portionChoices(p);
         const isOpen = open === idx;
         return (
           <PlateRow
             key={idx}
             title={p.label}
-            line={`${n(m.kcal)} kcal · ${m.proteinG}P ${m.fatG}F ${m.carbsG}C${p.serving && g != null ? ` · ${p.amount === 1 ? p.serving : `${formatAmount(p.amount)} × ${p.serving}`}` : ""}`}
+            size={size}
+            line={`${n(m.kcal)} kcal · ${m.proteinG}P ${m.fatG}F ${m.carbsG}C`}
             source={sourceLine(p)}
             pill={amountPill(p)}
             open={isOpen}
@@ -373,23 +377,36 @@ function MealPlate({ items, onChange }: { items: PlateItem[]; onChange: (next: P
                   </Stepper>
                 )}
               </div>
-              <div className="flex flex-col gap-1.5">
-                <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="Portions of what you described">
-                  {AMOUNT_CHOICES.map((a) => {
-                    const selected = Math.abs(p.amount - a) < 0.001;
+              {choices.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Portion">
+                  {choices.map((c) => {
+                    const selected = isPortion(p, c);
                     return (
-                      <button key={a} type="button" aria-pressed={selected} onClick={() => set(idx, withAmount(p, a))} className="h-8 rounded-full text-[13px] font-semibold transition-colors" style={{ background: selected ? "var(--primary)" : "var(--surface)", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
-                        {choiceLabel(a)}
+                      <button key={`${c.label}-${c.factor}`} type="button" aria-pressed={selected} onClick={() => set(idx, withPortion(p, c))} className="h-8 rounded-full px-3 text-[13px] font-semibold transition-colors" style={{ background: selected ? "var(--primary)" : "var(--surface)", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
+                        {c.label}
                       </button>
                     );
                   })}
                 </div>
-                {p.serving && (
-                  <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                    Times what you described: {p.serving}
-                  </span>
-                )}
-              </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="Portions of what you described">
+                    {AMOUNT_CHOICES.map((a) => {
+                      const selected = Math.abs(p.amount - a) < 0.001;
+                      return (
+                        <button key={a} type="button" aria-pressed={selected} onClick={() => set(idx, withAmount(p, a))} className="h-8 rounded-full text-[13px] font-semibold transition-colors" style={{ background: selected ? "var(--primary)" : "var(--surface)", color: selected ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
+                          {choiceLabel(a)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {p.serving && (
+                    <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                      Times what you described: {p.serving}
+                    </span>
+                  )}
+                </div>
+              )}
               {editing && <ItemEditor item={p} onChange={(next) => set(idx, next)} />}
               <DrawerActions
                 onEdit={() => setEditing((e) => !e)}

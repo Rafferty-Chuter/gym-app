@@ -155,8 +155,9 @@ function bestMatch(items: readonly FoodItem[], q: string): { item: FoodItem; ran
     if (!acceptMatch(q, hit.name)) continue;
     const segments = hit.name.split(",");
     const head = normalise(segments[0]);
-    // After a category, the food can sit in the next two segments ("Pasta, wholewheat, spaghetti"); "with tinned tomatoes" is an addition, not the food.
-    const named = withJoined(normalise(segments.slice(1, 3).filter((seg) => !/^\s*(with|in|and|on)\b/i.test(seg)).join(" ")));
+    // After a category, the food can sit in the next two segments ("Pasta, wholewheat, spaghetti"); "with tinned tomatoes" is an addition, not the food,
+    // and so is what follows "and" or "with" inside a segment ("Peanuts, raisins and chocolate chips" is not chips) (F8).
+    const named = withJoined(normalise(segments.slice(1, 3).filter((seg) => !/^\s*(with|in|and|on)\b/i.test(seg)).map((seg) => seg.split(/\s(?:and|with)\s/i)[0]).join(" ")));
     const words = normalise(hit.name);
     const extra = words.filter((w) => !qWords.has(w) && !DEFAULT_WORDS.has(w)).length;
     if (extra > MAX_EXTRA_WORDS) continue;
@@ -241,23 +242,45 @@ export function recipeConfidence(ingredients: readonly RecipeIngredient[]): "hig
   return ingredients.every((i) => i.source === "cofid") ? "high" : "medium";
 }
 
-/** A described food as the model returns it: its own estimate plus a lookup and grams for the base list. */
-export type ItemDraft = { label: string; serving: string; lookup: string; grams: number; kcal: number; proteinG: number; fatG: number; carbsG: number; fibreG?: number; confidence: "high" | "medium" | "low" };
-
-/** A described food after the base list has been asked: base-list numbers and the matched name when it fit, the estimate otherwise. */
-export type ResolvedItem = ItemDraft & { matched?: string };
+/** Another common size of a described food, as a multiple of what was described: "1 slice" of a whole 12-inch pizza is 0.125 (F8). */
+export type PortionOption = { label: string; factor: number };
 
 /**
- * A meal item takes the base list's numbers when its lookup matches and
- * the model gave a weight, so "2 eggs, fried" becomes 120 g of "Eggs,
- * chicken, fried" at CoFID's values with high confidence. Otherwise the
- * model's own estimate stands, with its confidence as given. Fibre follows
+ * A described food as the model returns it: its own estimate plus a lookup and grams for the base list.
+ * `portions` are the other sizes it is commonly had in; `chain` marks a dish from a chain or brand that publishes its nutrition (F8).
+ */
+export type ItemDraft = { label: string; serving: string; lookup: string; grams: number; kcal: number; proteinG: number; fatG: number; carbsG: number; fibreG?: number; confidence: "high" | "medium" | "low"; portions?: PortionOption[]; chain?: boolean };
+
+/**
+ * A described food after the base list has been asked: base-list numbers and the matched name when it fit, the estimate otherwise.
+ * `publishedBy` is the site a chain's published figures were read from, when they replaced the estimate (F8).
+ */
+export type ResolvedItem = ItemDraft & { matched?: string; publishedBy?: string };
+
+/**
+ * A base-list row whose calories for the weight are more than this many
+ * times the model's own estimate, either way, is taken for a wrong match
+ * (a lookup of "chips" landing on a chocolate-chip snack), and the
+ * estimate stands. Wide enough that an estimate a third out still takes
+ * the row's numbers (F8). OURS.
+ */
+export const MATCH_AGREEMENT_RATIO = 1.75;
+
+/**
+ * A meal item takes the base list's numbers when its lookup matches, the
+ * model gave a weight and the row agrees with the model's own estimate
+ * within MATCH_AGREEMENT_RATIO, so "2 eggs, fried" becomes 120 g of
+ * "Eggs, chicken, fried" at CoFID's values with high confidence.
+ * Otherwise the model's own estimate stands, with its confidence as given. Fibre follows
  * the same rule, with the model's estimate standing in where the matched
  * row has none (F7).
  */
 export function resolveItem(items: readonly FoodItem[], draft: ItemDraft): ResolvedItem {
   const grams = Math.max(0, Math.round(draft.grams));
-  const hit = grams > 0 ? matchIngredient(items, draft.lookup) : null;
+  const found = grams > 0 ? matchIngredient(items, draft.lookup) : null;
+  const rowKcal = found ? (found.per100.kcal * grams) / 100 : 0;
+  const agrees = draft.kcal <= 0 || (rowKcal <= draft.kcal * MATCH_AGREEMENT_RATIO && rowKcal >= draft.kcal / MATCH_AGREEMENT_RATIO);
+  const hit = found && agrees ? found : null;
   const fibre = (g: number | undefined) => (g == null ? {} : { fibreG: Math.round(g * 10) / 10 });
   if (!hit) return { ...draft, grams, kcal: Math.round(draft.kcal), proteinG: Math.round(draft.proteinG), fatG: Math.round(draft.fatG), carbsG: Math.round(draft.carbsG), ...fibre(draft.fibreG) };
   const f = grams / 100;

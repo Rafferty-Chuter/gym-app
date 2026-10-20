@@ -14,6 +14,12 @@ export const EVAL_SCORER_MODEL = ASSISTANT_MODEL;
 /** Food description → items, orders and recipes (A1, M4b). Sonnet 5.5 at the founder's request (2026-10-17): fast enough for a pasted recipe, intelligent enough to read one. */
 export const FOOD_PARSE_MODEL = "claude-sonnet-5-5";
 
+/** Checks a chain's published nutrition with one web search per dish (F8). Haiku 5.5: the search results are most of the tokens, at a twentieth of Sonnet's input price. */
+export const FOOD_LOOKUP_MODEL = "claude-haiku-5-5";
+
+/** USD per web search request, on top of tokens. PUB: Anthropic pricing, $10 per 1,000 searches. */
+export const WEB_SEARCH_USD_PER_REQUEST = 0.01;
+
 /** USD per million tokens, used only for cost logging. */
 export const MODEL_RATES_USD_PER_M: Record<
   string,

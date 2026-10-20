@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { compactDescription, reconcileEnergy, describeErrorText, errorFromStatus, looksLikeRecipe, MAX_INGREDIENTS, MAX_NAME_CHARS, modeFor, sanitiseParse, shortText } from "@/lib/food/describe";
+import { cleanPortions, compactDescription, reconcileEnergy, describeErrorText, errorFromStatus, looksLikeRecipe, MAX_INGREDIENTS, MAX_NAME_CHARS, MAX_PORTIONS, modeFor, sanitiseParse, shortText } from "@/lib/food/describe";
 import { bannedPhrasesIn } from "@/lib/physique/copy";
 import { FOOD_PARSE_ERRORS, type FoodParseOutputData } from "@/lib/physique/food/parseSchema";
 
 const per100 = { kcal: 100, proteinG: 10, fatG: 5, carbsG: 10, fibreG: 2 };
 const ing = (name: string, grams: number) => ({ name, lookup: name, grams, per100 });
-const item = (label: string, grams = 100) => ({ label, serving: "1 portion", lookup: label, grams, kcal: 200, proteinG: 10, fatG: 8, carbsG: 20, fibreG: 3, confidence: "medium" as const });
+const item = (label: string, grams = 100) => ({ label, serving: "1 portion", lookup: label, grams, kcal: 200, proteinG: 10, fatG: 8, carbsG: 20, fibreG: 3, confidence: "medium" as const, portions: [] as { label: string; factor: number }[], chain: false });
 const reply = (over: Partial<FoodParseOutputData>): FoodParseOutputData => ({ kind: "meal", items: [], recipe: { name: "", servings: 1, ingredients: [] }, ...over });
 
 describe("reading the text", () => {
@@ -81,6 +81,17 @@ describe("making the reply safe", () => {
     expect(asMeal.kind).toBe("meal");
     expect(asMeal.items[0]).toMatchObject({ label: "beef", grams: 500, kcal: 500, fibreG: 10 });
     expect(asItems.recipe?.ingredients[0].per100.fibreG).toBeCloseTo(0.6);
+  });
+
+  it("keeps other portion sizes within limits, smallest first, without the serving itself (F8)", () => {
+    const pizza = { ...item("Pepperoni pizza, Tottenham Hotspur Stadium", 550), serving: "1 whole 12-inch pizza", chain: false, portions: [{ label: "Half", factor: 0.5 }, { label: "1 slice", factor: 0.125 }, { label: "Whole", factor: 1 }, { label: "Two pizzas", factor: 2 }, { label: "Half again", factor: 0.5 }, { label: "", factor: 0.25 }, { label: "Crumb", factor: 0.01 }, { label: "Lorry", factor: 50 }] };
+    const out = sanitiseParse(reply({ kind: "restaurant", items: [pizza] }), "auto").items[0];
+    expect(out.portions).toEqual([{ label: "1 slice", factor: 0.125 }, { label: "Half", factor: 0.5 }, { label: "Two pizzas", factor: 2 }]);
+    expect(out.chain).toBe(false);
+    const many = Array.from({ length: 9 }, (_, i) => ({ label: `Size ${i}`, factor: 0.1 * (i + 2) }));
+    expect(cleanPortions(many)).toHaveLength(MAX_PORTIONS);
+    expect(cleanPortions(undefined)).toEqual([]);
+    expect(sanitiseParse(reply({ kind: "restaurant", items: [{ ...item("Chicken katsu curry, Wagamama", 520), chain: true }] }), "auto").items[0].chain).toBe(true);
   });
 });
 

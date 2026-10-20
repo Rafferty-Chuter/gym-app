@@ -35,6 +35,9 @@ describe("ingredient matching", () => {
     expect(matchIngredient(items, "tomatoes tinned")?.name).toBe("Tomatoes, canned, whole contents");
     expect(matchIngredient(items, "toast")?.name ?? "").not.toMatch(/prawn/i);
     expect(matchIngredient(items, "salmon")?.name).toMatch(/^Salmon,/);
+    // What follows "and" in a segment is mixed in, not the food (F8).
+    expect(matchIngredient(items, "chips")?.name ?? "").not.toMatch(/chocolate/i);
+    expect(matchIngredient(items, "pizza cheese")?.name).toBe("Pizza, cheese and tomato, retail");
   });
 
   it("prefers the plain food over substitutes, preserved forms, parts and other animals", () => {
@@ -112,7 +115,7 @@ describe("recipe maths", () => {
 describe("described meal items", () => {
   it("takes the base list's numbers when the lookup matches and grams are known", async () => {
     const { resolveItem } = await import("@/lib/food/recipe");
-    const r = resolveItem(items, { label: "Eggs, fried", serving: "2 medium", lookup: "eggs fried", grams: 120, kcal: 999, proteinG: 1, fatG: 1, carbsG: 1, confidence: "medium" });
+    const r = resolveItem(items, { label: "Eggs, fried", serving: "2 medium", lookup: "eggs fried", grams: 120, kcal: 180, proteinG: 1, fatG: 1, carbsG: 1, confidence: "medium" });
     expect(r.matched).toMatch(/^Eggs, chicken, whole, fried/);
     expect(r.confidence).toBe("high");
     expect(r.kcal).toBeGreaterThan(150);
@@ -128,5 +131,16 @@ describe("described meal items", () => {
     const noWeight = resolveItem(items, { label: "Eggs", serving: "some", lookup: "eggs fried", grams: 0, kcal: 200, proteinG: 14, fatG: 15, carbsG: 0, confidence: "low" });
     expect(noWeight.matched).toBeUndefined();
     expect(noWeight.kcal).toBe(200);
+  });
+
+  it("keeps the estimate when the row is far from it, as a wrong match would be (F8)", async () => {
+    const { resolveItem, MATCH_AGREEMENT_RATIO } = await import("@/lib/food/recipe");
+    const eggs = { label: "Eggs, fried", serving: "2 medium", lookup: "eggs fried", grams: 120, proteinG: 14, fatG: 17, carbsG: 0, confidence: "medium" as const };
+    const row = resolveItem(items, { ...eggs, kcal: 240 });
+    expect(row.matched).toBeDefined();
+    const far = resolveItem(items, { ...eggs, kcal: Math.round(row.kcal * MATCH_AGREEMENT_RATIO) + 20 });
+    expect(far.matched).toBeUndefined();
+    expect(far.kcal).toBe(Math.round(row.kcal * MATCH_AGREEMENT_RATIO) + 20);
+    expect(resolveItem(items, { ...eggs, kcal: 0 }).matched).toBeDefined();
   });
 });

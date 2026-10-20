@@ -18,8 +18,8 @@ import { logAssistantCallCost, type AnthropicUsageLike, type AssistantCostSubCal
 
 export type PaidRouteContext = {
   clientId: string;
-  /** Logs usage and counts it toward the client's daily cap. */
-  logCost(args: { usage: AnthropicUsageLike | undefined; model: string; startedAt: number; streamed?: boolean }): void;
+  /** Logs usage and counts it toward the client's daily cap. `subCall` names a second call the route makes (F8); the route's own otherwise. */
+  logCost(args: { usage: AnthropicUsageLike | undefined; model: string; startedAt: number; streamed?: boolean; subCall?: AssistantCostSubCall }): void;
 };
 
 export type PaidRouteOptions<TBody> = {
@@ -73,8 +73,8 @@ export function withPaidRoute<TBody extends { client_id?: string }>(
 
     const ctx: PaidRouteContext = {
       clientId,
-      logCost({ usage, model, startedAt, streamed = false }) {
-        logAssistantCallCost({ usage, model, streamed, subCall: options.subCall, threadId: undefined, clientId, startedAt });
+      logCost({ usage, model, startedAt, streamed = false, subCall = options.subCall }) {
+        logAssistantCallCost({ usage, model, streamed, subCall, threadId: undefined, clientId, startedAt });
       },
     };
 

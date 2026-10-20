@@ -5,7 +5,7 @@
  * safe before anything is looked up, and what each failure says. Pure.
  */
 
-import { MAX_SERVINGS, type IngredientDraft, type ItemDraft } from "@/lib/food/recipe";
+import { MAX_SERVINGS, type IngredientDraft, type ItemDraft, type PortionOption } from "@/lib/food/recipe";
 import type { FoodParseError, FoodParseOutputData, ParseKind, ParseMode } from "@/lib/physique/food/parseSchema";
 
 // ── Limits ──
@@ -32,6 +32,12 @@ export const MAX_KCAL_PER_100 = 900;
 export const MAX_FIBRE_PER_100 = 60;
 /** Fibre in one described food above this is not a meal (three times a day's target). OURS. */
 export const MAX_ITEM_FIBRE_G = 100;
+/** Other sizes offered per food: a slice, a half, the whole and one more is plenty (F8). OURS. */
+export const MAX_PORTIONS = 4;
+export const MAX_PORTION_LABEL_CHARS = 30;
+/** A portion under a twentieth of what was described is a crumb, over twenty times it is a misread (F8). OURS. */
+export const MIN_PORTION_FACTOR = 0.05;
+export const MAX_PORTION_FACTOR = 20;
 
 // ── Reading the text ──
 
@@ -148,6 +154,8 @@ export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): Saniti
       carbsG: clamp(i.carbsG, MAX_ITEM_MACRO_G),
       ...(Number.isFinite(i.fibreG) ? { fibreG: Math.round(clamp(i.fibreG, MAX_ITEM_FIBRE_G) * 10) / 10 } : {}),
       confidence: i.confidence,
+      portions: cleanPortions(i.portions),
+      chain: i.chain === true,
     }))
     .filter((i) => i.label.length > 0)
     .slice(0, MAX_ITEMS);
@@ -174,6 +182,23 @@ export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): Saniti
   if (out.kind === "recipe" && ingredients.length > 0) return { kind: "recipe", items: [], recipe: { name, servings, ingredients } };
   if (items.length === 0 && ingredients.length > 0) return { kind: "recipe", items: [], recipe: { name, servings, ingredients } };
   return { kind: out.kind === "recipe" ? "meal" : out.kind, items, recipe: null };
+}
+
+/**
+ * The other sizes of a food within limits: a label, a factor between
+ * MIN_PORTION_FACTOR and MAX_PORTION_FACTOR, never the described serving
+ * itself (a factor of 1) and never two at the same size, smallest first.
+ */
+export function cleanPortions(portions: readonly PortionOption[] | undefined): PortionOption[] {
+  const out: PortionOption[] = [];
+  for (const p of portions ?? []) {
+    const label = shortText(p.label ?? "", MAX_PORTION_LABEL_CHARS);
+    const factor = Math.round(p.factor * 1000) / 1000;
+    if (!label || !Number.isFinite(factor) || factor < MIN_PORTION_FACTOR || factor > MAX_PORTION_FACTOR) continue;
+    if (Math.abs(factor - 1) < 0.001 || out.some((o) => Math.abs(o.factor - factor) < 0.001)) continue;
+    out.push({ label, factor });
+  }
+  return out.sort((a, b) => a.factor - b.factor).slice(0, MAX_PORTIONS);
 }
 
 function itemToIngredient(i: ItemDraft): IngredientDraft {

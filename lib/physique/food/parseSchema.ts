@@ -27,6 +27,10 @@ export const FoodItemSchema = z.object({
   /** Dietary fibre (AOAC, as UK labels give it) in grams for the item as eaten (F7). */
   fibreG: z.number(),
   confidence: z.enum(["high", "medium", "low"]),
+  /** Two to four other common sizes of the same food, each a multiple of `serving` ("1 slice" 0.125 of a whole pizza); empty for foods counted plainly (F8). */
+  portions: z.array(z.object({ label: z.string(), factor: z.number() })),
+  /** True for a dish from a named chain or brand that publishes per-dish nutrition, so its figures are checked (F8). */
+  chain: z.boolean(),
 });
 
 export const Per100Schema = z.object({

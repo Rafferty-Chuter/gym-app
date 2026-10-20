@@ -7,7 +7,7 @@ import { useState, type ReactNode } from "react";
  * its numbers and where they came from on the left, the amount as a pill
  * on the right. Tapping the row opens its editor underneath.
  */
-export default function PlateRow({ title, line, source, pill, open, onToggle, children, ariaLabel, emphasis = false }: { title: string; line: string; source?: { text: string; estimate: boolean }; pill: { value: string; unit: string }; open: boolean; onToggle: () => void; children?: ReactNode; ariaLabel: string; emphasis?: boolean }) {
+export default function PlateRow({ title, size, line, source, pill, open, onToggle, children, ariaLabel, emphasis = false }: { title: string; size?: string | null; line: string; source?: { text: string; estimate: boolean }; pill: { value: string; unit: string }; open: boolean; onToggle: () => void; children?: ReactNode; ariaLabel: string; emphasis?: boolean }) {
   return (
     <li>
       <button type="button" onClick={onToggle} aria-expanded={open} aria-label={ariaLabel} className="flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors active:bg-[var(--surface-raised)]">
@@ -15,6 +15,12 @@ export default function PlateRow({ title, line, source, pill, open, onToggle, ch
           <span className={`truncate ${emphasis ? "text-[16px] font-semibold" : "text-[15px]"}`} style={{ color: "var(--text)" }}>
             {title}
           </span>
+          {/* The portion on its own line, so a long one is never cut off by the numbers (F8). */}
+          {size && (
+            <span className="text-[13px] leading-snug" style={{ color: "var(--text)" }}>
+              {size}
+            </span>
+          )}
           <span className="truncate text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
             {line}
           </span>

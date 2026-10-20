@@ -5,8 +5,13 @@
  * reads the text; the server resolves each food against the UK base list
  * before anything is summed (lib/food/recipe.ts), so the numbers are
  * CoFID's wherever a food matched and the model's estimate only where
- * nothing did. The route validates its body, checks the daily cap and
- * logs cost (CLAUDE.md rule 9). The text is never logged (rule 10).
+ * nothing did. A dish from a chain that publishes its nutrition is then
+ * checked against those figures with one web search (F8, at most
+ * MAX_PUBLISHED_DISHES a request, on the cheaper lookup model); a figure
+ * found and passing lib/food/published.ts replaces the estimate. The
+ * route validates its body, checks the daily cap and logs cost (CLAUDE.md
+ * rule 9). The text is never logged (rule 10); the lookup sends only the
+ * dish names.
  *
  * Every failure comes back as `{ error: FoodParseError }` with its own
  * status, so the logger can say what happened instead of "try again".
@@ -17,10 +22,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { withPaidRoute } from "@/lib/api/guard";
-import { FOOD_PARSE_MODEL } from "@/lib/ai/models";
+import { FOOD_LOOKUP_MODEL, FOOD_PARSE_MODEL } from "@/lib/ai/models";
 import { loadCofid } from "@/lib/food/cofid";
 import { MAX_DESCRIBE_CHARS, sanitiseParse } from "@/lib/food/describe";
+import { applyPublished, dishesToCheck, publishedRequest } from "@/lib/food/published";
 import { resolveIngredient, resolveItem, type Recipe } from "@/lib/food/recipe";
+import { lookupPublished } from "@/lib/server/foodLookup";
 import { FoodParseOutput, type FoodParseError, type FoodParseResponse } from "@/lib/physique/food/parseSchema";
 
 export const runtime = "nodejs";
@@ -31,6 +38,11 @@ export const maxDuration = 60;
 const MAX_OUTPUT_TOKENS = 16_000;
 /** Under maxDuration, so a slow reply ends as a clear "took too long" rather than the platform cutting the function off. OURS. */
 const MODEL_TIMEOUT_MS = 50_000;
+/** The published-figures check gets at most this long; a search usually takes 5 to 10 s (F8). OURS. */
+const LOOKUP_TIMEOUT_MS = 25_000;
+/** The whole request ends by here, under maxDuration; the check is skipped when less than MIN_LOOKUP_MS is left (F8). OURS. */
+const LOOKUP_DEADLINE_MS = 55_000;
+const MIN_LOOKUP_MS = 8_000;
 
 const Body = z.object({
   client_id: z.string(),
@@ -39,12 +51,13 @@ const Body = z.object({
   mode: z.enum(["auto", "recipe", "meal"]).default("auto"),
 });
 
-const COMMON = `For every food and ingredient give a "lookup": one to three plain words naming the generic food for a UK composition database, with its state as weighed ("eggs fried", "bread white toasted", "beef mince raw", "rice white basmati raw", "tomatoes canned", "cheddar"), or an empty string when nothing generic fits (a branded bar, a whole restaurant dish). Give "grams" as the weight of the food as eaten or used (convert jars, tins, cups, spoons, slices and pieces: 1 jar of passata 500 g, 1 tin of tomatoes 400 g, 1 egg 55 g, 1 slice of bread 36 g, 1 tbsp oil 14 g, 1 cup of rice 185 g), or 0 when you cannot tell. Give your own energy, macro and fibre estimate as well (fibre as AOAC dietary fibre in grams, the way UK labels give it; 0 for meat, fish, eggs, dairy and oils); it is used only where the database has no value.
+const COMMON = `Name the serving as the food is normally had or sold whole: "a pizza" or "pepperoni pizza" is a whole pizza (say its size, "1 whole 12-inch pizza"), "a burger" one burger, "chips" one regular portion; a slice or part only when the text says so. For each food give "portions": two to four other common sizes of the same food, each a short label and its size as a multiple of your serving ("1 slice" 0.125 and "Half" 0.5 of a whole 12-inch pizza, "Large" 1.4 of regular chips); leave it empty for foods simply counted or weighed (eggs, toast, rice). Set "chain" true only for a dish or product from a named chain or brand that publishes per-dish nutrition (Wagamama, Nando's, McDonald's, Greggs, Pret, Domino's, a branded bar), false otherwise.
+For every food and ingredient give a "lookup": one to three plain words naming the generic food for a UK composition database, with its state as weighed ("eggs fried", "bread white toasted", "beef mince raw", "rice white basmati raw", "tomatoes canned", "cheddar"), or an empty string when nothing generic fits (a branded bar, a whole restaurant dish). Give "grams" as the weight of the food as eaten or used (convert jars, tins, cups, spoons, slices and pieces: 1 jar of passata 500 g, 1 tin of tomatoes 400 g, 1 egg 55 g, 1 slice of bread 36 g, 1 tbsp oil 14 g, 1 cup of rice 185 g), or 0 when you cannot tell. Give your own energy, macro and fibre estimate as well (fibre as AOAC dietary fibre in grams, the way UK labels give it; 0 for meat, fish, eggs, dairy and oils); it is used only where the database has no value.
 Rules: round kcal to 5 and grams to whole numbers; keep labels and names short and plain, under 60 characters ("Eggs, fried"); never add foods that were not described; ignore cooking instructions, stories and comments except for the amounts they reveal.`;
 
 const SYSTEM_AUTO = `You read a plain description of food into structured data. Decide which of three kinds it is.
 "meal": what someone ate ("2 eggs on toast with butter, a flat white"). One item per distinct food; use typical UK portions when the amount is missing and say the assumed serving in "serving" ("1 medium", "2 slices", "150 g"); confidence low when the amount or preparation is unclear.
-"restaurant": an order from a named restaurant, chain or takeaway ("chicken katsu curry from Wagamama", "a Big Mac meal"). One item per dish with the place in the label ("Chicken katsu curry, Wagamama"); use the chain's published nutrition when you know it, otherwise a typical portion for that kind of place; confidence medium, or low when the dish or its size is unclear; lookup empty.
+"restaurant": an order from a named restaurant, chain, takeaway or venue such as a stadium, cinema or café ("chicken katsu curry from Wagamama", "a Big Mac meal", "pepperoni pizza at the stadium"). One item per dish with the place in the label ("Chicken katsu curry, Wagamama"). Give the weight served in "grams", estimated when not published. A chain dish: use its published nutrition when you know it and leave lookup empty (its figures are checked). Anywhere else: the generic lookup when one fits the whole dish, naming what is on or in it ("pizza cheese" for any cheese-topped pizza, "chips", "burger beef", "cod fried in batter"), so the database's figures apply to your weight, otherwise empty. Confidence medium, or low when the dish or its size is unclear.
 "recipe": ingredients that make one or more portions ("500 g mince, a jar of passata, 300 g pasta, makes 4", or a pasted recipe with a method). Fill "recipe": a short name, how many servings it makes as a whole number (the lower number of a range; 1 when not said), and one ingredient per line. Leave "items" empty for a recipe, and "recipe.ingredients" empty otherwise.
 ${COMMON}`;
 
@@ -104,7 +117,18 @@ export const POST = withPaidRoute({ schema: Body, maxBytes: 40_000, subCall: "fo
   const clean = sanitiseParse(parsed.data, body.mode);
   const base = await loadCofid();
   const recipe: Recipe | null = clean.recipe ? { name: clean.recipe.name, servings: clean.recipe.servings, ingredients: clean.recipe.ingredients.map((i) => resolveIngredient(base, i)) } : null;
-  const items = clean.items.map((i) => resolveItem(base, i));
+  let items = clean.items.map((i) => resolveItem(base, i));
+
+  // Chain dishes: their published figures, when found in time, replace the estimates (F8).
+  const check = dishesToCheck(items);
+  const left = LOOKUP_DEADLINE_MS - (Date.now() - startedAt);
+  if (check.length > 0 && left >= MIN_LOOKUP_MS) {
+    const lookupStartedAt = Date.now();
+    const found = await lookupPublished(client, publishedRequest(items, check), check.length, Math.min(LOOKUP_TIMEOUT_MS, left));
+    if (found.usage) ctx.logCost({ usage: found.usage, model: FOOD_LOOKUP_MODEL, startedAt: lookupStartedAt, subCall: "food_lookup" });
+    items = applyPublished(items, check, found.out);
+  }
+
   const response: FoodParseResponse = { kind: clean.kind, items, recipe };
   return NextResponse.json(response);
 });

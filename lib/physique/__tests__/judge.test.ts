@@ -11,6 +11,9 @@ const ids = (a: PhysiqueAnalysis): RuleId[] => [a.verdict.id, ...a.flags.map((f)
 
 // ── Scenario table (04-tickets P5), 200 seeds per row ──
 
+/** 200 full engine runs per row take about 3 s alone and past vitest's 5 s default when the suite runs in parallel. */
+const SCENARIO_TIMEOUT_MS = 30_000;
+
 describe("scenario table over 200 seeds", () => {
   for (const row of SCENARIO_TABLE) {
     it(`${row.name} in ≥${Math.round(row.minRate * 100)}% of seeds`, () => {
@@ -26,7 +29,7 @@ describe("scenario table over 200 seeds", () => {
         expect(a.verdict.detail.length).toBeGreaterThan(0);
         expect(a.flags.length).toBeLessThanOrEqual(3);
       }
-    });
+    }, SCENARIO_TIMEOUT_MS);
   }
 
   it("LOSS-1 row with deterministic lifts: LOSS-1 or LOSS-3 in ≥75% of seeds, always easing −1.0 → −0.6", () => {

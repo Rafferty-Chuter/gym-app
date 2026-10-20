@@ -8,10 +8,10 @@
 
 import type { Macros } from "@/lib/food/types";
 import { knownFibre } from "@/lib/food/fibre";
-import type { ResolvedItem } from "@/lib/food/recipe";
+import type { PortionOption, ResolvedItem } from "@/lib/food/recipe";
 
-/** A described food and how much of it is being logged: `amount` times what was described. */
-export type PlateItem = ResolvedItem & { amount: number };
+/** A described food and how much of it is being logged: `amount` times what was described; `portion` names the size when it was picked from the food's portions (F8). */
+export type PlateItem = ResolvedItem & { amount: number; portion?: string };
 
 /** Portions as quick choices, in multiples of what was described. OURS. */
 export const AMOUNT_CHOICES: readonly number[] = [0.5, 1, 1.5, 2];
@@ -41,11 +41,39 @@ export function plateItemGrams(p: PlateItem): number | null {
 export function withGrams(p: PlateItem, grams: number): PlateItem {
   if (p.grams <= 0) return p;
   const g = Math.min(MAX_PLATE_GRAMS, Math.max(1, Math.round(grams)));
-  return { ...p, amount: g / p.grams };
+  return { ...p, amount: g / p.grams, portion: undefined };
 }
 
 export function withAmount(p: PlateItem, amount: number): PlateItem {
-  return { ...p, amount: Math.min(MAX_AMOUNT, Math.max(MIN_AMOUNT, amount)) };
+  return { ...p, amount: Math.min(MAX_AMOUNT, Math.max(MIN_AMOUNT, amount)), portion: undefined };
+}
+
+/**
+ * The sizes to pick from for a food that comes in sizes (F8): what was
+ * described, then the model's other portions, smallest first. Empty when
+ * the food has none, so the plain multiples are offered instead.
+ */
+export function portionChoices(p: PlateItem): PortionOption[] {
+  if (!p.portions || p.portions.length === 0) return [];
+  return [{ label: p.serving || "As described", factor: 1 }, ...p.portions].sort((a, b) => a.factor - b.factor);
+}
+
+/** The food at a picked size, named by it. */
+export function withPortion(p: PlateItem, choice: PortionOption): PlateItem {
+  return { ...p, amount: choice.factor, portion: choice.factor === 1 ? undefined : choice.label };
+}
+
+/** The size named on a row's line while its pill shows grams: the picked portion, otherwise what was described or a multiple of it (F8). */
+export function rowSize(p: PlateItem): string | null {
+  if (plateItemGrams(p) == null) return null;
+  if (p.portion) return p.portion;
+  if (!p.serving) return null;
+  return p.amount === 1 ? p.serving : `${formatAmount(p.amount)} × ${p.serving}`;
+}
+
+/** True when `choice` is the size the food is at now. */
+export function isPortion(p: PlateItem, choice: PortionOption): boolean {
+  return Math.abs(p.amount - choice.factor) < 0.001;
 }
 
 /**
@@ -62,10 +90,11 @@ export function withMacros(p: PlateItem, m: Macros & { label?: string; serving?:
   return { ...p, label: m.label ?? p.label, serving: m.serving ?? p.serving, kcal: m.kcal, proteinG: m.proteinG, fatG: m.fatG, carbsG: m.carbsG, fibreG, grams, amount: 1, matched: undefined, confidence: "high" };
 }
 
-/** The pill on the right of a row: grams when known ("120" over "g"), otherwise portions of what was described ("1.5" over "2 slices"). */
+/** The pill on the right of a row: grams when known ("120" over "g"), otherwise portions of what was described ("1.5" over "2 slices"), or "1" over a picked size. */
 export function amountPill(p: PlateItem): { value: string; unit: string } {
   const g = plateItemGrams(p);
   if (g != null) return { value: g.toLocaleString("en-GB"), unit: "g" };
+  if (p.portion) return { value: "1", unit: p.portion };
   return { value: formatAmount(p.amount), unit: p.serving || (p.amount === 1 ? "portion" : "portions") };
 }
 
@@ -83,6 +112,7 @@ export function choiceLabel(a: number): string {
 
 /** The serving text logged with the entry: as described at amount 1, otherwise the weight or the portions. */
 export function plateServing(p: PlateItem): string | undefined {
+  if (p.portion) return p.portion;
   if (p.amount === 1) return p.serving || (p.grams > 0 ? `${p.grams} g` : undefined);
   const g = plateItemGrams(p);
   if (g != null) return `${g} g`;
@@ -102,8 +132,9 @@ export function plateTotals(items: readonly PlateItem[]): Macros {
   return { ...t, fibreG: knownFibre(rows) };
 }
 
-/** Where a row's numbers came from, for the line under it. */
-export function sourceLine(p: Pick<ResolvedItem, "matched" | "confidence">): { text: string; estimate: boolean } {
+/** Where a row's numbers came from, for the line under it: a chain's published figures, a base-list row, or an estimate. */
+export function sourceLine(p: Pick<ResolvedItem, "matched" | "confidence" | "publishedBy">): { text: string; estimate: boolean } {
+  if (p.publishedBy) return { text: `Published figures, ${p.publishedBy}`, estimate: false };
   if (p.matched) return { text: p.matched, estimate: false };
   return { text: p.confidence === "low" ? "Rough estimate" : "Estimate", estimate: true };
 }
