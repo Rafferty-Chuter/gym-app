@@ -123,13 +123,13 @@ describe("review (G3)", () => {
     expect(trainingRead(thin.report, NONE)).toMatchObject({ state: "unknown", title: "No sessions logged" });
   });
 
-  it("carries the check-in's questions: partial and unlogged days", () => {
+  it("carries the check-in's questions: unlogged days; a part-logged day is left out, not asked (C11)", () => {
     const sc = scenario();
     const partialDate = addDays(sc.today, -2);
     const unloggedDate = addDays(sc.today, -4);
     const foodEntries = sc.foodEntries.filter((f) => f.date !== unloggedDate).map((f) => (f.date === partialDate ? { ...f, kcal: 600 } : f));
     const review = buildReview(reviewInputs(sc, { foodEntries }));
-    expect(review.questions.partialDays).toEqual([{ date: partialDate, kcal: 600 }]);
+    expect(review.questions.partialDays).toEqual([]);
     expect(review.questions.unloggedDays).toEqual([unloggedDate]);
     expect(review.questions.waist).not.toBeNull();
   });

@@ -32,21 +32,20 @@ describe("buildCheckInPlan (02 §9)", () => {
     expect(verdict.kind).toBe("verdict");
   });
 
-  it("asks about partial days, a missing weigh-in, unlogged days and a water event, in MacroFactor's order", () => {
+  it("asks about a missing weigh-in, unlogged days and a water event, in MacroFactor's order; a part-logged day is left out, not asked (C11)", () => {
     const sc = scenario({ events: [{ day: 58, event: { type: "travel" } }] });
     const partialDate = addDays(sc.today, -2);
     const unloggedDate = addDays(sc.today, -4);
     const foodEntries: FoodEntry[] = sc.foodEntries.filter((f) => f.date !== unloggedDate).map((f) => (f.date === partialDate ? { ...f, kcal: 600 } : f));
     const weighIns = sc.weighIns.filter((w) => w.date < addDays(sc.today, -3));
     const plan = planFor(sc, { foodEntries, weighIns });
-    expect(kinds(plan.modules)).toEqual(["partial_days", "weigh_in", "unlogged_days", "water_event", "waist", "program_update", "verdict"]);
-    const partial = plan.modules[0];
-    expect(partial.kind === "partial_days" && partial.days).toEqual([{ date: partialDate, kcal: 600 }]);
-    const weigh = plan.modules[1];
+    expect(kinds(plan.modules)).toEqual(["weigh_in", "unlogged_days", "water_event", "waist", "program_update", "verdict"]);
+    const weigh = plan.modules[0];
     expect(weigh.kind === "weigh_in" && weigh.lastWeighInDate).toBe(addDays(sc.today, -4));
-    const unlogged = plan.modules[2];
+    const unlogged = plan.modules[1];
     expect(unlogged.kind === "unlogged_days" && unlogged.dates).toEqual([unloggedDate]);
-    const water = plan.modules[3];
+    expect(unlogged.kind === "unlogged_days" && unlogged.dates).not.toContain(partialDate);
+    const water = plan.modules[2];
     expect(water.kind === "water_event" && water.events).toEqual([{ date: addDays(sc.startDate, 58), type: "travel" }]);
   });
 

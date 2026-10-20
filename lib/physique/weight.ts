@@ -105,6 +105,28 @@ export function trendOn(series: readonly TrendPoint[], date: LocalDate): number 
   return p ? p.trendKg : null;
 }
 
+export type DayTrend = { date: LocalDate; trendKg: number | null; scaleKg: number | null };
+
+/**
+ * One row per day in [from, to], newest first, for the weigh-in list (C11):
+ * the scale weight when there was one, and the trend every day, missed
+ * days included. Between weigh-ins the trend runs over the interpolated
+ * series; after the last weigh-in it holds at the last value, because an
+ * EMA with no new reading does not move; before the first there is none.
+ */
+export function dailyTrendRows(weighIns: readonly WeighIn[], from: LocalDate, to: LocalDate): DayTrend[] {
+  const series = trendSeries(weighIns);
+  const byDate = new Map(series.map((p) => [p.date, p]));
+  const last = series.length ? series[series.length - 1] : null;
+  const rows: DayTrend[] = [];
+  for (let d = to; d >= from; d = addDays(d, -1)) {
+    const p = byDate.get(d);
+    const trendKg = p ? p.trendKg : last && d > last.date ? last.trendKg : null;
+    rows.push({ date: d, trendKg, scaleKg: p && p.real ? p.kg : null });
+  }
+  return rows;
+}
+
 // ── Segment and masks ──
 
 export type SegmentInput = {

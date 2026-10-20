@@ -1,11 +1,8 @@
 "use client";
-import { targetLabel, targetsForExercise } from "@/lib/training/targets";
-import { equipmentFor, suggestNext, suggestionLabel, type ExerciseSession, type Phase } from "@/lib/training/progression";
-import { DELOAD_DAYS, deloadSets, deloadSuggestion, type DeloadRecord } from "@/lib/training/deload";
+import { targetsForExercise } from "@/lib/training/targets";
+import { DELOAD_DAYS, deloadSets, type DeloadRecord } from "@/lib/training/deload";
 import { deloadStore } from "@/lib/physique/io/deload";
 import { addDays, localDateKey, type LocalDate } from "@/lib/dates";
-import { goalStore } from "@/lib/physique/io/repos";
-import { useSingleton } from "@/lib/storage/useStored";
 import {
   useState,
   useEffect,
@@ -81,33 +78,6 @@ type RestTimerState = {
 };
 
 
-function getLastPerformanceForExercise(exercise: ExerciseRef): { weight: string; reps: string } | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
-    if (!raw) return null;
-    const workouts: StoredWorkout[] = JSON.parse(raw);
-    if (!Array.isArray(workouts)) return null;
-    const sorted = [...workouts].sort(
-      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-    );
-    for (const workout of sorted) {
-      const match = workout.exercises?.find(
-        (ex) =>
-          sameExercise(ex, exercise)
-      );
-      if (match?.sets?.length) {
-        const lastSet = match.sets[match.sets.length - 1];
-        if (lastSet?.weight != null && lastSet?.reps != null)
-          return { weight: String(lastSet.weight), reps: String(lastSet.reps) };
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 function getLastSetsForExercise(exercise: ExerciseRef): {
   weight: string;
   reps: string;
@@ -162,28 +132,6 @@ function rowNumbers(rows: ReadonlyArray<{ type?: SetType }>): number[] {
   return rows.map((r) => (setTypeOf(r) === "warmup" ? 0 : (n += 1)));
 }
 
-/** Every logged session of an exercise, by id or name, as the progression rule reads it. */
-function getSessionsForExercise(exercise: ExerciseRef): ExerciseSession[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(WORKOUT_HISTORY_KEY);
-    if (!raw) return [];
-    const workouts: StoredWorkout[] = JSON.parse(raw);
-    if (!Array.isArray(workouts)) return [];
-    const out: ExerciseSession[] = [];
-    for (const workout of workouts) {
-      const match = workout.exercises?.find(
-        (ex) =>
-          sameExercise(ex, exercise)
-      );
-      if (match?.sets?.length && typeof workout.completedAt === "string") out.push({ completedAt: workout.completedAt, sets: match.sets });
-    }
-    return out;
-  } catch {
-    return [];
-  }
-}
-
 /** Digits and at most one decimal (. or , normalized to .). */
 function sanitizeWeightInput(raw: string): string {
   let out = "";
@@ -235,10 +183,6 @@ export default function WorkoutPage() {
   const router = useRouter();
   const { addWorkout } = useWorkoutStore();
   const { unit } = useUnit();
-  const goal = useSingleton(goalStore);
-  const phase: Phase = goal?.type === "lose" ? "cut" : goal?.type === "gain" ? "lean_bulk" : "maintain";
-  const deloadRecord = useSingleton(deloadStore);
-  const deloadActive = isDeloadActive(deloadRecord, todayLocal());
   const [exercises, setExercises] = useState<
     {
       id: number;
@@ -270,10 +214,6 @@ export default function WorkoutPage() {
   const [finished, setFinished] = useState<{ workout: HistoryWorkout; records: WorkoutRecord[] } | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [routineChanges, setRoutineChanges] = useState<string[] | null>(null);
-  const [lastPerformance, setLastPerformance] = useState<
-    Record<string, { weight: string; reps: string } | null>
-  >({});
-  const [nextTarget, setNextTarget] = useState<Record<string, string | null>>({});
   const [workoutName, setWorkoutName] = useState("");
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
@@ -563,34 +503,6 @@ export default function WorkoutPage() {
       // ignore
     }
   }
-
-  useEffect(() => {
-    if (exercises.length === 0) {
-      setLastPerformance({});
-      setNextTarget({});
-      return;
-    }
-    const lastMap: Record<string, { weight: string; reps: string } | null> = {};
-    const targetMap: Record<string, string | null> = {};
-    for (const ex of exercises) {
-      lastMap[ex.name] = getLastPerformanceForExercise({
-        exerciseId: ex.exerciseId,
-        name: ex.name,
-      });
-      const targets =
-        ex.repMin != null && ex.repMax != null && ex.rir != null
-          ? { repMin: ex.repMin, repMax: ex.repMax, rir: ex.rir }
-          : targetsForExercise(ex.name);
-      const raw = suggestNext({ name: ex.name, targets, sessions: getSessionsForExercise({ exerciseId: ex.exerciseId, name: ex.name }), unit, phase });
-      const s = deloadActive ? deloadSuggestion(raw, equipmentFor(ex.name)) : raw;
-      // C4: the "Next 82.5 kg × 6" line went at the founder's request; a deload week still says what to lift.
-      const label = deloadActive ? suggestionLabel(s, unit) : null;
-      targetMap[ex.name] = label && s.kind === "next" ? `${label.replace(/^Next/, "Deload")} · RIR ${s.rir}+` : null;
-    }
-    setLastPerformance(lastMap);
-    setNextTarget(targetMap);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exercises.map((e) => `${e.name}:${e.repMin}-${e.repMax}@${e.rir}`).join(","), unit, phase, deloadActive]);
 
   useEffect(() => {
     if (typeof window === "undefined" || loadHandledRef.current) return;
@@ -1340,17 +1252,7 @@ export default function WorkoutPage() {
           <>
             <section className="space-y-2 sm:space-y-2.5">
               {exercises.map((exercise) => {
-                const lastP = lastPerformance[exercise.name];
-                const lastStr = lastP
-                  ? `Last: ${lastP.weight} ${unit} × ${lastP.reps}`
-                  : "Last: —";
-                const targetStr = nextTarget[exercise.name];
-                const repTargets =
-                  exercise.repMin != null && exercise.repMax != null && exercise.rir != null
-                    ? targetLabel({ repMin: exercise.repMin, repMax: exercise.repMax, rir: exercise.rir })
-                    : null;
-                const contextLine = [repTargets, lastStr, targetStr].filter(Boolean).join(" · ");
-
+                // C11: no target, last-set or deload line under the name; the Previous column says what was done.
                 return (
                   <div
                     key={exercise.id}
@@ -1361,9 +1263,6 @@ export default function WorkoutPage() {
                         <h3 className="text-[15px] font-semibold tracking-tight text-[var(--text)] truncate leading-snug">
                           {exercise.name}
                         </h3>
-                        <p className="text-[11px] text-[var(--text-secondary)] mt-0.5 leading-snug line-clamp-2">
-                          {contextLine}
-                        </p>
                         {exercise.notes && (
                           <p className="text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: "var(--text-tertiary)" }}>
                             {exercise.notes}

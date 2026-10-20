@@ -79,22 +79,24 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
     const totals = { kcal: intake.kcal, proteinG: intake.proteinG, carbsG: intake.carbsG, fatG: intake.fatG };
     // Fibre only when the entries are the day (no edited total) and most of their energy has a fibre value (F7).
     const fibreG = intake.status !== "fasting" && typeof flags?.kcalOverride !== "number" ? (knownFibre(data.foodEntries.filter((e) => e.date === date)) ?? null) : null;
+    // A day the engine left out as part-logged (C11): only the series knows, since it compares with the days before.
+    const leftOut = expenditure?.intake.find((d) => d.date === date)?.suggestedPartial === true;
     const dayNote =
       intake.status === "fasting"
         ? "Fasting day · counts as 0 kcal"
         : intake.status === "partial"
           ? "Partial day · skipped by the engine"
-          : typeof flags?.kcalOverride === "number"
-            ? `Total set to ${Math.round(flags.kcalOverride).toLocaleString("en-GB")} kcal · entries add up to ${Math.round(timeline.totals.kcal).toLocaleString("en-GB")}`
-            : intake.suggestedPartial
-              ? "Looks like a partial day · tap to confirm or keep it"
+          : leftOut
+            ? "Looks part-logged · left out of the estimates"
+            : typeof flags?.kcalOverride === "number"
+              ? `Total set to ${Math.round(flags.kcalOverride).toLocaleString("en-GB")} kcal · entries add up to ${Math.round(timeline.totals.kcal).toLocaleString("en-GB")}`
               : null;
     const target = targetInEffect(data.program, date);
     const weekRows = weekTotals(week, data.foodEntries, data.dayFlags, data.program, today);
     const logged = new Set(weekRows.filter((d) => d.logged).map((d) => d.date));
     const energy = energyBalance(expenditure?.intake ?? [], expenditure?.series ?? [], data.program, energyLine, today);
     const gapRows = gapLines(findGaps({ foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: [], sleepNights: [] }, today, ["food"]), today);
-    return { timeline, totals, fibreG, flags, dayNote, target, weekRows, logged, energy, gapRows };
+    return { timeline, totals, fibreG, flags, dayNote, leftOut, target, weekRows, logged, energy, gapRows };
   }, [data, date, tz, prefs.hourStart, prefs.hourEnd, week, today, expenditure, energyLine]);
 
   const nowIso = () => new Date().toISOString();
@@ -180,6 +182,7 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         onClose={() => setDayAction(null)}
         dateLabel={caption}
         flags={model.flags}
+        leftOut={model.leftOut}
         entriesKcal={model.timeline.totals.kcal}
         onClear={model.timeline.entries > 0 ? () => setDayAction({ kind: "clear" }) : undefined}
         onSave={async ({ status, overrideKcal }) => {

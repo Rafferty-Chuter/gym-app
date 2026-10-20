@@ -62,11 +62,11 @@ Workouts come from the existing `StoredWorkout` history (`lib/trainingAnalysis.t
 - **Signed rates.** −0.6 means losing 0.6 %BW per week. "More aggressive" means a larger |rate|.
 - **Day status.** Each day's intake status is one of:
   - `fasting`: the user flagged it; counts as 0 kcal.
-  - `partial`: the user flagged it; skipped.
+  - `partial`: the user flagged it, or the engine suspects it (below); skipped.
   - `unlogged`: no entries and no override; skipped.
   - `complete`: everything else.
 
-  The engine *suggests* `partial` when `0 < kcal < 0.5 × median(kcal of complete days in the last 21)` (OURS). A suggested day is **unresolved** until the user confirms or dismisses it.
+  The engine treats a day as `partial` when `0 < kcal < 0.5 × median(kcal of complete days in the last 21)` (OURS), and leaves it out without asking (C11; it used to wait for the user to confirm or dismiss it). Marking the day complete in Edit day (`partialDismissed`) counts it again. The Food tab says when a day was left out.
 - **Day kcal.** `kcalOverride` beats the sum of food entries.
 - **Target on day d** is the `PhysiqueProgram.history` entry in effect on d. Days with no program are excluded from adherence.
 - **Main lifts.** The user's 2–4 most frequently logged lifts that are:
@@ -135,7 +135,7 @@ The EMA slope lags about 9 days, so verdicts don't use it.
 - `loggedShare(window)` = (complete + fasting days) ÷ window days.
 - **Adherence** = mean over the last 14 days with a program of `(intake_d − target_d)`, using complete/fasting days only.
   - It's **on target** unless `|adherence| > max(150, 1.645 × sd_d / √n)`, where `sd_d` is the SD of the daily differences. OURS; the noise term stops it firing on random daily variation (sim: a plain ±150 fires 10.7% of the time for a perfectly adherent user).
-  - Adherence **isn't computed** while any day in the window has an unresolved partial suggestion. DATA-PARTIAL fires instead.
+  - Suspected partial days are already left out (§1.2), so adherence never waits on them (C11).
 - **Protein and fat** are 7-day and 14-day means over complete days, in g/kg BW.
 
 ---
@@ -524,7 +524,7 @@ Every `change_rate` target also passes §5.2 validation, and `kcalDeltaAtCurrent
 | DATA-RATE | 2 | rate gate not met (§2.2) | "Calibrating · N more weigh-ins for a first read." N = needed − have | `log_more: weight` |
 | DATA-EXP | 2 | expenditure `calibrating` | "Calibrating · day N of about 21." | none |
 | DATA-HOLD | 2 | expenditure `holding` | "Holding · log K more days this week to resume." | `log_more: food` |
-| DATA-PARTIAL | 2 | unresolved partial suggestions in the adherence window | "Tue and Thu look incomplete. Confirm them first." | `confirm_days` |
+| DATA-PARTIAL | – | retired in C11: suspected partial days are left out (§1.2), never asked about. The id stays so stored analyses still read. | – | – |
 | ADH-1 | 3 | adherence off target (§3), resolved data, ≥80% logged | "You're averaging 320 kcal under target over 14 days. Eat to target before we change your goal." | `eat_to_target` |
 | ON-TRACK | 4 (last-but-one) | no group-1–3 rule, and the rate is not confidently outside goal ± 0.25 %/wk (maintain: trend within ±0.68 kg) | "On track: losing 0.6 %/wk over 28 days, lifts holding." The lift clause is only included with ≥2 main lifts. | none |
 | NO-CHANGE | 4 (last) | none of the above | "Nothing to change this week." | none |
@@ -577,7 +577,7 @@ Each rule ID has three fixtures in `lib/physique/__tests__/judge.test.ts`:
 Copied from MacroFactor's module order (research A §B8) and delivered through the assistant.
 
 1. `buildCheckInPlan(analysis, logs, now)` returns these modules, in order:
-   1. **Partial days:** suspected partial days, confirm or dismiss.
+   1. **Partial days:** retired in C11 (left out automatically, §1.2). The weekly report shows no questions; days, weigh-ins and waist are logged where they live.
    2. **Weigh-in prompt:** if there's no weigh-in in the last 3 days plus today.
    3. **Unlogged days:** each one is "fasted (0 kcal)" or "skip".
    4. **Logging break:** an explanation, if holding.

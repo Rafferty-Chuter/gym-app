@@ -339,7 +339,8 @@ export type PhysiqueAnalysis = {
     loggedShare14: number;
     nightsLogged14: number;
     expenditureState: ExpenditureState;
-    unresolvedPartialDays: LocalDate[];
+    /** Days in the adherence window left out as suspected partial days (C11). */
+    partialDaysLeftOut: LocalDate[];
     /** Updating days so far (expenditure maturity). */
     updatingDays: number;
   };

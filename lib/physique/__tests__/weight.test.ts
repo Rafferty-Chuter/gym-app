@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeScenario } from "@/lib/physique/fixtures";
 import {
+  dailyTrendRows,
   dailyWeightSeries,
   displayRate,
   isConfidentlyAbove,
@@ -29,6 +30,17 @@ describe("daily series and trend", () => {
     expect(t[t.length - 1].date).toBe("2026-10-04");
     expect(t[0].trendKg).toBe(80);
     expect(t[1].trendKg).toBeCloseTo(80.1, 9);
+  });
+
+  it("gives every day a trend, missed days included, holding after the last weigh-in (C11)", () => {
+    const rows = dailyTrendRows([w("2026-10-01", 80), w("2026-10-04", 83)], "2026-09-30", "2026-10-06");
+    expect(rows.map((r) => r.date)).toEqual(["2026-10-06", "2026-10-05", "2026-10-04", "2026-10-03", "2026-10-02", "2026-10-01", "2026-09-30"]);
+    expect(rows.map((r) => r.scaleKg)).toEqual([null, null, 83, null, null, 80, null]);
+    const t = trendSeries([w("2026-10-01", 80), w("2026-10-04", 83)]);
+    expect(rows[3].trendKg).toBeCloseTo(t[2].trendKg, 9); // a missed day between weigh-ins
+    expect(rows[0].trendKg).toBeCloseTo(t[3].trendKg, 9); // held after the last
+    expect(rows[6].trendKg).toBeNull(); // before the first
+    expect(dailyTrendRows([], "2026-10-01", "2026-10-02").every((r) => r.trendKg === null)).toBe(true);
   });
 
   it("uses the earliest weigh-in on a date", () => {

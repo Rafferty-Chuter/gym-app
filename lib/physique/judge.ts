@@ -29,7 +29,7 @@ import {
   loggedShare,
   macroMeans,
   targetInEffect,
-  unresolvedPartialDays,
+  partialDaysLeftOut,
   type Adherence,
 } from "@/lib/physique/intake";
 import { nightsByDate, sleepCorroboration, sleepStatus, type SleepRead } from "@/lib/physique/sleep";
@@ -447,7 +447,7 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
   const intakeFrom = addDays(today, -(INTAKE_LOOKBACK_DAYS - 1));
   const intake = dailyIntakeSeries(inputs.foodEntries, dayFlags, intakeFrom, today);
   const adhWindowStart = addDays(today, -(ADHERENCE_WINDOW_DAYS - 1));
-  const unresolved = unresolvedPartialDays(intake, adhWindowStart, today);
+  const leftOut = partialDaysLeftOut(intake, adhWindowStart, today);
   const adh: Adherence = adherence(intake, program, today);
   const logged14 = loggedShare(intake, today, ADHERENCE_WINDOW_DAYS);
   const bwForMacros = trendKg ?? latestKg ?? goal?.startTrendKg ?? null;
@@ -596,10 +596,7 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
 
   // ── Group 2: data ──
   if (!goal) fire("NO-GOAL", 2, {});
-  if (goal && unresolved.length > 0) {
-    const partialDays = unresolved.map((date) => ({ date, kcal: intake.find((d) => d.date === date)?.kcal ?? 0 }));
-    fire("DATA-PARTIAL", 2, { partialDays }, { kind: "confirm_days", dates: [...unresolved] });
-  }
+  // DATA-PARTIAL retired in C11: suspected partial days are left out of intake, not asked about.
   if (goal && maturity.state === "holding") {
     const foodDaysNeeded = maturity.resume?.foodDaysNeeded ?? 0;
     const weighInNeeded = maturity.resume?.weighInNeeded ?? false;
@@ -630,7 +627,7 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
 
   // ── Group 3: adherence ──
   let adh1: Fired | null = null;
-  if (goal && adh.onTarget === false && adh.unresolved.length === 0 && logged14 >= MIN_LOGGED_SHARE && adh.deltaKcal !== null) {
+  if (goal && adh.onTarget === false && logged14 >= MIN_LOGGED_SHARE && adh.deltaKcal !== null) {
     adh1 = fire("ADH-1", 3, {}, { kind: "eat_to_target", deltaKcal: adh.deltaKcal });
   }
   if (goal && goal.type === "lose" && phaseAgeDays !== null && phaseAgeDays >= DB1_MIN_PHASE_DAYS && adh1 && (adh.deltaKcal ?? 0) > 0) {
@@ -872,7 +869,7 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
       loggedShare14: logged14,
       nightsLogged14: slp.nightsLogged14,
       expenditureState: maturity.state,
-      unresolvedPartialDays: unresolved,
+      partialDaysLeftOut: leftOut,
       updatingDays: maturity.updatingDays,
     },
     weight: {

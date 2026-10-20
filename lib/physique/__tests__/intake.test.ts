@@ -11,7 +11,7 @@ import {
   PARTIAL_MIN_COMPLETE_DAYS,
   PARTIAL_RATIO,
   targetInEffect,
-  unresolvedPartialDays,
+  partialDaysLeftOut,
 } from "@/lib/physique/intake";
 import type { DayFlags, FoodEntry, PhysiqueProgram, ProgramEntry } from "@/lib/physique/types";
 
@@ -77,7 +77,7 @@ describe("window means (02 §3, §4.2 golden)", () => {
   });
 });
 
-describe("partial-day suggestion (02 §1.2)", () => {
+describe("suspected partial days are left out (02 §1.2, C11)", () => {
   function seriesWithLastDay(kcal: number, flags: Record<string, DayFlags> = {}) {
     const entries = Array.from({ length: 21 }, (_, i) => food(day(i), 2500));
     entries.push(food(day(21), kcal));
@@ -87,11 +87,12 @@ describe("partial-day suggestion (02 §1.2)", () => {
   it("fires at 0.49 × the median and not at 0.51 ×", () => {
     const low = seriesWithLastDay(Math.round(2500 * 0.49));
     expect(low[21].suggestedPartial).toBe(true);
-    expect(low[21].status).toBe("complete");
-    expect(unresolvedPartialDays(low)).toEqual([day(21)]);
+    expect(low[21].status).toBe("partial");
+    expect(partialDaysLeftOut(low)).toEqual([day(21)]);
     const high = seriesWithLastDay(Math.round(2500 * 0.51));
     expect(high[21].suggestedPartial).toBe(false);
-    expect(unresolvedPartialDays(high)).toEqual([]);
+    expect(high[21].status).toBe("complete");
+    expect(partialDaysLeftOut(high)).toEqual([]);
     expect(PARTIAL_RATIO).toBe(0.5);
   });
 
@@ -155,29 +156,26 @@ describe("target in effect and adherence (02 §1.1, §3)", () => {
     // Alternating +600 / −280: mean +160 (over 150), but sd ≈ 457 → 1.645 × 457 / √14 ≈ 201.
     const wild = Array.from({ length: 14 }, (_, i) => food(day(i), 2400 + (i % 2 === 0 ? 600 : -280)));
     const series = dailyIntakeSeries(wild, {}, day(0), day(13));
-    expect(unresolvedPartialDays(series)).toEqual([]);
+    expect(partialDaysLeftOut(series)).toEqual([]);
     const a = adherence(series, p, day(13));
     expect(a.deltaKcal).toBeCloseTo(160, 9);
     expect(a.threshold!).toBeGreaterThan(195);
     expect(a.onTarget).toBe(true);
   });
 
-  it("waits for unresolved partial suggestions, and skips days without a program or not logged", () => {
+  it("leaves a suspected partial day out without waiting, and counts it once marked complete (C11)", () => {
     const entries = Array.from({ length: 21 }, (_, i) => food(day(i), 2500));
-    entries.push(food(day(21), 1000)); // suggested partial
-    const series = dailyIntakeSeries(entries, {}, day(0), day(21));
+    entries.push(food(day(21), 1000)); // suspected partial
     const p = program(entry(day(10), 2500, "goal_start"));
-    const waiting = adherence(series, p, day(21));
-    expect(waiting.deltaKcal).toBeNull();
-    expect(waiting.onTarget).toBeNull();
-    expect(waiting.unresolved).toEqual([day(21)]);
-
-    const resolved = dailyIntakeSeries(entries, { [day(21)]: { date: day(21), status: "partial" } }, day(0), day(21));
-    const a = adherence(resolved, p, day(21));
-    expect(a.unresolved).toEqual([]);
+    const a = adherence(dailyIntakeSeries(entries, {}, day(0), day(21)), p, day(21));
     expect(a.daysWithProgram).toBe(12); // days 10..21
-    expect(a.n).toBe(11); // day 21 is partial, skipped
+    expect(a.n).toBe(11); // day 21 left out
     expect(a.deltaKcal).toBeCloseTo(0, 9);
+    expect(a.onTarget).toBe(true);
+    // Marked complete in Edit day: it counts, and pulls the mean down.
+    const kept = adherence(dailyIntakeSeries(entries, { [day(21)]: { date: day(21), partialDismissed: true } }, day(0), day(21)), p, day(21));
+    expect(kept.n).toBe(12);
+    expect(kept.deltaKcal).toBeCloseTo(-1500 / 12, 9);
   });
 });
 

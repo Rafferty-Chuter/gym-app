@@ -20,7 +20,7 @@ function maximalPayload(): AssistantPhysiquePayload {
     analysis: {
       asOf: "2026-10-17",
       phase: "lose",
-      data: { weighIns14: 14, loggedShare14: 0.93, nightsLogged14: 13, expenditureState: "stable", unresolvedPartialDays: ["2026-10-10", "2026-10-12"], updatingDays: 44 },
+      data: { weighIns14: 14, loggedShare14: 0.93, nightsLogged14: 13, expenditureState: "stable", partialDaysLeftOut: ["2026-10-10", "2026-10-12"], updatingDays: 44 },
       weight: { trendKg: 85.43, latestKg: 85.1, ratePctPerWeek: -1.52, rateWindowDays: 28, rateN: 24, margin: 0.31, weighInsNeeded: 0 },
       expenditure: { kcal: 3312, state: "stable", plusMinus: 300 },
       targets: { kcal: 2340, proteinG: 185, fatG: 70, carbsG: 242 },

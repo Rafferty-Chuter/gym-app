@@ -9,7 +9,7 @@
  */
 
 import { addDays, dateRange, type LocalDate, type Now } from "@/lib/dates";
-import { dailyIntakeSeries, unresolvedPartialDays } from "@/lib/physique/intake";
+import { dailyIntakeSeries } from "@/lib/physique/intake";
 import { recommendationLabel } from "@/lib/physique/copy";
 import { checkInWeekStart, WEIGH_IN_PROMPT_DAYS } from "@/lib/physique/judge";
 import { checkInProgram, type ProgramInputs, type ProgramUpdate } from "@/lib/physique/program";
@@ -99,11 +99,7 @@ export function buildCheckInPlan(inputs: CheckInInputs, now: Now): CheckInPlan {
 
   const intake = dailyIntakeSeries(inputs.foodEntries, dayFlags, addDays(today, -(CHECK_IN_INTAKE_LOOKBACK_DAYS - 1)), today);
 
-  // 1. Partial days.
-  const partial = unresolvedPartialDays(intake, addDays(today, -(UNLOGGED_LOOKBACK_DAYS * 2 - 1)), today);
-  if (partial.length > 0) {
-    modules.push({ kind: "partial_days", days: partial.map((date) => ({ date, kcal: intake.find((d) => d.date === date)?.kcal ?? 0 })) });
-  }
+  // 1. Partial days: no longer asked (C11); the intake series leaves suspected ones out.
 
   // 2. Weigh-in prompt: nothing in the last 3 days plus today.
   const recentWeighIns = weighInDates(inputs.weighIns, addDays(today, -WEIGH_IN_PROMPT_DAYS), today);

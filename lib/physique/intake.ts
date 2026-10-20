@@ -89,11 +89,13 @@ export function entriesByDate(foodEntries: readonly FoodEntry[]): Map<LocalDate,
 }
 
 /**
- * The daily intake series for every day in [from, to], with the partial-day
- * suggestion applied: a complete day with 0 < kcal < PARTIAL_RATIO × the
- * median of the other complete days in the previous PARTIAL_LOOKBACK_DAYS
- * (needs PARTIAL_MIN_COMPLETE_DAYS of them). A day the user dismissed
- * (`partialDismissed`) is never suggested again.
+ * The daily intake series for every day in [from, to], with suspected
+ * partial days left out: a complete day with 0 < kcal < PARTIAL_RATIO ×
+ * the median of the other complete days in the previous
+ * PARTIAL_LOOKBACK_DAYS (needs PARTIAL_MIN_COMPLETE_DAYS of them) becomes
+ * `partial` with `suggestedPartial` set, so the engine skips it without
+ * asking (C11; it used to wait for an answer). A day the user marked
+ * complete in Edit day (`partialDismissed`) always counts.
  */
 export function dailyIntakeSeries(
   foodEntries: readonly FoodEntry[],
@@ -115,7 +117,10 @@ export function dailyIntakeSeries(
       const dismissed = dayFlags[day.date]?.partialDismissed === true;
       if (!dismissed && day.kcal > 0 && recent.length >= PARTIAL_MIN_COMPLETE_DAYS) {
         const norm = median(recent);
-        if (day.kcal < PARTIAL_RATIO * norm) day.suggestedPartial = true;
+        if (day.kcal < PARTIAL_RATIO * norm) {
+          day.suggestedPartial = true;
+          day.status = "partial";
+        }
       }
       // A suspected partial day is not part of anyone's norm.
       if (!day.suggestedPartial) {
@@ -131,8 +136,8 @@ export function intakeByDate(series: readonly DailyIntake[]): Map<LocalDate, Dai
   return new Map(series.map((d) => [d.date, d]));
 }
 
-/** Dates in [from, to] with an unresolved partial suggestion, ascending. */
-export function unresolvedPartialDays(series: readonly DailyIntake[], from?: LocalDate, to?: LocalDate): LocalDate[] {
+/** Dates in [from, to] the engine left out as suspected partial days, ascending (C11). */
+export function partialDaysLeftOut(series: readonly DailyIntake[], from?: LocalDate, to?: LocalDate): LocalDate[] {
   return series
     .filter((d) => d.suggestedPartial && (!from || d.date >= from) && (!to || d.date <= to))
     .map((d) => d.date)
@@ -188,16 +193,14 @@ export type Adherence = {
   n: number;
   /** Days in the window that had a program in effect. */
   daysWithProgram: number;
-  /** Unresolved partial suggestions inside the window (adherence waits for them). */
-  unresolved: LocalDate[];
   windowDays: number;
 };
 
 /**
  * Adherence against the target in effect on each day (02 §3): the mean of
  * (intake − target) over complete/fasting days with a program in the last
- * `windowDays`. On target unless |delta| > max(150, 1.645 × sd / √n). Not
- * computed while any day in the window has an unresolved partial suggestion.
+ * `windowDays`. On target unless |delta| > max(150, 1.645 × sd / √n).
+ * Suspected partial days are already left out (C11), so nothing waits on them.
  */
 export function adherence(
   series: readonly DailyIntake[],
@@ -206,7 +209,6 @@ export function adherence(
   windowDays: number = ADHERENCE_WINDOW_DAYS
 ): Adherence {
   const window = inWindow(series, endDate, windowDays);
-  const unresolved = window.filter((d) => d.suggestedPartial).map((d) => d.date);
   const diffs: number[] = [];
   let daysWithProgram = 0;
   for (const day of window) {
@@ -216,8 +218,8 @@ export function adherence(
     if (!countsAsLogged(day.status)) continue;
     diffs.push(day.kcal - target.kcal);
   }
-  const base = { n: diffs.length, daysWithProgram, unresolved, windowDays };
-  if (unresolved.length > 0 || diffs.length === 0) return { ...base, deltaKcal: null, onTarget: null, threshold: null };
+  const base = { n: diffs.length, daysWithProgram, windowDays };
+  if (diffs.length === 0) return { ...base, deltaKcal: null, onTarget: null, threshold: null };
   const delta = mean(diffs);
   const sd = stdev(diffs);
   const threshold = Math.max(ADHERENCE_TOLERANCE_KCAL, (ADHERENCE_Z * sd) / Math.sqrt(diffs.length));

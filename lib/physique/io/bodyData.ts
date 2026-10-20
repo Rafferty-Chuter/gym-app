@@ -138,12 +138,22 @@ export async function setDayOverride(date: LocalDate, kcal: number | null): Prom
   });
 }
 
+/**
+ * Edit day's status. Marking a day complete also sets `partialDismissed`,
+ * so a day the engine would leave out as part-logged counts (C11); marking
+ * it partial or fasting clears that.
+ */
 export async function setDayStatus(date: LocalDate, status: DayFlags["status"] | null): Promise<SaveResult> {
   return attempt(async () => {
     const current = (await dayFlagsStore.get(date)) ?? { date };
     const next: DayFlags = { ...current, date };
-    if (status) next.status = status;
-    else delete next.status;
+    if (status) {
+      next.status = status;
+      delete next.partialDismissed;
+    } else {
+      delete next.status;
+      next.partialDismissed = true;
+    }
     await dayFlagsStore.set(date, next);
   });
 }

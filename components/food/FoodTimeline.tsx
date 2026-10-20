@@ -29,9 +29,9 @@ export default function FoodTimeline({ timeline, tz, onAddAt, onEdit, onCopyDay,
   return (
     <section aria-label="Timeline" className="flex flex-col">
       {dayNote && (
-        <button type="button" onClick={onEditDay} className="mb-2 flex items-center justify-between rounded-[12px] px-3 py-2 text-left text-[12px]" style={{ background: "var(--surface)", color: "var(--text-secondary)" }} aria-label={`${dayNote}. Edit day`}>
+        <button type="button" onClick={onEditDay} className="mb-2 flex items-center justify-between gap-3 rounded-[12px] px-3 py-2 text-left text-[12px]" style={{ background: "var(--surface)", color: "var(--text-secondary)" }} aria-label={`${dayNote}. Edit day`}>
           <span>{dayNote}</span>
-          <span style={{ color: "var(--text-tertiary)" }}>Edit</span>
+          <span className="shrink-0" style={{ color: "var(--text-tertiary)" }}>Edit</span>
         </button>
       )}
       {rows.length === 0 && (

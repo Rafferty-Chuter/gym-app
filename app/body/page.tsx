@@ -118,8 +118,8 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           weighIns={data.weighIns}
           today={today}
           unit={unit}
-          onEdit={(w) => {
-            setWeightDate(w.date);
+          onOpen={(d) => {
+            setWeightDate(d);
             setSheet("weight");
           }}
         />

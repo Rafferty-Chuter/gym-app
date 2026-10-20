@@ -218,24 +218,19 @@ describe("data rules", () => {
     return { date, foodEntries };
   }
 
-  it("DATA-PARTIAL: a suspected partial day → confirm_days; dismissed → not; outranked by SAFE-4", () => {
+  it("a suspected partial day is left out, never asked about (C11); marked complete, it counts", () => {
     const sc = fixedCut({ deficit: 600 });
     const { date, foodEntries } = withPartialDay(sc, 600);
     const a = analyse(sc, { foodEntries });
-    expect(a.verdict.id).toBe("DATA-PARTIAL");
-    expect(a.recommendation).toEqual({ kind: "confirm_days", dates: [date] });
-    expect(a.verdict.title).toBe("Confirm one day");
-    expect(a.data.unresolvedPartialDays).toEqual([date]);
-    expect(a.adherence.deltaKcal).toBeNull();
-    const dismissed = analyse(sc, { foodEntries, dayFlags: { ...sc.dayFlags, [date]: { date, partialDismissed: true } } });
-    expect(ids(dismissed)).not.toContain("DATA-PARTIAL");
-    const bmi = fixedCut({ deficit: 600, bodyweightKg: 85, targetKg: 58 });
-    const b = analyse(bmi, { foodEntries: withPartialDay(bmi, 600).foodEntries });
-    expect(b.verdict.id).toBe("SAFE-4");
-    expect(b.flags.map((f) => f.id)).toContain("DATA-PARTIAL");
+    expect(ids(a)).not.toContain("DATA-PARTIAL");
+    expect(a.recommendation?.kind).not.toBe("confirm_days");
+    expect(a.data.partialDaysLeftOut).toEqual([date]);
+    const kept = analyse(sc, { foodEntries, dayFlags: { ...sc.dayFlags, [date]: { date, partialDismissed: true } } });
+    expect(kept.data.partialDaysLeftOut).toEqual([]);
+    expect(ids(kept)).not.toContain("DATA-PARTIAL");
   });
 
-  it("DATA-HOLD: food logging stops → holding with log_more food; G-EXP-2 flags; outranked by DATA-PARTIAL", () => {
+  it("DATA-HOLD: food logging stops → holding with log_more food; G-EXP-2 flags; a part-logged day does not change that", () => {
     const sc = fixedCut({ deficit: 600 });
     const stopAt = addDays(sc.today, -9);
     const foodEntries = sc.foodEntries.filter((f) => f.date < stopAt);
@@ -248,8 +243,8 @@ describe("data rules", () => {
     expect(ids(analyse(sc))).not.toContain("DATA-HOLD");
     const partialDate = addDays(sc.today, -12);
     const b = analyse(sc, { foodEntries: foodEntries.map((f) => (f.date === partialDate ? { ...f, kcal: 500 } : f)) });
-    expect(b.verdict.id).toBe("DATA-PARTIAL");
-    expect(b.flags.map((f) => f.id)).toContain("DATA-HOLD");
+    expect(b.verdict.id).toBe("DATA-HOLD");
+    expect(ids(b)).not.toContain("DATA-PARTIAL");
   });
 
   it("DATA-RATE: 10 days → N more weigh-ins; 21 daily days → a rate exists; outranked by DATA-HOLD", () => {
@@ -296,7 +291,7 @@ describe("data rules", () => {
 // ── Group 3: adherence ──
 
 describe("adherence rules", () => {
-  it("ADH-1: 500 under target → eat_to_target; 100 under → not; outranked by DATA-PARTIAL", () => {
+  it("ADH-1: 500 under target → eat_to_target; 100 under → not; a part-logged day is left out, not a reason to wait", () => {
     const sc = makeScenario(loss1Row(3, { goal: { ratePctPerWeek: -0.6, confirmed: true, targetKg: 75 }, intakeOffsetKcal: -500, lifts: [] }));
     const a = analyse(sc);
     expect(a.verdict.id).toBe("ADH-1");
@@ -308,8 +303,8 @@ describe("adherence rules", () => {
     expect(ids(analyse(near))).not.toContain("ADH-1");
     const date = addDays(sc.today, -2);
     const b = analyse(sc, { foodEntries: sc.foodEntries.map((f) => (f.date === date ? { ...f, kcal: 500 } : f)) });
-    expect(b.verdict.id).toBe("DATA-PARTIAL");
-    expect(ids(b)).not.toContain("ADH-1");
+    expect(b.verdict.id).toBe("ADH-1");
+    expect(b.data.partialDaysLeftOut).toEqual([date]);
   });
 
   it("DB-1: a 6-week cut, over target on 3+ days a week for 2 weeks → diet break primary, ADH-1 a flag; a 5-week cut → ADH-1", () => {

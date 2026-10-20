@@ -48,10 +48,10 @@ export const assistantPhysiqueAnalysisSchema = z.object({
       loggedShare14: num.default(0),
       nightsLogged14: num.default(0),
       expenditureState: z.enum(["holding", "calibrating", "settling", "stable"]).default("calibrating"),
-      unresolvedPartialDays: z.array(localDate).max(31).default([]),
+      partialDaysLeftOut: z.array(localDate).max(31).default([]),
       updatingDays: num.default(0),
     })
-    .default({ weighIns14: 0, loggedShare14: 0, nightsLogged14: 0, expenditureState: "calibrating", unresolvedPartialDays: [], updatingDays: 0 }),
+    .default({ weighIns14: 0, loggedShare14: 0, nightsLogged14: 0, expenditureState: "calibrating", partialDaysLeftOut: [], updatingDays: 0 }),
   weight: z.object({
     trendKg: numOrNull,
     latestKg: numOrNull.default(null),
@@ -184,7 +184,7 @@ export function formatPhysiqueContextBlock(input: AssistantPhysiquePayload | Val
   lines.push(`STRENGTH: ${a.strength.status}${a.strength.baselineMissing ? " (no pre-phase baseline)" : ""}; main lifts since phase start: ${liftList || "none"}.`);
   lines.push(`SLEEP: ${a.sleep.status}, mean ${fmtH(a.sleep.mean14h)} over ${a.sleep.nightsLogged14} of 14 nights${a.sleep.source ? ` (${a.sleep.source})` : ""}${a.sleep.debt7h != null ? `, 7-day debt ${fmtH(a.sleep.debt7h)}` : ""}${a.sleep.lastNightH != null ? `, last night ${fmtH(a.sleep.lastNightH)}` : ""}${a.sleep.acute ? ", acute short night" : ""}.`);
   lines.push(`TRAINING STATUS: ${a.training.status} (from ${a.training.source}).`);
-  lines.push(`DATA (14 d): ${a.data.weighIns14} weigh-ins, ${Math.round(a.data.loggedShare14 * 100)}% of days with food, ${a.data.nightsLogged14} nights${a.data.unresolvedPartialDays.length ? `, ${a.data.unresolvedPartialDays.length} days awaiting a partial/complete answer` : ""}.${a.checkInDue ? " Check-in due." : ""}`);
+  lines.push(`DATA (14 d): ${a.data.weighIns14} weigh-ins, ${Math.round(a.data.loggedShare14 * 100)}% of days with food, ${a.data.nightsLogged14} nights${a.data.partialDaysLeftOut.length ? `, ${a.data.partialDaysLeftOut.length} days left out as part-logged` : ""}.${a.checkInDue ? " Check-in due." : ""}`);
   // Recent facts, day offsets relative to today (0 = today).
   if (r.weighIns.length) lines.push(`RECENT WEIGH-INS (day:kg): ${r.weighIns.map((w) => `${w.d}:${w.kg.toFixed(1)}`).join(" ")}`);
   if (r.intake.length) lines.push(`RECENT INTAKE (day:kcal/P g${r.intake.some((i) => i.status !== "complete") ? ", * partial, f fasting" : ""}): ${r.intake.map((i) => `${i.d}:${Math.round(i.kcal)}/${Math.round(i.p)}${i.status === "partial" ? "*" : i.status === "fasting" ? "f" : ""}`).join(" ")}`);

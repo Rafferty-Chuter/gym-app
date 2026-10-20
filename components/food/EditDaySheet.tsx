@@ -14,6 +14,8 @@ type Props = {
   onClose: () => void;
   dateLabel: string;
   flags: DayFlags | undefined;
+  /** True when the engine left the day out as part-logged (C11): it opens on Partial, and Complete counts it. */
+  leftOut?: boolean;
   /** Sum of the day's entries, shown under the override. */
   entriesKcal: number;
   /** Clears every entry on the day, after its own confirm; absent when there is nothing to clear. */
@@ -36,8 +38,8 @@ export default function EditDaySheet(props: Props) {
   return props.open ? <Inner key={props.dateLabel} {...props} /> : null;
 }
 
-function Inner({ onClose, dateLabel, flags, entriesKcal, onClear, onSave }: Props) {
-  const [status, setStatus] = useState<Status>(flags?.status ?? "complete");
+function Inner({ onClose, dateLabel, flags, leftOut, entriesKcal, onClear, onSave }: Props) {
+  const [status, setStatus] = useState<Status>(flags?.status ?? (leftOut ? "partial" : "complete"));
   const [override, setOverride] = useState(typeof flags?.kcalOverride === "number" ? formatPadValue(flags.kcalOverride, 0) : "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
