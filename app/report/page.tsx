@@ -1,9 +1,9 @@
 "use client";
 
-import { bandLabel, bandsFor, emphasisedGroups } from "@/lib/training/volumeTargets";
+import { bandsFor, emphasisedGroups } from "@/lib/training/volumeTargets";
 import type { Phase } from "@/lib/training/progression";
 import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
@@ -13,11 +13,7 @@ import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { useWorkouts } from "@/lib/physique/io/workouts";
 import { buildWeekReport, defaultReportWeek, reportWeekStart, type WeekReport } from "@/lib/physique/weekReport";
-import { signedKcal } from "@/lib/physique/food/energy";
-import { formatBodyWeight, formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
-import { formatHoursMin } from "@/lib/physique/dayTotals";
-import { formatRate } from "@/components/physique/WeightChartCard";
-import { Caption, Row, RowGroup } from "@/components/physique/ui";
+import { formatWeight, type WeightUnit } from "@/lib/units";
 import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import { loadOnboardingProfile } from "@/lib/onboardingProfile";
 import { goalEta } from "@/lib/physique/goalEta";
@@ -30,17 +26,20 @@ import { useDeload } from "@/lib/physique/io/deload";
 import { readDeload } from "@/lib/training/deload";
 import ReviewDecision from "@/components/report/ReviewDecision";
 import { FixesCard, SummaryCard } from "@/components/report/InsightCards";
-import Scorecard from "@/components/report/Scorecard";
+import ReportSections from "@/components/report/ReportSections";
 import LinkedReasonsCard from "@/components/report/LinkedReasons";
 import { linkedReasons } from "@/lib/physique/linkedReasons";
-import { FIBRE_TARGET_G, coverageLine, scorecard } from "@/lib/physique/weekScorecard";
+import { coverageLine, scorecard } from "@/lib/physique/weekScorecard";
 import { rateBands } from "@/lib/physique/targets";
 
 /**
- * The weekly report (W1, W3, with G3's decision): the verdict, where the
- * goal is heading, up to three things to fix, the week's decision while
- * the review is due, the week in three reads, then every number folded
- * away. One weekly page; /review sends here.
+ * The weekly report (W1, W3, W6, with G3's decision): where the goal is
+ * heading, what is behind it, then the week's numbers as a report (body
+ * weight first, its change as a share of body weight, then nutrition,
+ * training, sleep and recovery, each against last week), up to three
+ * things to fix, and the week's decision while the review is due. One
+ * weekly page; /review sends here. Nothing is folded away, so a saved PDF
+ * is the whole report.
  */
 export default function ReportPage() {
   const hydrated = useIsHydrated();
@@ -56,8 +55,6 @@ function weekFromQuery(): LocalDate | null {
   return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? reportWeekStart(v) : null;
 }
 
-const n = (v: number) => Math.round(v).toLocaleString("en-GB");
-const dash = <span style={{ color: "var(--text-tertiary)" }}>–</span>;
 
 function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const today = now.today;
@@ -70,15 +67,6 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const reviewModel = useReview(now, unit);
   const reviewWeek = reviewModel ? reportWeekStart(addDays(reviewModel.plan.weekStart, -1)) : null;
   const reviewDue = !!reviewModel && reviewModel.hasProgram && !reviewModel.reviewed;
-  const detailsRef = useRef<HTMLDetailsElement | null>(null);
-  // A saved or printed report shows every number.
-  useEffect(() => {
-    const open = () => {
-      if (detailsRef.current) detailsRef.current.open = true;
-    };
-    window.addEventListener("beforeprint", open);
-    return () => window.removeEventListener("beforeprint", open);
-  }, []);
   const [start, setStart] = useState<LocalDate>(() => weekFromQuery() ?? (reviewDue && reviewWeek ? reviewWeek : defaultReportWeek(today)));
   const thisWeek = reportWeekStart(today);
   const deloadRecord = useDeload();
@@ -148,9 +136,10 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     });
   }, [analysis, report, prevReport, data.sleepNights, today, activeGoal, plannedSessions, unit]);
 
+  // The strength engine's change since the phase began, per lift, for the training rows.
+  const sincePhase = useMemo(() => new Map((analysis?.strength.lifts ?? []).map((l) => [l.name, l.changePct ?? null] as const)), [analysis]);
+
   const caption = `${shortLocalDate(report.start)} to ${shortLocalDate(report.end)} · ${report.complete ? "complete" : `${report.daysCovered} of 7 days so far`}`;
-  const w = (kg: number | null) => (kg == null ? dash : formatBodyWeight(kg, unit));
-  const kgDelta = (kg: number | null) => (kg == null ? dash : `${kg > 0 ? "+" : kg < 0 ? "−" : ""}${Math.abs(kgToDisplay(kg, unit)).toFixed(1)} ${unit}`);
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
@@ -182,7 +171,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         <LinkedReasonsCard links={links} />
 
-        {report.hasData && <Scorecard tiles={tiles} />}
+        {report.hasData && <ReportSections report={report} prev={prevReport.hasData ? prevReport : null} tiles={tiles} unit={unit} goal={activeGoal} sincePhase={sincePhase} />}
 
         {insight && report.hasData && <FixesCard fixes={insight.fixes} more={insight.more} goingWell={insight.goingWell} />}
 
@@ -193,111 +182,6 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
             {report.complete ? "Nothing was logged this week." : "Nothing logged this week yet."} Food, weigh-ins, nights and workouts show here as they are logged.
           </p>
         )}
-
-        <details ref={detailsRef} className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between rounded-[12px] px-4 py-3 [&::-webkit-details-marker]:hidden" style={{ background: "var(--surface)" }}>
-            <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
-              All the numbers
-            </span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden>
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </summary>
-          <div className="mt-5 flex flex-col gap-5">
-          <section aria-label="Weight">
-            <div className="mb-2 flex items-baseline justify-between">
-              <span className="text-[17px] font-semibold">Weight</span>
-              <Caption>{report.weight.weighIns} of {report.daysCovered} days weighed</Caption>
-            </div>
-            <RowGroup>
-              <Row label="Trend" value={report.weight.endTrendKg == null ? dash : `${w(report.weight.startTrendKg)} → ${w(report.weight.endTrendKg)}`} sub={report.weight.deltaKg == null ? "Needs weigh-ins on both ends of the week" : `${kgDelta(report.weight.deltaKg)} over the week`} />
-              <Row label="Rate" value={report.weight.ratePctPerWeek == null ? dash : formatRate(report.weight.ratePctPerWeek)} sub={report.weight.rateWindowDays ? `Over the last ${report.weight.rateWindowDays} days` : "Early read · not enough weigh-ins for a rate"} />
-              {report.waist.latestCm != null && <Row label="Waist" value={`${report.waist.latestCm.toFixed(1)} cm`} sub={report.waist.deltaCm == null ? `${report.waist.entries} of 4 weekly measures in the last 4 weeks` : `${report.waist.deltaCm > 0 ? "+" : report.waist.deltaCm < 0 ? "−" : ""}${Math.abs(report.waist.deltaCm).toFixed(1)} cm over ${report.waist.weeks} weeks`} />}
-            </RowGroup>
-          </section>
-
-          <section aria-label="Energy">
-            <div className="mb-2 flex items-baseline justify-between">
-              <span className="text-[17px] font-semibold">Energy</span>
-              <Caption>{report.food.daysLogged} of {report.daysCovered} days logged</Caption>
-            </div>
-            <RowGroup>
-              <Row label="Maintenance" value={report.expenditure.endKcal == null ? dash : `${n(report.expenditure.endKcal)} kcal`} sub={report.expenditure.deltaKcal == null ? "Needs food and weigh-ins on the same days" : report.expenditure.state === "holding" ? "Holding until logging resumes" : `${signedKcal(report.expenditure.deltaKcal)} kcal over the week`} />
-              <Row label="Intake" value={report.food.meanKcal == null ? dash : `${n(report.food.meanKcal)} kcal`} sub={report.food.targetKcal == null ? "Average of logged days · no target set" : report.food.deltaKcal == null ? `Target ${n(report.food.targetKcal)} kcal` : `${signedKcal(report.food.deltaKcal)} vs the ${n(report.food.targetKcal)} kcal target, averaged over logged days`} />
-              <Row label="Protein" value={report.food.meanProteinG == null ? dash : `${n(report.food.meanProteinG)} g`} sub={report.food.meanProteinG == null ? "No complete days" : `${report.food.proteinGPerKg != null ? `${report.food.proteinGPerKg.toFixed(1)} g/kg` : ""}${report.food.targetProteinG != null ? ` · target ${n(report.food.targetProteinG)} g` : ""}`} />
-              {report.food.meanFibreG != null && <Row label="Fibre" value={`${n(report.food.meanFibreG)} g`} sub={`Target ${FIBRE_TARGET_G} g · ${report.food.fibreDays} days read`} />}
-              {(report.food.partial > 0 || report.food.fasting > 0) && <Row label="Day status" value={`${report.food.complete} complete`} sub={`${report.food.partial} partial · ${report.food.fasting} fasting`} />}
-            </RowGroup>
-          </section>
-
-          <section aria-label="Training">
-            <div className="mb-2 flex items-baseline justify-between">
-              <span className="text-[17px] font-semibold">Training</span>
-              <Caption>{report.training.sessions} {report.training.sessions === 1 ? "session" : "sessions"} · {report.training.hardSets} hard sets</Caption>
-            </div>
-            {report.training.sessions === 0 ? (
-              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                No sessions logged this week.
-              </p>
-            ) : (
-              <RowGroup>
-                {report.training.lifts.map((l) => {
-                  // The change shown is the strength engine's, since the phase began; this week's best e1RM is the raw number.
-                  const since = analysis?.strength.lifts.find((x) => x.name === l.name)?.changePct ?? null;
-                  return <Row key={l.name} label={l.name} value={`${formatWeight(l.e1rmKg, unit)}`} sub={since == null ? "Best est. 1RM this week" : `Best est. 1RM this week · ${since > 0 ? "+" : since < 0 ? "−" : ""}${Math.abs(since).toFixed(1)} % since the phase began`} />;
-                })}
-                <div className="px-4 py-3">
-                  <span className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
-                    Hard sets by muscle
-                  </span>
-                  <div className="mt-2 flex flex-col gap-1.5">
-                    {report.training.byMuscle.map((m) => {
-                      const max = report.training.byMuscle[0]?.sets ?? 1;
-                      return (
-                        <div key={m.group} className="flex items-center gap-3 text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          <span className="w-[88px] shrink-0 truncate" style={{ color: "var(--text-secondary)" }}>
-                            {m.label}
-                          </span>
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: "var(--surface-raised)" }} aria-hidden>
-                            <div className="h-full rounded-full" style={{ width: `${(m.sets / max) * 100}%`, background: "var(--text-secondary)" }} />
-                          </div>
-                          <span className="w-[72px] shrink-0 text-right" style={{ color: m.read === "over" ? "var(--status-attention)" : m.read === "under" ? "var(--status-watch)" : m.read === "in_range" ? "var(--status-good)" : "var(--text)" }}>
-                            {m.sets}
-                            {m.band ? <span style={{ color: "var(--text-tertiary)" }}>{` · ${bandLabel(m.band)}`}</span> : null}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </RowGroup>
-            )}
-          </section>
-
-          <section aria-label="Sleep">
-            <div className="mb-2 flex items-baseline justify-between">
-              <span className="text-[17px] font-semibold">Sleep</span>
-              <Caption>{report.sleep.nights} of {report.daysCovered} nights</Caption>
-            </div>
-            <RowGroup>
-              <Row label="Average" value={report.sleep.meanH == null ? dash : formatHoursMin(report.sleep.meanH * 60)} sub={report.sleep.meanH == null ? "No nights logged" : `${report.sleep.shortNights} short ${report.sleep.shortNights === 1 ? "night" : "nights"}`} />
-            </RowGroup>
-          </section>
-
-          {(report.health.meanSteps != null || report.health.meanRhr != null) && (
-            <section aria-label="Health">
-              <div className="mb-2 flex items-baseline justify-between">
-                <span className="text-[17px] font-semibold">Health</span>
-                <Caption>From Apple Health</Caption>
-              </div>
-              <RowGroup>
-                {report.health.meanSteps != null && <Row label="Steps" value={n(report.health.meanSteps)} sub={`A day, over ${report.health.stepDays} days`} />}
-                {report.health.meanRhr != null && <Row label="Resting heart rate" value={`${report.health.meanRhr} bpm`} sub={report.health.usualRhr != null ? `Usually ${report.health.usualRhr} bpm` : `${report.health.rhrNights} nights`} />}
-              </RowGroup>
-            </section>
-          )}
-          </div>
-        </details>
 
         <footer className="flex flex-col gap-3 pb-2">
           {report.hasData && (

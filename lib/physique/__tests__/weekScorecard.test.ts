@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addDays } from "@/lib/dates";
 import { makeScenario } from "@/lib/physique/fixtures";
 import { buildWeekReport, reportWeekStart, type WeekReport } from "@/lib/physique/weekReport";
-import { coverageLine, INTAKE_ON_TARGET_KCAL, scorecard } from "@/lib/physique/weekScorecard";
+import { coverageLine, INTAKE_ON_TARGET_KCAL, scorecard, pctOfBodyWeight } from "@/lib/physique/weekScorecard";
 import { bannedPhrasesIn } from "@/lib/physique/copy";
 
 describe("weekly scorecard (W4)", () => {
@@ -69,5 +69,16 @@ describe("weekly scorecard (W4)", () => {
     expect(tiles.every((t) => t.delta == null || t.delta.tone === "neutral")).toBe(true);
     expect(tiles.find((t) => t.id === "weight")!.value).toBe("–");
     expect(coverageLine(empty)).toBe("0 of 7 days logged · 0 weigh-ins · 0 nights · 0 sessions");
+  });
+});
+
+describe("weight change as a share of body weight (W6)", () => {
+  it("says the change in percent with two decimals and a sign, and nothing without both numbers", () => {
+    expect(pctOfBodyWeight(-0.4, 82.5)).toBe("−0.48 %");
+    expect(pctOfBodyWeight(0.6, 83.6)).toBe("+0.72 %");
+    expect(pctOfBodyWeight(0, 80)).toBe("0.00 %");
+    expect(pctOfBodyWeight(null, 80)).toBeNull();
+    expect(pctOfBodyWeight(-0.4, null)).toBeNull();
+    expect(pctOfBodyWeight(-0.4, 0)).toBeNull();
   });
 });

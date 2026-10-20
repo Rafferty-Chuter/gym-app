@@ -370,6 +370,13 @@ export function scorecard(i: ScorecardInputs): Tile[] {
   return out;
 }
 
+/** A change as a share of body weight, "−0.55 %", two decimals as goal rates are set (W6); null without both numbers. */
+export function pctOfBodyWeight(deltaKg: number | null, fromKg: number | null): string | null {
+  if (deltaKg == null || fromKg == null || !Number.isFinite(deltaKg) || !Number.isFinite(fromKg) || fromKg <= 0) return null;
+  const pct = (deltaKg / fromKg) * 100;
+  return `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)} %`;
+}
+
 /** "6 of 7 days logged · 7 weigh-ins · 7 nights · 4 sessions": what the report stands on. */
 export function coverageLine(r: WeekReport): string {
   return [`${r.food.daysLogged} of ${r.daysCovered} days logged`, `${r.weight.weighIns} ${r.weight.weighIns === 1 ? "weigh-in" : "weigh-ins"}`, `${r.sleep.nights} ${r.sleep.nights === 1 ? "night" : "nights"}`, `${r.training.sessions} ${r.training.sessions === 1 ? "session" : "sessions"}`].join(" · ");
