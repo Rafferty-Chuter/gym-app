@@ -55,6 +55,11 @@ const PRESETS: Preset[] = [
     spec: (today) => ({ seed: 31, days: 63, preDays: 21, startDate: startFor(today, 63), bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6, targetKg: 78 }, lifts: FLAT_LIFTS, sleep: SLEEP_OK, waist: { startCm: 86, changeCm: -2 } }),
   },
   {
+    id: "not-yet-clear",
+    label: "Not yet clear · same cut, eats to target, losing about 0.3 %/wk against −0.6 (research H)",
+    spec: (today) => ({ seed: 3, days: 63, preDays: 21, startDate: startFor(today, 63), bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6, targetKg: 78 }, lifts: FLAT_LIFTS, sleep: SLEEP_OK }),
+  },
+  {
     id: "watch",
     label: "WATCH · ON-TRACK with Apple Watch nights: HRV, resting HR and stages, HRV down 20 % over the last 9 days",
     spec: (today) => ({ seed: 33, days: 63, preDays: 21, startDate: startFor(today, 63), bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6, targetKg: 78 }, lifts: FLAT_LIFTS, sleep: { meanH: 7.3, sdH: 0.5, loggedShare: 1, source: "healthkit", hrv: { meanMs: 48, sdPct: 10, rhrBpm: 52, dropFromDay: 54, dropPct: 20 } }, waist: { startCm: 86, changeCm: -2 } }),

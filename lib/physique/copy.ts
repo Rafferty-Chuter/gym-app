@@ -133,6 +133,8 @@ export type VerdictFacts = {
   goalRate?: number | null;
   /** The rule's own window. */
   rate?: RateFacts | null;
+  /** NO-CHANGE with a rate off plan: whether it is confidently outside goal ± 0.25 (research H). */
+  rateClear?: boolean;
   strength?: StrengthStatus;
   /** Main lifts the rule points at (down for LOSS-1/4, up for RECOMP/GAIN-3, the one lift for STR-2). */
   lifts?: readonly LiftFact[];
@@ -410,7 +412,14 @@ const COPY: Record<RuleId, CopyFn> = {
     return { title: "On track", detail: `${rateClause(f)}${liftsHoldingClause(f)}.` };
   },
 
-  "NO-CHANGE": () => ({ title: "Nothing to change", detail: "Nothing to change this week." }),
+  "NO-CHANGE": (f) => {
+    // A rate off plan with no rule to act on (research H): shown as it is, never called on track.
+    if (f.rate && f.goalRate != null) {
+      const tail = f.rateClear ? "Targets stay as they are for now." : "Not clear enough yet to change anything.";
+      return { title: "Nothing to change yet", detail: `${rateClause(f)} against a ${fmtSignedRate(f.goalRate)} %/wk goal. ${tail}` };
+    }
+    return { title: "Nothing to change", detail: "Nothing to change this week." };
+  },
 
   "SAFE-0": () => ({ title: "No deficit targets under 18", detail: "Calorie targets for a deficit aren't available under 18. Targets stay at maintenance." }),
 

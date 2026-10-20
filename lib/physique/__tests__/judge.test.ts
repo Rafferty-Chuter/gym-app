@@ -344,7 +344,8 @@ describe("cut outcome rules", () => {
     // Lifts −4%: not dropping, not STR-OK, so no LOSS rule; −1.4 is confidently outside a −0.6 goal, so no ON-TRACK either.
     const mild = analyse(fixedCut({ deficit: 1400, goalRate: -0.6, lifts: stepLifts(-4, 35, 0) }));
     expect(ids(mild)).not.toContain("LOSS-1");
-    expect(mild.verdict.id).toBe("NO-CHANGE");
+    expect(mild.verdict).toMatchObject({ id: "NO-CHANGE", title: "Nothing to change yet" });
+    expect(mild.verdict.detail).toMatch(/^Losing 1\.\d %\/wk over 28 days \(\d+ weigh-ins\) against a −0\.6 %\/wk goal\. Targets stay as they are for now\.$/);
     const adh = analyse(makeScenario({ ...SCENARIO_TABLE[2].spec(5), lifts: stepLifts(-8, 35, 0) }));
     expect(adh.verdict.id).toBe("ADH-1");
     expect(adh.flags.map((f) => f.id)).toContain("LOSS-1");
@@ -375,7 +376,7 @@ describe("cut outcome rules", () => {
     expect(adv.verdict.detail).toContain("At your training stage");
   });
 
-  it("LOSS-2: −1.3 %/wk with lifts holding → no recommendation; near goal → ease; −1.0 → ON-TRACK; outranked by LOSS-3", () => {
+  it("LOSS-2: −1.3 %/wk with lifts holding → no recommendation; near goal → ease; −1.0 → not yet clear, never on track; outranked by LOSS-3", () => {
     const a = analyse(fixedCut({ deficit: 1300, lifts: FLAT_LIFTS }));
     expect(a.verdict.id).toBe("LOSS-2");
     expect(a.recommendation).toBeNull();
@@ -385,7 +386,10 @@ describe("cut outcome rules", () => {
     expect(near.recommendation).toEqual(expect.objectContaining({ kind: "change_rate", toPctPerWeek: -0.5 }));
     const slow = analyse(fixedCut({ deficit: 950, goalRate: -0.6, lifts: FLAT_LIFTS }));
     expect(ids(slow)).not.toContain("LOSS-2");
-    expect(slow.verdict.id).toBe("ON-TRACK");
+    // −1.0 against −0.6 is outside the ±0.25 band but not confidently so: shown as it is, not called on track.
+    expect(slow.verdict).toMatchObject({ id: "NO-CHANGE", title: "Nothing to change yet" });
+    expect(slow.status.state).toBe("watch");
+    expect(slow.verdict.detail).toMatch(/^Losing \d\.\d %\/wk over 28 days \(\d+ weigh-ins\) against a −0\.6 %\/wk goal\. Not clear enough yet to change anything\.$/);
     const fast = analyse(fixedCut({ deficit: 2200, days: 49, lifts: FLAT_LIFTS }));
     expect(fast.verdict.id).toBe("LOSS-3");
     expect(fast.flags.map((f) => f.id)).toContain("LOSS-2");
@@ -433,7 +437,8 @@ describe("cut outcome rules", () => {
     const noLifts = analyse(fixedCut({ deficit: 1000, goalRate: -1.0 }));
     expect(noLifts.verdict.detail).not.toContain("lifts");
     const nothing = analyse(fixedCut({ deficit: 1400, goalRate: -0.6, lifts: stepLifts(-4, 35, 0) }));
-    expect(nothing.verdict).toMatchObject({ id: "NO-CHANGE", title: "Nothing to change" });
+    expect(nothing.verdict).toMatchObject({ id: "NO-CHANGE", title: "Nothing to change yet" });
+    expect(nothing.status.state).toBe("watch");
     const hold = makeScenario({ seed: 9, days: 42, bodyweightKg: 85, trueTdeeKcal: 2800, intake: { meanKcal: 2800 }, goal: { ratePctPerWeek: 0, targetKg: 85 } });
     const m = analyse(hold);
     expect(m.phase).toBe("maintain");

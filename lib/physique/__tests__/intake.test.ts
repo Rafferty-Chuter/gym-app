@@ -153,13 +153,13 @@ describe("target in effect and adherence (02 §1.1, §3)", () => {
 
   it("the noise term widens the tolerance when daily differences are wild", () => {
     const p = program(entry(day(0), 2400, "goal_start"));
-    // Alternating +600 / −280: mean +160 (over 150), but sd ≈ 457 → 1.645 × 457 / √14 ≈ 201.
+    // Alternating +600 / −280: mean +160 (over 150), but sd ≈ 457 → 1.96 × 457 / √14 ≈ 239.
     const wild = Array.from({ length: 14 }, (_, i) => food(day(i), 2400 + (i % 2 === 0 ? 600 : -280)));
     const series = dailyIntakeSeries(wild, {}, day(0), day(13));
     expect(partialDaysLeftOut(series)).toEqual([]);
     const a = adherence(series, p, day(13));
     expect(a.deltaKcal).toBeCloseTo(160, 9);
-    expect(a.threshold!).toBeGreaterThan(195);
+    expect(a.threshold!).toBeGreaterThan(235);
     expect(a.onTarget).toBe(true);
   });
 

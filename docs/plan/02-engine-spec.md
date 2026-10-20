@@ -134,7 +134,7 @@ The EMA slope lags about 9 days, so verdicts don't use it.
 - `intakeMean(window)` = mean kcal over `complete` and `fasting` days.
 - `loggedShare(window)` = (complete + fasting days) ÷ window days.
 - **Adherence** = mean over the last 14 days with a program of `(intake_d − target_d)`, using complete/fasting days only.
-  - It's **on target** unless `|adherence| > max(150, 1.645 × sd_d / √n)`, where `sd_d` is the SD of the daily differences. OURS; the noise term stops it firing on random daily variation (sim: a plain ±150 fires 10.7% of the time for a perfectly adherent user).
+  - It's **on target** unless `|adherence| > max(150, 1.96 × sd_d / √n)`, where `sd_d` is the SD of the daily differences. OURS; the noise term stops it firing on random daily variation (sim: a plain ±150 fires 10.7% of the time for a perfectly adherent user). The z is two-sided because `|adherence|` is tested both ways; 1.645 still fired on 10 to 17% of adherent users in the usefulness study (research H).
   - Suspected partial days are already left out (§1.2), so adherence never waits on them (C11).
 - **Protein and fat** are 7-day and 14-day means over complete days, in g/kg BW.
 
@@ -526,8 +526,8 @@ Every `change_rate` target also passes §5.2 validation, and `kcalDeltaAtCurrent
 | DATA-HOLD | 2 | expenditure `holding` | "Holding · log K more days this week to resume." | `log_more: food` |
 | DATA-PARTIAL | – | retired in C11: suspected partial days are left out (§1.2), never asked about. The id stays so stored analyses still read. | – | – |
 | ADH-1 | 3 | adherence off target (§3), resolved data, ≥80% logged | "You're averaging 320 kcal under target over 14 days. Eat to target before we change your goal." | `eat_to_target` |
-| ON-TRACK | 4 (last-but-one) | no group-1–3 rule, and the rate is not confidently outside goal ± 0.25 %/wk (maintain: trend within ±0.68 kg) | "On track: losing 0.6 %/wk over 28 days, lifts holding." The lift clause is only included with ≥2 main lifts. | none |
-| NO-CHANGE | 4 (last) | none of the above | "Nothing to change this week." | none |
+| ON-TRACK | 4 (last-but-one) | no group-1–3 rule, no rate rule (LOSS-*, GAIN-*), and the rate's point estimate inside goal ± 0.25 %/wk, so never confidently outside it (maintain: trend within ±0.68 kg). Until research H it only needed "not confidently outside", which called a −0.3 %/wk read on track against a −0.6 goal | "On track: losing 0.6 %/wk over 28 days, lifts holding." The lift clause is only included with ≥2 main lifts. | none |
+| NO-CHANGE | 4 (last) | none of the above | "Nothing to change this week." When the rate is outside goal ± 0.25 and no rule acts on it: "Nothing to change yet. Losing 1.0 %/wk over 28 days against a −0.6 %/wk goal." then "Not clear enough yet to change anything." (not confidently outside) or "Targets stay as they are for now." (confidently outside, but a rule's other gates are unmet); its status is then `watch`, not `good` | none |
 
 ### 8.3 Choosing the primary verdict
 

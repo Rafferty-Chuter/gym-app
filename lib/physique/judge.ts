@@ -33,7 +33,7 @@ import {
   type Adherence,
 } from "@/lib/physique/intake";
 import { nightsByDate, sleepCorroboration, sleepStatus, type SleepRead } from "@/lib/physique/sleep";
-import { statusFor } from "@/lib/physique/status";
+import { mostSevere, statusFor } from "@/lib/physique/status";
 import { liftDerivedTrainingStatus, mainLiftSeries, strengthStatus, type StrengthResult } from "@/lib/physique/strength";
 import {
   isNearGoal,
@@ -119,7 +119,7 @@ export const RECOMP_FLAT_RATE = 0.25;
 export const WAIST_MIN_ENTRIES = 4;
 export const WAIST_BASELINE_N = 3;
 export const WAIST_RECENT_N = 2;
-/** ON-TRACK: the rate is not confidently outside goal ± this. OURS (02 §8.2 D). */
+/** ON-TRACK: the rate's point estimate is inside goal ± this (so never confidently outside it). OURS (02 §8.2 D; research H). */
 export const ON_TRACK_TOLERANCE = 0.25;
 /** Kcal-based rules need at least this share of logged days (G4). EVID/OURS (research F G4). */
 export const MIN_LOGGED_SHARE = 0.8;
@@ -776,16 +776,21 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
     if (macro14.fatGPerKg < FAT1_MIN_G_PER_KG && share !== null && share < FAT1_MAX_SHARE) fire("FAT-1", 5, { fatGPerKg: macro14.fatGPerKg, fatShare: share });
   }
 
-  // ON-TRACK: no group 1–3 rule, and the rate is not confidently outside goal ± 0.25 (maintain: inside the band).
-  const anyGroup123 = fired.some((f) => f.group <= 3 && f.id !== "DATA-EXP" && f.id !== "G-EXP-2");
-  if (goal && !anyGroup123) {
+  // ON-TRACK: no group 1–3 rule, no rate rule (it already reads the rate, so "On track" never sits under "Gaining
+  // faster than a lean bulk needs"), and the rate's point estimate inside goal ± 0.25, so never confidently outside
+  // it (maintain: inside the band). A rate outside it with no rule to act on is shown as it is with NO-CHANGE,
+  // never called on track (research H).
+  const otherRead = fired.some((f) => (f.group <= 3 && f.id !== "DATA-EXP" && f.id !== "G-EXP-2") || RATE_FAMILY.has(f.id));
+  let offPlan: { rate: RateResult; clear: boolean } | null = null;
+  if (goal && !otherRead) {
     if (goal.type === "maintain") {
       if (trendKg !== null && bands && Math.abs(trendKg - goal.targetKg) <= bands.maintain.bandKg) fire("ON-TRACK", 4, {});
-    } else if (rMid && goalRate !== null && notConfidentlyOutside(rMid, goalRate, ON_TRACK_TOLERANCE)) {
-      fire("ON-TRACK", 4, { strength: liftsRead.length >= 2 ? str.status : "unclear" }, null, rMid);
+    } else if (rMid && goalRate !== null) {
+      if (Math.abs(rMid.ratePctPerWeek - goalRate) <= ON_TRACK_TOLERANCE) fire("ON-TRACK", 4, { strength: liftsRead.length >= 2 ? str.status : "unclear" }, null, rMid);
+      else offPlan = { rate: rMid, clear: !notConfidentlyOutside(rMid, goalRate, ON_TRACK_TOLERANCE) };
     }
   }
-  fire("NO-CHANGE", 4, {});
+  fire("NO-CHANGE", 4, offPlan ? { rateClear: offPlan.clear } : {}, null, offPlan?.rate);
 
   // ── Suppression (02 §8.3 step 1) ──
   const remove = (id: RuleId, by: string) => {
@@ -858,7 +863,9 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
   }
   if (!primary) primary = ordered[ordered.length - 1];
   const flags = ordered.filter((f) => f !== primary && f.id !== "NO-CHANGE").slice(0, MAX_FLAGS);
-  const status = statusFor(primary.id, flags.map((f) => f.id));
+  const ruleStatus = statusFor(primary.id, flags.map((f) => f.id));
+  // NO-CHANGE carrying an off-plan rate is a watch, like the ETA's "behind plan" beside it (research H).
+  const status = primary.id === "NO-CHANGE" && primary.rate ? { ...ruleStatus, state: mostSevere(ruleStatus.state, "watch") } : ruleStatus;
   const recommendation = primary.recommendation;
 
   return {

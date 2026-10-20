@@ -1,0 +1,4031 @@
+{
+ "generated": "2026-10-20",
+ "seedsPerCell": 30,
+ "timings": [
+  3,
+  7,
+  14,
+  21,
+  28,
+  42,
+  56,
+  84
+ ],
+ "archetypes": [
+  {
+   "id": "cut-on-plan",
+   "label": "Cutting, eats to target",
+   "expect": [
+    "ON-TRACK",
+    "NO-CHANGE"
+   ],
+   "asFlag": false,
+   "cause": null
+  },
+  {
+   "id": "cut-over",
+   "label": "Cutting, eats 400 kcal over target",
+   "expect": [
+    "ADH-1",
+    "LOSS-6",
+    "DB-1"
+   ],
+   "asFlag": false,
+   "cause": "over"
+  },
+  {
+   "id": "cut-under-lifts-down",
+   "label": "Cutting hard, 600 under target, lifts dropping",
+   "expect": [
+    "ADH-1",
+    "LOSS-1",
+    "LOSS-2",
+    "LOSS-2u",
+    "LOSS-3",
+    "STR-1",
+    "STR-2"
+   ],
+   "asFlag": false,
+   "cause": "under"
+  },
+  {
+   "id": "cut-short-sleep",
+   "label": "Cutting to plan, sleeping 6.2 h",
+   "expect": [
+    "SLEEP-1",
+    "SLEEP-1i",
+    "SLEEP-2"
+   ],
+   "asFlag": true,
+   "cause": null
+  },
+  {
+   "id": "bulk-on-plan",
+   "label": "Lean bulk, eats to target, lifts rising",
+   "expect": [
+    "ON-TRACK",
+    "NO-CHANGE",
+    "GAIN-3"
+   ],
+   "asFlag": false,
+   "cause": null
+  },
+  {
+   "id": "bulk-over",
+   "label": "Lean bulk, eats 500 kcal over target",
+   "expect": [
+    "GAIN-1",
+    "ADH-1"
+   ],
+   "asFlag": false,
+   "cause": "over"
+  }
+ ],
+ "variants": [
+  {
+   "id": "ideal",
+   "label": "Ideal: daily weigh-ins, every day logged",
+   "weighInDays": "daily",
+   "loggedShare": 1,
+   "partialShare": 0
+  },
+  {
+   "id": "typical",
+   "label": "Typical: weigh-ins 4 days a week, 85% of days logged",
+   "weighInDays": "4x",
+   "loggedShare": 0.85,
+   "partialShare": 0.05
+  },
+  {
+   "id": "patchy",
+   "label": "Patchy: 2 to 3 weigh-ins a week, 55% of days logged, some part-logged",
+   "weighInDays": "sparse",
+   "loggedShare": 0.55,
+   "partialShare": 0.15
+  },
+  {
+   "id": "noisy",
+   "label": "Noisy scale: daily weigh-ins, ±1 kg day to day",
+   "weighInDays": "daily",
+   "loggedShare": 1,
+   "partialShare": 0,
+   "noiseSdKg": 1
+  }
+ ],
+ "cells": [
+  {
+   "archetype": "cut-on-plan",
+   "variant": "ideal",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "ideal",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 439,
+   "expP90AbsErr": 533,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "ideal",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 247,
+   "expP90AbsErr": 617,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "ideal",
+   "day": 21,
+   "runs": 30,
+   "early": 0.9,
+   "correct": 0,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 173,
+   "expP90AbsErr": 441,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-EXP": 27,
+    "ADH-1": 3
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "ideal",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 138,
+   "expP90AbsErr": 349,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.15,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 14,
+    "ON-TRACK": 15,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "ideal",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.8,
+   "wrong": 0.2,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 145,
+   "expP90AbsErr": 283,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 19,
+    "LOSS-2u": 1,
+    "NO-CHANGE": 5,
+    "DB-1": 1,
+    "ADH-1": 1,
+    "LOSS-6": 3
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "ideal",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.77,
+   "wrong": 0.23,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 85,
+   "expP90AbsErr": 154,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 6,
+    "DB-1": 3,
+    "ON-TRACK": 17,
+    "LOSS-6": 4
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "ideal",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.9,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 62,
+   "expP90AbsErr": 134,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 19,
+    "ADH-1": 3,
+    "NO-CHANGE": 8
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "typical",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "typical",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 448,
+   "expP90AbsErr": 534,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "typical",
+   "day": 14,
+   "runs": 30,
+   "early": 0.97,
+   "correct": 0,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 235,
+   "expP90AbsErr": 618,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 28,
+    "DATA-HOLD": 1,
+    "SAFE-1": 1
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "typical",
+   "day": 21,
+   "runs": 30,
+   "early": 0.97,
+   "correct": 0,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 176,
+   "expP90AbsErr": 513,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.31,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-EXP": 26,
+    "DATA-HOLD": 3,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "typical",
+   "day": 28,
+   "runs": 30,
+   "early": 0.07,
+   "correct": 0.83,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 149,
+   "expP90AbsErr": 374,
+   "expUpdating": 0.8,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.18,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 11,
+    "ON-TRACK": 14,
+    "LOSS-2u": 2,
+    "ADH-1": 1,
+    "DATA-EXP": 2
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "typical",
+   "day": 42,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.87,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 140,
+   "expP90AbsErr": 324,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.13,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 17,
+    "NO-CHANGE": 9,
+    "DATA-HOLD": 1,
+    "DB-1": 2,
+    "LOSS-6": 1
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "typical",
+   "day": 56,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.8,
+   "wrong": 0.17,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 90,
+   "expP90AbsErr": 193,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.1,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 8,
+    "DB-1": 3,
+    "ON-TRACK": 16,
+    "DATA-HOLD": 1,
+    "LOSS-6": 2
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "typical",
+   "day": 84,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.97,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 67,
+   "expP90AbsErr": 174,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.1,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 21,
+    "NO-CHANGE": 8,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "patchy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "patchy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 581,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 14,
+    "DATA-HOLD": 16
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "patchy",
+   "day": 14,
+   "runs": 30,
+   "early": 0.87,
+   "correct": 0,
+   "wrong": 0.13,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 792,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 4,
+    "DATA-RATE": 13,
+    "DATA-HOLD": 13
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "patchy",
+   "day": 21,
+   "runs": 30,
+   "early": 0.87,
+   "correct": 0,
+   "wrong": 0.13,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 467,
+   "expP90AbsErr": 792,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 4,
+    "DATA-HOLD": 18,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "patchy",
+   "day": 28,
+   "runs": 30,
+   "early": 0.9,
+   "correct": 0,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 340,
+   "expP90AbsErr": 768,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 3,
+    "DATA-HOLD": 18,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "patchy",
+   "day": 42,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 219,
+   "expP90AbsErr": 477,
+   "expUpdating": 0.07,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 22,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "patchy",
+   "day": 56,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 89,
+   "expP90AbsErr": 374,
+   "expUpdating": 0.1,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "patchy",
+   "day": 84,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 66,
+   "expP90AbsErr": 203,
+   "expUpdating": 0.13,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 24,
+    "DATA-RATE": 6
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "noisy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "noisy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 446,
+   "expP90AbsErr": 640,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "noisy",
+   "day": 14,
+   "runs": 30,
+   "early": 0.83,
+   "correct": 0,
+   "wrong": 0.17,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 372,
+   "expP90AbsErr": 984,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 25,
+    "SAFE-1": 5
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "noisy",
+   "day": 21,
+   "runs": 30,
+   "early": 0.77,
+   "correct": 0,
+   "wrong": 0.23,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 366,
+   "expP90AbsErr": 829,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.46,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-EXP": 23,
+    "ADH-1": 3,
+    "SAFE-1": 2,
+    "LOSS-3": 2
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "noisy",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.83,
+   "wrong": 0.17,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 282,
+   "expP90AbsErr": 581,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.31,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 15,
+    "ON-TRACK": 10,
+    "LOSS-2u": 4,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "noisy",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.77,
+   "wrong": 0.23,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 201,
+   "expP90AbsErr": 413,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 13,
+    "ON-TRACK": 10,
+    "LOSS-2u": 1,
+    "DB-1": 1,
+    "LOSS-6": 4,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "noisy",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.67,
+   "wrong": 0.33,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 97,
+   "expP90AbsErr": 205,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 11,
+    "DB-1": 3,
+    "LOSS-6": 5,
+    "ON-TRACK": 9,
+    "G-EXP-2": 1,
+    "LOSS-2u": 1
+   }
+  },
+  {
+   "archetype": "cut-on-plan",
+   "variant": "noisy",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.9,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 103,
+   "expP90AbsErr": 265,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.22,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 12,
+    "NO-CHANGE": 15,
+    "ADH-1": 3
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "ideal",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "ideal",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 387,
+   "expP90AbsErr": 474,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "ideal",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 162,
+   "expP90AbsErr": 429,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "ideal",
+   "day": 21,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 150,
+   "expP90AbsErr": 574,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": null,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "ideal",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 200,
+   "expP90AbsErr": 538,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.15,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "ideal",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 219,
+   "expP90AbsErr": 369,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.11,
+   "causeNamed": 1,
+   "verdicts": {
+    "DB-1": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "ideal",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 84,
+   "expP90AbsErr": 163,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": 1,
+   "verdicts": {
+    "DB-1": 28,
+    "LOSS-6": 1,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "ideal",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 66,
+   "expP90AbsErr": 139,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.11,
+   "causeNamed": 1,
+   "verdicts": {
+    "DB-1": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "typical",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "typical",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 398,
+   "expP90AbsErr": 484,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "typical",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 174,
+   "expP90AbsErr": 404,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "typical",
+   "day": 21,
+   "runs": 30,
+   "early": 0.43,
+   "correct": 0.57,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 159,
+   "expP90AbsErr": 475,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.29,
+   "causeNamed": null,
+   "verdicts": {
+    "ADH-1": 17,
+    "DATA-EXP": 10,
+    "DATA-HOLD": 3
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "typical",
+   "day": 28,
+   "runs": 30,
+   "early": 0.13,
+   "correct": 0.4,
+   "wrong": 0.47,
+   "falseOnTrack": 0.23,
+   "expMedianAbsErr": 177,
+   "expP90AbsErr": 546,
+   "expUpdating": 0.8,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.19,
+   "causeNamed": 1,
+   "verdicts": {
+    "NO-CHANGE": 7,
+    "ADH-1": 12,
+    "DATA-EXP": 4,
+    "ON-TRACK": 7
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "typical",
+   "day": 42,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.53,
+   "wrong": 0.43,
+   "falseOnTrack": 0.03,
+   "expMedianAbsErr": 207,
+   "expP90AbsErr": 401,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": 1,
+   "verdicts": {
+    "NO-CHANGE": 12,
+    "DB-1": 14,
+    "ON-TRACK": 1,
+    "DATA-HOLD": 1,
+    "LOSS-6": 2
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "typical",
+   "day": 56,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.73,
+   "wrong": 0.23,
+   "falseOnTrack": 0.03,
+   "expMedianAbsErr": 87,
+   "expP90AbsErr": 218,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.1,
+   "causeNamed": 0.97,
+   "verdicts": {
+    "NO-CHANGE": 6,
+    "DB-1": 12,
+    "LOSS-6": 9,
+    "DATA-HOLD": 1,
+    "ADH-1": 1,
+    "ON-TRACK": 1
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "typical",
+   "day": 84,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.63,
+   "wrong": 0.33,
+   "falseOnTrack": 0.1,
+   "expMedianAbsErr": 80,
+   "expP90AbsErr": 149,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.09,
+   "causeNamed": 1,
+   "verdicts": {
+    "DB-1": 16,
+    "NO-CHANGE": 7,
+    "LOSS-6": 3,
+    "ON-TRACK": 3,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "patchy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "patchy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 554,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 14,
+    "DATA-HOLD": 16
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "patchy",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 666,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 17,
+    "DATA-RATE": 13
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "patchy",
+   "day": 21,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 340,
+   "expP90AbsErr": 666,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 22,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "patchy",
+   "day": 28,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 270,
+   "expP90AbsErr": 656,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "patchy",
+   "day": 42,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 218,
+   "expP90AbsErr": 413,
+   "expUpdating": 0.07,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 22,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "patchy",
+   "day": 56,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 127,
+   "expP90AbsErr": 299,
+   "expUpdating": 0.1,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "patchy",
+   "day": 84,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 90,
+   "expP90AbsErr": 217,
+   "expUpdating": 0.13,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 24,
+    "DATA-RATE": 6
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "noisy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "noisy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 397,
+   "expP90AbsErr": 585,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "noisy",
+   "day": 14,
+   "runs": 30,
+   "early": 0.87,
+   "correct": 0,
+   "wrong": 0.13,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 294,
+   "expP90AbsErr": 834,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 26,
+    "SAFE-1": 4
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "noisy",
+   "day": 21,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 369,
+   "expP90AbsErr": 933,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.47,
+   "causeNamed": null,
+   "verdicts": {
+    "ADH-1": 29,
+    "SAFE-1": 1
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "noisy",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 279,
+   "expP90AbsErr": 727,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.32,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "noisy",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 272,
+   "expP90AbsErr": 489,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": 1,
+   "verdicts": {
+    "DB-1": 30
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "noisy",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 91,
+   "expP90AbsErr": 208,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": 1,
+   "verdicts": {
+    "DB-1": 28,
+    "LOSS-6": 1,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "cut-over",
+   "variant": "noisy",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 120,
+   "expP90AbsErr": 256,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.21,
+   "causeNamed": 1,
+   "verdicts": {
+    "DB-1": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "ideal",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "ideal",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 516,
+   "expP90AbsErr": 613,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "ideal",
+   "day": 14,
+   "runs": 30,
+   "early": 0.83,
+   "correct": 0,
+   "wrong": 0.17,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 503,
+   "expP90AbsErr": 870,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 25,
+    "SAFE-1": 5
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "ideal",
+   "day": 21,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 395,
+   "expP90AbsErr": 665,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.21,
+   "causeNamed": null,
+   "verdicts": {
+    "ADH-1": 29,
+    "SAFE-1": 1
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "ideal",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 223,
+   "expP90AbsErr": 411,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "ideal",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 90,
+   "expP90AbsErr": 206,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": 0.97,
+   "verdicts": {
+    "ADH-1": 29,
+    "SAFE-4": 1
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "ideal",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 78,
+   "expP90AbsErr": 134,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.11,
+   "causeNamed": 0.97,
+   "verdicts": {
+    "ADH-1": 29,
+    "SAFE-4": 1
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "ideal",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 62,
+   "expP90AbsErr": 183,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "typical",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "typical",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 523,
+   "expP90AbsErr": 605,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "typical",
+   "day": 14,
+   "runs": 30,
+   "early": 0.83,
+   "correct": 0,
+   "wrong": 0.17,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 526,
+   "expP90AbsErr": 847,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 5,
+    "DATA-HOLD": 1,
+    "DATA-RATE": 24
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "typical",
+   "day": 21,
+   "runs": 30,
+   "early": 0.37,
+   "correct": 0.6,
+   "wrong": 0.03,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 427,
+   "expP90AbsErr": 735,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.33,
+   "causeNamed": null,
+   "verdicts": {
+    "ADH-1": 17,
+    "LOSS-3": 1,
+    "DATA-EXP": 8,
+    "DATA-HOLD": 3,
+    "SAFE-1": 1
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "typical",
+   "day": 28,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.87,
+   "wrong": 0.1,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 229,
+   "expP90AbsErr": 443,
+   "expUpdating": 0.8,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.16,
+   "causeNamed": 1,
+   "verdicts": {
+    "LOSS-3": 7,
+    "ADH-1": 12,
+    "LOSS-2u": 7,
+    "DATA-EXP": 1,
+    "NO-CHANGE": 3
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "typical",
+   "day": 42,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.87,
+   "wrong": 0.1,
+   "falseOnTrack": 0.03,
+   "expMedianAbsErr": 92,
+   "expP90AbsErr": 219,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.13,
+   "causeNamed": 1,
+   "verdicts": {
+    "LOSS-2u": 11,
+    "ADH-1": 14,
+    "LOSS-3": 1,
+    "DATA-HOLD": 1,
+    "ON-TRACK": 1,
+    "NO-CHANGE": 2
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "typical",
+   "day": 56,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.67,
+   "wrong": 0.3,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 64,
+   "expP90AbsErr": 131,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.08,
+   "causeNamed": 0.97,
+   "verdicts": {
+    "NO-CHANGE": 8,
+    "ADH-1": 14,
+    "LOSS-2u": 6,
+    "DATA-HOLD": 1,
+    "SAFE-4": 1
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "typical",
+   "day": 84,
+   "runs": 30,
+   "early": 0.07,
+   "correct": 0.67,
+   "wrong": 0.27,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 68,
+   "expP90AbsErr": 241,
+   "expUpdating": 0.93,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.1,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 16,
+    "NO-CHANGE": 8,
+    "LOSS-2u": 4,
+    "DATA-HOLD": 2
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "patchy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "patchy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 644,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 14,
+    "DATA-HOLD": 16
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "patchy",
+   "day": 14,
+   "runs": 30,
+   "early": 0.73,
+   "correct": 0,
+   "wrong": 0.27,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 483,
+   "expP90AbsErr": 938,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 8,
+    "DATA-RATE": 9,
+    "DATA-HOLD": 13
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "patchy",
+   "day": 21,
+   "runs": 30,
+   "early": 0.87,
+   "correct": 0,
+   "wrong": 0.13,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 526,
+   "expP90AbsErr": 938,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 4,
+    "DATA-HOLD": 18,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "patchy",
+   "day": 28,
+   "runs": 30,
+   "early": 0.9,
+   "correct": 0,
+   "wrong": 0.1,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 479,
+   "expP90AbsErr": 938,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "SAFE-1": 3,
+    "DATA-HOLD": 17,
+    "DATA-RATE": 10
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "patchy",
+   "day": 42,
+   "runs": 30,
+   "early": 0.97,
+   "correct": 0,
+   "wrong": 0.03,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 232,
+   "expP90AbsErr": 634,
+   "expUpdating": 0.07,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 8,
+    "SAFE-1": 1
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "patchy",
+   "day": 56,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 101,
+   "expP90AbsErr": 388,
+   "expUpdating": 0.1,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "patchy",
+   "day": 84,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 79,
+   "expP90AbsErr": 174,
+   "expUpdating": 0.1,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 24,
+    "DATA-RATE": 6
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "noisy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "noisy",
+   "day": 7,
+   "runs": 30,
+   "early": 0.97,
+   "correct": 0,
+   "wrong": 0.03,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 520,
+   "expP90AbsErr": 722,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "SAFE-1": 1
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "noisy",
+   "day": 14,
+   "runs": 30,
+   "early": 0.73,
+   "correct": 0,
+   "wrong": 0.27,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 521,
+   "expP90AbsErr": 1236,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 8,
+    "DATA-RATE": 22
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "noisy",
+   "day": 21,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.77,
+   "wrong": 0.23,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 481,
+   "expP90AbsErr": 984,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.45,
+   "causeNamed": null,
+   "verdicts": {
+    "ADH-1": 23,
+    "SAFE-1": 7
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "noisy",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 333,
+   "expP90AbsErr": 612,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.29,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "noisy",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 168,
+   "expP90AbsErr": 364,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.24,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "noisy",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 85,
+   "expP90AbsErr": 183,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "cut-under-lifts-down",
+   "variant": "noisy",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 112,
+   "expP90AbsErr": 273,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.22,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "ideal",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "ideal",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 439,
+   "expP90AbsErr": 533,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "ideal",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 247,
+   "expP90AbsErr": 617,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "ideal",
+   "day": 21,
+   "runs": 30,
+   "early": 0.9,
+   "correct": 0.93,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 173,
+   "expP90AbsErr": 441,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-EXP": 27,
+    "ADH-1": 3
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "ideal",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.9,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 138,
+   "expP90AbsErr": 349,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.15,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 14,
+    "ON-TRACK": 15,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "ideal",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 145,
+   "expP90AbsErr": 283,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 19,
+    "LOSS-2u": 1,
+    "NO-CHANGE": 4,
+    "DB-1": 1,
+    "SLEEP-1": 1,
+    "ADH-1": 1,
+    "LOSS-6": 3
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "ideal",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 85,
+   "expP90AbsErr": 154,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 6,
+    "DB-1": 3,
+    "ON-TRACK": 17,
+    "LOSS-6": 4
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "ideal",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 62,
+   "expP90AbsErr": 134,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 19,
+    "ADH-1": 3,
+    "NO-CHANGE": 8
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "typical",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "typical",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 448,
+   "expP90AbsErr": 534,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "typical",
+   "day": 14,
+   "runs": 30,
+   "early": 0.97,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 235,
+   "expP90AbsErr": 618,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 28,
+    "DATA-HOLD": 1,
+    "SAFE-1": 1
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "typical",
+   "day": 21,
+   "runs": 30,
+   "early": 0.97,
+   "correct": 0.93,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 176,
+   "expP90AbsErr": 513,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.31,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-EXP": 26,
+    "DATA-HOLD": 3,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "typical",
+   "day": 28,
+   "runs": 30,
+   "early": 0.07,
+   "correct": 0.9,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 149,
+   "expP90AbsErr": 374,
+   "expUpdating": 0.8,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.18,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 11,
+    "ON-TRACK": 14,
+    "LOSS-2u": 2,
+    "ADH-1": 1,
+    "DATA-EXP": 2
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "typical",
+   "day": 42,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 140,
+   "expP90AbsErr": 324,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.13,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 17,
+    "NO-CHANGE": 9,
+    "DATA-HOLD": 1,
+    "DB-1": 2,
+    "SLEEP-1": 1
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "typical",
+   "day": 56,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 90,
+   "expP90AbsErr": 193,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.1,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 8,
+    "DB-1": 3,
+    "ON-TRACK": 16,
+    "DATA-HOLD": 1,
+    "LOSS-6": 2
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "typical",
+   "day": 84,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 67,
+   "expP90AbsErr": 174,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.1,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 21,
+    "NO-CHANGE": 8,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "patchy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "patchy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 581,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 14,
+    "DATA-HOLD": 16
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "patchy",
+   "day": 14,
+   "runs": 30,
+   "early": 0.87,
+   "correct": 0.87,
+   "wrong": 0.13,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 792,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 4,
+    "DATA-RATE": 13,
+    "DATA-HOLD": 13
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "patchy",
+   "day": 21,
+   "runs": 30,
+   "early": 0.87,
+   "correct": 0.8,
+   "wrong": 0.13,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 467,
+   "expP90AbsErr": 792,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 4,
+    "DATA-HOLD": 18,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "patchy",
+   "day": 28,
+   "runs": 30,
+   "early": 0.9,
+   "correct": 0.8,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 340,
+   "expP90AbsErr": 768,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "SAFE-1": 3,
+    "DATA-HOLD": 18,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "patchy",
+   "day": 42,
+   "runs": 30,
+   "early": 1,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 219,
+   "expP90AbsErr": 477,
+   "expUpdating": 0.07,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 22,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "patchy",
+   "day": 56,
+   "runs": 30,
+   "early": 1,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 89,
+   "expP90AbsErr": 374,
+   "expUpdating": 0.1,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "patchy",
+   "day": 84,
+   "runs": 30,
+   "early": 1,
+   "correct": 0.97,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 66,
+   "expP90AbsErr": 203,
+   "expUpdating": 0.13,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 24,
+    "DATA-RATE": 6
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "noisy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 477,
+   "expP90AbsErr": 477,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "noisy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 446,
+   "expP90AbsErr": 640,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "noisy",
+   "day": 14,
+   "runs": 30,
+   "early": 0.83,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 372,
+   "expP90AbsErr": 984,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 25,
+    "SAFE-1": 5
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "noisy",
+   "day": 21,
+   "runs": 30,
+   "early": 0.77,
+   "correct": 0.93,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 366,
+   "expP90AbsErr": 829,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.46,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-EXP": 23,
+    "ADH-1": 3,
+    "SAFE-1": 2,
+    "LOSS-3": 2
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "noisy",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.9,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 282,
+   "expP90AbsErr": 581,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.31,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 15,
+    "ON-TRACK": 10,
+    "LOSS-2u": 4,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "noisy",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 201,
+   "expP90AbsErr": 413,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 13,
+    "ON-TRACK": 10,
+    "LOSS-2u": 1,
+    "DB-1": 1,
+    "SLEEP-1": 1,
+    "ADH-1": 1,
+    "LOSS-6": 3
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "noisy",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 97,
+   "expP90AbsErr": 205,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 11,
+    "DB-1": 3,
+    "LOSS-6": 5,
+    "ON-TRACK": 9,
+    "G-EXP-2": 1,
+    "LOSS-2u": 1
+   }
+  },
+  {
+   "archetype": "cut-short-sleep",
+   "variant": "noisy",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 103,
+   "expP90AbsErr": 265,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.22,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 12,
+    "NO-CHANGE": 15,
+    "ADH-1": 3
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "ideal",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 310,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "ideal",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 334,
+   "expP90AbsErr": 428,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "ideal",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 351,
+   "expP90AbsErr": 719,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "ideal",
+   "day": 21,
+   "runs": 30,
+   "early": 0.9,
+   "correct": 0,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 317,
+   "expP90AbsErr": 610,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.23,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-EXP": 27,
+    "ADH-1": 3
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "ideal",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 227,
+   "expP90AbsErr": 466,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.16,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 18,
+    "ON-TRACK": 11,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "ideal",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.9,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 98,
+   "expP90AbsErr": 227,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 20,
+    "ON-TRACK": 7,
+    "ADH-1": 2,
+    "GAIN-1": 1
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "ideal",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.83,
+   "wrong": 0.17,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 47,
+   "expP90AbsErr": 102,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 10,
+    "ADH-1": 3,
+    "ON-TRACK": 15,
+    "GAIN-1": 2
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "ideal",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.9,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 64,
+   "expP90AbsErr": 169,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.13,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 19,
+    "ADH-1": 3,
+    "NO-CHANGE": 8
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "typical",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 310,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "typical",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 346,
+   "expP90AbsErr": 440,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "typical",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 419,
+   "expP90AbsErr": 728,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "typical",
+   "day": 21,
+   "runs": 30,
+   "early": 0.97,
+   "correct": 0,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 356,
+   "expP90AbsErr": 724,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.33,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-EXP": 26,
+    "DATA-HOLD": 3,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "typical",
+   "day": 28,
+   "runs": 30,
+   "early": 0.1,
+   "correct": 0.87,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 253,
+   "expP90AbsErr": 504,
+   "expUpdating": 0.8,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.16,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 13,
+    "DATA-EXP": 3,
+    "ON-TRACK": 13,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "typical",
+   "day": 42,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.9,
+   "wrong": 0.07,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 92,
+   "expP90AbsErr": 250,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.14,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 21,
+    "ON-TRACK": 6,
+    "DATA-HOLD": 1,
+    "ADH-1": 2
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "typical",
+   "day": 56,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.87,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 53,
+   "expP90AbsErr": 145,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 6,
+    "ADH-1": 3,
+    "ON-TRACK": 20,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "typical",
+   "day": 84,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.97,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 63,
+   "expP90AbsErr": 224,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.12,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 21,
+    "NO-CHANGE": 8,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "patchy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 310,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "patchy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 514,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 14,
+    "DATA-HOLD": 16
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "patchy",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 465,
+   "expP90AbsErr": 911,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 17,
+    "DATA-RATE": 13
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "patchy",
+   "day": 21,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 484,
+   "expP90AbsErr": 883,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 22,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "patchy",
+   "day": 28,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 418,
+   "expP90AbsErr": 883,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "patchy",
+   "day": 42,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 227,
+   "expP90AbsErr": 635,
+   "expUpdating": 0.07,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 22,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "patchy",
+   "day": 56,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 136,
+   "expP90AbsErr": 505,
+   "expUpdating": 0.1,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "patchy",
+   "day": 84,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 81,
+   "expP90AbsErr": 168,
+   "expUpdating": 0.13,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 24,
+    "DATA-RATE": 6
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "noisy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 310,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "noisy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 344,
+   "expP90AbsErr": 538,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "noisy",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 469,
+   "expP90AbsErr": 1128,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "noisy",
+   "day": 21,
+   "runs": 30,
+   "early": 0.9,
+   "correct": 0,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 457,
+   "expP90AbsErr": 1005,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.5,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-EXP": 27,
+    "ADH-1": 3
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "noisy",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.97,
+   "wrong": 0.03,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 346,
+   "expP90AbsErr": 720,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.32,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 20,
+    "ON-TRACK": 9,
+    "ADH-1": 1
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "noisy",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.87,
+   "wrong": 0.13,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 199,
+   "expP90AbsErr": 371,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.25,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 21,
+    "ADH-1": 2,
+    "ON-TRACK": 5,
+    "GAIN-1": 2
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "noisy",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.77,
+   "wrong": 0.23,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 78,
+   "expP90AbsErr": 194,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.25,
+   "causeNamed": null,
+   "verdicts": {
+    "NO-CHANGE": 14,
+    "ADH-1": 3,
+    "ON-TRACK": 9,
+    "GAIN-1": 4
+   }
+  },
+  {
+   "archetype": "bulk-on-plan",
+   "variant": "noisy",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 0.9,
+   "wrong": 0.1,
+   "falseOnTrack": null,
+   "expMedianAbsErr": 124,
+   "expP90AbsErr": 260,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.24,
+   "causeNamed": null,
+   "verdicts": {
+    "ON-TRACK": 13,
+    "NO-CHANGE": 14,
+    "ADH-1": 3
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "ideal",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 310,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "ideal",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 263,
+   "expP90AbsErr": 362,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "ideal",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 195,
+   "expP90AbsErr": 495,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "ideal",
+   "day": 21,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 176,
+   "expP90AbsErr": 435,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.25,
+   "causeNamed": null,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "ideal",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 159,
+   "expP90AbsErr": 315,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.14,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "ideal",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 91,
+   "expP90AbsErr": 213,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.1,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "ideal",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 48,
+   "expP90AbsErr": 111,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.11,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "ideal",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 56,
+   "expP90AbsErr": 133,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.11,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "typical",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 310,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "typical",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 286,
+   "expP90AbsErr": 380,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "typical",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 192,
+   "expP90AbsErr": 491,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 29,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "typical",
+   "day": 21,
+   "runs": 30,
+   "early": 0.43,
+   "correct": 0.57,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 166,
+   "expP90AbsErr": 510,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.33,
+   "causeNamed": null,
+   "verdicts": {
+    "ADH-1": 17,
+    "DATA-EXP": 10,
+    "DATA-HOLD": 3
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "typical",
+   "day": 28,
+   "runs": 30,
+   "early": 0.13,
+   "correct": 0.4,
+   "wrong": 0.47,
+   "falseOnTrack": 0.2,
+   "expMedianAbsErr": 156,
+   "expP90AbsErr": 359,
+   "expUpdating": 0.8,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.18,
+   "causeNamed": 1,
+   "verdicts": {
+    "NO-CHANGE": 8,
+    "ADH-1": 12,
+    "DATA-EXP": 4,
+    "ON-TRACK": 6
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "typical",
+   "day": 42,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.7,
+   "wrong": 0.27,
+   "falseOnTrack": 0.07,
+   "expMedianAbsErr": 93,
+   "expP90AbsErr": 281,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.13,
+   "causeNamed": 1,
+   "verdicts": {
+    "NO-CHANGE": 6,
+    "GAIN-1": 7,
+    "ADH-1": 14,
+    "ON-TRACK": 2,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "typical",
+   "day": 56,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.93,
+   "wrong": 0.03,
+   "falseOnTrack": 0.03,
+   "expMedianAbsErr": 55,
+   "expP90AbsErr": 158,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.09,
+   "causeNamed": 1,
+   "verdicts": {
+    "GAIN-1": 14,
+    "ADH-1": 14,
+    "DATA-HOLD": 1,
+    "ON-TRACK": 1
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "typical",
+   "day": 84,
+   "runs": 30,
+   "early": 0.03,
+   "correct": 0.9,
+   "wrong": 0.07,
+   "falseOnTrack": 0.07,
+   "expMedianAbsErr": 59,
+   "expP90AbsErr": 177,
+   "expUpdating": 0.97,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.09,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 16,
+    "GAIN-1": 11,
+    "ON-TRACK": 2,
+    "DATA-HOLD": 1
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "patchy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 310,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "patchy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 471,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 14,
+    "DATA-HOLD": 16
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "patchy",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 328,
+   "expP90AbsErr": 773,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 17,
+    "DATA-RATE": 13
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "patchy",
+   "day": 21,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 349,
+   "expP90AbsErr": 706,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-HOLD": 22,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "patchy",
+   "day": 28,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 328,
+   "expP90AbsErr": 706,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "patchy",
+   "day": 42,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 197,
+   "expP90AbsErr": 390,
+   "expUpdating": 0.07,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 22,
+    "DATA-RATE": 8
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "patchy",
+   "day": 56,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 106,
+   "expP90AbsErr": 345,
+   "expUpdating": 0.1,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 21,
+    "DATA-RATE": 9
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "patchy",
+   "day": 84,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 72,
+   "expP90AbsErr": 164,
+   "expUpdating": 0.13,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": 0,
+   "verdicts": {
+    "DATA-HOLD": 24,
+    "DATA-RATE": 6
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "noisy",
+   "day": 3,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 310,
+   "expP90AbsErr": 310,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "noisy",
+   "day": 7,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 278,
+   "expP90AbsErr": 466,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "noisy",
+   "day": 14,
+   "runs": 30,
+   "early": 1,
+   "correct": 0,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 338,
+   "expP90AbsErr": 890,
+   "expUpdating": 0,
+   "rateShare": 0,
+   "rateMedianAbsErr": null,
+   "causeNamed": null,
+   "verdicts": {
+    "DATA-RATE": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "noisy",
+   "day": 21,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 329,
+   "expP90AbsErr": 861,
+   "expUpdating": 0,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.49,
+   "causeNamed": null,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "noisy",
+   "day": 28,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 306,
+   "expP90AbsErr": 586,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.31,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "noisy",
+   "day": 42,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 178,
+   "expP90AbsErr": 419,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.24,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "noisy",
+   "day": 56,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 80,
+   "expP90AbsErr": 182,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.22,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  },
+  {
+   "archetype": "bulk-over",
+   "variant": "noisy",
+   "day": 84,
+   "runs": 30,
+   "early": 0,
+   "correct": 1,
+   "wrong": 0,
+   "falseOnTrack": 0,
+   "expMedianAbsErr": 105,
+   "expP90AbsErr": 268,
+   "expUpdating": 1,
+   "rateShare": 1,
+   "rateMedianAbsErr": 0.21,
+   "causeNamed": 1,
+   "verdicts": {
+    "ADH-1": 30
+   }
+  }
+ ]
+}

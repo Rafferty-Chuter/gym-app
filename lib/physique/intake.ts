@@ -22,8 +22,8 @@ export const PARTIAL_MIN_COMPLETE_DAYS = 7;
 export const ADHERENCE_WINDOW_DAYS = 14;
 /** Fixed part of the adherence tolerance, kcal/day. OURS. */
 export const ADHERENCE_TOLERANCE_KCAL = 150;
-/** One-sided 95% z for the adherence noise term. OURS (sim: a plain ±150 fires 10.7% of the time on a perfectly adherent user). */
-export const ADHERENCE_Z = 1.645;
+/** Two-sided 95% z for the adherence noise term: |delta| is tested both ways. OURS (sim: a plain ±150 fires 10.7% of the time on a perfectly adherent user; 1.645 still fired 10 to 17% in the usefulness study, research H). */
+export const ADHERENCE_Z = 1.96;
 /** Window for the short macro means, days. OURS. */
 export const MACRO_WINDOW_SHORT_DAYS = 7;
 /** Window for the long macro means, days. OURS. */
@@ -199,7 +199,7 @@ export type Adherence = {
 /**
  * Adherence against the target in effect on each day (02 §3): the mean of
  * (intake − target) over complete/fasting days with a program in the last
- * `windowDays`. On target unless |delta| > max(150, 1.645 × sd / √n).
+ * `windowDays`. On target unless |delta| > max(150, 1.96 × sd / √n).
  * Suspected partial days are already left out (C11), so nothing waits on them.
  */
 export function adherence(
