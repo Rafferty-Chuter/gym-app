@@ -107,7 +107,9 @@ describe("Findings in a line (PR3d)", () => {
     const gain = run(gainSpec).find((f) => f.id === "gain-fast")!;
     expect(gain.fact).toMatch(/^Gaining \d\.\d kg a week · studies: up to \d\.\d kg$/);
     const protein = run(gainSpec).find((f) => f.id === "protein-low")!;
-    expect(protein.fact).toMatch(/^\d\.\d\d? g per kg a day · studies: 1\.6 or more$/);
+    expect(protein.fact).toMatch(/^\d+ g a day · studies: \d+ g or more$/);
+    const [had, need] = protein.fact.match(/\d+/g)!.map(Number);
+    expect(had).toBeLessThan(need);
   });
 
   it("follows the display unit", () => {

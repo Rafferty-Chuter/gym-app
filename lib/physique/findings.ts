@@ -245,12 +245,13 @@ export function findings(i: FindingInputs, through: LocalDate): Finding[] {
       const perKg = Number(gPerKg.toFixed(1)) >= floor ? gPerKg.toFixed(2) : gPerKg.toFixed(1);
       out.push({
         id: "protein-low",
-        title: "Protein below the evidence",
-        fact: `${perKg} g per kg a day · studies: ${floor.toFixed(1)} or more`,
+        title: "Low on protein",
+        // Plain grams for this person's weight, not g/kg (the founder: no technical wording). Down and up so the two never meet.
+        fact: `${Math.floor(g)} g a day · studies: ${Math.ceil(floor * endKg)} g or more`,
         // Two decimals when one would round up to the level it is under ("1.8, under 1.8" read as a contradiction).
         data: `Protein averaged ${n0(g)} g a day over ${complete.length} complete days in the last 4 weeks, ${perKg} g per kg of body weight.`,
         evidence: cut
-          ? `In a deficit, a review of lean lifters puts it at 2.3 to 3.1 g per kg of lean mass, about 1.8 g per kg of body weight (Helms 2014).`
+          ? `Lean lifters in a deficit kept more muscle on about 1.8 g per kg of body weight or more (Helms 2014).`
           : `Across 49 trials, gains from training levelled off at about 1.6 g per kg a day (Morton 2018).`,
         sources: cut ? ["Helms ER et al. Int J Sport Nutr Exerc Metab 2014;24:127–38"] : ["Morton RW et al. Br J Sports Med 2018;52:376–84"],
       });
