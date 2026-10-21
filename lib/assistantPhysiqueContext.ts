@@ -7,7 +7,7 @@
 
 /** Added to STATIC_COACH_SYSTEM_PROMPT. Mirrors 02-engine-spec §10 (must-not-claim). */
 export const PHYSIQUE_CONTEXT_INTEGRATION_BLOCK = `
-- A separate system message labelled "PHYSIQUE CONTEXT" may accompany requests when the user tracks bodyweight, food or sleep in the Body tab. It is built deterministically by the physique engine on the user's device: trend weight, rate of change with its window and weigh-in count, the expenditure (maintenance) estimate and its confidence state, calorie and macro targets, adherence, strength and sleep reads, and a verdict with its rule id.
+- A separate system message labelled "PHYSIQUE CONTEXT" may accompany requests when the user tracks bodyweight, food or sleep (shown on the Progress tab). It is built deterministically by the physique engine on the user's device: trend weight, rate of change with its window and weigh-in count, the expenditure (maintenance) estimate and its confidence state, calorie and macro targets, adherence, strength and sleep reads, and a verdict with its rule id.
 - The verdict is decided. Explain it; do not re-judge it, soften it, or contradict its numbers. If the user disagrees with it, say what extra data would change it rather than substituting your own call.
 - Lead with the verdict, then the two strongest numbers behind it, then one action. A few sentences unless asked for more.
 - Cite only numbers that appear in the block, and state the window and sample size next to any judgement ("over 28 days, 24 weigh-ins"). Never compute new rates, targets, calories, protein grams or dates yourself. If a number is not in the block, say it is not available yet.
@@ -15,13 +15,15 @@ export const PHYSIQUE_CONTEXT_INTEGRATION_BLOCK = `
 - Recomposition is neither impossible nor guaranteed; suggest it only when the block does.
 - Name confounders before blaming the plan: water shifts at a phase start, creatine, sodium and carbohydrate changes, travel, illness, the menstrual cycle, incomplete food logs, few weigh-ins.
 - Diet breaks are adherence and hunger tools, not metabolic ones. Don't state maintenance more precisely than the block's ± range.
-- When the block is absent and the user asks about bodyweight, calories or sleep, say that the Body tab is where that gets tracked, then answer generally and hedge.
+- When the block has an ASKED ABOUT section, the user tapped that connection or finding on Progress: answer about it first, from its facts only, in plain words: what was compared, what the numbers mean, and what they can't show (two things moving together is not proof one causes the other). No advice unless the user asks for it.
+- When the block is absent and the user asks about bodyweight, calories or sleep, say that weight, food and sleep get logged in the app and shown on Progress, then answer generally and hedge.
 `.trim();
 
 // ── Payload validation (server) ──
 
 import { z } from "zod";
 import type { AssistantPhysiquePayload } from "@/lib/physique/payload";
+import { ASK_FACT_MAX_CHARS, ASK_MAX_FACTS, ASK_TITLE_MAX_CHARS } from "@/lib/physique/askAbout";
 
 const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const num = z.number().finite();
@@ -114,6 +116,13 @@ export const assistantPhysiquePayloadSchema = z.object({
     goal: z.object({ type: z.enum(["lose", "maintain", "gain"]), targetKg: num, ratePctPerWeek: num, startDate: localDate }).nullable(),
     targets: z.object({ kcal: num, proteinG: num, fatG: num, carbsG: num, since: localDate }).nullable(),
   }),
+  subject: z
+    .object({
+      kind: z.enum(["connection", "finding"]),
+      title: z.string().max(ASK_TITLE_MAX_CHARS),
+      facts: z.array(z.string().max(ASK_FACT_MAX_CHARS)).max(ASK_MAX_FACTS),
+    })
+    .optional(),
 });
 
 export type ValidatedPhysiquePayload = z.infer<typeof assistantPhysiquePayloadSchema>;
@@ -144,6 +153,8 @@ export function validatePhysiquePayload(raw: unknown): PhysiqueValidation {
 
 /** Upper bound on the block for the largest valid payload (I2 acceptance). OURS. */
 export const PHYSIQUE_BLOCK_MAX_CHARS = 2400;
+/** Upper bound on the ASKED ABOUT section for the largest valid subject (PR3f), on top of the block. OURS: six facts at their limit plus the heading. */
+export const PHYSIQUE_SUBJECT_MAX_CHARS = 1600;
 
 const fmtKg = (v: number | null | undefined) => (v == null ? "n/a" : `${v.toFixed(1)} kg`);
 const fmtRate = (v: number | null | undefined) => (v == null ? "n/a" : `${v > 0 ? "+" : ""}${v.toFixed(2)} %/wk`);
@@ -190,5 +201,11 @@ export function formatPhysiqueContextBlock(input: AssistantPhysiquePayload | Val
   if (r.intake.length) lines.push(`RECENT INTAKE (day:kcal/P g${r.intake.some((i) => i.status !== "complete") ? ", * partial, f fasting" : ""}): ${r.intake.map((i) => `${i.d}:${Math.round(i.kcal)}/${Math.round(i.p)}${i.status === "partial" ? "*" : i.status === "fasting" ? "f" : ""}`).join(" ")}`);
   if (r.sleep.length) lines.push(`RECENT SLEEP (day:h): ${r.sleep.map((s) => `${s.d}:${s.h.toFixed(1)}`).join(" ")}`);
   for (const l of r.lifts.slice(0, 4)) lines.push(`E1RM ${l.name.slice(0, 24)} (day:kg): ${l.e1rm.map((e) => `${e.d}:${e.kg.toFixed(1)}`).join(" ")}`);
+  // PR3f: what the user tapped "Ask the coach why" on, as the engine read it.
+  const s = input.subject;
+  if (s) {
+    lines.push(`ASKED ABOUT (${s.kind} on Progress): ${s.title}`);
+    for (const f of s.facts) lines.push(`- ${f}`);
+  }
   return lines.join("\n");
 }

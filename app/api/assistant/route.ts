@@ -840,7 +840,7 @@ function buildLoggedTrainingPreamble(params: {
     const physiqueNote = params.hasPhysiqueData
       ? `
 
-PHYSIQUE DATA PRESENT: the user does track bodyweight, food and sleep in the Body tab (see the PHYSIQUE CONTEXT system block). Questions about weight, calories, expenditure, sleep or whether their plan is working are answered from that block, with its verdict and numbers. The cold-start rules above apply to training programming only.`
+PHYSIQUE DATA PRESENT: the user does track bodyweight, food and sleep, shown on the Progress tab (see the PHYSIQUE CONTEXT system block). Questions about weight, calories, expenditure, sleep or whether their plan is working are answered from that block, with its verdict and numbers. The cold-start rules above apply to training programming only.`
       : "";
     return `=== LOGGED TRAINING STATUS — COLD START (NO DATA) ===
 The user has 0 completed workouts logged in this app. The whole value of this Coach is personalised guidance from logged training; with no data, you cannot personalise.
@@ -2140,7 +2140,7 @@ Hard rules:
 - Cite only numbers that appear in that block. Never compute rates, targets, calories, protein or dates yourself; if a number is missing, say it isn't available yet and what logging would produce it.
 - The verdict is decided: explain it, don't re-judge it. Name confounders before blaming the plan.
 - Do not route this into bench or 1RM projections; training data is supporting context only.
-- If there is no PHYSIQUE CONTEXT block, say the Body tab is where weight, food and sleep get tracked, then answer generally and hedge.
+- If there is no PHYSIQUE CONTEXT block, say weight, food and sleep get logged in the app and shown on Progress, then answer generally and hedge.
 
 User question:
 ${message}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatPhysiqueContextBlock, PHYSIQUE_BLOCK_MAX_CHARS, validatePhysiquePayload } from "@/lib/assistantPhysiqueContext";
+import { formatPhysiqueContextBlock, PHYSIQUE_BLOCK_MAX_CHARS, PHYSIQUE_SUBJECT_MAX_CHARS, validatePhysiquePayload } from "@/lib/assistantPhysiqueContext";
+import { ASK_FACT_MAX_CHARS, ASK_MAX_FACTS } from "@/lib/physique/askAbout";
 import type { AssistantPhysiquePayload } from "@/lib/physique/payload";
 import type { RuleId } from "@/lib/physique/types";
 
@@ -90,5 +91,29 @@ describe("assistant physique context (I2)", () => {
     const huge = maximalPayload();
     (huge.recent as unknown as { blob: string }).blob = "x".repeat(70_000);
     expect(validatePhysiquePayload(huge).ok).toBe(false);
+  });
+});
+
+describe("assistant physique context: asked about (PR3f)", () => {
+  const subject = {
+    kind: "connection" as const,
+    title: "Sleep the night before",
+    facts: Array.from({ length: ASK_MAX_FACTS }, (_, k) => `${k}`.padEnd(ASK_FACT_MAX_CHARS, "x")),
+  };
+
+  it("carries what the user asked about, within its own budget, after the numbers", () => {
+    const base = formatPhysiqueContextBlock(maximalPayload());
+    const block = formatPhysiqueContextBlock({ ...maximalPayload(), subject });
+    expect(block.startsWith(base)).toBe(true);
+    expect(block).toContain("ASKED ABOUT (connection on Progress): Sleep the night before");
+    expect(block.length - base.length).toBeLessThanOrEqual(PHYSIQUE_SUBJECT_MAX_CHARS);
+    const ok = validatePhysiquePayload({ ...maximalPayload(), subject });
+    expect(ok.ok).toBe(true);
+  });
+
+  it("rejects a subject over its limits or of an unknown kind", () => {
+    expect(validatePhysiquePayload({ ...maximalPayload(), subject: { ...subject, facts: [...subject.facts, "one more"] } }).ok).toBe(false);
+    expect(validatePhysiquePayload({ ...maximalPayload(), subject: { ...subject, facts: ["x".repeat(ASK_FACT_MAX_CHARS + 1)] } }).ok).toBe(false);
+    expect(validatePhysiquePayload({ ...maximalPayload(), subject: { ...subject, kind: "verdict" } }).ok).toBe(false);
   });
 });

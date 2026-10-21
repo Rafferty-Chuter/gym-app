@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { Finding, FindingId } from "@/lib/physique/findings";
+import { findingSubject } from "@/lib/physique/askAbout";
+import AskWhy from "@/components/progress/AskWhy";
 
 /** One outline glyph per finding (24 × 24, stroked). */
 const ICON: Record<FindingId, string[]> = {
@@ -75,6 +77,7 @@ export default function FindingsCard({ items, onSelect, selectedId }: { items: F
                     </svg>
                   </button>
                 )}
+                <AskWhy subject={findingSubject(f)} />
               </div>
             )}
           </div>

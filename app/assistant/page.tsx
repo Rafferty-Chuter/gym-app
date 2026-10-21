@@ -54,6 +54,8 @@ import { buildBenchContextSummary } from "@/lib/benchContext";
 import { buildBench1RMEstimate } from "@/lib/bench1rm";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import { buildAssistantPhysiquePayload, hasPhysiqueData } from "@/lib/physique/io/payload";
+import { takeAssistantSubject } from "@/lib/ui/assistantPrompt";
+import type { AskSubject } from "@/lib/physique/askAbout";
 import { useNow } from "@/lib/ui/useToday";
 
 type StructuredWorkout = {
@@ -570,20 +572,32 @@ function AssistantPageInner() {
     }
   }, []);
 
+  // PR3f: a connection or finding from Progress rides with the question, and with follow-ups until a new chat.
+  const askSubjectRef = useRef<AskSubject | null>(null);
+  const quickPromptDoneRef = useRef(false);
+  const [analysisWaitOver, setAnalysisWaitOver] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    const t = window.setTimeout(() => setAnalysisWaitOver(true), 1500);
+    return () => window.clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined" || quickPromptDoneRef.current) return;
+    // Wait (up to 1.5 s) for the physique analysis when there is physique data, so an auto-sent "why" carries its numbers.
+    if (hasPhysiqueData() && !physiqueAnalysis && !analysisWaitOver) return;
+    quickPromptDoneRef.current = true;
     const quick = sessionStorage.getItem("assistantQuickPrompt");
     const shouldAutoSend = sessionStorage.getItem("assistantAutoSend") === "1";
     if (!quick || !quick.trim()) return;
     sessionStorage.removeItem("assistantQuickPrompt");
     sessionStorage.removeItem("assistantAutoSend");
+    askSubjectRef.current = takeAssistantSubject();
     const trimmed = quick.trim();
     if (shouldAutoSend) {
       handleSend(trimmed);
       return;
     }
     setInput(trimmed);
-  }, []);
+  }, [physiqueAnalysis, analysisWaitOver]);
 
   async function handleSend(textOverride?: string) {
     const text = (textOverride ?? input).trim();
@@ -883,7 +897,7 @@ function AssistantPageInner() {
           experienceLevel,
           unit,
           priorityGoal: goal,
-          physique: physiqueAnalysis && now && hasPhysiqueData() ? buildAssistantPhysiquePayload(physiqueAnalysis, now, unit === "lb" ? "lb" : "kg") : undefined,
+          physique: physiqueAnalysis && now && hasPhysiqueData() ? { ...buildAssistantPhysiquePayload(physiqueAnalysis, now, unit === "lb" ? "lb" : "kg"), ...(askSubjectRef.current ? { subject: askSubjectRef.current } : {}) } : undefined,
           exerciseTrends,
           trainingInsights,
           priorityGoalExerciseInsight,
@@ -1134,6 +1148,7 @@ function AssistantPageInner() {
     ) {
       return;
     }
+    askSubjectRef.current = null;
     if (messages.length > 0) {
       // Extract before the chat is cleared from state.
       await extractAndSaveMemoryFromMessages(

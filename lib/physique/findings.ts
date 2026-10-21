@@ -243,13 +243,15 @@ export function findings(i: FindingInputs, through: LocalDate): Finding[] {
     const floor = cut ? PRO1_MIN_G_PER_KG : PRO2_MIN_G_PER_KG;
     if (gPerKg < floor) {
       const perKg = Number(gPerKg.toFixed(1)) >= floor ? gPerKg.toFixed(2) : gPerKg.toFixed(1);
+      // Rounded down here and the level up in the fact, so the two never meet; the sentence uses the same grams.
+      const grams = Math.floor(g);
       out.push({
         id: "protein-low",
         title: "Low on protein",
         // Plain grams for this person's weight, not g/kg (the founder: no technical wording). Down and up so the two never meet.
-        fact: `${Math.floor(g)} g a day · studies: ${Math.ceil(floor * endKg)} g or more`,
+        fact: `${grams} g a day · studies: ${Math.ceil(floor * endKg)} g or more`,
         // Two decimals when one would round up to the level it is under ("1.8, under 1.8" read as a contradiction).
-        data: `Protein averaged ${n0(g)} g a day over ${complete.length} complete days in the last 4 weeks, ${perKg} g per kg of body weight.`,
+        data: `Protein averaged ${grams} g a day over ${complete.length} complete days in the last 4 weeks, ${perKg} g per kg of body weight.`,
         evidence: cut
           ? `Lean lifters in a deficit kept more muscle on about 1.8 g per kg of body weight or more (Helms 2014).`
           : `Across 49 trials, gains from training levelled off at about 1.6 g per kg a day (Morton 2018).`,

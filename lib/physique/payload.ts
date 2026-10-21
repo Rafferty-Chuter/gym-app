@@ -9,6 +9,7 @@ import { addDays } from "@/lib/dates";
 import type { FoodEntry, DayFlags, PhysiqueAnalysis, PhysiqueGoal, PhysiqueProgram, SleepNight, WeighIn } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import type { WeightUnit } from "@/lib/units";
+import type { AskSubject } from "@/lib/physique/askAbout";
 import { dailyIntakeSeries, targetInEffect } from "@/lib/physique/intake";
 import { mainLiftSeries } from "@/lib/physique/strength";
 import { weighInsByDate } from "@/lib/physique/weight";
@@ -36,6 +37,8 @@ export type AssistantPhysiquePayload = {
   analysis: PhysiqueAnalysis;
   now: Now;
   recent: PhysiqueRecent;
+  /** A connection or finding the user asked about from Progress (PR3f), as the engine read it. */
+  subject?: AskSubject;
 };
 
 export type PhysiqueRecentInputs = {

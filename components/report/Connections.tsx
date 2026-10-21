@@ -4,6 +4,8 @@ import { useState } from "react";
 import { CONN_MIN_SESSIONS, type Connection, type ConnectionId, type ConnectionsResult, type SessionPoint } from "@/lib/physique/connections";
 import { compareText, effectKg, formatEffect, type ReferenceLift } from "@/lib/physique/liftEffect";
 import type { WeightUnit } from "@/lib/units";
+import { connectionSubject } from "@/lib/physique/askAbout";
+import AskWhy from "@/components/progress/AskWhy";
 
 /** Each condition in its measure's colour (DESIGN.md rev 4.2). */
 export const CONNECTION_COLOR: Record<ConnectionId, string> = {
@@ -130,7 +132,7 @@ function SessionStrip({ c, lift, unit }: { c: Connection; lift: ReferenceLift | 
   );
 }
 
-function ConnectionRow({ c, lift, unit, open, onToggle, mergedWith }: { c: Connection; lift: ReferenceLift | null; unit: WeightUnit; open: boolean; onToggle: () => void; /** A clear difference that rose and fell with this one, which carries it (C7). */ mergedWith: ConnectionId | null }) {
+function ConnectionRow({ c, result, lift, unit, open, onToggle, mergedWith }: { c: Connection; result: ConnectionsResult; lift: ReferenceLift | null; unit: WeightUnit; open: boolean; onToggle: () => void; /** A clear difference that rose and fell with this one, which carries it (C7). */ mergedWith: ConnectionId | null }) {
   const linked = c.state === "linked";
   const color = linked ? CONNECTION_COLOR[c.id] : "var(--text-tertiary)";
   const effect = lift ? formatEffect(effectKg(c.diffPct, lift.levelKg), unit) : signedPct(c.diffPct);
@@ -182,6 +184,9 @@ function ConnectionRow({ c, lift, unit, open, onToggle, mergedWith }: { c: Conne
             </p>
           )}
           <SessionStrip c={c} lift={lift} unit={unit} />
+          <div className="mt-3">
+            <AskWhy subject={connectionSubject(c, result, lift, unit, mergedWith ? NOUN[mergedWith] : null, c.movedWith ? NOUN[c.movedWith] : null)} />
+          </div>
         </div>
       )}
     </div>
@@ -257,7 +262,7 @@ export default function ConnectionsCard({ result, lift, unit }: { result: Connec
       </div>
 
       {result.items.map((c) => (
-        <ConnectionRow key={c.id} c={c} lift={lift} unit={unit} open={open === c.id} onToggle={() => setOpen(open === c.id ? null : c.id)} mergedWith={result.items.find((x) => x.movedWith === c.id)?.id ?? null} />
+        <ConnectionRow key={c.id} c={c} result={result} lift={lift} unit={unit} open={open === c.id} onToggle={() => setOpen(open === c.id ? null : c.id)} mergedWith={result.items.find((x) => x.movedWith === c.id)?.id ?? null} />
       ))}
 
       {sources.length > 0 && (
