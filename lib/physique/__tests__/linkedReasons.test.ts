@@ -165,7 +165,7 @@ describe("linked reasons (W5)", () => {
     const l = liftsLink(week({ sleep: { meanH: 6.1, shortNights: 4 }, strength: { status: "dropping", lifts: [{ name: "Bench Press", changePct: -6.2 }, { name: "Squat", changePct: -3.1 }] } }, {}, { recovery: LOW_HRV }))!;
     expect(l.state).toBe("attention");
     expect(l.title).toBe("Lifts are down");
-    expect(l.detail).toBe("Bench press −6.2% and squat −3.1% since the phase began.");
+    expect(l.detail).toBe("Bench press −6.2% and squat −3.1% since your goal started.");
     expect(l.causes[0]).toBe("Sleep averaged 6h 06m a night, 1h 54m under 8 hours, with 4 short nights.");
     expect(liftsLink(week({ sleep: { meanH: 7.3, shortNights: 1 }, strength: { status: "dropping" } }))!.causes[0]).toBe("Sleep averaged 7h 18m a night, 42 min under 8 hours, with 1 short night.");
     expect(l.causes[1]).toBe("HRV ran 21% below usual (41 ms against 52).");
@@ -182,7 +182,7 @@ describe("linked reasons (W5)", () => {
   it("lifts rising on a clean week say what supported them; holding lifts on a cut are the aim, not a problem", () => {
     const up = liftsLink(week({ strength: { status: "rising", lifts: [{ name: "Squat", changePct: 4.2 }] } }))!;
     expect(up.state).toBe("good");
-    expect(up.detail).toBe("Squat +4.2% since the phase began.");
+    expect(up.detail).toBe("Squat +4.2% since your goal started.");
     expect(up.causes[0]).toMatch(/^Sleep 7h 48m a night, protein 2\.0 g\/kg and \d sessions?\.$/);
     expect(liftsLink(week({ strength: { status: "holding" } }))).toBeNull();
   });

@@ -188,7 +188,7 @@ function liftsHoldingClause(f: VerdictFacts): string {
 }
 
 function sinceClause(f: VerdictFacts): string {
-  return f.phase === "lose" ? " since the cut began" : f.phase === "gain" ? " since the bulk began" : "";
+  return f.phase === "lose" || f.phase === "gain" ? " since your goal started" : "";
 }
 
 // ── Per-rule copy ──

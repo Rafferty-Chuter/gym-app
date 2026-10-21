@@ -341,7 +341,7 @@ describe("cut outcome rules", () => {
     expect(rec.kcalDeltaAtCurrentBW).toBeGreaterThan(350);
     expect(rec.kcalDeltaAtCurrentBW).toBeLessThan(450);
     expect(a.recommendationLabel).toMatch(/^Ease goal to 0\.6 %\/wk \(about \+\d+ kcal\/day\)$/);
-    expect(a.verdict.detail).toContain("down 8% since the cut began");
+    expect(a.verdict.detail).toContain("down 8% since your goal started");
     expect(a.status.state).toBe("watch");
     // Lifts −4%: not dropping, not STR-OK, so no LOSS rule; −1.4 is confidently outside a −0.6 goal, so no ON-TRACK either.
     const mild = analyse(fixedCut({ deficit: 1400, goalRate: -0.6, lifts: stepLifts(-4, 35, 0) }));

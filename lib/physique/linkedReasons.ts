@@ -294,7 +294,7 @@ export function liftsLink(i: LinkInputs): Link | null {
     .sort((a, b) => (rising ? (b.changePct ?? 0) - (a.changePct ?? 0) : (a.changePct ?? 0) - (b.changePct ?? 0)))
     .slice(0, 2)
     .map((l) => `${l.name.toLowerCase()} ${(l.changePct ?? 0) > 0 ? "+" : (l.changePct ?? 0) < 0 ? "−" : ""}${Math.abs(l.changePct ?? 0).toFixed(1)}%`);
-  const detail = moved.length ? `${cap(joinNames(moved))} since the phase began.` : null;
+  const detail = moved.length ? `${cap(joinNames(moved))} since your goal started.` : null;
 
   const causes: string[] = [];
   const sleep = sleepCause(r);

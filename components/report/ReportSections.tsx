@@ -10,6 +10,7 @@ import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { bandLabel } from "@/lib/training/volumeTargets";
 import { formatBodyWeight, formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import { formatRate } from "@/components/physique/WeightChartCard";
+import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
 
 const TONE_COLOR: Record<Tone, string> = { good: "var(--status-good)", watch: "var(--status-watch)", neutral: "var(--text-secondary)" };
 
@@ -170,8 +171,8 @@ export default function ReportSections({ report: r, prev: p, tiles, unit, goal, 
   if (goal && sinceKg != null) {
     const sincePct = pctOfBodyWeight(sinceKg, goal.startTrendKg);
     weightRows.push({
-      label: "Since the phase began",
-      sub: `From ${formatBodyWeight(goal.startTrendKg, unit)}`,
+      label: "Since your goal started",
+      sub: `From ${formatBodyWeight(goal.startTrendKg, unit)} on ${shortLocalDate(goal.startDate)}`,
       now: (
         <>
           {kgDelta(sinceKg)}
@@ -232,7 +233,7 @@ export default function ReportSections({ report: r, prev: p, tiles, unit, goal, 
   if (t.priority) trainingRows.push({ label: "Priority muscles", sub: "In their set range", now: `${t.priority.inRange} of ${t.priority.muscles}`, prev: p?.training.priority ? `${p.training.priority.inRange} of ${p.training.priority.muscles}` : dash, status: tile("priority")?.delta ?? null });
   for (const l of t.lifts) {
     const since = sincePhase.get(l.name) ?? null;
-    trainingRows.push({ label: l.name, sub: since == null ? "Best est. 1RM" : `Best est. 1RM · ${sign(since)}${Math.abs(since).toFixed(1)} % since the phase began`, now: formatWeight(l.e1rmKg, unit), prev: l.prevE1rmKg != null ? formatWeight(l.prevE1rmKg, unit) : dash });
+    trainingRows.push({ label: l.name, sub: since == null ? "Best est. 1RM" : `Best est. 1RM · ${sign(since)}${Math.abs(since).toFixed(1)} % since your goal started`, now: formatWeight(l.e1rmKg, unit), prev: l.prevE1rmKg != null ? formatWeight(l.prevE1rmKg, unit) : dash });
   }
 
   // ── Sleep and recovery ──

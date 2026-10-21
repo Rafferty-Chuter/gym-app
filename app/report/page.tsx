@@ -30,6 +30,7 @@ import ReportSections from "@/components/report/ReportSections";
 import LinkedReasonsCard from "@/components/report/LinkedReasons";
 import ConnectionsCard from "@/components/report/Connections";
 import FindingsCard from "@/components/report/Findings";
+import AutoCheckIn from "@/components/physique/AutoCheckIn";
 import { findings } from "@/lib/physique/findings";
 import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { connections } from "@/lib/physique/connections";
@@ -191,6 +192,8 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         <SummaryCard verdict={report.verdict} heading={insight?.heading ?? null} />
 
+        <AutoCheckIn />
+
         <FindingsCard items={found} />
 
         <LinkedReasonsCard links={links} />
@@ -199,7 +202,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         {report.hasData && <ReportSections report={report} prev={prevReport.hasData ? prevReport : null} tiles={tiles} unit={unit} goal={activeGoal} sincePhase={sincePhase} />}
 
-        {reviewModel && start === reviewWeek && reviewModel.hasProgram && <ReviewDecision key={reviewModel.plan.weekStart} model={reviewModel} now={now} unit={unit} />}
+        {reviewModel && (start === reviewWeek || start === thisWeek) && reviewModel.hasProgram && <ReviewDecision key={reviewModel.plan.weekStart} model={reviewModel} />}
 
         {!report.hasData && (
           <p className="rounded-[16px] px-4 py-3 text-[13px]" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>

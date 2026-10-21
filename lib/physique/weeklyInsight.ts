@@ -104,7 +104,7 @@ function sleepShort(r: WeekReport): boolean {
  * medians, deloads and short nights excluded), so the report never says
  * something the verdict does not. Null while that read is unclear.
  */
-export function strengthLine(analysis: PhysiqueAnalysis): string | null {
+export function strengthLine(analysis: PhysiqueAnalysis, since = "since your goal started"): string | null {
   const s = analysis.strength;
   const moved = s.lifts
     .filter((l) => l.changePct != null)
@@ -113,13 +113,13 @@ export function strengthLine(analysis: PhysiqueAnalysis): string | null {
     .map((l) => `${l.name.toLowerCase()} ${pct(l.changePct ?? 0)}`);
   switch (s.status) {
     case "holding":
-      return "Lifts holding since the phase started.";
+      return `Lifts holding ${since}.`;
     case "rising":
-      return `Lifts up since the phase started: ${joinNames(moved)}.`;
+      return `Lifts up ${since}: ${joinNames(moved)}.`;
     case "dropping":
-      return `Lifts down since the phase started: ${joinNames(moved)}.`;
+      return `Lifts down ${since}: ${joinNames(moved)}.`;
     case "one-lift":
-      return `One lift down since the phase started: ${moved[0] ?? "see Body"}.`;
+      return `One lift down ${since}: ${moved[0] ?? "see Body"}.`;
     default:
       return null;
   }
@@ -129,7 +129,8 @@ export function strengthLine(analysis: PhysiqueAnalysis): string | null {
 export function heading(i: InsightInputs): Heading {
   const { goal, eta, analysis, fmt } = i;
   const lines: string[] = [];
-  const liftsLine = strengthLine(analysis);
+  // "Phase" is the current goal, from the day it was set (Q1: say so, with the date).
+  const liftsLine = strengthLine(analysis, goal ? `since your goal started on ${fmt.date(goal.startDate)}` : undefined);
 
   if (analysis.verdict.id.startsWith("SAFE-")) {
     return { state: "attention", title: "Goal on hold", lines: ["Targets stay where they are. The note on Body says why."] };
@@ -235,7 +236,7 @@ export function allFixes(i: InsightInputs): Fix[] {
           : goal?.type === "lose"
             ? "Hold loads and keep the top sets. Some drop is common on a cut."
             : "Hold loads. If they stay down another week, take a deload.";
-    out.push({ id: "lifts", state: "watch", title: "Lifts are down", why: `${names.charAt(0).toUpperCase()}${names.slice(1)} since the phase started.`, action, href: deload.state === "due" ? "/train" : null });
+    out.push({ id: "lifts", state: "watch", title: "Lifts are down", why: `${names.charAt(0).toUpperCase()}${names.slice(1)} since your goal started.`, action, href: deload.state === "due" ? "/train" : null });
   }
 
   // Protein.

@@ -29,6 +29,7 @@ import { findGaps, gapLines } from "@/lib/physique/gaps";
 import { ErrorLine, PrimaryButton, SecondaryButton } from "@/components/physique/ui";
 import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import type { FoodEntry } from "@/lib/physique/types";
+import AutoCheckIn from "@/components/physique/AutoCheckIn";
 
 /** Food tab (05-design §9.4): week strip, widget carousel, hour timeline, add-food bar and the logger. */
 export default function FoodPage() {
@@ -123,6 +124,8 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
 
   return (
     <main className="min-h-screen pb-40" style={{ background: "var(--page)", color: "var(--text)" }}>
+      {/* A2: on the check-in day, targets follow the maintenance estimate without a button. */}
+      <AutoCheckIn />
       <div className="mx-auto flex max-w-2xl flex-col gap-4 px-5 sm:px-6">
         {/* No header plus: the "Add a food" bar at thumb height opens the same search (B2). */}
         <PageHeader caption={caption} title="Food" />

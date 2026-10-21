@@ -265,7 +265,7 @@ function StrengthRow({ strength, onOpen }: { strength: PhysiqueAnalysis["strengt
   const w = STRENGTH_WORD[strength.status];
   const moved = strength.lifts.filter((l) => l.changePct != null).sort((a, b) => Math.abs(b.changePct as number) - Math.abs(a.changePct as number));
   const pct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(0)}%`;
-  const sub = moved.length ? `Since the phase began · ${moved.slice(0, 2).map((l) => `${l.name} ${pct(l.changePct as number)}`).join(", ")}` : strength.baselineMissing ? "Since the phase began · no lifts from before it to compare" : "Since the phase began · a few more sessions to read";
+  const sub = moved.length ? `Since your goal started · ${moved.slice(0, 2).map((l) => `${l.name} ${pct(l.changePct as number)}`).join(", ")}` : strength.baselineMissing ? "Since your goal started · no lifts logged before it to compare" : "Since your goal started · a few more sessions to read";
   return (
     <Row
       label="Strength"

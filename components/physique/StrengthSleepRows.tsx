@@ -39,7 +39,7 @@ export default function StrengthSleepRows({ analysis, showSleep = true, bare = f
       : s.mainLifts === 0
         ? "No main lifts logged yet"
         : s.baselineMissing
-          ? "No pre-phase baseline yet"
+          ? "No lifts logged before your goal to compare"
           : "Not enough sessions yet";
   const strengthColor = s.status === "dropping" ? STATUS_HEX.attention : s.status === "one-lift" ? STATUS_HEX.watch : s.status === "unclear" ? "var(--text-tertiary)" : "var(--text)";
   const sleepColor = sl.status === "severe" ? STATUS_HEX.attention : sl.status === "short" ? STATUS_HEX.watch : sl.status === "unknown" ? "var(--text-tertiary)" : "var(--text)";
@@ -47,7 +47,7 @@ export default function StrengthSleepRows({ analysis, showSleep = true, bare = f
   return (
     <Wrap>
       <Row
-        label={analysis.goal && analysis.goal.type !== "maintain" ? "Lifts since phase start" : "Lifts"}
+        label={analysis.goal && analysis.goal.type !== "maintain" ? "Lifts since your goal started" : "Lifts"}
         value={<span style={{ color: strengthColor }}>{STRENGTH_WORD[s.status]}</span>}
         sub={liftsLine}
       />

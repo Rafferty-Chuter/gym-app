@@ -251,7 +251,7 @@ function strengthTile({ report, strength, goalType }: ScorecardInputs): Tile {
   const none = (sub: string): Tile => ({ id: "strength", label: "Main lifts", value: "–", sub, delta: null, chart: { kind: "none" }, href: "/train" });
   if (!strength) return none(report.training.lifts.length ? "Not enough sessions to read yet" : "No main lifts logged");
   const moved = strength.lifts.filter((l) => l.changePct != null).sort((a, b) => Math.abs(b.changePct as number) - Math.abs(a.changePct as number));
-  if (strength.status === "unclear" || moved.length === 0) return none(strength.baselineMissing ? "No lifts from before the phase to compare" : "Not enough sessions to read yet");
+  if (strength.status === "unclear" || moved.length === 0) return none(strength.baselineMissing ? "No lifts logged before your goal started to compare" : "Not enough sessions to read yet");
   const base = STRENGTH_WORD[strength.status];
   // A cut aims to hold its lifts; a gain or a recomp aims to raise them, so holding there is no judgement.
   const focus = focusFor(goalType);
@@ -261,7 +261,7 @@ function strengthTile({ report, strength, goalType }: ScorecardInputs): Tile {
     id: "strength",
     label: "Main lifts",
     value: word.value,
-    sub: "Est. 1RM since the phase began",
+    sub: "Est. 1RM since your goal started",
     delta: { text: named.join(" · "), tone: word.tone },
     chart: { kind: "none" },
     href: "/exercises",

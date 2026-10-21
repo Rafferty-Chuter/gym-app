@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { Caption } from "@/components/physique/ui";
+import Link from "next/link";
+import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import { goalProgress } from "@/lib/physique/goalProgress";
 import { goalEta } from "@/lib/physique/goalEta";
 import GoalEtaLine from "@/components/physique/GoalEtaLine";
@@ -22,7 +23,13 @@ export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, uni
         <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
           Goal progress
         </span>
-        <Caption>{p.weeks.length} {p.weeks.length === 1 ? "week" : "weeks"}</Caption>
+        {/* Q1: when the goal began, and where it is changed; a new goal starts a new "since". */}
+        <span className="flex items-baseline gap-3 text-[12px]">
+          {goal && <span style={{ color: "var(--text-tertiary)" }}>Since {shortLocalDate(goal.startDate)}</span>}
+          <Link href="/body/goal" className="font-semibold" style={{ color: "var(--text-secondary)" }} aria-label="Change goal">
+            Change
+          </Link>
+        </span>
       </div>
       <div className="mt-3 h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-raised)" }} aria-hidden>
         <div className="h-full rounded-full" style={{ width: `${share * 100}%`, background: "var(--green)" }} />

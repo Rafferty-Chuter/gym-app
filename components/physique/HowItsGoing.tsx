@@ -24,6 +24,7 @@ import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import { StatusDot } from "@/components/physique/ui";
 import { pulseChart } from "@/lib/physique/pulseCharts";
 import PulseTile from "@/components/physique/PulseTile";
+import AutoCheckIn from "@/components/physique/AutoCheckIn";
 
 function ChevronRight() {
   return (
@@ -77,6 +78,8 @@ export default function HowItsGoing() {
   const v = analysis.verdict;
   return (
     <>
+      {/* A2: on the check-in day, targets follow the maintenance estimate without a button. */}
+      <AutoCheckIn />
       <section aria-label="How it's going" className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
         <Link href="/body" className="flex flex-col gap-1 px-4 pb-3.5 pt-3.5 transition-colors active:bg-[var(--surface-raised)]" aria-label={`${v.title}. ${v.detail} Open Body`}>
           <span className="flex items-center justify-between gap-3">
