@@ -12,12 +12,12 @@
  */
 
 import { addDays, dayDiff, minDate, type LocalDate, type Now } from "@/lib/dates";
-import { mean } from "@/lib/stats";
+import { mean, median, olsSlope } from "@/lib/stats";
 import { countHardSets } from "@/lib/completedSets";
 import { countsForBalance } from "@/lib/physique/food/energy";
 import { weekStart } from "@/lib/physique/food/week";
 import { dailyIntakeSeries, targetInEffect } from "@/lib/physique/intake";
-import { nightsByDate } from "@/lib/physique/sleep";
+import { nightsByDate, SLEEP_USUAL_MIN_NIGHTS } from "@/lib/physique/sleep";
 import { pickMainLifts, workoutDate } from "@/lib/physique/strength";
 import { trendSeries } from "@/lib/physique/weight";
 import type { DayFlags, ExpenditurePoint, FoodEntry, PhysiqueProgram, SleepNight, WeighIn } from "@/lib/physique/types";
@@ -32,6 +32,8 @@ export const WEEK_MIN_DAYS = 3;
 export const ALL_MAX_WEEKS = 104;
 /** Columns a range draws at most; a longer history puts two or more weeks in each (C7). OURS: about half a year of weekly bars is as many as stay readable and tappable on a phone. */
 export const MAX_COLUMNS = 26;
+/** Columns with a lift's best before a line is drawn through them (PR3). OURS: one week's best swings a few percent with sleep and food, so fewer than four bests draws the noise. */
+export const LIFT_FIT_MIN_COLUMNS = 4;
 
 export type ProgressRange = "1M" | "3M" | "6M" | "All";
 /** Weeks per range, the current week included. */
@@ -72,6 +74,15 @@ export type ProgressWeek = {
   nights: number;
 };
 
+/** One main lift on the timeline's columns, in kg (PR3, X1). */
+export type LiftWeeks = {
+  name: string;
+  /** The column's best estimated 1RM, kg; null for a column without the lift. */
+  e1rmKg: Array<number | null>;
+  /** A straight line through the columns' bests, from the first column with one to the last; null below LIFT_FIT_MIN_COLUMNS. */
+  fit: { fromIdx: number; toIdx: number; fromKg: number; toKg: number } | null;
+};
+
 export type ProgressTimeline = {
   range: ProgressRange;
   from: LocalDate;
@@ -84,6 +95,8 @@ export type ProgressTimeline = {
   days: Array<{ date: LocalDate; trendKg: number; kg: number | null }>;
   /** The main lifts the strength line follows. */
   lifts: string[];
+  /** Each main lift's weekly best, in the same order as `lifts`. */
+  liftWeeks: LiftWeeks[];
   summary: {
     trendChangeKg: number | null;
     kcal: number | null;
@@ -92,6 +105,8 @@ export type ProgressTimeline = {
     setsPerWeek: number | null;
     strengthPct: number | null;
     sleepH: number | null;
+    /** The person's usual night over the range (median of valid nights), the sleep chart's reference; null under SLEEP_USUAL_MIN_NIGHTS. */
+    usualSleepH: number | null;
   };
 };
 
@@ -180,6 +195,7 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
   }
 
   const weeks: ProgressWeek[] = [];
+  const liftCols: Array<Array<number | null>> = mainLifts.map(() => []);
   let prevTrendEnd: number | null = trendAt(addDays(from, -1));
   for (let start = from; start <= through; start = addDays(start, 7 * k)) {
     const end = minDate(addDays(start, 7 * k - 1), through);
@@ -208,6 +224,7 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
     liftBest.forEach((m, k) => {
       const base = firstBest[k];
       const best = Math.max(...dates.map((d) => m.get(d) ?? -Infinity));
+      liftCols[k].push(Number.isFinite(best) ? best : null);
       if (base && Number.isFinite(best)) liftPcts.push((best / base - 1) * 100);
     });
 
@@ -241,6 +258,8 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
     if (t != null) days.push({ date: d, trendKg: t, kg: scaleByDate.get(d) ?? null });
   }
 
+  const rangeNights = [...nights.entries()].filter(([d, n]) => d >= from && d <= through && n.valid).map(([, n]) => n.asleepH);
+
   const vals = (pick: (w: ProgressWeek) => number | null) => weeks.map(pick).filter((x): x is number => x != null);
   const trendVals = vals((w) => w.trendKg);
   const trained = weeks.filter((w) => !w.current || w.sessions > 0);
@@ -254,6 +273,7 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
     weeks,
     days,
     lifts: mainLifts.map((l) => l.name),
+    liftWeeks: mainLifts.map((l, k) => ({ name: l.name, e1rmKg: liftCols[k], fit: fitColumns(liftCols[k]) })),
     summary: {
       trendChangeKg: trendVals.length >= 2 ? trendVals[trendVals.length - 1] - (trendAt(addDays(from, -1)) ?? trendVals[0]) : null,
       kcal: vals((w) => w.kcal).length ? mean(vals((w) => w.kcal)) : null,
@@ -262,6 +282,24 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
       setsPerWeek: trained.length && trained.some((w) => w.sessions > 0) ? mean(trained.map((w) => w.hardSets)) / k : null,
       strengthPct: strengths.length >= 2 ? strengths[strengths.length - 1] : null,
       sleepH: vals((w) => w.sleepH).length ? mean(vals((w) => w.sleepH)) : null,
+      usualSleepH: rangeNights.length >= SLEEP_USUAL_MIN_NIGHTS ? median(rangeNights) : null,
     },
   };
+}
+
+/** A straight line through a lift's column bests (least squares), or null below LIFT_FIT_MIN_COLUMNS. */
+function fitColumns(cols: ReadonlyArray<number | null>): LiftWeeks["fit"] {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  cols.forEach((v, k) => {
+    if (v != null) {
+      xs.push(k);
+      ys.push(v);
+    }
+  });
+  if (xs.length < LIFT_FIT_MIN_COLUMNS) return null;
+  const f = olsSlope(xs, ys);
+  const fromIdx = xs[0];
+  const toIdx = xs[xs.length - 1];
+  return { fromIdx, toIdx, fromKg: f.intercept + f.slope * fromIdx, toKg: f.intercept + f.slope * toIdx };
 }

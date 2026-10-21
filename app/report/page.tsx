@@ -34,6 +34,7 @@ import AutoCheckIn from "@/components/physique/AutoCheckIn";
 import { findings } from "@/lib/physique/findings";
 import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { connections } from "@/lib/physique/connections";
+import { referenceLift } from "@/lib/physique/liftEffect";
 import { linkedReasons } from "@/lib/physique/linkedReasons";
 import { coverageLine, scorecard } from "@/lib/physique/weekScorecard";
 import { rateBands } from "@/lib/physique/targets";
@@ -147,6 +148,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, unit }, { today: report.through, tz: now.tz }),
     [workouts, data, expenditure, unit, report.through, now.tz]
   );
+  const lift = useMemo(() => referenceLift(workouts, unit, { today: report.through, tz: now.tz }), [workouts, unit, report.through, now.tz]);
 
   // E1: the last four weeks against what studies support, to the report's last day.
   const found = useMemo(() => {
@@ -198,7 +200,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         <LinkedReasonsCard links={links} />
 
-        <ConnectionsCard result={conn} />
+        <ConnectionsCard result={conn} lift={lift} unit={unit} />
 
         {report.hasData && <ReportSections report={report} prev={prevReport.hasData ? prevReport : null} tiles={tiles} unit={unit} goal={activeGoal} sincePhase={sincePhase} />}
 

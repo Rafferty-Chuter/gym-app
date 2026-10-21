@@ -1,35 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 import { addDays, dayDiff, type LocalDate, type Now } from "@/lib/dates";
-import { formatWeight, type WeightUnit } from "@/lib/units";
+import { formatBodyWeight, type WeightUnit } from "@/lib/units";
 import { latestTrend } from "@/lib/physique/weight";
 import { deleteWeighIn, saveWaist, saveWeighIn, useBodyData } from "@/lib/physique/io/bodyData";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import PageHeader from "@/components/ui/PageHeader";
 import WeightSheet from "@/components/physique/WeightSheet";
 import WaistSheet from "@/components/physique/WaistSheet";
-import { formatRate } from "@/components/physique/WeightChartCard";
-import GoalProgress from "@/components/physique/GoalProgress";
-import { goalEta } from "@/lib/physique/goalEta";
 import WeightEntries from "@/components/physique/WeightEntries";
 import AutoCheckIn from "@/components/physique/AutoCheckIn";
-import ThisWeekCard from "@/components/progress/ThisWeekCard";
+import GoalCard from "@/components/progress/GoalCard";
 import Timeline, { type TimelineFocus } from "@/components/progress/Timeline";
 import FindingsCard from "@/components/report/Findings";
-import ConnectionsCard, { CONNECTION_COLOR } from "@/components/report/Connections";
+import ConnectionsCard from "@/components/report/Connections";
 import { progressTimeline, type ProgressRange } from "@/lib/physique/progressTimeline";
-import { connections, type ConnectionId } from "@/lib/physique/connections";
+import { connections } from "@/lib/physique/connections";
+import { referenceLift } from "@/lib/physique/liftEffect";
 import { FIND_WINDOW_DAYS, findings, type FindingId } from "@/lib/physique/findings";
 import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { useWorkouts } from "@/lib/physique/io/workouts";
 import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { Chevron, Row } from "@/components/physique/ui";
-import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
+import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 
 type SheetKind = "weight" | "waist" | null;
 
@@ -41,10 +38,6 @@ const FINDING_CHARTS: Record<FindingId, string[]> = {
   "gain-fast": ["weight", "calories"],
   "cut-fast-lifts": ["weight", "strength"],
 };
-/** The chart each connection's condition lives on, beside strength (PR2). */
-const CONNECTION_CHART: Record<ConnectionId, string> = { sleep: "sleep", carbs: "calories", balance: "calories", protein: "protein", time: "training", rest: "training", rate: "weight", hrv: "sleep" };
-
-type Picked = { kind: "finding" | "connection"; id: string } | null;
 
 export default function BodyPage() {
   const hydrated = useIsHydrated();
@@ -72,12 +65,12 @@ function dateFromQuery(): LocalDate | null {
 }
 
 /**
- * Progress (PR1, the Body tab renamed): everything the app keeps, in one
- * place. This week's check-in first, then every measure on one timeline
- * (weight, calories against maintenance, protein, training, strength,
- * sleep) over a month to the whole history, then what lines up with the
- * lifts and what the last four weeks show against the evidence, then the
- * goal and the weigh-ins.
+ * Progress (PR1, PR3): everything the app keeps, in one place. The goal
+ * first (trend weight, what is left, when it lands, the rate in kilos),
+ * then what lined up with the lifts and what the last four weeks show,
+ * then every measure on one timeline (weight, calories against
+ * maintenance, protein, training, each main lift, sleep) over a month to
+ * the whole history, then the weigh-ins and the waist.
  */
 function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const today = now.today;
@@ -103,29 +96,19 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     return findings({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, goal, program: data.program, profile: { sex: p.sex, age: p.age, heightCm: p.heightCm }, workouts, unit, sleepConnectionPct: sleepLink?.diffPct ?? null }, today);
   }, [data, workouts, unit, conn, today]);
 
-  // A tapped finding or connection shows on the timeline; tapping it again clears it.
-  const [picked, setPicked] = useState<Picked>(null);
-  function pick(next: NonNullable<Picked>) {
-    const same = picked?.kind === next.kind && picked.id === next.id;
-    setPicked(same ? null : next);
+  // A tapped finding shows on the timeline; tapping it again clears it. A connection opens its own sessions in place (PR3).
+  const [picked, setPicked] = useState<FindingId | null>(null);
+  function pick(id: FindingId) {
+    const same = picked === id;
+    setPicked(same ? null : id);
     if (!same) window.setTimeout(() => document.getElementById("timeline")?.scrollIntoView({ block: "start", behavior: "smooth" }), 30);
   }
   const focus = useMemo<TimelineFocus | null>(() => {
-    if (!picked) return null;
-    const clear = () => setPicked(null);
-    if (picked.kind === "finding") {
-      const f = found.find((x) => x.id === picked.id);
-      return f ? { label: f.title, charts: FINDING_CHARTS[f.id], from: addDays(today, -(FIND_WINDOW_DAYS - 1)), onClear: clear } : null;
-    }
-    const c = conn.items.find((x) => x.id === picked.id);
-    if (!c) return null;
-    return {
-      label: c.state === "linked" ? c.text : `${c.label}: no clear difference (${c.high.value} against ${c.low.value})`,
-      charts: ["strength", CONNECTION_CHART[c.id]],
-      sessions: { high: c.points.high, low: c.points.low, color: CONNECTION_COLOR[c.id], highLabel: c.high.value, lowLabel: c.low.value },
-      onClear: clear,
-    };
-  }, [picked, found, conn, today]);
+    const f = picked ? found.find((x) => x.id === picked) : null;
+    return f ? { label: f.title, charts: FINDING_CHARTS[f.id], from: addDays(today, -(FIND_WINDOW_DAYS - 1)), onClear: () => setPicked(null) } : null;
+  }, [picked, found, today]);
+  const lift = useMemo(() => referenceLift(workouts, unit, now), [workouts, unit, now]);
+  const [showWeighIns, setShowWeighIns] = useState(false);
 
   // Home's tiles link to a chart (`/body#calories`): scroll to it once the timeline is drawn.
   useEffect(() => {
@@ -148,19 +131,11 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
   const nowIso = () => new Date().toISOString();
   const goal = analysis?.goal ?? data.goal;
-  const eta = goalEta(goal, data.weighIns, data.dayFlags, today);
-  const etaWord = eta ? (eta.reached ? "reached" : eta.date ? `ETA ${shortLocalDate(eta.date)}` : null) : null;
-  const caption = goal
-    ? `${formatWeight(goal.targetKg, unit)} · ${goal.type === "lose" ? "Cut" : goal.type === "gain" ? "Lean gain" : "Maintain"}${goal.type === "maintain" ? "" : ` · ${formatRate(goal.ratePctPerWeek)}`}${etaWord ? ` · ${etaWord}` : ""}`
-    : "No goal set";
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader
-          caption={caption}
-          captionHref="/body/goal"
-          captionLabel="Goal. Change goal"
           title="Progress"
           action={{
             label: "Log weight",
@@ -174,22 +149,25 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         {/* A2: on the check-in day, targets follow the maintenance estimate without a button. */}
         <AutoCheckIn />
 
-        {analysis && <ThisWeekCard analysis={analysis} program={data.program} today={today} />}
-        {analysis && !analysis.goal && (
-          <Link href="/body/goal" className="inline-flex h-[36px] w-fit items-center rounded-[12px] px-3 text-[13px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
-            Set goal
-          </Link>
-        )}
+        {/* PR3: the goal first, then what lined up with the lifts, then every measure over time. */}
+        <GoalCard analysis={analysis} goal={goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} />
 
-        <Timeline t={timeline} range={range} onRange={setRange} unit={unit} focus={focus} />
+        <ConnectionsCard result={conn} lift={lift} unit={unit} />
 
-        <FindingsCard items={found} onSelect={(f) => pick({ kind: "finding", id: f.id })} selectedId={picked?.kind === "finding" ? picked.id : null} />
+        <FindingsCard items={found} onSelect={(f) => pick(f.id)} selectedId={picked} />
 
-        <ConnectionsCard result={conn} onSelect={(c) => pick({ kind: "connection", id: c.id })} selectedId={picked?.kind === "connection" ? picked.id : null} />
+        <Timeline t={timeline} range={range} onRange={setRange} unit={unit} goalKg={goal && !goal.completedAt && goal.type !== "maintain" ? goal.targetKg : null} focus={focus} />
 
-        {/* The goal and the waist: one panel with hairlines between. */}
-        <section className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }} aria-label="Goal">
-          <GoalProgress goal={data.goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} bare />
+        {/* The records behind the weight line, one tap away (PR3). */}
+        <section className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }} aria-label="Weigh-ins and waist">
+          <Row
+            label="Weigh-ins"
+            sub={model.lastWeighIn ? (model.lastWeighIn.date === today ? "Today" : longLocalDate(model.lastWeighIn.date)) : "None yet"}
+            value={model.lastWeighIn ? formatBodyWeight(model.lastWeighIn.kg, unit) : <span style={{ color: "var(--text-tertiary)" }}>Add</span>}
+            trailing={<span style={{ display: "inline-flex", transform: showWeighIns ? "rotate(90deg)" : undefined }}><Chevron /></span>}
+            onClick={() => (model.lastWeighIn ? setShowWeighIns((v) => !v) : setSheet("weight"))}
+            ariaLabel={model.lastWeighIn ? `${showWeighIns ? "Hide" : "Show"} weigh-ins` : "Log weight"}
+          />
           <Row
             label="Waist"
             sub={model.lastWaist ? `Last ${longLocalDate(model.lastWaist.date)}` : "Weekly, optional"}
@@ -200,15 +178,17 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           />
         </section>
 
-        <WeightEntries
-          weighIns={data.weighIns}
-          today={today}
-          unit={unit}
-          onOpen={(d) => {
-            setWeightDate(d);
-            setSheet("weight");
-          }}
-        />
+        {showWeighIns && (
+          <WeightEntries
+            weighIns={data.weighIns}
+            today={today}
+            unit={unit}
+            onOpen={(d) => {
+              setWeightDate(d);
+              setSheet("weight");
+            }}
+          />
+        )}
       </div>
 
       <WeightSheet

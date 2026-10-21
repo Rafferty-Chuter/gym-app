@@ -28,6 +28,7 @@ colors:
   status-unknown: "#8a9a9a"
   chart-trend: "#34936a"
   chart-training: "#d4741f"
+  chart-lift: "#a07a12"
   chart-sleep: "#3a8fbd"
   chart-steps: "#7b61c9"
   chart-heart: "#c24f8f"
@@ -69,6 +70,7 @@ colors-dark:
   status-unknown: "#72878a"
   chart-trend: "#a9e0c1"
   chart-training: "#f0a65e"
+  chart-lift: "#e7c86e"
   chart-sleep: "#86c4e4"
   chart-steps: "#b4a3f2"
   chart-heart: "#ee8cc0"
@@ -218,7 +220,7 @@ Restrained strategy: misty neutrals, one action colour (soft green), and colour 
 - **Primary action.** Soft green (`primary`, deep sage in light, pale sage in dark) with `text-on-primary`. One per screen at most (Start workout, Save, Finish). The same fill marks a selected pill, day or toggle.
 - **Status.** `status-good` / `status-watch` / `status-attention` / `status-unknown`. Shown as a 8px dot or a short pill next to text, never as a card background. The same four colours drive the Signals tiles and the physique verdict.
 - **Charts.** Trend line in `chart-trend` (green since rev 4.1; it was the text colour), 2px on the Body chart and 1.5px in Home's weight tile. Maintenance (the energy chart, its band and legend) uses `macro-kcal`. Raw weigh-ins as 4px dots in `chart-raw`. Goal projection as a dashed `chart-projection` line. A target band uses `chart-band`.
-- **Metric colours** (rev 4.2). One hue per measure, 3:1 or more on `surface` in both modes: weight and waist trend `chart-trend` (green; waist uses `chart-steps`), calories `macro-kcal`, protein `macro-protein`, fibre `macro-carb`, training `chart-training` (orange, also Train's week bars), sleep and wake time `chart-sleep`, steps `chart-steps` (violet), resting heart rate `chart-heart`. Status colours stay for judgements (the words), metric colours for the data (the marks); never one for the other. The map lives in `components/physique/PulseTile.tsx` (`PULSE_COLOR`).
+- **Metric colours** (rev 4.2). One hue per measure, 3:1 or more on `surface` in both modes: weight and waist trend `chart-trend` (green; waist uses `chart-steps`), calories `macro-kcal`, protein `macro-protein`, fibre `macro-carb`, training `chart-training` (orange, also Train's week bars), each main lift's estimated 1RM `chart-lift` (gold, rev 4.3, so the lifts read apart from the sets on Progress), sleep and wake time `chart-sleep`, steps `chart-steps` (violet), resting heart rate `chart-heart`. Status colours stay for judgements (the words), metric colours for the data (the marks); never one for the other. The map lives in `components/physique/PulseTile.tsx` (`PULSE_COLOR`).
 - **Macro colours** (rev 2, from MacroFactor): kcal `macro-kcal` (blue), protein `macro-protein` (red), fat `macro-fat` (yellow), carbs `macro-carb` (green), all muted. They appear only in nutrition bars, charts and food rows (rev 4.1: kcal in `text-secondary`, then "38P 14F 57C" with each letter in its macro colour, `components/food/MacroText.tsx`), never on buttons or status. Over target is not red: the bar simply fills and its target tick turns to the text colour.
 
 ## Typography

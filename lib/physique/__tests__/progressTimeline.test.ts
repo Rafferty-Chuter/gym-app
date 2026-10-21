@@ -3,7 +3,7 @@ import { addDays, dayDiff } from "@/lib/dates";
 import { makeScenario } from "@/lib/physique/fixtures";
 import { computeExpenditure } from "@/lib/physique/expenditure";
 import { weekStart } from "@/lib/physique/food/week";
-import { MAX_COLUMNS, progressTimeline, rangeStart, RANGE_WEEKS, WEEK_MIN_DAYS, type TimelineInputs } from "@/lib/physique/progressTimeline";
+import { LIFT_FIT_MIN_COLUMNS, MAX_COLUMNS, progressTimeline, rangeStart, RANGE_WEEKS, WEEK_MIN_DAYS, type TimelineInputs } from "@/lib/physique/progressTimeline";
 
 const sc = makeScenario({
   seed: 5,
@@ -96,5 +96,42 @@ describe("Progress timeline (PR1)", () => {
     expect(t.weeks.at(-1)!.current).toBe(true);
     for (let k = 1; k < t.weeks.length; k++) expect(dayDiff(t.weeks[k - 1].start, t.weeks[k].start)).toBe(21);
     expect(progressTimeline(inputs, "6M", now).periodWeeks).toBe(1);
+  });
+});
+
+describe("Progress timeline: each main lift in kg (PR3, X1)", () => {
+  it("gives each main lift its best estimated 1RM a week, on the same columns", () => {
+    const t = progressTimeline(inputs, "3M", now);
+    expect(t.liftWeeks.map((l) => l.name)).toEqual(t.lifts);
+    for (const l of t.liftWeeks) {
+      expect(l.e1rmKg).toHaveLength(t.weeks.length);
+      const present = l.e1rmKg.filter((v): v is number => v != null);
+      expect(present.length).toBeGreaterThanOrEqual(t.weeks.length - 1);
+    }
+    const squat = t.liftWeeks.find((l) => l.name === "Squat")!;
+    // Squat starts at 140 kg and rises 8% over the 120 days: the weekly bests sit in that range.
+    for (const v of squat.e1rmKg) {
+      if (v == null) continue;
+      expect(v).toBeGreaterThan(130);
+      expect(v).toBeLessThan(160);
+    }
+  });
+
+  it("draws a rising line through a rising lift, and none from too few weeks", () => {
+    const t = progressTimeline(inputs, "3M", now);
+    const squat = t.liftWeeks.find((l) => l.name === "Squat")!;
+    expect(squat.fit).not.toBeNull();
+    expect(squat.fit!.toKg - squat.fit!.fromKg).toBeGreaterThan(2);
+    const few = progressTimeline(inputs, "1M", { ...now, today: addDays(sc.startDate, 20) });
+    for (const l of few.liftWeeks) if (l.e1rmKg.filter((v) => v != null).length < LIFT_FIT_MIN_COLUMNS) expect(l.fit).toBeNull();
+  });
+
+  it("reads sleep against the person's usual over the range, not a fixed number", () => {
+    const t = progressTimeline(inputs, "3M", now);
+    expect(t.summary.usualSleepH).not.toBeNull();
+    expect(t.summary.usualSleepH!).toBeGreaterThan(6.8);
+    expect(t.summary.usualSleepH!).toBeLessThan(7.6);
+    const none = progressTimeline({ ...inputs, sleepNights: sc.sleepNights.slice(-3) }, "3M", now);
+    expect(none.summary.usualSleepH).toBeNull();
   });
 });
