@@ -55,18 +55,20 @@ The app does not share storage with the home-screen web app.
 
 ## TestFlight
 
+The texts to paste (What to Test, the beta description, the review notes, the App Privacy answers) and the Xcode checks are in `docs/plan/testers/testflight.md`.
+
 1. In App Store Connect (appstoreconnect.apple.com), create the app with the bundle id above.
-2. In Xcode, set the run destination to **Any iOS Device**, then Product → **Archive**. In the Organizer, choose Distribute App → App Store Connect → Upload.
+2. In Xcode, set the run destination to **Any iOS Device**, then Product → **Archive**. In the Organizer, Control-click the archive → Generate Privacy Report and check it against testflight.md §5. Then Validate App, then Distribute App → App Store Connect → Upload.
 3. When processing finishes, about 15 minutes, add yourself as an internal tester. Install the build from the TestFlight app.
 
-Raise the build number (App target → General → Build) for each upload.
+Every upload needs a higher build number than the last (App target → General → Build: 1, 2, 3, and so on). The version (1.0) changes only for an App Store release. Xcode can raise the build for you: in Distribute App choose Custom and leave "Manage Version and Build Number" ticked. `Info.plist` already answers the export-compliance question, so TestFlight doesn't ask it on each build.
 
 ## When a rebuild is needed
 
 | Change | Rebuild? |
 |---|---|
 | Anything in the web app (pages, engine, copy) | No: it is live in the app after the Vercel deploy |
-| A native plugin added or updated, `capacitor.config.ts`, `Info.plist`, entitlements, icon, launch screen | Yes: `npx cap sync ios`, then build in Xcode |
+| A native plugin added or updated, `capacitor.config.ts`, `Info.plist`, entitlements, the privacy manifest, icon, launch screen | Yes: `npx cap sync ios`, then build in Xcode. A new plugin also needs its Swift checked for required-reason APIs (`lib/__tests__/iosPrivacy.test.ts` fails until it is) |
 | A new App Store version | Yes: raise the version and build, archive, upload |
 
 ## Before App Store review (not needed for TestFlight)
@@ -85,7 +87,7 @@ Raise the build number (App target → General → Build) for each upload.
 | File | What it does |
 |---|---|
 | `capacitor.config.ts` | The live site URL, the offline page, the bundle id |
-| `ios/` | The Xcode project. Info.plist has the Health usage text and portrait only; `App.entitlements` has HealthKit |
+| `ios/` | The Xcode project. Info.plist has the Health usage text, the export-compliance answer and portrait only; `App.entitlements` has HealthKit; `PrivacyInfo.xcprivacy` is the privacy manifest (testflight.md §1) |
 | `native/www/` | The offline page, shown when the live site can't load |
 | `lib/nativeApp.ts` | `isNativeApp()`: true only inside the app |
 | `lib/health/native.ts` | Pure: HealthKit samples → the samples the Health Auto Export path already merges (one sleep source a night, the morning weigh-in, the day's mean HRV) |
