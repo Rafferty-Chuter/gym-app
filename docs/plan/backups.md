@@ -17,7 +17,7 @@ The file is a Postgres custom-format dump (compressed), encrypted with GnuPG (AE
 1. **A read-only database login.** In a terminal, make a password: `openssl rand -hex 24`. Open `supabase/migrations/0004_backup_role.sql`, put the password where it says `<BACKUP_DB_PASSWORD>`, and run the file in Supabase → SQL Editor. This creates `backup_reader`, which can read every table and write nothing. It is Supabase's own pattern; the `postgres` login can no longer read all of `auth`.
 2. **The connection string.** In Supabase, press **Connect** and copy the **Session pooler** string. Change the user from `postgres.<project-ref>` to `backup_reader.<project-ref>` and put in the password from step 1:
    ```
-   postgresql://backup_reader.<project-ref>:<password>@aws-0-eu-west-2.pooler.supabase.com:5432/postgres
+   postgresql://backup_reader.<project-ref>:<password>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
    ```
    (Keep the host your project shows.) Don't use the Direct connection: it is IPv6 only and GitHub's runners can't reach it. Don't use the Transaction pooler (port 6543) either: `pg_dump` can't run there.
 3. **The passphrase.** Make one with `openssl rand -base64 32` and **save it in your password manager first**. Without it every backup is unreadable, and GitHub never shows a secret again once it is saved. The workflow refuses passphrases under 24 characters.
@@ -109,7 +109,7 @@ The restored rows are written as the newest: `updated_at = now()` wins over olde
 
 Use this if the project itself is lost.
 
-1. Create a project in London. Run migrations `0001`, `0003`, `0002` (with `CRON_SECRET`) and `0004` (with a new backup password) in the SQL Editor. Turn on Email sign-in with the 6-digit code template, as in FT4 (`07-tester-ready.md`).
+1. Create a project (the current one is in Frankfurt, `eu-central-1`). Run migrations `0001`, `0003`, `0002` (with `CRON_SECRET`) and `0004` (with a new backup password) in the SQL Editor. Turn on Email sign-in with the 6-digit code template, as in FT4 (`07-tester-ready.md`).
 2. Load the accounts first, then the app's rows, with the new project's **postgres** Session pooler string. This follows Supabase's own restore order (`session_replication_role = replica`):
    ```bash
    pg_restore --data-only --no-owner --no-privileges -n auth -t users -t identities -f auth-rows.sql backup.dump

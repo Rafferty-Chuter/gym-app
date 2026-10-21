@@ -60,14 +60,14 @@ Synced keys (`syncedKeys()` = every key with `includeInBackup` less `DEVICE_ONLY
 
 | Who | Role | What | Location | Terms |
 |---|---|---|---|---|
-| Supabase | Processor | Accounts, synced records, Health Auto Export samples, reminders | London `eu-west-2` per `03-architecture.md` A3. `[FOUNDER]` confirm the project's region in the Supabase dashboard (Settings → General) | `[FOUNDER]` accept Supabase's DPA (dashboard) and record the date |
+| Supabase | Processor | Accounts, synced records, Health Auto Export samples, reminders | Frankfurt `eu-central-1` (EU; UK adequacy regulations cover the transfer). Checked 22 Oct 2026 from the database's address; the plan had assumed London | `[FOUNDER]` accept Supabase's DPA (dashboard) and record the date |
 | Anthropic | Processor | Describe text; coach requests when on | United States | `[FOUNDER]` confirm the DPA is in force under the Commercial Terms, its transfer mechanism (UK Addendum / IDTA or UK Extension to the DPF), its retention period for API inputs, and that inputs are not used for training |
 | Vercel | Processor | Hosting; request logs | Functions for Apple Health, reminders and food search pinned to `lhr1` (London). Describe (`app/api/food/parse`) and the assistant routes are not pinned, so they run in the project's default region | `[FOUNDER]` check the project's default function region (Settings → Functions) and Vercel's DPA; record log retention on the current plan |
 | Open Food Facts | Recipient | Search words and barcodes only, sent by our server with our User-Agent | France | No personal data sent (`lib/server/off.ts`) |
 | Apple, Google or Mozilla push services | Recipient | The push message ("No weigh-in yet.", "Weekly report") to the subscription endpoint | Varies | `lib/server/push.ts`, `lib/physique/reminder.ts` `reminderMessage` (no numbers) |
 | GitHub | Processor | Encrypted database backups, 30 days | United States | `[FOUNDER]` GitHub's DPA (Customer Agreement); keep the passphrase in a password manager |
 | Tally | Processor (if used) | What a person writes in the feedback form | EU | `[FOUNDER]` FT6 |
-| Email provider for sign-in codes | Processor | Email address, code | `[FOUNDER]` Supabase's built-in sender or custom SMTP | `[FOUNDER]` |
+| Email provider for sign-in codes | Processor | Email address, code | Resend (custom SMTP in Supabase), set up 22 Oct 2026; `[FOUNDER]` confirm its region | `[FOUNDER]` Resend's DPA |
 
 TR3 chose the built-in `/api/client-error` route over Sentry; if Sentry is added later, add it here and to `/privacy`.
 
@@ -75,7 +75,7 @@ TR3 chose the built-in `/api/client-error` route over Sentry; if Sentry is added
 
 ```
 Phone (all data, engine)
- ├─ signed in + consent (TR1) ──► Supabase sync_records (London)
+ ├─ signed in + consent (TR1) ──► Supabase sync_records (Frankfurt)
  ├─ Describe a meal ──► our server (Vercel) ──► Anthropic (US); chain dishes: web search by dish name + size
  ├─ Food search / barcode ──► our server (lhr1) ──► Open Food Facts
  ├─ Reminders on ──► our server (lhr1) ──► Supabase push_devices ──hourly──► push service ──► phone
@@ -92,7 +92,7 @@ Apple Health ──read on the phone──► phone
 - **How much and how often.** Daily entries per person. PR4's end-to-end test with 16 weeks of made-up data synced 694 rows across 10 keys (`STATUS.md` PR4). Health Auto Export sends one row per metric per day. Describe: one request per use.
 - **How long.** Account: until deletion (TR1); a deleted account stays in the encrypted backups until they age out (30 days, TR6). Health Auto Export: until disconnect. Reminders: until off or 5 failed sends. Vercel logs: Vercel's retention for the plan. Anthropic: its retention for API inputs. `[FOUNDER]` decide what happens to an account, or a Health Auto Export device, that has not been used for a long time (for example delete after 12 months without a sign-in, with an email first); nothing in the code does this today.
 - **How many people.** 5 to 20 testers for 6 to 8 weeks (FT8). `[FOUNDER]` expected numbers after the test.
-- **Geography.** UK testers. Data in London (Supabase, pinned Vercel functions) and the United States (Anthropic, unpinned Vercel functions). `[FOUNDER]` is the TestFlight link limited to the UK or open?
+- **Geography.** UK testers. Data in Frankfurt (Supabase), London (pinned Vercel functions) and the United States (Anthropic, unpinned Vercel functions). `[FOUNDER]` is the TestFlight link limited to the UK or open?
 
 ### Context of the processing
 

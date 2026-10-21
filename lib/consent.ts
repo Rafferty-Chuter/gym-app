@@ -9,7 +9,7 @@ import type { SyncRow } from "@/lib/sync/core";
  * never assumed:
  *
  * - `sync`: keep a copy of this device's data in the person's account
- *   (Supabase, London) so it is safe and on every device. Without it
+ *   (Supabase, Frankfurt) so it is safe and on every device. Without it
  *   nothing leaves the phone for the account: `runSync` refuses.
  * - `ai`: send what the coach needs to Anthropic to write an answer. Off
  *   until turned on; the assistant checks `hasAiConsent()`.

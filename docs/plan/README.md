@@ -48,7 +48,7 @@ The `research/` folder holds six cited reports. The specs are built from them, a
 
 | # | Question | Default | Notes |
 |---|---|---|---|
-| D1 | Backend for M3 | Supabase, London | Needed when Apple Health data starts arriving. Free tier while it's just you. |
+| D1 | Backend for M3 | Supabase, Frankfurt (planned London; kept, 22 Oct 2026) | Needed when Apple Health data starts arriving. Free tier while it's just you. |
 | D2 | Food database for M4 | UK CoFID + USDA + Open Food Facts | No paid nutrition API. |
 | D3 | AI models | New food parsing on `claude-opus-5-5` (≈ 1p per parse). The assistant stays on its current model until F5. | Cheaper options for food parsing are `claude-sonnet-5-5` or `claude-haiku-5-5`; the trade-off is cost against estimate quality. Your call. |
 | D4 | Update `PRODUCT.md` with the physique positioning | Yes: F1 applies `01-product-spec.md` §5 | Your Obsidian vault is the canonical copy, so mirror it there too. |

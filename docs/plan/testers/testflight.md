@@ -112,7 +112,7 @@ Food → Describe sends the text the user types (for example "2 eggs on toast") 
 
 | Data type (as App Store Connect names it) | What it is in Gym AI | Why it counts as collected | Linked? |
 |---|---|---|---|
-| Health & Fitness → **Health** | Weight, body fat, waist, food and nutrition, sleep, HRV, resting heart rate; sex, age and height from setup. Read from Apple Health or entered | Copied to the account (Supabase, London) when signed in; Health Auto Export samples are held on our server; food Describe text goes to our server and Anthropic | Yes |
+| Health & Fitness → **Health** | Weight, body fat, waist, food and nutrition, sleep, HRV, resting heart rate; sex, age and height from setup. Read from Apple Health or entered | Copied to the account (Supabase, Frankfurt) when signed in; Health Auto Export samples are held on our server; food Describe text goes to our server and Anthropic | Yes |
 | Health & Fitness → **Fitness** | Workouts (exercises, sets, reps, loads), steps, training programme | Copied to the account when signed in | Yes |
 | Contact Info → **Email Address** | The sign-in email | Supabase Auth stores it | Yes |
 | Identifiers → **User ID** | The account id | Every synced record is stored under it | Yes |

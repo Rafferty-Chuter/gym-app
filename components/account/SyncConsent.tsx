@@ -25,7 +25,7 @@ export default function SyncConsent({ title, actionLabel, onAgree, onCancel, err
       <ConsentFacts
         facts={[
           { label: "What goes", text: "Everything you log and set here: weigh-ins, food, sleep, training, your goal, and readings from Apple Health." },
-          { label: "Where", text: "Your account, stored by Supabase on servers in London. Other people can't see it." },
+          { label: "Where", text: "Your account, stored by Supabase on servers in Frankfurt, Germany (EU). Other people can't see it." },
           { label: "Why", text: "So your data is safe if this phone is lost, and the same on every device you sign in on." },
           { label: "Your choice", text: "Stop syncing, or delete the account and everything in it, any time in Profile → Account." },
         ]}

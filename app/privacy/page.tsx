@@ -70,8 +70,8 @@ export default function PrivacyPage() {
           {/* TR1: the consent screen before the first sign-in; runSync refuses without it. Today lib/sync/run.ts doSync runs only when signed in */}
           <p>Signing in is optional and asks your permission first, on its own screen.</p>
           {/* src: lib/sync/run.ts syncedKeys (every backup key less DEVICE_ONLY_KEYS) over lib/storage/keys.ts: weighIns, waist, foodEntries, sleepNights (with HRV and resting HR), steps, workoutHistory, workoutTemplates, goal, profile, settings, assistantThreadsV1 */}
-          {/* src: supabase/migrations/0003_sync.sql (sync_records, each user reads their own rows only); app/account/page.tsx (signInWithOtp, email code). Region: docs/plan/03-architecture.md A3 (eu-west-2), not code: the founder confirms it in the Supabase dashboard */}
-          <p>Your log (weight, waist, food, sleep and heart readings, workouts, routines, goal, profile, settings, coach chats) is then copied to your account, stored by Supabase in London with your email address.</p>
+          {/* src: supabase/migrations/0003_sync.sql (sync_records, each user reads their own rows only); app/account/page.tsx (signInWithOtp, email code). Region: not code; the project's database is in eu-central-1 (Frankfurt), checked 22 Oct 2026 (docs/plan/03-architecture.md A3) */}
+          <p>Your log (weight, waist, food, sleep and heart readings, workouts, routines, goal, profile, settings, coach chats) is then copied to your account, stored by Supabase in Frankfurt, Germany, with your email address. The UK treats data protection in the EU as equal to its own.</p>
           {/* TR1: Profile → Account → Stop syncing. Today Sign out (app/account/page.tsx) stops sync and keeps the data. What never syncs (DEVICE_ONLY_KEYS, includeInBackup false) is listed in the DPIA, step 2 */}
           <p>Profile → Account → Stop syncing ends it.</p>
         </>
@@ -84,7 +84,7 @@ export default function PrivacyPage() {
           {/* src: lib/physique/io/nativeHealth.ts READ_TYPES, requestAuthorization({ write: [] }); lib/physique/io/healthLink.ts mergeSamples (into the local log, then synced like the rest). Advertising and sale: no ad or analytics SDK in package.json, no such code */}
           <p>The iPhone app reads the types you allow (weight, body fat, sleep, steps, resting heart rate, heart rate variability) on the phone and keeps them with your log. It never writes to Apple Health. Health data is never used for advertising or sold.</p>
           {/* src: app/api/ingest/hae/route.ts (preferredRegion lhr1, hashToken, values never logged); supabase/migrations/0001_health.sql */}
-          <p>Health Auto Export instead sends the readings you choose to our server in London, under a token we store only hashed.</p>
+          <p>Health Auto Export instead sends the readings you choose to our server, which keeps them in Frankfurt under a token we store only hashed.</p>
         </>
       ),
     },
@@ -115,8 +115,8 @@ export default function PrivacyPage() {
       title: "Who handles it for us",
       body: (
         <ul>
-          {/* src: supabase/migrations/0001_health.sql, 0002_push.sql, 0003_sync.sql. Region: not code (docs/plan/03-architecture.md A3) */}
-          <li>Supabase, in London: accounts, Health Auto Export readings, reminders.</li>
+          {/* src: supabase/migrations/0001_health.sql, 0002_push.sql, 0003_sync.sql. Region: not code, eu-central-1 (docs/plan/03-architecture.md A3) */}
+          <li>Supabase, in Frankfurt (EU): accounts, Health Auto Export readings, reminders.</li>
           {/* src: app/api/food/parse/route.ts, app/api/assistant/route.ts. Training and transfers: not code (Anthropic Commercial Terms and its DPA); the founder confirms (DPIA step 4) */}
           <li>Anthropic, in the United States: Describe and the coach. Its terms forbid training on this data and cover transfers from the UK; ask us for a copy.</li>
           {/* src: preferredRegion "lhr1" in app/api/ingest/hae, health/pull, push/*, food/search, food/barcode; lib/api/guard.ts and lib/assistantCostLogging.ts (client id, token counts and cost; zod issue paths, never values). Request logs: Vercel, not code */}
@@ -202,7 +202,7 @@ export default function PrivacyPage() {
   return (
     <DocPage
       title="Privacy"
-      updated="21 October 2026"
+      updated="22 October 2026"
       intro={
         <p>
           {/* not code: the controller; the founder adds a legal or trading name for the reviewer (DPIA step 1) */}

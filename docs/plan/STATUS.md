@@ -134,7 +134,7 @@ Record wrong verdicts here as `YYYY-MM-DD · rule id · what it said · what was
 | FT1 Apple Developer Program (founder) | todo | | |
 | FT2 Xcode (founder) | todo | | macOS 15.7.3 on the founder's Mac: Xcode 26.x, or Tahoe 26.6+ for Xcode 27 |
 | FT3 Deploys that work (founder) | todo | | |
-| FT4 Accounts switched on (founder, after TR1) | todo | | |
+| FT4 Accounts switched on (founder, after TR1) | in progress | 2026-10-22 | Done: `0003_sync.sql` run (checked: `sync_records` and `sync_push` refuse a signed-out caller), Email provider on, custom SMTP through Resend with the test sender `onboarding@resend.dev` (reaches only the Resend account's email), the publishable key in the local `.env.local`. Left: the two email templates with `{{ .Token }}`, a first sign-in, the two `NEXT_PUBLIC_SUPABASE_*` variables on Vercel and a deploy (FT3), and a domain verified in Resend before testers. The project is in Frankfurt, not London (Decisions changed, 22 Oct). |
 | FT5 Rotate keys (founder) | todo | | |
 | FT6 Feedback form and support email (founder) | todo | | |
 | FT7 Build and upload to TestFlight (founder) | todo | | |
@@ -192,6 +192,7 @@ Record wrong or surprising verdicts here: date · what the app said · what you 
 ## Decisions changed
 | Date | Decision | From → to | Why |
 |---|---|---|---|
+| 2026-10-22 | Where the account data lives | "Supabase, London (`eu-west-2`)" → Frankfurt (`eu-central-1`), the project's real region | Found while switching accounts on: the database's address is in AWS eu-central-1. The founder kept Frankfurt (the EU is covered by UK adequacy; a London project would mean starting over). The consent screen (`components/account/SyncConsent.tsx`), `/privacy`, the DPIA draft, `backups.md`, `testers/testflight.md`, 03 A3 and README D1 now say Frankfurt; nobody had ticked the old wording on the real project, so the consent version stays 1. |
 | 2026-10-17 | Signals row and the Focus control leave Home | Three tiles and the units / Focus header → one "Analysis" row group on Train (`lib/trainSignals.ts`, same rules, each row opens its signal page); Home keeps the three tiles, the verdict, the report line, the gaps and Start workout; units stay in the Profile box | Old visual layer, vague words, repeated what the verdict, report and Train already say. The founder wants the trends reachable, so they moved rather than went. |
 | 2026-10-17 | Week report pushed on Monday | The daily reminder on a Monday becomes "Week report · 12 to 18 Oct" with the gap count, opening `/report` for last week | Founder asked whether to email the report; in the app is better while data lives on the phone, and one push a week brings people to it. |
 | 2026-10-17 | Assistant parked | Chat card on Home, "Ask why" on the verdict, "Ask the assistant" on signal pages, the coach CTA on lifts and the coach-profile banner → hidden behind `ASSISTANT_ENABLED = false` in `lib/features.ts`; `/assistant` sends to Home | The founder and a friend disliked the wording. The engine, report and gap lists do the explaining for now; the chat returns once the rest is solid. Route, API, prompts and tests untouched. |
