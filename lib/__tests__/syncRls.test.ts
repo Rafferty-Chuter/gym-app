@@ -80,4 +80,24 @@ describe("sync table (PR4)", () => {
     const rows = Array.from({ length: 501 }, (_, i) => ({ k: "k", id: `${i}`, data: {}, updated_at: "2026-10-21T08:00:00Z" }));
     await expect(push(A, rows)).rejects.toThrow(/at most 500/);
   });
+
+  it("records consent rows like any other, under the same rules (TR1)", async () => {
+    const consent = (withdrawnAt?: string) => ({ k: "consent.v1", id: "sync:c1", data: { kind: "sync", id: "c1", version: 1, at: "2026-10-21T09:00:00Z", ...(withdrawnAt ? { withdrawnAt } : {}) }, updated_at: withdrawnAt ?? "2026-10-21T09:00:00Z" });
+    await push(A, [consent()]);
+    await push(A, [consent("2026-10-22T10:00:00Z")]);
+    const rows = (await as(A, "select data from public.sync_records where k = 'consent.v1'")).rows as Array<{ data: { withdrawnAt?: string } }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].data.withdrawnAt).toBe("2026-10-22T10:00:00Z");
+    expect((await as(B, "select 1 from public.sync_records where k = 'consent.v1'")).rows).toHaveLength(0);
+  });
+
+  it("takes every row of a deleted account with it, and only that account's (TR1)", async () => {
+    await push(B, [{ k: "physique.v1.goal", id: "", data: { targetKg: 90 }, updated_at: "2026-10-21T08:00:00Z" }]);
+    expect((await readAll(B)).rows.length).toBeGreaterThan(0);
+    const aBefore = (await readAll(A)).rows.length;
+    // What auth.admin.deleteUser does to the table (as the service role, which bypasses RLS).
+    await db.query("delete from auth.users where id = $1", [B]);
+    expect((await db.query("select 1 from public.sync_records where user_id = $1", [B])).rows).toHaveLength(0);
+    expect((await readAll(A)).rows.length).toBe(aBefore);
+  });
 });

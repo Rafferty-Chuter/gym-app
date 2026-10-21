@@ -2,14 +2,20 @@
 
 import { STORAGE_KEYS } from "@/lib/storage/keys";
 import { kvGet, kvGetRaw, kvRemove, kvSet, kvSetRaw } from "@/lib/storage/kv";
-import { supabase } from "@/lib/sync/client";
-import { syncOnce, type Shadow, type SyncIo, type SyncOutcome, type SyncRow } from "@/lib/sync/core";
+import { AUTH_STORAGE_KEY, supabase } from "@/lib/sync/client";
+import { hashOf, syncOnce, type Shadow, type SyncIo, type SyncOutcome, type SyncRow } from "@/lib/sync/core";
+import { consentRows, isConsentActive, readConsents, SYNC_CONSENT_VERSION, withdrawConsent } from "@/lib/consent";
 
 /**
  * Sync on the device (PR4): which keys go to the account, where the
  * shadow and cursor live, and one guarded run against Supabase. Reads stay
  * on the device; this only copies changes up and other devices' changes
  * down. No record values are logged.
+ *
+ * Consent first (TR1): without the person's tick on this device nothing is
+ * sent, not even a sign-in check. With it, the record of the choice goes
+ * to the account before any data does; a withdrawal is recorded the same
+ * way and then nothing more is sent.
  */
 
 /** Where this device keeps what it last synced and how far it has pulled (not in backups). */
@@ -23,11 +29,21 @@ export function syncedKeys(): string[] {
   return STORAGE_KEYS.filter((e) => e.scope === "local" && e.includeInBackup && !DEVICE_ONLY_KEYS.has(e.key)).map((e) => e.key);
 }
 
-type SyncState = { userId: string | null; shadow: Shadow; cursor: string | null; lastSyncAt: string | null; lastError: string | null };
+type SyncState = {
+  userId: string | null;
+  shadow: Shadow;
+  cursor: string | null;
+  lastSyncAt: string | null;
+  lastError: string | null;
+  /** Hash of the consent rows this account last received, so a choice is sent once (TR1). */
+  consentSent: string | null;
+};
+
+const EMPTY_STATE: SyncState = { userId: null, shadow: {}, cursor: null, lastSyncAt: null, lastError: null, consentSent: null };
 
 function loadState(): SyncState {
-  const s = kvGet<SyncState>(SYNC_STATE_KEY);
-  return s && typeof s === "object" ? { userId: s.userId ?? null, shadow: s.shadow ?? {}, cursor: s.cursor ?? null, lastSyncAt: s.lastSyncAt ?? null, lastError: s.lastError ?? null } : { userId: null, shadow: {}, cursor: null, lastSyncAt: null, lastError: null };
+  const s = kvGet<Partial<SyncState>>(SYNC_STATE_KEY);
+  return s && typeof s === "object" ? { userId: s.userId ?? null, shadow: s.shadow ?? {}, cursor: s.cursor ?? null, lastSyncAt: s.lastSyncAt ?? null, lastError: s.lastError ?? null, consentSent: s.consentSent ?? null } : { ...EMPTY_STATE };
 }
 
 function saveState(s: SyncState) {
@@ -69,7 +85,11 @@ function setStatus(next: Partial<SyncStatus>) {
 const PAGE = 1000;
 let inFlight: Promise<SyncOutcome | null> | null = null;
 
-/** One sync when signed in; null when accounts are off or nobody is signed in. Overlapping calls share one run. */
+/**
+ * One sync when signed in and the person has agreed to it on this device;
+ * null when accounts are off, nobody is signed in, or there is no consent
+ * (TR1). Overlapping calls share one run.
+ */
 export function runSync(): Promise<SyncOutcome | null> {
   if (!inFlight) inFlight = doSync().finally(() => (inFlight = null));
   return inFlight;
@@ -78,13 +98,35 @@ export function runSync(): Promise<SyncOutcome | null> {
 async function doSync(): Promise<SyncOutcome | null> {
   const sb = supabase();
   if (!sb) return null;
+  const consents = readConsents();
+  // No choice made on this device: nothing goes anywhere.
+  if (!consents.sync) return null;
+  const syncOn = isConsentActive(consents.sync, SYNC_CONSENT_VERSION);
   const { data } = await sb.auth.getSession();
   const session = data.session;
   if (!session) return null;
 
   let state = loadState();
   // A different account on this device starts afresh: its first sync takes the server's copy and adds what the device has.
-  if (state.userId !== session.user.id) state = { userId: session.user.id, shadow: {}, cursor: null, lastSyncAt: null, lastError: null };
+  if (state.userId !== session.user.id) state = { ...EMPTY_STATE, userId: session.user.id };
+
+  // The record of the choices goes first. With sync off, only the sync choice (its withdrawal) is sent.
+  const rows = consentRows(syncOn ? consents : { sync: consents.sync, ai: null });
+  const sent = hashOf(rows);
+  if (state.consentSent !== sent) {
+    const { error } = await sb.rpc("sync_push", { rows });
+    if (error) {
+      if (syncOn) {
+        state = { ...state, lastError: "Couldn't reach your account" };
+        saveState(state);
+        setStatus({ running: false, lastError: state.lastError });
+      }
+      return null;
+    }
+    state = { ...state, consentSent: sent };
+    saveState(state);
+  }
+  if (!syncOn) return null;
   setStatus({ running: true });
 
   const io: SyncIo = {
@@ -144,4 +186,29 @@ async function doSync(): Promise<SyncOutcome | null> {
     setStatus({ running: false, lastError: message });
     return null;
   }
+}
+
+// ── Stopping and forgetting (TR1) ──
+
+/**
+ * Stop syncing on this device: the consent is withdrawn, the withdrawal
+ * is recorded in the account, and from then on `runSync` sends nothing.
+ * The session stays, so the account can still be deleted from here.
+ */
+export async function stopSyncing(nowIso: string): Promise<boolean> {
+  if (!withdrawConsent("sync", nowIso)) return false;
+  // A run already under way finishes first; the next one only records the withdrawal.
+  await runSync();
+  await runSync();
+  return true;
+}
+
+/**
+ * The account is gone (deleted): drop this device's session for it and its
+ * sync position, so nothing refers to it any more. The device's data stays.
+ */
+export function forgetAccount(): void {
+  kvRemove(SYNC_STATE_KEY);
+  kvRemove(AUTH_STORAGE_KEY);
+  setStatus({ running: false, lastSyncAt: null, lastError: null, last: null });
 }
