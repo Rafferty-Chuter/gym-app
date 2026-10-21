@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addDays } from "@/lib/dates";
 import { CONN_MIN_GROUP, compareThirds, connections, sessionStrength, type ConnectionInputs } from "@/lib/physique/connections";
-import type { SleepNight } from "@/lib/physique/types";
+import type { FoodEntry, SleepNight } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
 const today = "2026-10-21";
@@ -115,5 +115,89 @@ describe("Connections (L1)", () => {
     const c = compareThirds(ok);
     expect(c?.low).toHaveLength(CONN_MIN_GROUP);
     expect(c?.diff).toBeCloseTo(6, 5);
+  });
+
+  // ── C7: more conditions, each with its evidence ──
+
+  /** Sixteen weeks of three sessions a week with food every day and sessions at random hours; `carbEffect` and `eveningEffect` make sessions after high-carb days, or late in the day, stronger. */
+  function richHistory(seed: number, carbEffectPct: number, eveningEffectPct: number): ConnectionInputs {
+    const r = rng(seed);
+    const workouts: StoredWorkout[] = [];
+    const foodEntries: FoodEntry[] = [];
+    const start = addDays(today, -111);
+    const carbsByDate = new Map<string, number>();
+    for (let d = -1; d < 112; d++) {
+      const date = addDays(start, d);
+      const carbs = Math.round(120 + r() * 260);
+      carbsByDate.set(date, carbs);
+      foodEntries.push({ id: `f-${date}`, date, loggedAt: `${date}T20:00:00.000Z`, source: "manual", schemaVersion: 1, label: "Day", kcal: Math.round(2300 + r() * 600), proteinG: Math.round(140 + r() * 60), carbsG: carbs, fatG: 80, method: "manual" } as unknown as FoodEntry);
+    }
+    for (let d = 0; d < 112; d++) {
+      const date = addDays(start, d);
+      const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+      if (dow !== 1 && dow !== 3 && dow !== 5) continue;
+      const evening = r() < 0.5;
+      const hour = evening ? 18 + Math.floor(r() * 3) : 6 + Math.floor(r() * 3);
+      const highCarb = (carbsByDate.get(addDays(date, -1)) ?? 0) > 250;
+      const effect = (highCarb ? 1 + carbEffectPct / 100 : 1) * (evening ? 1 + eveningEffectPct / 100 : 1);
+      const lift = (base: number) => Math.round(base * (1 + 0.0004 * d) * (1 + (r() - 0.5) * 0.03) * effect * 2) / 2;
+      workouts.push({
+        completedAt: `${date}T${String(hour).padStart(2, "0")}:15:00.000Z`,
+        name: "Full body",
+        exercises: [
+          { name: "Squat", sets: [{ weight: String(lift(120)), reps: "5" }] },
+          { name: "Bench Press", sets: [{ weight: String(lift(90)), reps: "5" }] },
+        ],
+      });
+    }
+    return { workouts, sleepNights: [], foodEntries, dayFlags: {}, weighIns: [], unit: "kg" };
+  }
+
+  it("finds a carbs effect and a time-of-day effect, each with what studies found and no advice", () => {
+    const carbs = connections(richHistory(5, 4, 0), now).items.find((c) => c.id === "carbs");
+    expect(carbs?.state).toBe("linked");
+    expect(carbs!.text).toMatch(/^After your highest-carb days \(\d+ g on average\), your lifts were \d+\.\d% stronger than after your lowest \(\d+ g\)\.$/);
+    expect(carbs!.evidence?.source).toMatch(/Henselmans/);
+    const time = connections(richHistory(6, 0, 4), now).items.find((c) => c.id === "time");
+    expect(time?.state).toBe("linked");
+    expect(time!.text).toMatch(/^In your latest sessions \(around \d{2}:\d{2}\), your lifts were \d+\.\d% stronger than in your earliest \(around \d{2}:\d{2}\)\.$/);
+    for (const c of [carbs!, time!]) expect(`${c.text} ${c.evidence?.text ?? ""}`).not.toMatch(/should|try|aim|make sure|you need/i);
+  });
+
+  it("rarely links anything by chance with eight conditions read at once", () => {
+    let linked = 0;
+    let checked = 0;
+    for (let seed = 40; seed < 70; seed++) {
+      const res = connections(richHistory(seed, 0, 0), now);
+      linked += res.items.filter((c) => c.state === "linked").length;
+      checked += res.checked;
+    }
+    // Carbs, protein, time and rest are read on every seed; calories against maintenance needs the estimate.
+    expect(checked).toBeGreaterThanOrEqual(30 * 3);
+    expect(linked).toBeLessThanOrEqual(3);
+  });
+
+  it("reads calories against maintenance only with the estimate, as the day before's gap", () => {
+    const h = richHistory(7, 0, 0);
+    expect(connections(h, now).items.map((c) => c.id)).not.toContain("balance");
+    const expenditure = h.foodEntries.map((e) => ({ date: e.date, tdee: 2800, state: "updating" as const, trendKg: 80, base: 2800, offset: 0, updatingDays: 1 }));
+    const bal = connections({ ...h, expenditure }, now).items.find((c) => c.id === "balance");
+    expect(bal).toBeDefined();
+    // Intake runs 2,300 to 2,900 against 2,800, so the highest-calorie days sit near maintenance and the lowest well under.
+    expect(bal!.high.value).toMatch(/^(\d+ (under|over) maintenance|at maintenance)$/);
+    expect(bal!.low.value).toMatch(/^\d+ under maintenance$/);
+  });
+
+  it("shows two conditions that rose and fell together as one finding, naming the other (C7)", () => {
+    const h = richHistory(5, 4, 0);
+    // Calories follow carbs here, as they do when the extra food is carbs.
+    const foodEntries = h.foodEntries.map((e) => ({ ...e, kcal: 1800 + 4 * e.carbsG }));
+    const expenditure = foodEntries.map((e) => ({ date: e.date, tdee: 2800, state: "updating" as const, trendKg: 80, base: 2800, offset: 0, updatingDays: 1 }));
+    const res = connections({ ...h, foodEntries, expenditure }, now);
+    const linked = res.items.filter((c) => c.state === "linked");
+    const food = linked.filter((c) => c.id === "carbs" || c.id === "balance");
+    expect(food).toHaveLength(1);
+    expect(food[0].movedWith).toBe(food[0].id === "carbs" ? "balance" : "carbs");
+    expect(food[0].text).toMatch(/rose and fell with it, so the two can't be told apart\.$/);
   });
 });

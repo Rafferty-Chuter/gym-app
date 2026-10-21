@@ -17,7 +17,7 @@ import { weekStart } from "@/lib/physique/food/week";
 import { countsForBalance } from "@/lib/physique/food/energy";
 import { dailyIntakeSeries, targetInEffect } from "@/lib/physique/intake";
 import { displayRate, segmentStart, trendSeries, weighInsByDate } from "@/lib/physique/weight";
-import { SLEEP_REFERENCE_H, nightsByDate, thresholdsForWindow, type NormalizedNight } from "@/lib/physique/sleep";
+import { SLEEP_REFERENCE_H, nightsByDate, thresholdsForWindow, usualSleepH, type NormalizedNight } from "@/lib/physique/sleep";
 import { isCompoundLift, liftSeries, workoutDate } from "@/lib/physique/strength";
 import { CONSISTENCY_MIN_NIGHTS, nightAxisMin } from "@/lib/physique/sleepScore";
 import { mean, stdev } from "@/lib/stats";
@@ -142,7 +142,11 @@ export type WeekReport = {
     missing: LocalDate[];
     meanH: number | null;
     goalH: number;
+    /** The person's usual night before this week (median of the four weeks before), or null without a week's nights (C7). */
+    usualH: number | null;
     shortNights: number;
+    /** The hours a night counts as short under: 6, or 6.5 for nights logged by hand (ACUTE_NIGHT_H). */
+    shortUnderH: number;
     /** Sample SD of the week's wake times in minutes, once CONSISTENCY_MIN_NIGHTS nights carry one. */
     wakeSpreadMin: number | null;
   };
@@ -323,6 +327,7 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
   const shortNights = nights.filter((n) => n.asleepH < acuteH).length;
   const wakes = nights.map((n) => nightAxisMin(n.night.wakeTime)).filter((x): x is number => x != null);
   const wakeSpreadMin = wakes.length >= CONSISTENCY_MIN_NIGHTS ? Math.round(stdev(wakes)) : null;
+  const usualH = usualSleepH(byDate, start);
 
   // ── Steps and resting heart rate (Apple Health) ──
   // Today's steps are still counting, so a running week reads through yesterday.
@@ -415,7 +420,7 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
       fibreDays,
     },
     training: { sessions: weekWorkouts.length, hardSets, byMuscle, lifts, days: trainingDays, priority },
-    sleep: { nights: nights.length, missing: sleepMissing, meanH, goalH, shortNights, wakeSpreadMin },
+    sleep: { nights: nights.length, missing: sleepMissing, meanH, goalH, usualH: usualH != null ? round1(usualH) : null, shortNights, shortUnderH: acuteH, wakeSpreadMin },
     health: {
       stepDays: stepsByDay.size,
       meanSteps,

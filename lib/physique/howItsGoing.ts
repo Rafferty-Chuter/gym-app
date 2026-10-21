@@ -23,7 +23,7 @@ import { RHR_FLAG_BPM } from "@/lib/physique/recovery";
 import { WAKE_SPREAD_MIN } from "@/lib/physique/sleepScore";
 import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import type { GoalType } from "@/lib/physique/types";
-import { FIBRE_GOOD_SHARE, FIBRE_TARGET_G, INTAKE_ON_TARGET_KCAL, MAINTAIN_BAND_KG, PROTEIN_GOOD_SHARE, SLEEP_GOOD_H, SLEEP_SHORT_H, STEPS_GOOD, TRAINING_DAYS_GOOD, WAIST_HOLD_CM, focusFor, planMargin, rateVsPlan, type Focus, type Tone } from "@/lib/physique/weekScorecard";
+import { FIBRE_GOOD_SHARE, FIBRE_TARGET_G, INTAKE_ON_TARGET_KCAL, MAINTAIN_BAND_KG, PROTEIN_GOOD_SHARE, sleepAgainstUsual, STEPS_GOOD, TRAINING_DAYS_GOOD, WAIST_HOLD_CM, focusFor, planMargin, rateVsPlan, type Focus, type Tone } from "@/lib/physique/weekScorecard";
 
 // ── Thresholds ──
 
@@ -167,10 +167,8 @@ function trainingRow({ recent, trainedRecently, strength, goalType }: PulseInput
 function sleepRow({ recent }: PulseInputs): PulseRow | null {
   const s = recent.sleep;
   if (s.nights < PULSE_MIN_DAYS || s.meanH == null) return null;
-  const gap = s.goalH - s.meanH;
-  const base = { id: "sleep" as const, label: "Sleep", value: `${minutes(s.meanH)} a night`, href: "/sleep" };
-  if (gap <= SLEEP_GOOD_H) return { ...base, note: `${s.goalH} hours or more`, tone: "good" };
-  return { ...base, note: `${minutes(gap)} under ${s.goalH} hours`, tone: gap > SLEEP_SHORT_H ? "watch" : "neutral" };
+  const read = sleepAgainstUsual(s.meanH, s.usualH);
+  return { id: "sleep", label: "Sleep", value: `${minutes(s.meanH)} a night`, href: "/sleep", note: read.text, tone: read.tone };
 }
 
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)} %/wk`;

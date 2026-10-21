@@ -42,7 +42,7 @@ const FINDING_CHARTS: Record<FindingId, string[]> = {
   "cut-fast-lifts": ["weight", "strength"],
 };
 /** The chart each connection's condition lives on, beside strength (PR2). */
-const CONNECTION_CHART: Record<ConnectionId, string> = { sleep: "sleep", calories: "calories", protein: "protein", rate: "weight", rest: "training", hrv: "sleep" };
+const CONNECTION_CHART: Record<ConnectionId, string> = { sleep: "sleep", carbs: "calories", balance: "calories", protein: "protein", time: "training", rest: "training", rate: "weight", hrv: "sleep" };
 
 type Picked = { kind: "finding" | "connection"; id: string } | null;
 
@@ -93,8 +93,8 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   // PR2: connections read the chosen range, never less than the 16 weeks their minimums need.
   const connDays = range === "6M" || range === "All" ? dayDiff(timeline.from, today) + 1 : 0;
   const conn = useMemo(
-    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, unit }, now, { days: connDays }),
-    [workouts, data, unit, now, connDays]
+    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, unit }, now, { days: connDays }),
+    [workouts, data, expenditure, unit, now, connDays]
   );
   const found = useMemo(() => {
     const p = getPhysiqueProfileSync();

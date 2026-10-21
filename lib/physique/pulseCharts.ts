@@ -88,7 +88,7 @@ export function pulseChart(id: PulseId, { recent, food, waist = [] }: PulseChart
       return p && p.muscles > 0 ? { kind: "meter", filled: p.inRange, total: p.muscles } : null;
     }
     case "sleep":
-      return bars(rd, r.map((d) => d.asleepH), recent.sleep.goalH);
+      return bars(rd, r.map((d) => d.asleepH), recent.sleep.usualH);
     case "wake": {
       const wakes = present(r.map((d) => d.wakeMin));
       if (wakes.length < 2) return null;

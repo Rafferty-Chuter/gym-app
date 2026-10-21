@@ -20,6 +20,7 @@ import { ON_TRACK_TOLERANCE } from "@/lib/physique/judge";
 import { ADHERENCE_TOLERANCE_KCAL } from "@/lib/physique/intake";
 import { RHR_FLAG_BPM } from "@/lib/physique/recovery";
 import { WAKE_SPREAD_MIN } from "@/lib/physique/sleepScore";
+import { SLEEP_ADULT_MIN_H } from "@/lib/physique/sleep";
 import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import type { GoalType, PhysiqueAnalysis, StrengthStatus } from "@/lib/physique/types";
 import type { WeekReport } from "@/lib/physique/weekReport";
@@ -36,9 +37,23 @@ export const MAINTAIN_BAND_KG = 0.3;
 export const LIFTS_DOWN_PCT = 2;
 /** Lifts named on the main-lifts tile, biggest mover first. OURS: one fits the tile at 390 px. */
 export const STRENGTH_TILE_LIFTS = 1;
-/** Sleep within this of 8 hours (SLEEP_REFERENCE_H) reads as good; further than SLEEP_SHORT_H below as watch. OURS, matching the review's 0.5 h. */
+/** Sleep within this of the person's usual reads as about usual (good); further than SLEEP_SHORT_H below as watch (C7: their own usual, not a fixed 8 hours). OURS, matching the review's 0.5 h. */
 export const SLEEP_GOOD_H = 0.25;
 export const SLEEP_SHORT_H = 0.5;
+
+/**
+ * A week's sleep against the person's own usual (C7), as a few words and a
+ * tone: "About your usual", "40m under your usual", "25m over your usual".
+ * Without a usual yet it is read against the 7 hours adults need.
+ */
+export function sleepAgainstUsual(meanH: number, usualH: number | null): { text: string; tone: Tone } {
+  const ref = usualH ?? SLEEP_ADULT_MIN_H;
+  const what = usualH != null ? "your usual" : `${SLEEP_ADULT_MIN_H} hours`;
+  const gap = ref - meanH;
+  if (Math.abs(gap) <= SLEEP_GOOD_H) return { text: usualH != null ? "About your usual" : `About ${SLEEP_ADULT_MIN_H} hours`, tone: "good" };
+  if (gap < 0) return { text: `${minutes(-gap)} over ${what}`, tone: "good" };
+  return { text: `${minutes(gap)} under ${what}`, tone: gap > SLEEP_SHORT_H ? "watch" : "neutral" };
+}
 /** Daily fibre for adults. PUB: SACN 2015, Carbohydrates and Health (30 g AOAC fibre, the measure CoFID carries). */
 export const FIBRE_TARGET_G = 30;
 /** Average steps from which the tile reads good. PUB: Paluch et al. 2022 (Lancet Public Health), mortality benefit levels off around 6,000 to 8,000 for older adults and 8,000 to 10,000 for younger ones; 7,000 is the low end for most. */
@@ -274,13 +289,12 @@ function sleepTile({ report, prev }: ScorecardInputs): Tile {
   const sub = [`${s.shortNights} short ${s.shortNights === 1 ? "night" : "nights"}`, s.wakeSpreadMin != null ? `wake time ±${s.wakeSpreadMin} min` : null].filter(Boolean).join(" · ");
   let delta: Tile["delta"] = null;
   if (s.meanH != null) {
-    const gap = s.goalH - s.meanH;
-    const tone: Tone = gap <= SLEEP_GOOD_H ? "good" : gap > SLEEP_SHORT_H ? "watch" : "neutral";
+    const read = sleepAgainstUsual(s.meanH, s.usualH);
     const vsLast = prev?.sleep.meanH != null ? s.meanH - prev.sleep.meanH : null;
-    const text = vsLast != null && Math.abs(vsLast) >= 1 / 6 ? `${sign(vsLast)}${minutes(Math.abs(vsLast))} vs last week` : gap <= SLEEP_GOOD_H ? `${s.goalH} hours or more` : `${minutes(gap)} under ${s.goalH} hours`;
-    delta = { text, tone };
+    const text = vsLast != null && Math.abs(vsLast) >= 1 / 6 ? `${sign(vsLast)}${minutes(Math.abs(vsLast))} vs last week` : read.text;
+    delta = { text, tone: read.tone };
   }
-  return { id: "sleep", label: "Sleep a night", value, sub, delta, chart: { kind: "bars", values: report.days.map((d) => d.asleepH), target: s.goalH }, href: "/sleep" };
+  return { id: "sleep", label: "Sleep a night", value, sub, delta, chart: { kind: "bars", values: report.days.map((d) => d.asleepH), target: s.usualH }, href: "/sleep" };
 }
 
 function wakeTile({ report }: ScorecardInputs): Tile | null {

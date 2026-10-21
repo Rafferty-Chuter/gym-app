@@ -45,6 +45,8 @@ type RowSpec = { id: string; label: string; color: string; summary: ReactNode | 
 export default function Timeline({ t, range, onRange, unit, focus }: { t: ProgressTimeline; range: ProgressRange; onRange: (r: ProgressRange) => void; unit: WeightUnit; focus?: TimelineFocus | null }) {
   const weeks = t.weeks;
   const n = Math.max(1, weeks.length);
+  const k = t.periodWeeks;
+  const span = k === 1 ? "the week" : `these ${k} weeks`;
   const { active: sel, bind } = usePick({ xs: weeks.map((_, k) => (k + 0.5) / n), share: true, data: `${t.from}:${t.through}` });
 
   const s = t.summary;
@@ -55,7 +57,7 @@ export default function Timeline({ t, range, onRange, unit, focus }: { t: Progre
       label: "Weight",
       color: "var(--chart-trend)",
       summary: s.trendChangeKg != null ? `${signed(kgToDisplay(s.trendChangeKg, unit))} ${kgUnit} over ${RANGE_WORDS[range]}` : null,
-      week: (w) => (w.trendKg != null ? `${formatBodyWeight(w.trendKg, unit)}${w.trendChangeKg != null ? ` · ${signed(kgToDisplay(w.trendChangeKg, unit))} ${kgUnit} on the week` : ""}` : "No weigh-ins"),
+      week: (w) => (w.trendKg != null ? `${formatBodyWeight(w.trendKg, unit)}${w.trendChangeKg != null ? ` · ${signed(kgToDisplay(w.trendChangeKg, unit))} ${kgUnit} over ${span}` : ""}` : "No weigh-ins"),
       chart: <WeightChart t={t} pick={sel != null ? weeks[sel] : null} />,
     },
     {
@@ -79,7 +81,7 @@ export default function Timeline({ t, range, onRange, unit, focus }: { t: Progre
       label: "Training",
       color: "var(--chart-training)",
       summary: s.setsPerWeek != null ? `${n0(s.setsPerWeek)} hard sets a week` : null,
-      week: (w) => (w.sessions ? `${w.sessions} ${w.sessions === 1 ? "session" : "sessions"} · ${w.hardSets} hard sets` : "No sessions"),
+      week: (w) => (w.sessions ? `${w.sessions} ${w.sessions === 1 ? "session" : "sessions"} · ${w.hardSets} hard sets${k > 1 ? ` in ${k} weeks` : ""}` : "No sessions"),
       chart: <Bars weeks={weeks} value={(w) => (w.sessions > 0 ? w.hardSets : null)} color="var(--chart-training)" sel={sel} />,
     },
     {
@@ -252,7 +254,7 @@ function CaloriesChart({ weeks, sel }: { weeks: ProgressWeek[]; sel: number | nu
 }
 
 function WeightChart({ t, pick }: { t: ProgressTimeline; pick: ProgressWeek | null }) {
-  const total = Math.max(1, t.weeks.length * 7);
+  const total = Math.max(1, t.weeks.length * 7 * t.periodWeeks);
   if (t.days.length < 2) return null;
   const vals = t.days.flatMap((d) => (d.kg != null ? [d.trendKg, d.kg] : [d.trendKg]));
   const lo0 = Math.min(...vals);
@@ -279,7 +281,7 @@ function WeightChart({ t, pick }: { t: ProgressTimeline; pick: ProgressWeek | nu
 
 /** A connection's sessions by date, each against its lift's own level: the top third filled, the bottom third hollow, the level dashed. */
 function SessionDots({ t, sessions, pick }: { t: ProgressTimeline; sessions: NonNullable<TimelineFocus["sessions"]>; pick: ProgressWeek | null }) {
-  const total = Math.max(1, t.weeks.length * 7);
+  const total = Math.max(1, t.weeks.length * 7 * t.periodWeeks);
   const inRange = (p: SessionPoint) => p.date >= t.from && p.date <= t.through;
   const all = [...sessions.high, ...sessions.low].filter(inRange);
   if (!all.length) return null;

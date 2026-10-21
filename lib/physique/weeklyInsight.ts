@@ -11,6 +11,8 @@
 import { dayDiff, type LocalDate } from "@/lib/dates";
 import { fmtKcal, fmtSignedRate, joinNames } from "@/lib/physique/copy";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
+import { SLEEP_ADULT_MIN_H } from "@/lib/physique/sleep";
+import { sleepAgainstUsual } from "@/lib/physique/weekScorecard";
 import type { GoalEta } from "@/lib/physique/goalEta";
 import { ADHERENCE_TOLERANCE_KCAL } from "@/lib/physique/intake";
 import { PRO2_MIN_G_PER_KG } from "@/lib/physique/judge";
@@ -94,7 +96,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 function sleepShort(r: WeekReport): boolean {
   const s = r.sleep;
-  return s.nights >= REVIEW_MIN_NIGHTS && s.meanH != null && (s.meanH < s.goalH - REVIEW_SLEEP_SHORTFALL_H || s.shortNights >= REVIEW_SHORT_NIGHTS);
+  return s.nights >= REVIEW_MIN_NIGHTS && s.meanH != null && (s.meanH < (s.usualH ?? SLEEP_ADULT_MIN_H) - REVIEW_SLEEP_SHORTFALL_H || s.shortNights >= REVIEW_SHORT_NIGHTS);
 }
 
 // ── Heading ──
@@ -257,9 +259,9 @@ export function allFixes(i: InsightInputs): Fix[] {
   if (short && r.sleep.meanH != null) {
     out.push({
       id: "sleep",
-      state: r.sleep.meanH < r.sleep.goalH - 1 ? "attention" : "watch",
+      state: r.sleep.meanH < (r.sleep.usualH ?? SLEEP_ADULT_MIN_H) - 1 ? "attention" : "watch",
       title: "Sleep more",
-      why: `${formatHoursMin(r.sleep.meanH * 60)} a night, under ${r.sleep.goalH} hours${r.sleep.shortNights ? `, ${plural(r.sleep.shortNights, "short night")}` : ""}${recLow ? ". Recovery is below your usual too" : ""}.`,
+      why: `${formatHoursMin(r.sleep.meanH * 60)} a night, ${r.sleep.meanH < SLEEP_ADULT_MIN_H - 0.25 ? `under the ${SLEEP_ADULT_MIN_H} hours adults need` : sleepAgainstUsual(r.sleep.meanH, r.sleep.usualH).text.toLowerCase()}${r.sleep.shortNights ? `, ${plural(r.sleep.shortNights, "short night")}` : ""}${recLow ? ". Recovery is below your usual too" : ""}.`,
       action: "Keep your wake time and get to bed 30 to 45 minutes earlier.",
       href: "/sleep",
     });
@@ -304,7 +306,7 @@ export function goingWell(i: InsightInputs): string[] {
   if (i.analysis.strength.status === "rising") out.push("lifts up");
   // Held lifts are the aim on a cut; a gain or a recomp aims higher, so it is not listed there (B3).
   else if (i.analysis.strength.status === "holding" && i.goal?.type !== "gain" && i.goal?.type !== "maintain") out.push("lifts held");
-  if (r.sleep.nights >= REVIEW_MIN_NIGHTS && !sleepShort(r)) out.push("sleep near 8 hours");
+  if (r.sleep.nights >= REVIEW_MIN_NIGHTS && !sleepShort(r)) out.push(r.sleep.usualH != null ? "sleep at your usual" : `sleep near ${SLEEP_ADULT_MIN_H} hours or more`);
   if (r.complete && i.plannedSessions && r.training.sessions >= i.plannedSessions) out.push("every session done");
   return out;
 }

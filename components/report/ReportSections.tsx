@@ -260,7 +260,7 @@ export default function ReportSections({ report: r, prev: p, tiles, unit, goal, 
   const h = r.health;
   const sleepRows: ReportRow[] = [
     { label: "Sleep a night", now: s.meanH == null ? dash : formatHoursMin(s.meanH * 60), prev: p?.sleep.meanH == null ? dash : formatHoursMin(p.sleep.meanH * 60), status: tile("sleep")?.delta ?? null },
-    { label: "Nights under 8 hours", now: s.nights ? `${s.shortNights}` : dash, prev: p?.sleep.nights ? `${p.sleep.shortNights}` : dash },
+    { label: `Nights under ${formatHoursMin(s.shortUnderH * 60).replace(/ 00m$/, "")}`, sub: s.usualH != null ? `Usually ${formatHoursMin(s.usualH * 60)} a night` : null, now: s.nights ? `${s.shortNights}` : dash, prev: p?.sleep.nights ? `${p.sleep.shortNights}` : dash },
     { label: "Wake time spread", sub: "Most to least consistent morning", now: s.wakeSpreadMin == null ? dash : `±${s.wakeSpreadMin} min`, prev: p?.sleep.wakeSpreadMin == null ? dash : `±${p.sleep.wakeSpreadMin} min`, status: tile("wake")?.delta ?? null },
   ];
   if (h.meanRhr != null || p?.health.meanRhr != null) sleepRows.push({ label: "Resting heart rate", sub: h.usualRhr != null ? `Usually ${h.usualRhr} bpm` : null, now: h.meanRhr == null ? dash : `${h.meanRhr} bpm`, prev: p?.health.meanRhr == null ? dash : `${p.health.meanRhr} bpm`, status: tile("rhr")?.delta ?? null });

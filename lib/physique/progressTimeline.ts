@@ -28,8 +28,10 @@ import type { WeightUnit } from "@/lib/units";
 
 /** Days of a kind before a week shows its mean. OURS: three of seven, the weekly report's own floor. */
 export const WEEK_MIN_DAYS = 3;
-/** Weeks the "All" range reads at most. OURS: two years keeps the bars wide enough to tap on a phone. */
+/** Weeks the "All" range reads at most. OURS: two years. */
 export const ALL_MAX_WEEKS = 104;
+/** Columns a range draws at most; a longer history puts two or more weeks in each (C7). OURS: about half a year of weekly bars is as many as stay readable and tappable on a phone. */
+export const MAX_COLUMNS = 26;
 
 export type ProgressRange = "1M" | "3M" | "6M" | "All";
 /** Weeks per range, the current week included. */
@@ -74,6 +76,9 @@ export type ProgressTimeline = {
   range: ProgressRange;
   from: LocalDate;
   through: LocalDate;
+  /** Weeks in each column: 1, or more for a long "All" (C7). */
+  periodWeeks: number;
+  /** One per column, oldest first; each covers `periodWeeks` weeks. */
   weeks: ProgressWeek[];
   /** Daily trend and scale weight in the range, for the weight line. */
   days: Array<{ date: LocalDate; trendKg: number; kg: number | null }>;
@@ -132,7 +137,12 @@ export function rangeStart(range: ProgressRange, today: LocalDate, firstData: Lo
 /** Every week of the range, oldest first, with the measures above and a summary over them. */
 export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: Now): ProgressTimeline {
   const through = now.today;
-  const from = rangeStart(range, through, firstDataDate(i, now.tz));
+  const start0 = rangeStart(range, through, firstDataDate(i, now.tz));
+  // A long history goes into columns of k weeks, the last one ending with this week.
+  const totalWeeks = dayDiff(start0, weekStart(through)) / 7 + 1;
+  const k = Math.max(1, Math.ceil(totalWeeks / MAX_COLUMNS));
+  const from = addDays(weekStart(through), -7 * (k * Math.ceil(totalWeeks / k) - 1));
+  const minDays = WEEK_MIN_DAYS * k;
 
   // Daily series, built once and bucketed by week.
   const trend = trendSeries(i.weighIns);
@@ -171,8 +181,8 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
 
   const weeks: ProgressWeek[] = [];
   let prevTrendEnd: number | null = trendAt(addDays(from, -1));
-  for (let start = from; start <= through; start = addDays(start, 7)) {
-    const end = minDate(addDays(start, 6), through);
+  for (let start = from; start <= through; start = addDays(start, 7 * k)) {
+    const end = minDate(addDays(start, 7 * k - 1), through);
     const dates: LocalDate[] = [];
     for (let d = start; d <= end; d = addDays(d, 1)) dates.push(d);
 
@@ -180,7 +190,7 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
     const trendEnd = trendAt(end);
     const counted = dates.map((d) => intake.get(d)).filter((x) => x && countsForBalance(x.status)) as Array<{ kcal: number }>;
     const complete = dates.map((d) => intake.get(d)).filter((x) => x && x.status === "complete") as Array<{ proteinG: number }>;
-    const kcal = meanOrNull(counted.map((x) => x.kcal));
+    const kcal = meanOrNull(counted.map((x) => x.kcal), minDays);
     const maintVals = dates.map((d) => maint.get(d)).filter((x): x is number => x != null);
     const maintenanceKcal = maintVals.length ? mean(maintVals) : null;
     const target = targetInEffect(i.program, end);
@@ -204,7 +214,7 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
     weeks.push({
       start,
       end,
-      current: end === through && dayDiff(start, through) < 7,
+      current: end === through && dayDiff(start, through) < 7 * k,
       weightKg: scale.length ? mean(scale) : null,
       trendKg: trendEnd,
       trendChangeKg: trendEnd != null && prevTrendEnd != null ? trendEnd - prevTrendEnd : null,
@@ -214,12 +224,12 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
       maintenanceKcal,
       balanceKcal: kcal != null && maintenanceKcal != null ? kcal - maintenanceKcal : null,
       targetKcal: target?.kcal ?? null,
-      proteinG: meanOrNull(complete.map((x) => x.proteinG)),
+      proteinG: meanOrNull(complete.map((x) => x.proteinG), minDays),
       proteinTargetG: target?.proteinG ?? null,
       sessions,
       hardSets,
       strengthPct: liftPcts.length ? mean(liftPcts) : null,
-      sleepH: meanOrNull(sleep),
+      sleepH: meanOrNull(sleep, minDays),
       nights: sleep.length,
     });
     if (trendEnd != null) prevTrendEnd = trendEnd;
@@ -240,6 +250,7 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
     range,
     from,
     through,
+    periodWeeks: k,
     weeks,
     days,
     lifts: mainLifts.map((l) => l.name),
@@ -248,7 +259,7 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
       kcal: vals((w) => w.kcal).length ? mean(vals((w) => w.kcal)) : null,
       balanceKcal: vals((w) => w.balanceKcal).length ? mean(vals((w) => w.balanceKcal)) : null,
       proteinG: vals((w) => w.proteinG).length ? mean(vals((w) => w.proteinG)) : null,
-      setsPerWeek: trained.length && trained.some((w) => w.sessions > 0) ? mean(trained.map((w) => w.hardSets)) : null,
+      setsPerWeek: trained.length && trained.some((w) => w.sessions > 0) ? mean(trained.map((w) => w.hardSets)) / k : null,
       strengthPct: strengths.length >= 2 ? strengths[strengths.length - 1] : null,
       sleepH: vals((w) => w.sleepH).length ? mean(vals((w) => w.sleepH)) : null,
     },

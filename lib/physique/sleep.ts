@@ -47,6 +47,12 @@ export const MIN_WEEKDAY_NIGHTS = 5;
  * stored before is ignored. Fields and parameters named goalH carry this.
  */
 export const SLEEP_REFERENCE_H = 8;
+/** Adults sleeping less than this are short of sleep. EVID: AASM and SRS consensus, 7 hours or more (Watson 2015). The read when there is no usual yet. */
+export const SLEEP_ADULT_MIN_H = 7;
+/** Nights before a date whose median is the person's usual sleep (C7: what a night is read against, not a fixed 8 hours). OURS: four weeks, so one bad week does not move it. */
+export const SLEEP_USUAL_DAYS = 28;
+/** Valid nights a usual needs. OURS: a week's worth. */
+export const SLEEP_USUAL_MIN_NIGHTS = 7;
 /** SLEEP-1 corroboration: ≥2 main lifts down at least this much, last 2 weeks vs the 3 before. OURS (02 §7.3). */
 export const SLEEP1_LIFT_DROP_PCT = 2.5;
 export const SLEEP1_RECENT_DAYS = 14;
@@ -374,4 +380,17 @@ export function nightsFromHealthKitSamples(samples: readonly HealthKitSleepSampl
     });
   }
   return out;
+}
+
+/**
+ * The person's usual sleep before `before` (C7): the median of the valid
+ * nights in the SLEEP_USUAL_DAYS before it, or null with fewer than
+ * SLEEP_USUAL_MIN_NIGHTS. Nights are read against this rather than a fixed
+ * number, as 8 hours is not everyone's need and not everyone can get it.
+ */
+export function usualSleepH(byDate: ReadonlyMap<LocalDate, NormalizedNight>, before: LocalDate): number | null {
+  const from = addDays(before, -SLEEP_USUAL_DAYS);
+  const hours: number[] = [];
+  for (const [d, n] of byDate) if (d >= from && d < before && n.valid) hours.push(n.asleepH);
+  return hours.length >= SLEEP_USUAL_MIN_NIGHTS ? median(hours) : null;
 }

@@ -13,6 +13,7 @@ import type { LocalDate } from "@/lib/dates";
 import type { CheckInModule, CheckInPlan } from "@/lib/physique/checkIn";
 import { fmtKcal } from "@/lib/physique/copy";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
+import { SLEEP_ADULT_MIN_H } from "@/lib/physique/sleep";
 import { ADHERENCE_TOLERANCE_KCAL } from "@/lib/physique/intake";
 import { PRO2_MIN_G_PER_KG } from "@/lib/physique/judge";
 import type { WeekReport } from "@/lib/physique/weekReport";
@@ -25,7 +26,7 @@ import { deloadLine, type DeloadRead } from "@/lib/training/deload";
 export const REVIEW_MIN_FOOD_DAYS = 4;
 /** Fewer nights than this and the sleep read stays "Early read". OURS: same reasoning as food. */
 export const REVIEW_MIN_NIGHTS = 4;
-/** A week's mean this far under 8 hours (SLEEP_REFERENCE_H) reads "watch". OURS: half an hour a night is the smallest shortfall worth a sentence. */
+/** A week's mean this far under the person's usual (7 hours without one) reads "watch" (C7). OURS: half an hour a night is the smallest shortfall worth a sentence. */
 export const REVIEW_SLEEP_SHORTFALL_H = 0.5;
 /** This many short nights in one week reads "watch" whatever the mean. OURS: three is a pattern, two can be a weekend. */
 export const REVIEW_SHORT_NIGHTS = 3;
@@ -156,7 +157,7 @@ export function trainingRead(r: WeekReport, deload: DeloadRead, plannedSessions 
   };
 }
 
-/** Mean against 8 hours and short nights. */
+/** Mean against the person's usual (7 hours without one) and short nights. */
 export function sleepRead(r: WeekReport): ReviewRead {
   const s = r.sleep;
   if (s.nights < REVIEW_MIN_NIGHTS || s.meanH == null) {
@@ -166,7 +167,7 @@ export function sleepRead(r: WeekReport): ReviewRead {
       detail: s.nights === 0 ? "No nights logged this week." : `${s.nights} of ${r.daysCovered} nights logged. Four or more give a usable average.`,
     };
   }
-  const shortMean = s.meanH < s.goalH - REVIEW_SLEEP_SHORTFALL_H;
+  const shortMean = s.meanH < (s.usualH ?? SLEEP_ADULT_MIN_H) - REVIEW_SLEEP_SHORTFALL_H;
   const manyShort = s.shortNights >= REVIEW_SHORT_NIGHTS;
   const detail = [
     `${plural(s.nights, "night")}`,

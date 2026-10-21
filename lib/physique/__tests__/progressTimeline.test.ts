@@ -3,7 +3,7 @@ import { addDays, dayDiff } from "@/lib/dates";
 import { makeScenario } from "@/lib/physique/fixtures";
 import { computeExpenditure } from "@/lib/physique/expenditure";
 import { weekStart } from "@/lib/physique/food/week";
-import { progressTimeline, rangeStart, RANGE_WEEKS, WEEK_MIN_DAYS, type TimelineInputs } from "@/lib/physique/progressTimeline";
+import { MAX_COLUMNS, progressTimeline, rangeStart, RANGE_WEEKS, WEEK_MIN_DAYS, type TimelineInputs } from "@/lib/physique/progressTimeline";
 
 const sc = makeScenario({
   seed: 5,
@@ -83,5 +83,18 @@ describe("Progress timeline (PR1)", () => {
     expect(t.weeks).toHaveLength(1);
     expect(t.summary.kcal).toBeNull();
     expect(t.days).toEqual([]);
+  });
+
+  it("puts a long history into columns of several weeks, never more than MAX_COLUMNS (C7)", () => {
+    const first = addDays(sc.today, -7 * 60);
+    const old = Array.from({ length: 60 * 7 }, (_, k) => ({ ...sc.weighIns[0], id: `old-${k}`, date: addDays(first, k), kg: 90 - k * 0.01 }));
+    const t = progressTimeline({ ...inputs, weighIns: [...old, ...sc.weighIns] }, "All", now);
+    expect(t.periodWeeks).toBe(3);
+    expect(t.weeks.length).toBeLessThanOrEqual(MAX_COLUMNS);
+    expect(t.from <= first).toBe(true);
+    expect(t.weeks.at(-1)!.end).toBe(sc.today);
+    expect(t.weeks.at(-1)!.current).toBe(true);
+    for (let k = 1; k < t.weeks.length; k++) expect(dayDiff(t.weeks[k - 1].start, t.weeks[k].start)).toBe(21);
+    expect(progressTimeline(inputs, "6M", now).periodWeeks).toBe(1);
   });
 });

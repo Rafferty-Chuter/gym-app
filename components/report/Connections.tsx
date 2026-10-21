@@ -1,55 +1,42 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Caption } from "@/components/physique/ui";
 import { CONN_MIN_SESSIONS, type Connection, type ConnectionId, type ConnectionsResult } from "@/lib/physique/connections";
 
 /** Each condition in its measure's colour (DESIGN.md rev 4.2). */
 export const CONNECTION_COLOR: Record<ConnectionId, string> = {
   sleep: "var(--chart-sleep)",
-  calories: "var(--macro-kcal)",
+  carbs: "var(--macro-carb)",
+  balance: "var(--macro-kcal)",
   protein: "var(--macro-protein)",
-  rate: "var(--chart-trend)",
+  time: "var(--chart-steps)",
   rest: "var(--chart-training)",
+  rate: "var(--chart-trend)",
   hrv: "var(--chart-heart)",
 };
 
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%`;
 const divider = { borderTop: "1px solid var(--border)" };
+/** The bars' half-width stands for this many percent at least, so a small difference looks small. OURS: 5%, about two sessions' spread. */
+const SCALE_MIN_PCT = 5;
 
-/** The two thirds as bars either side of the lift's own level (the centre line). */
-function CompareBars({ c, color }: { c: Connection; color: string }) {
-  const rows = [c.high, c.low];
-  const scale = Math.max(2, ...rows.map((r) => Math.abs(r.pct)));
+/** How much stronger or weaker, as a bar from the centre: right for stronger, left for weaker (after WHOOP's impact bars). */
+function ImpactBar({ pct, scale, color }: { pct: number; scale: number; color: string }) {
+  const w = Math.min(50, (Math.abs(pct) / scale) * 50);
   return (
-    <div className="flex flex-col gap-1.5" aria-hidden>
-      {rows.map((r, i) => {
-        const w = (Math.abs(r.pct) / scale) * 50;
-        return (
-          <div key={i} className="flex items-center gap-2.5">
-            <span className="w-[76px] shrink-0 truncate text-[11px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {r.value}
-            </span>
-            <span className="relative h-2 flex-1 rounded-full" style={{ background: "var(--surface-raised)" }}>
-              <span className="absolute inset-y-[-2px] left-1/2 w-px" style={{ background: "var(--text-tertiary)" }} />
-              <span className="absolute inset-y-0 rounded-full" style={{ background: color, opacity: i === 0 ? 1 : 0.55, width: `${w}%`, left: r.pct >= 0 ? "50%" : `${50 - w}%` }} />
-            </span>
-            <span className="w-[44px] shrink-0 text-right text-[11px] font-medium" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {signedPct(r.pct)}
-            </span>
-          </div>
-        );
-      })}
-    </div>
+    <span className="relative block h-2.5 w-full rounded-full" style={{ background: "var(--surface-raised)" }} aria-hidden>
+      <span className="absolute inset-y-[-3px] left-1/2 w-px" style={{ background: "var(--text-tertiary)" }} />
+      <span className="absolute inset-y-0 rounded-full" style={{ background: color, width: `${w}%`, left: pct >= 0 ? "50%" : `${50 - w}%` }} />
+    </span>
   );
 }
 
 /** A row that opens its sessions on the timeline when the screen offers it; a plain block otherwise. */
-function Pick({ c, onSelect, selected, plain, className, children }: { c: Connection; onSelect?: (c: Connection) => void; selected: boolean; plain?: boolean; className: string; children: ReactNode }) {
-  const style = { ...(plain ? {} : divider), background: selected ? "var(--surface-raised)" : undefined };
+function Pick({ c, onSelect, selected, className, children }: { c: Connection; onSelect?: (c: Connection) => void; selected: boolean; className: string; children: ReactNode }) {
+  const style = { ...divider, background: selected ? "var(--surface-raised)" : undefined };
   if (!onSelect) {
     return (
-      <div className={className} style={style} aria-label={plain ? c.text : undefined}>
+      <div className={className} style={style}>
         {children}
       </div>
     );
@@ -73,32 +60,36 @@ function ShowLine({ selected }: { selected: boolean }) {
 }
 
 /**
- * Connections (L1): how sleep, food and weight change line up with the
- * lifts across the last 16 weeks, from `lib/physique/connections.ts`. Clear
- * differences first, each with both groups' numbers; then the conditions
- * with no clear difference, which is worth knowing too. Words say what the
- * numbers show, not what to do.
+ * Connections (L1, C7): what lined up with the person's strongest and
+ * weakest sessions, from `lib/physique/connections.ts`. Only clear
+ * differences are shown, largest first, each as one bar (after WHOOP's
+ * impact analysis), one sentence with both groups' numbers and what
+ * studies found. How much was checked is one line, so the reader sees the
+ * search without a list of non-results. Facts, not advice.
  */
 export default function ConnectionsCard({ result, onSelect, selectedId }: { result: ConnectionsResult; /** Progress (PR2): tap one to see its sessions on the timeline. */ onSelect?: (c: Connection) => void; selectedId?: string | null }) {
   if (result.sessions === 0) return null;
   const linked = result.items.filter((c) => c.state === "linked");
-  const none = result.items.filter((c) => c.state === "none");
-  const weeks = result.weeks;
+  const scale = Math.max(SCALE_MIN_PCT, ...linked.map((c) => Math.abs(c.diffPct)));
+  const sources = [...new Set(linked.flatMap((c) => (c.evidence ? [c.evidence.source] : [])))];
+  const checkedLine = `${result.checked} ${result.checked === 1 ? "thing" : "things"} checked across ${result.sessions} sessions over ${result.weeks} weeks.`;
   return (
     <section aria-label="Connections" className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
       <div className="flex flex-col gap-1 px-4 pb-3.5 pt-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
-            Connections
-          </span>
-          <Caption>
-            {result.sessions} sessions · {weeks} weeks
-          </Caption>
-        </div>
-        <p className="text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
-          Each session&apos;s best sets against that lift&apos;s own level around then, by what came before it.
+        <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
+          Connections
+        </span>
+        <p className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+          What lined up with your strongest and weakest sessions.
         </p>
       </div>
+
+      {linked.length > 0 && (
+        <div className="flex justify-between px-4 pb-1.5 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }} aria-hidden>
+          <span>Lifts weaker</span>
+          <span>Lifts stronger</span>
+        </div>
+      )}
 
       {linked.map((c) => (
         <Pick key={c.id} c={c} onSelect={onSelect} selected={selectedId === c.id} className="flex w-full flex-col gap-2 px-4 py-3.5 text-left">
@@ -106,39 +97,46 @@ export default function ConnectionsCard({ result, onSelect, selectedId }: { resu
             <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
               {c.label}
             </span>
-            <span className="text-[17px] font-semibold tracking-[-0.01em]" style={{ color: CONNECTION_COLOR[c.id], fontVariantNumeric: "tabular-nums" }}>
+            <span className="text-[17px] font-semibold tracking-[-0.01em]" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
               {signedPct(c.diffPct)}
             </span>
           </div>
+          <ImpactBar pct={c.diffPct} scale={scale} color={CONNECTION_COLOR[c.id]} />
           <p className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
             {c.text}
           </p>
-          <CompareBars c={c} color={CONNECTION_COLOR[c.id]} />
+          {c.evidence && (
+            <p className="text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
+              Studies: {c.evidence.text}
+            </p>
+          )}
           {onSelect && <ShowLine selected={selectedId === c.id} />}
         </Pick>
       ))}
 
-      {none.length > 0 && (
-        <div className="flex flex-col gap-1.5 px-4 py-3.5" style={divider}>
-          <Caption>No clear difference</Caption>
-          {/* The heading says it once; each row is the measure and its two thirds. */}
-          {none.map((c) => (
-            <Pick key={c.id} c={c} onSelect={onSelect} selected={selectedId === c.id} plain className="-mx-2 flex w-[calc(100%+16px)] items-baseline justify-between gap-3 rounded-[8px] px-2 py-1 text-left text-[13px]">
-              <span style={{ color: "var(--text)" }}>{c.label}</span>
-              <span className="text-right" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                {c.high.value} against {c.low.value}
-              </span>
-            </Pick>
-          ))}
-        </div>
-      )}
-
-      {result.items.length === 0 && (
+      {result.checked > 0 ? (
+        <p className="px-4 py-3 text-[12px] leading-snug" style={{ ...divider, color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+          {linked.length === 0 ? `Nothing stands out yet. ${checkedLine}` : checkedLine}
+        </p>
+      ) : (
         <p className="px-4 py-3.5 text-[13px] leading-snug" style={{ ...divider, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
           {result.sessions < CONN_MIN_SESSIONS
             ? `These show from about ${CONN_MIN_SESSIONS} sessions with sleep or food logged alongside. ${result.sessions} so far.`
             : "These show once sleep, food or weigh-ins are logged alongside your sessions."}
         </p>
+      )}
+
+      {sources.length > 0 && (
+        <details className="px-4 pb-3.5 pt-2.5" style={divider}>
+          <summary className="cursor-pointer text-[12px] font-medium" style={{ color: "var(--text-tertiary)" }}>
+            Sources
+          </summary>
+          <ul className="mt-1.5 flex flex-col gap-1 text-[11px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
+            {sources.map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ul>
+        </details>
       )}
     </section>
   );

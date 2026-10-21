@@ -46,10 +46,10 @@ describe("night score", () => {
     expect(s.reason).toMatch(/usual time/);
   });
 
-  it("a short night names the shortfall under 8 hours", () => {
+  it("a short night names the shortfall under the 7 hours adults need (C7)", () => {
     const s = nightScore([...steady, mk(TODAY, 6, { wakeTime: "07:00", stages: { awakeMin: 15 } })], TODAY)!;
-    expect(s.parts[0].score).toBe(75);
-    expect(s.reason).toBe("2h 00m under 8 hours.");
+    expect(s.parts[0].score).toBe(86);
+    expect(s.reason).toBe("1h 00m under 7 hours.");
   });
 
   it("a lie-in costs the timing part and is named", () => {
@@ -67,17 +67,17 @@ describe("night score", () => {
   });
 
   it("the score never beats the hours: a night well short of the goal is not Excellent", () => {
-    const s = nightScore([...steady, mk(TODAY, 6.5, { wakeTime: "07:00", stages: { awakeMin: 10 } })], TODAY)!;
-    expect(s.score).toBe(81);
+    const s = nightScore([...steady, mk(TODAY, 5.5, { wakeTime: "07:00", stages: { awakeMin: 10 } })], TODAY)!;
+    expect(s.score).toBe(79);
     expect(s.word).toBe("Fair");
   });
 
   it("judges a night against the goal alone, never a goal raised by earlier short nights (S9)", () => {
     const short = run(7, 6, () => ({}), addDays(TODAY, -1));
     const s = nightScore([...short, mk(TODAY, 8)], TODAY)!;
-    expect(s.goalH).toBe(8);
+    expect(s.goalH).toBe(7);
     expect(s.parts[0]).toMatchObject({ label: "Asleep", score: 100 });
-    expect(nightScore([mk(TODAY, 7)], TODAY)!.reason).toBe("1h 00m under 8 hours.");
+    expect(nightScore([mk(TODAY, 6)], TODAY)!.reason).toBe("1h 00m under 7 hours.");
   });
 
   it("shows each part as data with whole points that add up to the score (C3)", () => {

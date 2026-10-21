@@ -191,9 +191,9 @@ export function weightLink(i: LinkInputs): Link | null {
 
   const signedKg = (x: number) => `${x < 0 ? "−" : x > 0 ? "+" : ""}${kg(Math.abs(x))}`;
   const figures: LinkFigure[] = [
-    { label: "Plan", value: signedKg(planned), kgPerWeek: planned },
-    { label: "From what you ate", value: signedKg(expected), kgPerWeek: expected },
-    { label: "Trend", value: signedKg(actual), kgPerWeek: actual },
+    { label: "Planned", value: signedKg(planned), kgPerWeek: planned },
+    { label: "Calories predict", value: signedKg(expected), kgPerWeek: expected },
+    { label: "Scale trend", value: signedKg(actual), kgPerWeek: actual },
   ];
   const figuresCaption = `Per week, over the last ${span}`;
   const balance = intake - maint;
@@ -218,7 +218,7 @@ export function weightLink(i: LinkInputs): Link | null {
       causes: intakeCauses,
       figures,
       figuresCaption,
-      note: matches ? "The scale matches what you ate." : null,
+      note: matches ? "The scale trend matches what your calories predict." : null,
     };
   }
 
@@ -230,7 +230,7 @@ export function weightLink(i: LinkInputs): Link | null {
   causes.push(...intakeCauses);
   if (intakeExplains) {
     note = matches
-      ? `The trend matches what you ate, so the plan works when the target is hit${goal.type === "gain" && faster ? "; faster gain than planned adds more fat than muscle" : goal.type === "lose" && faster ? "; losing faster than planned costs more muscle and strength" : ""}.`
+      ? `The scale trend matches what your calories predict, so the plan works when the target is hit${goal.type === "gain" && faster ? "; faster gain than planned adds more fat than muscle" : goal.type === "lose" && faster ? "; losing faster than planned costs more muscle and strength" : ""}.`
       : "Intake explains part of the gap; the trend lags the scale by a few days.";
   } else {
     // The target itself can sit off the plan once maintenance has moved since it was set; the Monday review moves it.

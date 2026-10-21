@@ -144,8 +144,8 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
   // L1: how sleep, food and weight change line up with the lifts over the 16 weeks to the report's last day.
   const conn = useMemo(
-    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, unit }, { today: report.through, tz: now.tz }),
-    [workouts, data, unit, report.through, now.tz]
+    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, unit }, { today: report.through, tz: now.tz }),
+    [workouts, data, expenditure, unit, report.through, now.tz]
   );
 
   // E1: the last four weeks against what studies support, to the report's last day.

@@ -1,6 +1,6 @@
 /**
  * Sleep rev 4 (05-design §9.6 rev 4, after WHOOP and Bevel): a night's
- * score against 8 hours, the usual wake time read from the nights,
+ * score against the 7 hours adults need (C7; 8 before), the usual wake time read from the nights,
  * wake-time consistency and plain 14-night averages (S10, in place of the
  * last week against the 30 nights before it).
  * The bedtime planner and the debt-inflated "need" went in S9: a running
@@ -10,7 +10,7 @@
  * Pure. Clocks are "HH:MM" local; minutes on the night axis are measured
  * from 18:00 so a 23:30 bedtime sits before a 00:30 one.
  *
- * The score is hours asleep as a share of 8 hours (after WHOOP's Sleep
+ * The score is hours asleep as a share of 7 hours (after WHOOP's Sleep
  * Performance); waking off your usual time and a restless night
  * take points off. Stages are shown and never scored: a watch's stage
  * split is only moderately accurate against a sleep lab (research C §4.2).
@@ -18,7 +18,7 @@
 
 import { addDays, type LocalDate } from "@/lib/dates";
 import { mean, median, stdev } from "@/lib/stats";
-import { SLEEP_WINDOW_NIGHTS, SLEEP_REFERENCE_H, nightsByDate, nightsInWindow, type NormalizedNight } from "@/lib/physique/sleep";
+import { SLEEP_ADULT_MIN_H, SLEEP_WINDOW_NIGHTS, nightsByDate, nightsInWindow, type NormalizedNight } from "@/lib/physique/sleep";
 import { formatClock, formatHoursMin, parseClock } from "@/lib/physique/dayTotals";
 import { EFFICIENCY, efficiencyOf, type RatingWord } from "@/lib/physique/sleepView";
 import type { SleepNight } from "@/lib/physique/types";
@@ -116,7 +116,7 @@ export function usualWake(nights: readonly SleepNight[] | ReadonlyMap<LocalDate,
 
 // ── Score ──
 
-/** "8 hours", the reference as words. */
+/** "7 hours", the reference as words. */
 const hoursWord = (h: number) => `${Number.isInteger(h) ? h : h.toFixed(1)} hours`;
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
@@ -145,7 +145,7 @@ export type NightScore = {
   /** 0..100, rounded. */
   score: number;
   word: RatingWord;
-  /** The hours the night was scored against (SLEEP_REFERENCE_H). */
+  /** The hours the night was scored against (SLEEP_ADULT_MIN_H). */
   goalH: number;
   asleepMin: number;
   /** The parts that had data, in display order. */
@@ -164,7 +164,8 @@ export function nightScore(nights: readonly SleepNight[], date: LocalDate): Nigh
   const n = byDate.get(date);
   if (!n || !n.valid) return null;
   const night = n.night;
-  const goalH = SLEEP_REFERENCE_H;
+  // C7: hours are scored against the 7 adults need (AASM and SRS), not 8: 8 is not everyone's need and not everyone can get it.
+  const goalH = SLEEP_ADULT_MIN_H;
   const parts: ScorePart[] = [];
 
   const ratio = night.asleepMin / (goalH * 60);

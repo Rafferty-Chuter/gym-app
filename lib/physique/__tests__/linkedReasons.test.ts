@@ -86,10 +86,10 @@ describe("linked reasons (W5)", () => {
     const w = weightLink(week({}))!;
     expect(w.state).toBe("good");
     expect(w.title).toBe("Weight moving as planned");
-    expect(w.figures.map((f) => `${f.label}: ${f.value}`)).toEqual(["Plan: −0.5 kg", "From what you ate: −0.5 kg", "Trend: −0.5 kg"]);
+    expect(w.figures.map((f) => `${f.label}: ${f.value}`)).toEqual(["Planned: −0.5 kg", "Calories predict: −0.5 kg", "Scale trend: −0.5 kg"]);
     expect(w.figuresCaption).toBe("Per week, over the last 4 weeks");
     expect(w.causes[0]).toBe("Over the last 4 weeks you ate 2,140 kcal a day, on the 2,150 target. Against maintenance of about 2,700, that is a 560 kcal deficit, about 0.5 kg of fat loss a week.");
-    expect(w.note).toBe("The scale matches what you ate.");
+    expect(w.note).toBe("The scale trend matches what your calories predict.");
   });
 
   it("eating over target links to the weight not coming down as planned, and says the trend matches the intake", () => {
@@ -97,7 +97,7 @@ describe("linked reasons (W5)", () => {
     expect(w.state).toBe("watch");
     expect(w.title).toBe("Weight came down slower than planned");
     expect(w.causes[0]).toBe("Over the last 4 weeks you ate 2,500 kcal a day, 350 over the 2,150 target. Against maintenance of about 2,700, that is a 200 kcal deficit, about 0.2 kg of fat loss a week.");
-    expect(w.note).toBe("The trend matches what you ate, so the plan works when the target is hit.");
+    expect(w.note).toBe("The scale trend matches what your calories predict, so the plan works when the target is hit.");
     expect(weightLink(week({ ratePct: 0.05, win: { meanKcal: 2650 } }))!.title).toBe("Weight did not come down");
   });
 

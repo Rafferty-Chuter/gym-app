@@ -7,7 +7,8 @@ import { useNow } from "@/lib/ui/useToday";
 import { type LocalDate, type Now } from "@/lib/dates";
 import { saveSleepNight, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
 import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
-import { SLEEP_REFERENCE_H, nightsByDate } from "@/lib/physique/sleep";
+import { addDays } from "@/lib/dates";
+import { nightsByDate, usualSleepH } from "@/lib/physique/sleep";
 import { formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { trendBars } from "@/lib/physique/sleepView";
 import { nightAverages, nightScore, wakeConsistency, type NightAverages } from "@/lib/physique/sleepScore";
@@ -72,6 +73,8 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
       recovery: recoveryRead(data.sleepNights, today, read ? read.status === "short" || read.status === "severe" : false),
       prefill: sleepPrefill(data.sleepNights),
       anyNight: byDate.size > 0,
+      // C7: the line on the 14 nights is the person's own usual (the four weeks before them), not a fixed 8 hours.
+      usualH: usualSleepH(byDate, addDays(today, -13)),
     };
   }, [data.sleepNights, today, night, now, analysis]);
 
@@ -90,7 +93,7 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         {model.anyNight && (
           <NightBars
             bars={model.bars}
-            refH={SLEEP_REFERENCE_H}
+            refH={model.usualH}
             selected={night}
             onSelect={setNight}
             note={<AverageStats averages={model.averages} />}
