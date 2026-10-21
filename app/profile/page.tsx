@@ -31,7 +31,9 @@ import HeightSheet from "@/components/physique/HeightSheet";
 import { readAppearance, setAppearance, type Appearance } from "@/lib/ui/appearance";
 import { getRestTimerSettings, REST_TIMER_SETTINGS_EVENT, setRestTimerSettings, type RestTimerSettings } from "@/lib/restTimerSettings";
 import { downloadAllWorkoutsCsv } from "@/lib/exportWorkoutsCsv";
+import { FEEDBACK_URL } from "@/lib/feedback";
 import type { Sex } from "@/lib/physique/types";
+import { APP_VERSION } from "@/lib/appVersion";
 
 
 const pill = (on: boolean) => ({ background: on ? "var(--primary)" : "var(--surface-raised)", color: on ? "var(--text-on-primary)" : "var(--text-secondary)" });
@@ -48,11 +50,9 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: () => void; la
 /**
  * Profile (CL1): units, who you are, Apple Health, training settings,
  * reminders, Apple Health, data. Every row saves on the tap. Nothing here
- * is a form to submit.
+ * is a form to submit. The version under About (TR3) names the build for
+ * a tester's feedback.
  */
-/** Shown under About; testers quote it in feedback. */
-const APP_VERSION = "1.0 beta";
-
 export default function ProfilePage() {
   const hydrated = useIsHydrated();
   const router = useRouter();
@@ -102,7 +102,7 @@ export default function ProfilePage() {
     window.setTimeout(() => setExportStatus(null), 4000);
   }
 
-  const feedbackUrl = process.env.NEXT_PUBLIC_TALLY_FEEDBACK_URL;
+  const feedbackUrl = FEEDBACK_URL;
   const sex: Sex | undefined = resolved?.sex && resolved.missing.includes("sex") ? undefined : resolved?.sex;
   const healthSub = nativeHealth ? (nativeHealth.lastSyncAt ? `Read on this iPhone · last ${receivedLabel(nativeHealth.lastSyncAt, new Date())}` : "Connected · not read yet") : healthLink ? (healthLink.lastPayloadAt ? `Auto-upload on · last received ${receivedLabel(healthLink.lastPayloadAt, new Date())}` : "Token ready · waiting for the first upload") : "Sleep, HRV and weight arrive on their own";
 
@@ -110,6 +110,16 @@ export default function ProfilePage() {
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader caption="Settings" title="Profile" />
+
+        {/* TR4: first on the page during the beta, so testers find it without looking (Dropbox and pushr give it its own group; Commons puts it near the top). Hidden without a form. */}
+        {feedbackUrl && (
+          <section className="flex flex-col gap-2" aria-label="Feedback">
+            <Caption>Feedback</Caption>
+            <RowGroup>
+              <Row label="Send feedback" sub="Anything wrong or confusing. A screenshot helps." value="" trailing={<Chevron />} onClick={() => window.open(feedbackUrl, "_blank", "noopener,noreferrer")} ariaLabel="Send feedback. Opens a short form" />
+            </RowGroup>
+          </section>
+        )}
 
         {/* PR4: only when the deployment has accounts switched on. */}
         {ACCOUNTS_ENABLED && (
@@ -236,7 +246,6 @@ export default function ProfilePage() {
             <Row label="Import" sub="Daily log, sample data, Hevy, Strong, Rep Count" value="" trailing={<Chevron />} onClick={() => router.push("/profile/import")} ariaLabel="Import. Open" />
             <Row label="Export workouts" sub={exportStatus ?? "A CSV of every logged set"} value="" trailing={<Chevron />} onClick={exportCsv} ariaLabel="Export workouts as CSV" />
             <Row label="Move to another phone" sub="Copy everything as text and paste it there" value="" trailing={<Chevron />} onClick={() => router.push("/dev/data-transfer")} ariaLabel="Move to another phone. Open" />
-            {feedbackUrl && <Row label="Send feedback" sub="Opens a short form" value="" trailing={<Chevron />} onClick={() => window.open(feedbackUrl, "_blank", "noopener,noreferrer")} ariaLabel="Send feedback. Opens in a new tab" />}
           </RowGroup>
           <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             Your log is stored on this phone. Move it across before switching phones.
