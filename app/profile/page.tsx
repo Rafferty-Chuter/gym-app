@@ -7,6 +7,9 @@ import { Caption, Chevron, Row, RowGroup } from "@/components/physique/ui";
 import NumberSheet from "@/components/physique/NumberSheet";
 import RemindersSection from "@/components/physique/RemindersSection";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
+import AiConsentSheet from "@/components/account/AiConsentSheet";
+import { AI_CONSENT_VERSION, isConsentActive, useConsents } from "@/lib/consent";
+import { ASSISTANT_ENABLED } from "@/lib/features";
 import MusclePrioritiesSheet from "@/components/physique/MusclePrioritiesSheet";
 import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
 import { priorityOf } from "@/lib/training/volumeTargets";
@@ -72,7 +75,9 @@ export default function ProfilePage() {
   const resolved = hydrated && profile !== undefined ? getPhysiqueProfileSync() : null;
   const healthLink = useHealthLink();
   const nativeHealth = useNativeHealth();
-  const [sheet, setSheet] = useState<"height" | "age" | "health" | "priorities" | null>(null);
+  const [sheet, setSheet] = useState<"height" | "age" | "health" | "priorities" | "ai" | null>(null);
+  const consents = useConsents();
+  const aiOn = isConsentActive(consents?.ai, AI_CONSENT_VERSION);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [rest, setRest] = useState<RestTimerSettings>(() => getRestTimerSettings());
   useEffect(() => {
@@ -112,6 +117,16 @@ export default function ProfilePage() {
             <Caption>Account</Caption>
             <RowGroup>
               <Row label="Account" sub="Your data on every device" value="" trailing={<Chevron />} onClick={() => router.push("/account")} ariaLabel="Account. Open" />
+            </RowGroup>
+          </section>
+        )}
+
+        {/* TR1: the coach's own consent, off until given; only while the coach is on. */}
+        {ASSISTANT_ENABLED && (
+          <section className="flex flex-col gap-2" aria-label="AI coach">
+            <Caption>AI coach</Caption>
+            <RowGroup>
+              <Row label="Send data to Anthropic" sub="Anthropic writes the coach's answers" value={aiOn ? "On" : "Off"} trailing={<Chevron />} onClick={() => setSheet("ai")} ariaLabel="AI coach consent. Open" />
             </RowGroup>
           </section>
         )}
@@ -246,6 +261,7 @@ export default function ProfilePage() {
       <HeightSheet open={sheet === "height"} onClose={() => setSheet(null)} initialCm={resolved?.heightCm ?? null} onSave={(v) => void saveBasics({ heightCm: v })} />
       <NumberSheet open={sheet === "age"} onClose={() => setSheet(null)} title="Age" initial={resolved?.age ?? null} decimals={0} step={1} min={13} max={100} onSave={(v) => void saveBasics({ age: v })} />
       <AppleHealthSheet open={sheet === "health"} onClose={() => setSheet(null)} />
+      {ASSISTANT_ENABLED && <AiConsentSheet open={sheet === "ai"} onClose={() => setSheet(null)} />}
       <MusclePrioritiesSheet open={sheet === "priorities"} onClose={() => setSheet(null)} phase={phase} />
     </main>
   );

@@ -70,6 +70,8 @@ export const STORAGE_KEYS = [
   // ── Account and sync (PR4) ──
   { key: "sync.v1.state", scope: "local", version: 1, includeInBackup: false, owner: "lib/sync/run.ts" },
   { key: "sync.v1.auth", scope: "local", version: 1, includeInBackup: false, owner: "lib/sync/client.ts (Supabase session)" },
+  // Given on this device, never carried by a backup file (TR1); the account gets its own record (lib/sync/run.ts).
+  { key: "consent.v1", scope: "local", version: 1, includeInBackup: false, owner: "lib/consent.ts" },
   // ── Session-scoped handoffs ──
   { key: "assistantQuickPrompt", scope: "session", version: 1, includeInBackup: false, owner: "app/page.tsx → app/assistant" },
   { key: "assistantAutoSend", scope: "session", version: 1, includeInBackup: false, owner: "app/page.tsx → app/assistant" },
