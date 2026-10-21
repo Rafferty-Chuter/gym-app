@@ -70,6 +70,8 @@ export const CONN_RATE_DAYS = 14;
 export const CONN_OVERLAP_R = 0.6;
 /** Days off counted at most. OURS: a week off is a break, not rest between sessions. */
 export const CONN_MAX_REST_DAYS = 7;
+/** Days the training pace is read over, for how soon the first comparison comes. OURS: four weeks, recent enough to be the person's habit now. */
+export const CONN_PACE_DAYS = 28;
 
 // ── Types ──
 
@@ -120,6 +122,8 @@ export type ConnectionsResult = {
   items: Connection[];
   /** Conditions with enough sessions to be compared, whatever the result. */
   checked: number;
+  /** Sessions with a compound lift a week over the last CONN_PACE_DAYS, for how soon the first read comes (PR3d). */
+  recentPerWeek: number;
 };
 
 export type ConnectionInputs = {
@@ -455,7 +459,12 @@ export function connections(i: ConnectionInputs, now: Now, opts: { days?: number
     }
   }
   items.sort((a, b) => (a.state === b.state ? Math.abs(b.diffPct) - Math.abs(a.diffPct) : a.state === "linked" ? -1 : 1));
-  return { from, through, weeks: Math.round(days / 7), sessions: strength.length, items, checked: items.length };
+  const paceFrom = addDays(through, -(CONN_PACE_DAYS - 1));
+  // Sessions with a compound lift, counted from the log itself: the newest session has no strength reading until the next ones arrive.
+  const paceDates = new Set<LocalDate>();
+  for (const l of liftSeries(i.workouts, i.unit, now)) if (isCompoundLift(l.name, l.exerciseId)) for (const e of l.exposures) if (e.date >= paceFrom && e.date <= through) paceDates.add(e.date);
+  const recentPerWeek = (paceDates.size * 7) / CONN_PACE_DAYS;
+  return { from, through, weeks: Math.round(days / 7), sessions: strength.length, items, checked: items.length, recentPerWeek };
 }
 
 /** Sessions with a strength reading needed before any comparison can be read. */

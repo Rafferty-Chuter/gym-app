@@ -47,10 +47,10 @@ const NOUN: Record<ConnectionId, string> = { sleep: "sleep", carbs: "carbs", bal
 const divider = { borderTop: "1px solid var(--border)" };
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%`;
 
-function Glyph({ id, color }: { id: ConnectionId; color: string }) {
+function Glyph({ id, color, small = false }: { id: ConnectionId; color: string; small?: boolean }) {
   return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }} aria-hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+    <span className={`flex shrink-0 items-center justify-center ${small ? "h-6 w-6 rounded-[8px]" : "h-8 w-8 rounded-[10px]"}`} style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }} aria-hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className={small ? "h-[14px] w-[14px]" : "h-[18px] w-[18px]"}>
         {ICON[id].map((d) => (
           <path key={d} d={d} />
         ))}
@@ -188,6 +188,42 @@ function ConnectionRow({ c, lift, unit, open, onToggle, mergedWith }: { c: Conne
   );
 }
 
+/** The conditions a first read covers, shown greyed while the sessions build up. */
+const PREVIEW: ConnectionId[] = ["sleep", "balance", "carbs", "protein", "rest", "time"];
+
+/**
+ * Before the first read (PR3d): how many sessions so far against the
+ * CONN_MIN_SESSIONS the comparisons need, roughly how many weeks that is at
+ * the person's own recent pace, and what will be checked. The bar is not
+ * lowered to show something sooner: a third of 24 sessions is already the
+ * smallest group a difference can be read from.
+ */
+function Building({ sessions, perWeek }: { sessions: number; perWeek: number }) {
+  const left = Math.max(0, CONN_MIN_SESSIONS - sessions);
+  const weeks = perWeek > 0 ? Math.ceil(left / perWeek) : null;
+  return (
+    <div className="mt-2 flex flex-col gap-2.5">
+      <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-raised)" }} role="progressbar" aria-valuemin={0} aria-valuemax={CONN_MIN_SESSIONS} aria-valuenow={sessions} aria-label="Sessions towards the first read">
+        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (sessions / CONN_MIN_SESSIONS) * 100)}%`, background: "var(--primary)" }} />
+      </div>
+      <div className="flex items-baseline justify-between gap-3 text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ color: "var(--text)" }}>
+          {sessions} of {CONN_MIN_SESSIONS} sessions
+        </span>
+        <span style={{ color: "var(--text-tertiary)" }}>{weeks != null ? `About ${weeks} ${weeks === 1 ? "week" : "weeks"} at your pace` : "Log sessions to start"}</span>
+      </div>
+      <span className="text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
+        Then sleep, food, rest and timing are each checked against your lifts.
+      </span>
+      <span className="flex gap-1.5" aria-hidden>
+        {PREVIEW.map((id) => (
+          <Glyph key={id} id={id} color="var(--text-tertiary)" small />
+        ))}
+      </span>
+    </div>
+  );
+}
+
 /**
  * Connections (L1, C7, PR3): what lined up with the person's strongest and
  * weakest sessions, from `lib/physique/connections.ts`. One row for each
@@ -207,13 +243,17 @@ export default function ConnectionsCard({ result, lift, unit }: { result: Connec
         <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
           What lined up with your lifts
         </span>
-        <span className="text-[12px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-          {result.checked > 0
-            ? `${result.checked} ${result.checked === 1 ? "thing" : "things"} checked · ${result.sessions} sessions · ${result.weeks} weeks`
-            : result.sessions < CONN_MIN_SESSIONS
-              ? `From about ${CONN_MIN_SESSIONS} sessions with sleep or food logged alongside. ${result.sessions} so far.`
-              : "Once sleep, food or weigh-ins are logged alongside your sessions."}
-        </span>
+        {result.checked > 0 ? (
+          <span className="text-[12px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+            {result.checked} {result.checked === 1 ? "thing" : "things"} checked · {result.sessions} sessions · {result.weeks} weeks
+          </span>
+        ) : result.sessions < CONN_MIN_SESSIONS ? (
+          <Building sessions={result.sessions} perWeek={result.recentPerWeek} />
+        ) : (
+          <span className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
+            Once sleep, food or weigh-ins are logged alongside your sessions.
+          </span>
+        )}
       </div>
 
       {result.items.map((c) => (

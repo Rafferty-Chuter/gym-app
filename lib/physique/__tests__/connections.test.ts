@@ -201,3 +201,13 @@ describe("Connections (L1)", () => {
     expect(food[0].text).toMatch(/rose and fell with it, so the two can't be told apart\.$/);
   });
 });
+
+describe("Connections: the pace towards the first read (PR3d)", () => {
+  it("counts the sessions of the last four weeks, a week", () => {
+    const h = history(3, 0);
+    const res = connections({ ...h, workouts: h.workouts.slice(-12) }, now);
+    // Three sessions a week (Mon, Wed, Fri) over the last four weeks.
+    expect(res.recentPerWeek).toBe(3);
+    expect(connections({ ...h, workouts: [] }, now).recentPerWeek).toBe(0);
+  });
+});

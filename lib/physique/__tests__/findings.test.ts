@@ -82,3 +82,42 @@ describe("Findings (E1)", () => {
     for (const f of all) expect(`${f.title} ${f.data} ${f.evidence}`).not.toMatch(/\b(should|try|aim for|make sure|consider|you need to)\b|!/i);
   });
 });
+
+describe("Findings in a line (PR3d)", () => {
+  const cutSpec: ScenarioSpec = { ...base, intake: { meanKcal: 1700, sdKcal: 250 }, goal: { ratePctPerWeek: -1.0, targetKg: 75 }, sleep: goodSleep, lifts: lifts(-7, "step"), proteinShare: 0.42 };
+  const gainSpec: ScenarioSpec = { ...base, bodyweightKg: 80, intake: "toTarget", intakeOffsetKcal: 600, goal: { ratePctPerWeek: 0.25, trainingStatus: "intermediate" }, sleep: goodSleep, lifts: lifts(3), proteinShare: 0.15 };
+  const sleepSpec: ScenarioSpec = { ...base, intake: { meanKcal: 2800, sdKcal: 250 }, logShare: 0.6, goal: { ratePctPerWeek: -0.5, targetKg: 78 }, sleep: { meanH: 6.1, sdH: 0.5, source: "manual", loggedShare: 0.95 }, lifts: lifts(-7, "step") };
+
+  it("gives each finding one short fact, in kilos, and one sentence of evidence", () => {
+    const all = [...run(cutSpec), ...run(gainSpec), ...run(sleepSpec)];
+    expect(new Set(all.map((f) => f.id)).size).toBeGreaterThanOrEqual(4);
+    for (const f of all) {
+      expect(f.title.length).toBeLessThanOrEqual(40);
+      expect(f.fact.length).toBeLessThanOrEqual(80);
+      expect(f.fact).not.toMatch(/%\/wk/);
+      expect(f.evidence.length).toBeLessThanOrEqual(170);
+      expect(f.evidence).toMatch(/\(\D+ \d{4}\)\.$/);
+      expect(`${f.title} ${f.fact} ${f.evidence}`).not.toMatch(/\b(should|try|aim for|make sure|consider|you need to)\b|!/i);
+    }
+  });
+
+  it("states the rate in kilos a week and each lift's change in kilos", () => {
+    const cut = run(cutSpec).find((f) => f.id === "cut-fast-lifts")!;
+    expect(cut.fact).toMatch(/^Losing \d\.\d kg a week · (Squat|Bench Press) −\d+(\.5)? kg, (Squat|Bench Press) −\d+(\.5)? kg in 8 weeks$/);
+    const gain = run(gainSpec).find((f) => f.id === "gain-fast")!;
+    expect(gain.fact).toMatch(/^Gaining \d\.\d kg a week · studies: up to \d\.\d kg$/);
+    const protein = run(gainSpec).find((f) => f.id === "protein-low")!;
+    expect(protein.fact).toMatch(/^\d\.\d\d? g per kg a day · studies: 1\.6 or more$/);
+  });
+
+  it("follows the display unit", () => {
+    const sc = makeScenario(cutSpec);
+    const lb = findings({ weighIns: sc.weighIns, foodEntries: sc.foodEntries, dayFlags: sc.dayFlags, sleepNights: sc.sleepNights, goal: sc.goal, program: sc.program, profile: sc.profile, workouts: sc.workouts, unit: "lb" }, sc.today);
+    expect(lb.find((f) => f.id === "cut-fast-lifts")!.fact).toMatch(/^Losing \d\.\d lb a week · .* lb in 8 weeks$/);
+  });
+
+  it("gives each lift's change in kilos as well as percent", () => {
+    const sc = makeScenario({ ...base, intake: "toTarget", goal: { ratePctPerWeek: -0.5, targetKg: 78 }, sleep: goodSleep, lifts: lifts(-7, "step") });
+    for (const l of liftProgress(sc.workouts, "kg", sc.today)!) expect(l.changeKg).toBeLessThan(-3);
+  });
+});

@@ -5,8 +5,10 @@
  * evidence supports", e.g. short sleep with little progression, too little
  * protein, eating too much, or logging very little without losing weight.
  *
- * Each finding is two sentences: the person's numbers, then what studies
- * found, with the sources named. No instructions and no plans: the reader
+ * Each finding is a short title, one line of the person's numbers in kilos
+ * (PR3d: the founder wants it read at a glance, the explaining left to the
+ * assistant), one sentence of what studies found with the source named,
+ * and the full sentence of numbers for the assistant. No instructions and no plans: the reader
  * draws the conclusion. Every finding has a minimum-data gate and a
  * threshold taken from the evidence it cites; below either it stays silent.
  *
@@ -26,7 +28,8 @@ import { GAIN_BANDS } from "@/lib/physique/targets";
 import { trendSeries } from "@/lib/physique/weight";
 import type { DayFlags, FoodEntry, PhysiqueGoal, PhysiqueProgram, Sex, SleepNight, WeighIn } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
-import type { WeightUnit } from "@/lib/units";
+import { formatEffect } from "@/lib/physique/liftEffect";
+import { formatWeight, type WeightUnit } from "@/lib/units";
 
 // ── Thresholds (tags as in 02-engine-spec) ──
 
@@ -69,9 +72,11 @@ export type FindingId = "underlog" | "sleep-lifts" | "protein-low" | "gain-fast"
 export type Finding = {
   id: FindingId;
   title: string;
-  /** The person's own numbers. */
+  /** The person's own numbers in one line, rates and lifts in kilos: "Losing 1.4 kg a week · Bench Press −11 kg, Squat −12 kg in 8 weeks". */
+  fact: string;
+  /** The person's own numbers in full sentences, for the assistant. */
   data: string;
-  /** What studies found, with the sources named in the sentence. */
+  /** What studies found, one sentence, the source named. */
   evidence: string;
   /** Full references, for the report's small print. */
   sources: string[];
@@ -122,6 +127,11 @@ function liftsList(lifts: ReadonlyArray<{ name: string; changePct: number }>): s
   return lifts.map((l) => `${l.name} ${signedPct(l.changePct)}`).join(", ");
 }
 
+/** "Bench Press −11 kg, Squat −12 kg": each lift's change in the display unit. */
+function liftsKg(lifts: ReadonlyArray<{ name: string; changeKg: number }>, unit: WeightUnit): string {
+  return lifts.map((l) => `${l.name} ${formatEffect(l.changeKg, unit)}`).join(", ");
+}
+
 /**
  * Each main lift's change over the last FIND_LIFT_DAYS: a straight line
  * fitted through every session's best set, its end against its start, so
@@ -129,9 +139,9 @@ function liftsList(lifts: ReadonlyArray<{ name: string; changePct: number }>): s
  * sessions. Read here rather than "since the phase began", so it works
  * without training logged before the goal.
  */
-export function liftProgress(workouts: readonly StoredWorkout[], unit: WeightUnit, through: LocalDate): Array<{ name: string; changePct: number }> | null {
+export function liftProgress(workouts: readonly StoredWorkout[], unit: WeightUnit, through: LocalDate): Array<{ name: string; changePct: number; changeKg: number }> | null {
   const from = addDays(through, -(FIND_LIFT_DAYS - 1));
-  const out: Array<{ name: string; changePct: number }> = [];
+  const out: Array<{ name: string; changePct: number; changeKg: number }> = [];
   for (const l of pickMainLifts(workouts, unit, { today: through, tz: "UTC" })) {
     const ex = l.exposures.filter((e) => e.date >= from && e.date <= through);
     if (ex.length < FIND_LIFT_MIN_SESSIONS) continue;
@@ -144,7 +154,7 @@ export function liftProgress(workouts: readonly StoredWorkout[], unit: WeightUni
     const slope = xs.reduce((a, x, k) => a + (x - mx) * (ys[k] - my), 0) / sxx;
     const start = my + slope * (xs[0] - mx);
     const end = my + slope * (xs[xs.length - 1] - mx);
-    if (start > 0) out.push({ name: l.name, changePct: (end / start - 1) * 100 });
+    if (start > 0) out.push({ name: l.name, changePct: (end / start - 1) * 100, changeKg: end - start });
   }
   return out.length >= 2 ? out : null;
 }
@@ -184,9 +194,10 @@ export function findings(i: FindingInputs, through: LocalDate): Finding[] {
       const moved = Math.abs(ratePct!) < 0.1 ? "held" : ratePct! < 0 ? "fell" : "rose";
       out.push({
         id: "underlog",
-        title: "Some food may be missing from the log",
+        title: "Food may be missing from the log",
+        fact: `Logged ${n0(meanKcal)} kcal a day · lying still uses about ${n0(UNDERLOG_BMR_RATIO * bmr)}`,
         data: `Over the last 4 weeks you logged ${n0(meanKcal)} kcal a day and the weight trend ${moved} (${signedRate(ratePct!)}), which puts what you burn at about ${n0(burned)} kcal a day. Lying still all day, your body would use about ${n0(UNDERLOG_BMR_RATIO * bmr)}: ${n0(bmr)} at rest plus about a tenth for digesting food.`,
-        evidence: `Burning less than that while up and about isn't possible, so some food is likely missing from the log, and the protein and calorie numbers from it read low too. Studies that measured real intake with doubly labelled water find self-reports usually fall short (Hill and Davies 2001), by half in some people (Schoeller 1995), including those who said they couldn't lose weight on little food (Lichtman 1992).`,
+        evidence: `Measured with doubly labelled water, food logs usually fall short, by half in some people (Lichtman 1992).`,
         sources: ["Mifflin MD et al. Am J Clin Nutr 1990;51:241–7", "Westerterp KR. Nutr Metab 2004;1:5", "Hill RJ, Davies PSW. Br J Nutr 2001;85:415–30", "Schoeller DA. Metabolism 1995;44(2 Suppl 2):18–22", "Lichtman SW et al. N Engl J Med 1992;327:1893–8"],
       });
     }
@@ -213,11 +224,12 @@ export function findings(i: FindingInputs, through: LocalDate): Finding[] {
     const own = i.sleepConnectionPct != null && i.sleepConnectionPct > 0 ? ` Across your own last 16 weeks, sessions after your longest nights were ${i.sleepConnectionPct.toFixed(1)}% stronger than after your shortest.` : "";
     out.push({
       id: "sleep-lifts",
-      title: "Short sleep while the lifts aren't progressing",
+      title: "Short sleep, lifts not progressing",
+      fact: `${formatHoursMin(Math.round(mean(nights) * 60))} a night · ${liftsKg(lifts, i.unit)} in 8 weeks`,
       data: `Sleep averaged ${formatHoursMin(Math.round(mean(nights) * 60))} over ${nights.length} nights in the last 4 weeks, under the 7 hours adults need, and your main lifts ${words} over the last 8 weeks (${list}).${own}`,
       evidence: cut
-        ? `In a trial of dieting adults, 5.5 hours in bed instead of 8.5 lost about the same weight, but 55% less of it was fat and 60% more was lean mass (Nedeltcheva 2010). In another, five nights of 4 hours' sleep left muscle protein synthesis about a fifth lower (Saner 2020).`
-        : `In a trial, five nights of 4 hours' sleep left muscle protein synthesis about a fifth lower (Saner 2020), and a review links short sleep with lower strength in compound lifts (Knowles 2018).`,
+        ? `Dieting on 5.5 hours in bed instead of 8.5 lost the same weight, with 60% more of it lean mass (Nedeltcheva 2010).`
+        : `Five nights of 4 hours' sleep left muscle protein synthesis about a fifth lower (Saner 2020).`,
       sources: ["Watson NF et al. Sleep 2015;38:843–4", "Nedeltcheva AV et al. Ann Intern Med 2010;153:435–41", "Saner NJ et al. J Physiol 2020;598:1523–36", "Knowles OE et al. J Sci Med Sport 2018;21:959–68"],
     });
   }
@@ -230,14 +242,16 @@ export function findings(i: FindingInputs, through: LocalDate): Finding[] {
     const gPerKg = g / endKg;
     const floor = cut ? PRO1_MIN_G_PER_KG : PRO2_MIN_G_PER_KG;
     if (gPerKg < floor) {
+      const perKg = Number(gPerKg.toFixed(1)) >= floor ? gPerKg.toFixed(2) : gPerKg.toFixed(1);
       out.push({
         id: "protein-low",
-        title: "Protein is under the level studies support",
+        title: "Protein below the evidence",
+        fact: `${perKg} g per kg a day · studies: ${floor.toFixed(1)} or more`,
         // Two decimals when one would round up to the level it is under ("1.8, under 1.8" read as a contradiction).
-        data: `Protein averaged ${n0(g)} g a day over ${complete.length} complete days in the last 4 weeks, ${Number(gPerKg.toFixed(1)) >= floor ? gPerKg.toFixed(2) : gPerKg.toFixed(1)} g per kg of body weight.`,
+        data: `Protein averaged ${n0(g)} g a day over ${complete.length} complete days in the last 4 weeks, ${perKg} g per kg of body weight.`,
         evidence: cut
-          ? `Keeping muscle in a deficit takes more: a review of lean lifters puts it at 2.3 to 3.1 g per kg of lean mass, about 1.8 g per kg of body weight or more (Helms 2014).`
-          : `A meta-analysis of 49 trials found muscle gains from training levelled off at about 1.6 g per kg a day, with some people gaining up to 2.2 (Morton 2018).`,
+          ? `In a deficit, a review of lean lifters puts it at 2.3 to 3.1 g per kg of lean mass, about 1.8 g per kg of body weight (Helms 2014).`
+          : `Across 49 trials, gains from training levelled off at about 1.6 g per kg a day (Morton 2018).`,
         sources: cut ? ["Helms ER et al. Int J Sport Nutr Exerc Metab 2014;24:127–38"] : ["Morton RW et al. Br J Sports Med 2018;52:376–84"],
       });
     }
@@ -251,9 +265,10 @@ export function findings(i: FindingInputs, through: LocalDate): Finding[] {
       const intakePart = meanKcal != null ? `, on ${n0(meanKcal)} kcal a day${target != null && meanKcal - target > 50 ? `, ${n0(meanKcal - target)} over the ${n0(target)} target` : ""}` : "";
       out.push({
         id: "gain-fast",
-        title: "Gaining faster than studies find useful",
+        title: "Gaining faster than is useful",
+        fact: `Gaining ${formatWeight((ratePct * endKg!) / 100, i.unit)} a week · studies: up to ${formatWeight((band.greenMax * endKg!) / 100, i.unit)}`,
         data: `The trend rose ${signedRate(ratePct)} over the last 4 weeks${intakePart}.`,
-        evidence: `A review for lifters puts a useful rate at about 0.25 to 0.5 % of body weight a week, less for the more trained, with faster gains adding more fat (Iraki 2019). In a trial with elite athletes, a larger surplus added more fat without adding more lean mass (Garthe 2013).`,
+        evidence: `A review for lifters puts a useful rate at 0.25 to 0.5% of body weight a week, faster adding mostly fat (Iraki 2019).`,
         sources: ["Iraki J et al. Sports 2019;7:154", "Garthe I et al. Eur J Sport Sci 2013;13:295–303"],
       });
     }
@@ -262,8 +277,9 @@ export function findings(i: FindingInputs, through: LocalDate): Finding[] {
     out.push({
       id: "cut-fast-lifts",
       title: "Losing fast while lifts drop",
+      fact: `Losing ${formatWeight((Math.abs(ratePct) * endKg!) / 100, i.unit)} a week · ${liftsKg(lifts, i.unit)} in 8 weeks`,
       data: `The trend fell ${signedRate(ratePct)} over the last 4 weeks, and over 8 weeks ${liftsList(lifts)}.`,
-      evidence: `In a trial with athletes, losing about 0.7 % of body weight a week kept more lean mass and strength than 1.4 % a week (Garthe 2011).`,
+      evidence: `Athletes losing 0.7% of body weight a week kept more lean mass and strength than at 1.4% (Garthe 2011).`,
       sources: ["Garthe I et al. Int J Sport Nutr Exerc Metab 2011;21:97–104"],
     });
   }
