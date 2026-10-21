@@ -133,7 +133,7 @@ export function heading(i: InsightInputs): Heading {
   const liftsLine = strengthLine(analysis, goal ? `since your goal started on ${fmt.date(goal.startDate)}` : undefined);
 
   if (analysis.verdict.id.startsWith("SAFE-")) {
-    return { state: "attention", title: "Goal on hold", lines: ["Targets stay where they are. The note on Body says why."] };
+    return { state: "attention", title: "Goal on hold", lines: ["Targets stay where they are. The note on Progress says why."] };
   }
   if (!goal) {
     return { state: "unknown", title: "No goal set", lines: [] };
@@ -184,7 +184,7 @@ export function allFixes(i: InsightInputs): Fix[] {
   const { report: r, analysis, goal, deload, recovery } = i;
   const v = analysis.verdict;
   if (v.id.startsWith("SAFE-")) {
-    return [{ id: "safety", state: "attention", title: v.title, why: v.detail, action: "Read the full note on Body.", href: "/body" }];
+    return [{ id: "safety", state: "attention", title: v.title, why: v.detail, action: "Read the full note on Progress.", href: "/body" }];
   }
   const out: Fix[] = [];
 

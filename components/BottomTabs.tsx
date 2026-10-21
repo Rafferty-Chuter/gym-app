@@ -25,13 +25,13 @@ function FoodIcon() {
   );
 }
 
-/** A bathroom scale: the Body tab. */
-function BodyIcon() {
+/** A rising line over a baseline: the Progress tab (PR1, was Body). */
+function ProgressIcon() {
   return (
     <svg {...ICON_PROPS} className={ICON} aria-hidden>
-      <rect x="4" y="3" width="16" height="18" rx="3" />
-      <path d="M8.5 9.5a3.5 3.5 0 0 1 7 0" />
-      <path d="M12 9.5l1.6-2.2" />
+      <path d="M4 19h16" />
+      <path d="M5 15l4.5-4.5 3.5 3 6-6.5" />
+      <path d="M15 7h4v4" />
     </svg>
   );
 }
@@ -61,11 +61,11 @@ type BottomTab = {
   Icon: React.ComponentType;
 };
 
-/** Five tabs (DESIGN.md rev 2): Home, Food, Body, Sleep, Train. Templates and History live under Train. */
+/** Five tabs (DESIGN.md rev 2; Progress in PR1): Home, Food, Progress, Sleep, Train. Templates and History live under Train. Progress keeps the /body route. */
 const TABS: BottomTab[] = [
   { href: "/", label: "Home", Icon: HomeIcon },
   { href: "/food", label: "Food", matchPrefixes: ["/food"], Icon: FoodIcon },
-  { href: "/body", label: "Body", matchPrefixes: ["/body"], Icon: BodyIcon },
+  { href: "/body", label: "Progress", matchPrefixes: ["/body", "/report"], Icon: ProgressIcon },
   { href: "/sleep", label: "Sleep", matchPrefixes: ["/sleep"], Icon: SleepIcon },
   { href: "/train", label: "Train", matchPrefixes: ["/train", "/templates", "/history", "/workout", "/progress", "/volume"], Icon: TrainIcon },
 ];

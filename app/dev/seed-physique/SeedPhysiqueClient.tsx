@@ -328,7 +328,7 @@ export default function SeedPhysiqueClient() {
           </p>
         )}
         <Link href="/body" className="text-[13px] font-semibold underline-offset-2 hover:underline" style={{ color: "var(--text-secondary)" }}>
-          Open Body →
+          Open Progress →
         </Link>
       </div>
     </main>

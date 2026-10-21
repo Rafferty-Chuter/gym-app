@@ -24,6 +24,20 @@ export const PULSE_COLOR: Record<PulseId, string> = {
   rhr: "var(--chart-heart)",
 };
 
+/** Each tile opens Progress at its own chart on the timeline (PR1), not the screen where it is logged. */
+const PROGRESS_CHART: Partial<Record<PulseId, string>> = {
+  rate: "weight",
+  weight: "weight",
+  waist: "weight",
+  calories: "calories",
+  fibre: "calories",
+  protein: "protein",
+  training: "training",
+  priority: "training",
+  sleep: "sleep",
+  wake: "sleep",
+};
+
 /** The number in bold and its unit or "a day" quieter, as "2,121 a day" or "7h 23m a night". */
 export function splitValue(value: string): { main: string; suffix: string } {
   const m = /^([−+-]?[\d,.]+(?:h \d+m)?)(\s.*)?$/.exec(value);
@@ -46,6 +60,8 @@ function Chevron() {
  */
 export default function PulseTile({ row, chart, wide }: { row: PulseRow; chart: PulseChart | null; wide?: boolean }) {
   const { main, suffix } = splitValue(row.value);
+  const chart0 = PROGRESS_CHART[row.id];
+  const href = chart0 ? `/body#${chart0}` : row.href;
   const body = (
     <>
       <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
@@ -66,14 +82,14 @@ export default function PulseTile({ row, chart, wide }: { row: PulseRow; chart: 
             </span>
           )}
         </span>
-        {row.href && <Chevron />}
+        {href && <Chevron />}
       </div>
     </>
   );
   const cls = `flex min-h-[176px] flex-col rounded-[16px] px-3.5 pb-3 pt-3.5 ${wide ? "col-span-2" : ""}`;
   const label = `${row.label}, last 7 days: ${row.value}, ${row.note}`;
-  return row.href ? (
-    <Link href={row.href} className={`${cls} transition-colors active:bg-[var(--surface-raised)]`} style={{ background: "var(--surface)" }} aria-label={`${label}. Open`}>
+  return href ? (
+    <Link href={href} className={`${cls} transition-colors active:bg-[var(--surface-raised)]`} style={{ background: "var(--surface)" }} aria-label={`${label}. Open`}>
       {body}
     </Link>
   ) : (

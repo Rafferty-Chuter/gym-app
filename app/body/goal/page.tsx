@@ -140,7 +140,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
               <path d="M15 6l-6 6 6 6" />
             </svg>
-            Body
+            Progress
           </Link>
           <Caption>{needsBasics ? `Step ${stepIndex + 1} of 4` : `Step ${stepIndex} of 3`}</Caption>
         </div>

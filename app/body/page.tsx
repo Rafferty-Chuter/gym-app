@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
@@ -13,12 +13,21 @@ import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import PageHeader from "@/components/ui/PageHeader";
 import WeightSheet from "@/components/physique/WeightSheet";
 import WaistSheet from "@/components/physique/WaistSheet";
-import WeightChartCard, { formatRate } from "@/components/physique/WeightChartCard";
+import { formatRate } from "@/components/physique/WeightChartCard";
 import GoalProgress from "@/components/physique/GoalProgress";
 import { goalEta } from "@/lib/physique/goalEta";
-import VerdictCard from "@/components/physique/VerdictCard";
-import StrengthSleepRows from "@/components/physique/StrengthSleepRows";
 import WeightEntries from "@/components/physique/WeightEntries";
+import AutoCheckIn from "@/components/physique/AutoCheckIn";
+import ThisWeekCard from "@/components/progress/ThisWeekCard";
+import Timeline from "@/components/progress/Timeline";
+import FindingsCard from "@/components/report/Findings";
+import ConnectionsCard from "@/components/report/Connections";
+import { progressTimeline, type ProgressRange } from "@/lib/physique/progressTimeline";
+import { connections } from "@/lib/physique/connections";
+import { findings } from "@/lib/physique/findings";
+import { useExpenditure } from "@/lib/physique/io/expenditure";
+import { useWorkouts } from "@/lib/physique/io/workouts";
+import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { Chevron, Row } from "@/components/physique/ui";
 import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 
@@ -49,10 +58,40 @@ function dateFromQuery(): LocalDate | null {
   return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 }
 
+/**
+ * Progress (PR1, the Body tab renamed): everything the app keeps, in one
+ * place. This week's check-in first, then every measure on one timeline
+ * (weight, calories against maintenance, protein, training, strength,
+ * sleep) over a month to the whole history, then what lines up with the
+ * lifts and what the last four weeks show against the evidence, then the
+ * goal and the weigh-ins.
+ */
 function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const today = now.today;
   const data = useBodyData();
   const analysis = usePhysiqueAnalysis(now, unit);
+  const workouts = useWorkouts();
+  const expenditure = useExpenditure(now);
+  const [range, setRange] = useState<ProgressRange>("3M");
+  const timeline = useMemo(
+    () => progressTimeline({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, program: data.program, expenditure: expenditure?.series ?? null, unit }, range, now),
+    [data, workouts, expenditure, unit, range, now]
+  );
+  const conn = useMemo(() => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, unit }, now), [workouts, data, unit, now]);
+  const found = useMemo(() => {
+    const p = getPhysiqueProfileSync();
+    const sleepLink = conn.items.find((c) => c.id === "sleep" && c.state === "linked");
+    const goal = data.goal && !data.goal.completedAt ? data.goal : null;
+    return findings({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, goal, program: data.program, profile: { sex: p.sex, age: p.age, heightCm: p.heightCm }, workouts, unit, sleepConnectionPct: sleepLink?.diffPct ?? null }, today);
+  }, [data, workouts, unit, conn, today]);
+
+  // Home's tiles link to a chart (`/body#calories`): scroll to it once the timeline is drawn.
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    const t = window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
+    return () => window.clearTimeout(t);
+  }, []);
   const [sheet, setSheet] = useState<SheetKind>(() => (dateFromQuery() ? "weight" : null));
   const [weightDate, setWeightDate] = useState<LocalDate>(() => dateFromQuery() ?? today);
   const wDate = weightDate <= today ? weightDate : today;
@@ -71,7 +110,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const etaWord = eta ? (eta.reached ? "reached" : eta.date ? `ETA ${shortLocalDate(eta.date)}` : null) : null;
   const caption = goal
     ? `${formatWeight(goal.targetKg, unit)} · ${goal.type === "lose" ? "Cut" : goal.type === "gain" ? "Lean gain" : "Maintain"}${goal.type === "maintain" ? "" : ` · ${formatRate(goal.ratePctPerWeek)}`}${etaWord ? ` · ${etaWord}` : ""}`
-    : "No goal yet";
+    : "No goal set";
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
@@ -79,8 +118,8 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         <PageHeader
           caption={caption}
           captionHref="/body/goal"
-          captionLabel="Body goal. Edit goal"
-          title="Body"
+          captionLabel="Goal. Change goal"
+          title="Progress"
           action={{
             label: "Log weight",
             onClick: () => {
@@ -90,19 +129,25 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           }}
         />
 
-        {analysis && <VerdictCard analysis={analysis} now={now} unit={unit} />}
+        {/* A2: on the check-in day, targets follow the maintenance estimate without a button. */}
+        <AutoCheckIn />
+
+        {analysis && <ThisWeekCard analysis={analysis} program={data.program} today={today} />}
         {analysis && !analysis.goal && (
           <Link href="/body/goal" className="inline-flex h-[36px] w-fit items-center rounded-[12px] px-3 text-[13px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
             Set goal
           </Link>
         )}
 
-        <WeightChartCard weighIns={data.weighIns} goal={data.goal} dayFlags={data.dayFlags} today={today} unit={unit} hero />
+        <Timeline t={timeline} range={range} onRange={setRange} unit={unit} />
 
-        {/* Goal progress, lifts and waist: one progress panel with hairlines between, not three boxes (polish). */}
-        <section className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }} aria-label="Progress">
+        <FindingsCard items={found} />
+
+        <ConnectionsCard result={conn} />
+
+        {/* The goal and the waist: one panel with hairlines between. */}
+        <section className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }} aria-label="Goal">
           <GoalProgress goal={data.goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} bare />
-          {analysis && <StrengthSleepRows analysis={analysis} showSleep={false} bare />}
           <Row
             label="Waist"
             sub={model.lastWaist ? `Last ${longLocalDate(model.lastWaist.date)}` : "Weekly, optional"}

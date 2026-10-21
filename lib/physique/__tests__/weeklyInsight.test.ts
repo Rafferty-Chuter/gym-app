@@ -76,7 +76,7 @@ describe("weekly insight (W3)", () => {
     const analysis = { ...i.analysis, verdict: { ...i.analysis.verdict, id: "SAFE-2" as const, title: "Pause the cut", detail: "Detail." } };
     const fixes = allFixes({ ...i, analysis, deload: { state: "due", reason: "scheduled", weeksAccumulated: 6, liftsDown: 0, liftsCompared: 0 } });
     expect(fixes.map((f) => f.id)).toEqual(["safety"]);
-    expect(heading({ ...i, analysis })).toEqual({ state: "attention", title: "Goal on hold", lines: ["Targets stay where they are. The note on Body says why."] });
+    expect(heading({ ...i, analysis })).toEqual({ state: "attention", title: "Goal on hold", lines: ["Targets stay where they are. The note on Progress says why."] });
     expect(buildWeeklyInsight({ ...i, analysis }).goingWell).toEqual([]);
   });
 

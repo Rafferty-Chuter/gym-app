@@ -81,7 +81,7 @@ export default function HowItsGoing() {
       {/* A2: on the check-in day, targets follow the maintenance estimate without a button. */}
       <AutoCheckIn />
       <section aria-label="How it's going" className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
-        <Link href="/body" className="flex flex-col gap-1 px-4 pb-3.5 pt-3.5 transition-colors active:bg-[var(--surface-raised)]" aria-label={`${v.title}. ${v.detail} Open Body`}>
+        <Link href="/body" className="flex flex-col gap-1 px-4 pb-3.5 pt-3.5 transition-colors active:bg-[var(--surface-raised)]" aria-label={`${v.title}. ${v.detail} Open Progress`}>
           <span className="flex items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-2">
               <StatusDot color={STATUS_HEX[analysis.status.state]} />

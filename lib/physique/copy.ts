@@ -197,7 +197,7 @@ type CopyFn = (f: VerdictFacts) => VerdictCopy;
 
 const COPY: Record<RuleId, CopyFn> = {
   // Z3: every verdict states what happened, in numbers. No advice, no plans, no causes from studies.
-  "NO-GOAL": () => ({ title: "No goal set", detail: "Add a target weight in Body to read the trend against it." }),
+  "NO-GOAL": () => ({ title: "No goal set", detail: "Add a target weight in Progress to read the trend against it." }),
 
   "DATA-RATE": (f) => {
     const n = Math.max(1, f.weighInsNeeded ?? 1);

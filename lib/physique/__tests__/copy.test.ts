@@ -173,7 +173,7 @@ describe("formatting", () => {
 
   it("copy matches the design library examples", () => {
     // Z3: facts only, no advice.
-    expect(verdictCopy("NO-GOAL", { phase: "none" })).toEqual({ title: "No goal set", detail: "Add a target weight in Body to read the trend against it." });
+    expect(verdictCopy("NO-GOAL", { phase: "none" })).toEqual({ title: "No goal set", detail: "Add a target weight in Progress to read the trend against it." });
     expect(verdictCopy("DATA-EXP", { phase: "lose", updatingDays: 8 }).detail).toBe("Maintenance estimate: day 9 of about 21.");
     expect(verdictCopy("DATA-HOLD", { phase: "lose", foodDaysNeeded: 2 }).detail).toBe("Targets update after 2 more days of food this week.");
     const partial = verdictCopy("DATA-PARTIAL", { phase: "lose", partialDays: [{ date: "2026-09-15", kcal: 640 }, { date: "2026-09-17", kcal: 900 }] });

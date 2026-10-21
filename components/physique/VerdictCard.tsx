@@ -11,7 +11,7 @@ import type { WeightUnit } from "@/lib/units";
 
 /** The "Ask why" prompt the assistant receives; it answers from the PHYSIQUE CONTEXT block. */
 export function askWhyPrompt(analysis: PhysiqueAnalysis): string {
-  return `Why does my Body tab say "${analysis.verdict.title}"? Explain it from my numbers.`;
+  return `Why does my Progress tab say "${analysis.verdict.title}"? Explain it from my numbers.`;
 }
 
 /**

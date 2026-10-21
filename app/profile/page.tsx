@@ -182,7 +182,7 @@ export default function ProfilePage() {
             />
           </RowGroup>
           <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-            The maintenance estimate needs sex, height and age. Target weight and pace live under Body.
+            The maintenance estimate needs sex, height and age. Target weight and pace live under Progress.
           </p>
         </section>
 
