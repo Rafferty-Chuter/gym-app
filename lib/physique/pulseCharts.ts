@@ -32,11 +32,11 @@ export const WAIST_CHART_DAYS = 28;
 
 export type PulseChart =
   /** One bar a day; null is a day with nothing logged (a stub). `faded` marks partial food days. */
-  | { kind: "bars"; values: Array<number | null>; faded: boolean[]; target: number | null }
+  | { kind: "bars"; values: Array<number | null>; faded: boolean[]; target: number | null; dates: LocalDate[] }
   /** A line through the points in order; null leaves a gap. */
-  | { kind: "line"; values: Array<number | null>; minSpan: number }
-  /** Wake times as minutes from the week's mean wake time. */
-  | { kind: "dots"; values: Array<number | null>; range: number }
+  | { kind: "line"; values: Array<number | null>; minSpan: number; dates: LocalDate[] }
+  /** Wake times as minutes from the week's mean wake time; `wakeMin` keeps each on the night axis for its clock time. */
+  | { kind: "dots"; values: Array<number | null>; range: number; dates: LocalDate[]; wakeMin: Array<number | null> }
   /** A count of parts in range out of a total (priority muscles). */
   | { kind: "meter"; filled: number; total: number };
 
@@ -51,13 +51,13 @@ export type PulseChartInputs = {
 
 const present = (vals: ReadonlyArray<number | null>) => vals.filter((v): v is number => v != null);
 
-function bars(values: Array<number | null>, target: number | null, faded?: boolean[]): PulseChart | null {
+function bars(dates: LocalDate[], values: Array<number | null>, target: number | null, faded?: boolean[]): PulseChart | null {
   if (present(values).length === 0) return null;
-  return { kind: "bars", values, faded: faded ?? values.map(() => false), target };
+  return { kind: "bars", values, faded: faded ?? values.map(() => false), target, dates };
 }
 
-function line(values: Array<number | null>, minSpan: number): PulseChart | null {
-  return present(values).length >= 2 ? { kind: "line", values, minSpan } : null;
+function line(dates: LocalDate[], values: Array<number | null>, minSpan: number): PulseChart | null {
+  return present(values).length >= 2 ? { kind: "line", values, minSpan, dates } : null;
 }
 
 /**
@@ -68,39 +68,41 @@ function line(values: Array<number | null>, minSpan: number): PulseChart | null 
 export function pulseChart(id: PulseId, { recent, food, waist = [] }: PulseChartInputs): PulseChart | null {
   const r = recent.days;
   const f = food.days;
+  const rd = r.map((d) => d.date);
+  const fd = f.map((d) => d.date);
   switch (id) {
     case "rate":
     case "weight":
-      return line(r.map((d) => d.trendKg), WEIGHT_MIN_SPAN_KG);
+      return line(rd, r.map((d) => d.trendKg), WEIGHT_MIN_SPAN_KG);
     case "calories":
-      return bars(f.map((d) => d.kcal), food.food.targetKcal, f.map((d) => d.foodPartial));
+      return bars(fd, f.map((d) => d.kcal), food.food.targetKcal, f.map((d) => d.foodPartial));
     case "protein":
-      return bars(f.map((d) => d.proteinG), food.food.targetProteinG);
+      return bars(fd, f.map((d) => d.proteinG), food.food.targetProteinG);
     case "fibre":
-      return bars(f.map((d) => d.fibreG), FIBRE_TARGET_G);
+      return bars(fd, f.map((d) => d.fibreG), FIBRE_TARGET_G);
     case "training":
       // Rest days are zero, not missing: a training week always has seven slots.
-      return recent.training.sessions > 0 ? { kind: "bars", values: r.map((d) => d.hardSets), faded: r.map(() => false), target: null } : null;
+      return recent.training.sessions > 0 ? { kind: "bars", values: r.map((d) => d.hardSets), faded: r.map(() => false), target: null, dates: rd } : null;
     case "priority": {
       const p = recent.training.priority;
       return p && p.muscles > 0 ? { kind: "meter", filled: p.inRange, total: p.muscles } : null;
     }
     case "sleep":
-      return bars(r.map((d) => d.asleepH), recent.sleep.goalH);
+      return bars(rd, r.map((d) => d.asleepH), recent.sleep.goalH);
     case "wake": {
       const wakes = present(r.map((d) => d.wakeMin));
       if (wakes.length < 2) return null;
       const mid = wakes.reduce((s, v) => s + v, 0) / wakes.length;
-      return { kind: "dots", values: r.map((d) => (d.wakeMin == null ? null : d.wakeMin - mid)), range: WAKE_DOT_RANGE_MIN };
+      return { kind: "dots", values: r.map((d) => (d.wakeMin == null ? null : d.wakeMin - mid)), range: WAKE_DOT_RANGE_MIN, dates: rd, wakeMin: r.map((d) => d.wakeMin) };
     }
     case "steps":
-      return bars(r.map((d) => d.steps), STEPS_GOOD);
+      return bars(rd, r.map((d) => d.steps), STEPS_GOOD);
     case "rhr":
-      return line(r.map((d) => d.rhr), RHR_MIN_SPAN_BPM);
+      return line(rd, r.map((d) => d.rhr), RHR_MIN_SPAN_BPM);
     case "waist": {
       const from = addDays(recent.through, -(WAIST_CHART_DAYS - 1));
       const pts = waist.filter((w) => w.date >= from && w.date <= recent.through && w.cm > 0).sort((a, b) => (a.date < b.date ? -1 : 1));
-      return line(pts.map((w) => w.cm), WAIST_MIN_SPAN_CM);
+      return line(pts.map((w) => w.date), pts.map((w) => w.cm), WAIST_MIN_SPAN_CM);
     }
   }
 }

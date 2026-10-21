@@ -74,6 +74,8 @@ function TrainContent({ now }: { now: Now }) {
   const unit = rawUnit === "lb" ? "lb" : "kg";
   const [templates, setTemplates] = useState(() => getStoredTemplates());
   const [inProgress] = useState(() => workoutInProgress());
+  /** T1: a tapped day of the week strip, shown in the panel's heading; tapping it again shows the week. */
+  const [day, setDay] = useState<string | null>(null);
   const router = useRouter();
   const { focus } = useTrainingFocus();
   const { experienceLevel } = useExperienceLevel();
@@ -125,6 +127,7 @@ function TrainContent({ now }: { now: Now }) {
 
   const maxVol = Math.max(1, ...model.week.map((d) => d.volume));
   const fmtVol = (kg: number) => (kg >= 1000 ? `${(kg / 1000).toFixed(1)}k kg` : `${Math.round(kg)} kg`);
+  const picked = model.week.find((d) => d.date === day) ?? null;
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
@@ -153,23 +156,26 @@ function TrainContent({ now }: { now: Now }) {
         {/* This week, how training is going and the deload: one panel with hairlines, not four boxes (polish). */}
         <section className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }} aria-label="This week">
           <div className="p-4">
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between gap-3" aria-live="polite">
               <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
-                {model.weekCount} {model.weekCount === 1 ? "workout" : "workouts"}
+                {picked ? (picked.n > 0 ? `${picked.n} ${picked.n === 1 ? "workout" : "workouts"}` : "No workout") : `${model.weekCount} ${model.weekCount === 1 ? "workout" : "workouts"}`}
               </span>
-              <Caption>last 7 days · {fmtVol(model.weekVolume)} lifted</Caption>
+              <Caption>{picked ? `${longLocalDate(picked.date)}${picked.n > 0 ? ` · ${fmtVol(picked.volume)} lifted` : ""}` : `last 7 days · ${fmtVol(model.weekVolume)} lifted`}</Caption>
             </div>
             <div className="mt-3 grid grid-cols-7 gap-1.5">
-              {model.week.map((d) => (
-                <div key={d.date} className="flex flex-col items-center gap-1.5">
-                  <div className="flex h-10 w-full items-end justify-center" aria-hidden>
-                    <div className="w-3 rounded-[2px]" style={{ height: `${Math.max(d.volume > 0 ? 6 : 2, (d.volume / maxVol) * 40)}px`, background: d.volume > 0 ? "var(--chart-training)" : "var(--border)" }} />
-                  </div>
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold" style={{ background: d.n > 0 ? "var(--primary)" : "var(--surface-raised)", color: d.n > 0 ? "var(--text-on-primary)" : "var(--text-tertiary)" }}>
-                    {d.letter}
-                  </span>
-                </div>
-              ))}
+              {model.week.map((d) => {
+                const on = d.date === day;
+                return (
+                  <button key={d.date} type="button" onClick={() => setDay(on ? null : d.date)} aria-pressed={on} aria-label={`${longLocalDate(d.date)}: ${d.n > 0 ? `${d.n} ${d.n === 1 ? "workout" : "workouts"}, ${fmtVol(d.volume)} lifted` : "no workout"}`} className="flex flex-col items-center gap-1.5">
+                    <div className="flex h-10 w-full items-end justify-center" aria-hidden>
+                      <div className="w-3 rounded-[2px] transition-opacity" style={{ height: `${Math.max(d.volume > 0 ? 6 : 2, (d.volume / maxVol) * 40)}px`, background: d.volume > 0 ? "var(--chart-training)" : "var(--border)", opacity: day && !on ? 0.4 : 1 }} />
+                    </div>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold" style={{ background: d.n > 0 ? "var(--primary)" : "var(--surface-raised)", color: d.n > 0 ? "var(--text-on-primary)" : "var(--text-tertiary)", boxShadow: on ? "0 0 0 2px var(--surface), 0 0 0 3.5px var(--text)" : undefined }}>
+                      {d.letter}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
           {analysis && <StrengthRow strength={analysis.strength} onOpen={() => router.push("/exercises")} />}

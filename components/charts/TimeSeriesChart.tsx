@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useContainerWidth } from "@/components/charts/ChartTip";
 import { computeNiceYAxis } from "@/lib/chartScale";
 import { dayDiff, type LocalDate } from "@/lib/dates";
 
@@ -88,23 +89,6 @@ export function longLocalDate(date: LocalDate): string {
   return `${dow} ${d} ${MONTHS[m - 1] ?? ""}`;
 }
 
-function useContainerWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
-  const ref = useRef<T | null>(null);
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    setWidth(el.getBoundingClientRect().width);
-    if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver((entries) => {
-      for (const e of entries) setWidth(e.contentRect.width);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, width];
-}
-
 /** Pick about `count` evenly spaced day offsets for x labels, always including the first and last. */
 function labelOffsets(span: number, count: number): number[] {
   if (span <= 0) return [0];
@@ -127,7 +111,7 @@ export default function TimeSeriesChart({
   ariaLabel,
   emptyText = "Nothing logged yet.",
 }: Props) {
-  const [ref, width] = useContainerWidth<HTMLDivElement>();
+  const [ref, width, box] = useContainerWidth<HTMLDivElement>();
   // The selection remembers which `points` it was made on, so new data clears it without an effect.
   const [sel, setSel] = useState<{ points: readonly TimeSeriesPoint[]; i: number } | null>(null);
   const active = sel && sel.points === points ? sel.i : null;
@@ -171,8 +155,8 @@ export default function TimeSeriesChart({
   }, [points, projection, band, width, height, hasData]);
 
   function pick(clientX: number, clear: boolean) {
-    if (!geo || !ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
+    if (!geo || !box.current) return;
+    const rect = box.current.getBoundingClientRect();
     const x = clientX - rect.left;
     let best: { i: number; d: number } | null = null;
     for (const s of geo.scrubbable) {

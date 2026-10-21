@@ -145,7 +145,7 @@ export default function FoodWidgets(props: Props) {
             <Pills value={energyLine} options={[{ id: "expenditure", label: "Maintenance" }, { id: "targets", label: "Targets" }]} onChange={onEnergyLineChange} label="Line" />
           </div>
           <div className="mt-2">
-            <EnergyBalanceChart points={energy.points} lineColor={energyLine === "targets" ? FAT_COLOR : "var(--text)"} ariaLabel={`Intake against ${energyLine} over ${energy.days} days`} />
+            <EnergyBalanceChart points={energy.points} lineColor={energyLine === "targets" ? FAT_COLOR : "var(--text)"} lineLabel={energyLine === "targets" ? "Target" : "Maintenance"} ariaLabel={`Intake against ${energyLine} over ${energy.days} days`} />
           </div>
           <div className="mt-1 grid grid-cols-3 gap-2">
             {(

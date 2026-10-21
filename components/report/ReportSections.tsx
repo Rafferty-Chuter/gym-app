@@ -10,7 +10,9 @@ import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { bandLabel } from "@/lib/training/volumeTargets";
 import { formatBodyWeight, formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import { formatRate } from "@/components/physique/WeightChartCard";
-import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
+import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
+import { usePick } from "@/components/charts/usePick";
+import type { LocalDate } from "@/lib/dates";
 
 const TONE_COLOR: Record<Tone, string> = { good: "var(--status-good)", watch: "var(--status-watch)", neutral: "var(--text-secondary)" };
 
@@ -102,8 +104,8 @@ function Section({ title, aside, headline, rows, href, children }: { title: stri
   );
 }
 
-/** The week as a tiny chart: a line for the weight trend, bars with a dashed target for the rest. Empty days leave a gap. */
-function MiniChart({ chart }: { chart: Chart }) {
+/** The week as a tiny chart: the weight trend as a line, an empty day leaving a gap, the picked day marked (T1). */
+function MiniChart({ chart, active }: { chart: Chart; active: number | null }) {
   const W = 120;
   const H = 36;
   if (chart.kind !== "line") return null;
@@ -116,10 +118,45 @@ function MiniChart({ chart }: { chart: Chart }) {
   const span = Math.max(hi - lo, 0.2);
   const y = (v: number) => 4 + (1 - (v - lo) / span) * (H - 8);
   const pts = vals.map((v, i) => (v == null ? null : `${(i * slot + slot / 2).toFixed(1)},${y(v).toFixed(1)}`)).filter(Boolean);
+  const on = active != null ? vals[active] : null;
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden className="shrink-0">
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden className="block overflow-visible">
+      {on != null && <line x1={active! * slot + slot / 2} x2={active! * slot + slot / 2} y1={0} y2={H} stroke="var(--border-strong)" strokeWidth={1} />}
       <polyline points={pts.join(" ")} fill="none" stroke="var(--chart-trend)" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
+      {on != null && <circle cx={active! * slot + slot / 2} cy={y(on)} r={3.5} fill="var(--chart-trend)" stroke="var(--surface)" strokeWidth={1.5} />}
     </svg>
+  );
+}
+
+/** The week's weight change in large type with its line beside it; a tap on the line gives one day's trend weight in its place (T1). */
+function WeightHeadline({ weekPct, weekKg, chart, dates, unit }: { weekPct: string | null; weekKg: string | null; chart: Chart | null; dates: LocalDate[]; unit: WeightUnit }) {
+  const vals = chart?.kind === "line" ? chart.values : [];
+  const { active, bind } = usePick({ xs: vals.map((v, i) => (v != null ? (i + 0.5) / 7 : null)), share: true, data: `${dates[0]}:${vals.length}` });
+  const day = active != null && vals[active] != null ? { date: dates[active], kg: vals[active] as number } : null;
+  return (
+    <div className="flex items-end justify-between gap-3">
+      <div className="flex min-w-0 flex-col" aria-live="polite">
+        <span className="text-[30px] font-semibold leading-none tracking-[-0.02em]" style={{ color: day || weekPct ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+          {day ? formatBodyWeight(day.kg, unit) : (weekPct ?? "–")}
+        </span>
+        <span className="mt-1 text-[12px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+          {day ? (
+            `Trend on ${longLocalDate(day.date)}`
+          ) : weekPct ? (
+            <>
+              of body weight this week · <span className="whitespace-nowrap">{weekKg}</span>
+            </>
+          ) : (
+            "Needs a trend at both ends of the week"
+          )}
+        </span>
+      </div>
+      {chart?.kind === "line" && vals.filter((v) => v != null).length >= 2 && (
+        <div {...bind} role="group" aria-label="Weight trend by day" className="shrink-0 rounded-[6px] py-1 outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]">
+          <MiniChart chart={chart} active={active} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -185,25 +222,7 @@ export default function ReportSections({ report: r, prev: p, tiles, unit, goal, 
     weightRows.push({ label: "Waist", sub: r.waist.deltaCm == null ? null : `${sign(r.waist.deltaCm)}${Math.abs(r.waist.deltaCm).toFixed(1)} cm over ${r.waist.weeks} weeks`, now: `${r.waist.latestCm.toFixed(1)} cm`, prev: p?.waist.latestCm != null ? `${p.waist.latestCm.toFixed(1)} cm` : dash });
   }
 
-  const weightHeadline = (
-    <div className="flex items-end justify-between gap-3">
-      <div className="flex min-w-0 flex-col">
-        <span className="text-[30px] font-semibold leading-none tracking-[-0.02em]" style={{ color: weekPct ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-          {weekPct ?? "–"}
-        </span>
-        <span className="mt-1 text-[12px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-          {weekPct ? (
-            <>
-              of body weight this week · <span className="whitespace-nowrap">{weekKg}</span>
-            </>
-          ) : (
-            "Needs a trend at both ends of the week"
-          )}
-        </span>
-      </div>
-      {weightTile && <MiniChart chart={weightTile.chart} />}
-    </div>
-  );
+  const weightHeadline = <WeightHeadline weekPct={weekPct} weekKg={weekKg} chart={weightTile?.chart ?? null} dates={r.days.map((d) => d.date)} unit={unit} />;
 
   // ── Nutrition ──
   const f = r.food;

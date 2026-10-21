@@ -4,7 +4,8 @@ import { makeScenario } from "@/lib/physique/fixtures";
 import { buildWeekReport } from "@/lib/physique/weekReport";
 import { howItsGoing, pulseWindows, trainedRecently } from "@/lib/physique/howItsGoing";
 import { pulseChart, WAKE_DOT_RANGE_MIN, WEIGHT_MIN_SPAN_KG } from "@/lib/physique/pulseCharts";
-import { splitValue } from "@/components/physique/PulseTile";
+import { pointValue, splitValue } from "@/components/physique/PulseTile";
+import { fromNightAxis } from "@/lib/physique/sleepScore";
 
 describe("Home tile charts (H2)", () => {
   const sc = makeScenario({
@@ -79,5 +80,44 @@ describe("Home tile charts (H2)", () => {
     expect(splitValue("−0.62 %/wk")).toEqual({ main: "−0.62", suffix: " %/wk" });
     expect(splitValue("81.00 kg")).toEqual({ main: "81.00", suffix: " kg" });
     expect(splitValue("No sessions")).toEqual({ main: "No sessions", suffix: "" });
+  });
+
+  it("gives every point its own date, so a tapped day can name itself (T1)", () => {
+    const { recent, food } = reports();
+    for (const id of ["calories", "protein", "rate", "sleep", "training", "wake"] as const) {
+      const c = pulseChart(id, { recent, food });
+      if (!c || c.kind === "meter") throw new Error(`no chart for ${id}`);
+      expect(c.dates).toHaveLength(c.values.length);
+      const days = id === "calories" || id === "protein" ? food.days : recent.days;
+      expect(c.dates).toEqual(days.map((d) => d.date));
+    }
+    const waist = [
+      { date: addDays(now.today, -20), cm: 86 },
+      { date: addDays(now.today, -2), cm: 85 },
+    ];
+    expect(pulseChart("waist", { recent, food, waist })).toMatchObject({ dates: waist.map((w) => w.date) });
+  });
+
+  it("reads a tapped day's value in the tile's own units (T1)", () => {
+    const { recent, food } = reports();
+    const cal = pulseChart("calories", { recent, food });
+    if (cal?.kind !== "bars") throw new Error("no calories chart");
+    const k = cal.values.findIndex((v) => v != null);
+    expect(pointValue("calories", cal, k, "kg")).toEqual({ main: Math.round(cal.values[k]!).toLocaleString("en-GB"), suffix: " kcal" });
+    expect(pointValue("calories", { ...cal, values: cal.values.map(() => null) }, 0, "kg")).toEqual({ main: "Not logged", suffix: "" });
+    const w = pulseChart("rate", { recent, food });
+    if (w?.kind !== "line") throw new Error("no weight chart");
+    const j = w.values.findIndex((v) => v != null);
+    expect(pointValue("rate", w, j, "lb").suffix).toBe(" lb");
+    const sleep = pulseChart("sleep", { recent, food });
+    if (sleep?.kind !== "bars") throw new Error("no sleep chart");
+    expect(pointValue("sleep", sleep, sleep.values.findIndex((v) => v != null), "kg").main).toMatch(/^\d+h \d{2}m$/);
+    const wake = pulseChart("wake", { recent, food });
+    if (wake?.kind !== "dots") throw new Error("no wake chart");
+    const i = wake.wakeMin.findIndex((v) => v != null);
+    expect(pointValue("wake", wake, i, "kg")).toEqual({ main: fromNightAxis(wake.wakeMin[i]!), suffix: " wake" });
+    const t = pulseChart("training", { recent, food });
+    if (t?.kind !== "bars") throw new Error("no training chart");
+    expect(pointValue("training", { ...t, values: t.values.map(() => 0) }, 0, "kg").main).toBe("No hard sets");
   });
 });

@@ -121,7 +121,7 @@ function ExerciseDetail() {
                   )}
                 </div>
               )}
-              <ExerciseChart points={series} ariaLabel={`${CHART_METRIC_LABEL[metric]} for ${title} over time`} />
+              <ExerciseChart points={series} ariaLabel={`${CHART_METRIC_LABEL[metric]} for ${title} over time`} label={CHART_METRIC_LABEL[metric]} format={(v) => chartValue(v, metric, u)} />
             </section>
 
             <section className="flex flex-col gap-2">

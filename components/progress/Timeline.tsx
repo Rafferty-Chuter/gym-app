@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
-import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
+import { type ReactNode } from "react";
+import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
+import { usePick } from "@/components/charts/usePick";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { dayDiff, type LocalDate } from "@/lib/dates";
 import type { SessionPoint } from "@/lib/physique/connections";
@@ -30,53 +31,62 @@ export type TimelineFocus = {
   onClear: () => void;
 };
 
-/** One chart's rows: its id (the Home tiles link to it), name, colour and what the range adds up to. */
-type RowSpec = { id: string; label: string; color: string; summary: ReactNode | null; chart: ReactNode };
+/** One chart's rows: its id (the Home tiles link to it), name, colour, what the range adds up to and what the picked week holds. */
+type RowSpec = { id: string; label: string; color: string; summary: ReactNode | null; week: (w: ProgressWeek) => ReactNode; chart: ReactNode };
 
 /**
  * The Progress timeline (PR1): weight, calories against maintenance,
  * protein, training, strength and sleep, one chart each, all on the same
- * weeks. Drag or tap across any chart and one line runs through all of
- * them, with that week's numbers underneath, so what moved together can be
- * seen without the app saying it.
+ * weeks. Tap or drag across any chart (T1) and one column runs through all
+ * of them, each chart's heading turns to that week's number and the week's
+ * dates sit under the column, so what moved together can be read without
+ * the app saying it. Tapping the week again goes back to the range.
  */
 export default function Timeline({ t, range, onRange, unit, focus }: { t: ProgressTimeline; range: ProgressRange; onRange: (r: ProgressRange) => void; unit: WeightUnit; focus?: TimelineFocus | null }) {
   const weeks = t.weeks;
   const n = Math.max(1, weeks.length);
-  const lastWithData = (() => {
-    for (let k = weeks.length - 1; k >= 0; k--) if (weeks[k].kcal != null || weeks[k].trendKg != null || weeks[k].sessions > 0) return k;
-    return weeks.length - 1;
-  })();
-  const [picked, setPicked] = useState<number | null>(null);
-  const sel = Math.min(picked ?? lastWithData, weeks.length - 1);
-  const stackRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-
-  function pick(clientX: number) {
-    const el = stackRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const k = Math.floor(((clientX - r.left) / r.width) * n);
-    setPicked(Math.max(0, Math.min(n - 1, k)));
-  }
+  const { active: sel, bind } = usePick({ xs: weeks.map((_, k) => (k + 0.5) / n), share: true, data: `${t.from}:${t.through}` });
 
   const s = t.summary;
   const kgUnit = unit === "lb" ? "lb" : "kg";
   const rows: RowSpec[] = [
-    { id: "weight", label: "Weight", color: "var(--chart-trend)", summary: s.trendChangeKg != null ? `${signed(kgToDisplay(s.trendChangeKg, unit))} ${kgUnit} over ${RANGE_WORDS[range]}` : null, chart: <WeightChart t={t} /> },
+    {
+      id: "weight",
+      label: "Weight",
+      color: "var(--chart-trend)",
+      summary: s.trendChangeKg != null ? `${signed(kgToDisplay(s.trendChangeKg, unit))} ${kgUnit} over ${RANGE_WORDS[range]}` : null,
+      week: (w) => (w.trendKg != null ? `${formatBodyWeight(w.trendKg, unit)}${w.trendChangeKg != null ? ` · ${signed(kgToDisplay(w.trendChangeKg, unit))} ${kgUnit} on the week` : ""}` : "No weigh-ins"),
+      chart: <WeightChart t={t} pick={sel != null ? weeks[sel] : null} />,
+    },
     {
       id: "calories",
       label: "Calories",
       color: "var(--macro-kcal)",
       summary: s.kcal != null ? `${n0(s.kcal)} a day${s.balanceKcal != null ? ` · ${n0(Math.abs(s.balanceKcal))} ${s.balanceKcal < 0 ? "under" : "over"} maintenance` : ""}` : null,
-      chart: <CaloriesChart weeks={weeks} />,
+      week: (w) => (w.kcal != null ? `${n0(w.kcal)} a day${w.balanceKcal != null ? ` · ${n0(Math.abs(w.balanceKcal))} ${w.balanceKcal < 0 ? "under" : "over"} maintenance` : ""}` : w.foodDays ? `${w.foodDays} ${w.foodDays === 1 ? "day" : "days"} logged` : "Not logged"),
+      chart: <CaloriesChart weeks={weeks} sel={sel} />,
     },
-    { id: "protein", label: "Protein", color: "var(--macro-protein)", summary: s.proteinG != null ? `${n0(s.proteinG)} g a day` : null, chart: <Bars weeks={weeks} value={(w) => w.proteinG} target={(w) => w.proteinTargetG} color="var(--macro-protein)" /> },
-    { id: "training", label: "Training", color: "var(--chart-training)", summary: s.setsPerWeek != null ? `${n0(s.setsPerWeek)} hard sets a week` : null, chart: <Bars weeks={weeks} value={(w) => (w.sessions > 0 ? w.hardSets : null)} color="var(--chart-training)" /> },
+    {
+      id: "protein",
+      label: "Protein",
+      color: "var(--macro-protein)",
+      summary: s.proteinG != null ? `${n0(s.proteinG)} g a day` : null,
+      week: (w) => (w.proteinG != null ? `${n0(w.proteinG)} g a day${w.proteinTargetG != null ? ` · target ${n0(w.proteinTargetG)} g` : ""}` : "Not logged"),
+      chart: <Bars weeks={weeks} value={(w) => w.proteinG} target={(w) => w.proteinTargetG} color="var(--macro-protein)" sel={sel} />,
+    },
+    {
+      id: "training",
+      label: "Training",
+      color: "var(--chart-training)",
+      summary: s.setsPerWeek != null ? `${n0(s.setsPerWeek)} hard sets a week` : null,
+      week: (w) => (w.sessions ? `${w.sessions} ${w.sessions === 1 ? "session" : "sessions"} · ${w.hardSets} hard sets` : "No sessions"),
+      chart: <Bars weeks={weeks} value={(w) => (w.sessions > 0 ? w.hardSets : null)} color="var(--chart-training)" sel={sel} />,
+    },
     {
       id: "strength",
       label: "Strength",
       color: "var(--chart-training)",
+      week: (w) => (focus?.sessions ? <WeekSessions w={w} sessions={focus.sessions} /> : w.strengthPct != null ? `${signed(w.strengthPct)}% since ${shortLocalDate(t.from)}` : "No main lifts"),
       summary: focus?.sessions ? (
         <span className="inline-flex items-center gap-2">
           <span className="inline-flex items-center gap-1">
@@ -91,12 +101,19 @@ export default function Timeline({ t, range, onRange, unit, focus }: { t: Progre
       ) : s.strengthPct != null ? (
         `${signed(s.strengthPct)}% · ${t.lifts.slice(0, 3).join(", ")}`
       ) : null,
-      chart: focus?.sessions ? <SessionDots t={t} sessions={focus.sessions} /> : <StrengthChart weeks={weeks} />,
+      chart: focus?.sessions ? <SessionDots t={t} sessions={focus.sessions} pick={sel != null ? weeks[sel] : null} /> : <StrengthChart weeks={weeks} sel={sel} />,
     },
-    { id: "sleep", label: "Sleep", color: "var(--chart-sleep)", summary: s.sleepH != null ? `${hm(s.sleepH)} a night` : null, chart: <Bars weeks={weeks} value={(w) => w.sleepH} fixedTarget={7} color="var(--chart-sleep)" minTop={9} /> },
+    {
+      id: "sleep",
+      label: "Sleep",
+      color: "var(--chart-sleep)",
+      summary: s.sleepH != null ? `${hm(s.sleepH)} a night` : null,
+      week: (w) => (w.sleepH != null ? `${hm(w.sleepH)} a night · ${w.nights} nights` : w.nights ? `${w.nights} ${w.nights === 1 ? "night" : "nights"} logged` : "Not logged"),
+      chart: <Bars weeks={weeks} value={(w) => w.sleepH} fixedTarget={7} color="var(--chart-sleep)" minTop={9} sel={sel} />,
+    },
   ];
 
-  const w = weeks[sel];
+  const w = sel != null ? weeks[sel] : null;
   const mid = weeks[Math.floor((weeks.length - 1) / 2)];
   return (
     <section id="timeline" aria-label="Over time" className="scroll-mt-20 overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
@@ -106,7 +123,7 @@ export default function Timeline({ t, range, onRange, unit, focus }: { t: Progre
         </span>
         <div className="flex gap-1" role="tablist" aria-label="Range">
           {RANGES.map((r) => (
-            <button key={r} type="button" role="tab" aria-selected={r === range} onClick={() => { setPicked(null); onRange(r); }} className="h-[28px] rounded-full px-2.5 text-[12px] font-medium" style={{ background: r === range ? "var(--primary)" : "var(--surface-raised)", color: r === range ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
+            <button key={r} type="button" role="tab" aria-selected={r === range} onClick={() => onRange(r)} className="h-[28px] rounded-full px-2.5 text-[12px] font-medium" style={{ background: r === range ? "var(--primary)" : "var(--surface-raised)", color: r === range ? "var(--text-on-primary)" : "var(--text-secondary)" }}>
               {r}
             </button>
           ))}
@@ -124,37 +141,23 @@ export default function Timeline({ t, range, onRange, unit, focus }: { t: Progre
         </div>
       )}
 
-      <div
-        ref={stackRef}
-        className="relative mx-4 select-none"
-        style={{ touchAction: "pan-y" }}
-        onPointerDown={(e) => {
-          dragging.current = true;
-          pick(e.clientX);
-        }}
-        onPointerMove={(e) => {
-          if (dragging.current || e.pointerType === "mouse") pick(e.clientX);
-        }}
-        onPointerUp={() => (dragging.current = false)}
-        onPointerLeave={() => (dragging.current = false)}
-        aria-hidden
-      >
+      <div {...bind} className="relative mx-4 rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]" role="group" aria-label="Every measure by week. Tap or drag across the charts, or use the arrow keys, for one week's numbers">
         {/* A finding's weeks, marked through every chart. */}
         {focus?.from &&
           weeks.map((wk, k) =>
             wk.end >= focus.from! ? <span key={`f${k}`} className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${(k / n) * 100}%`, width: `${100 / n}%`, background: "color-mix(in srgb, var(--primary) 9%, transparent)" }} /> : null,
           )}
         {/* The picked week, one column through every chart. */}
-        <span className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${(sel / n) * 100}%`, width: `${100 / n}%`, background: "var(--surface-raised)", opacity: 0.7, borderRadius: 4 }} />
+        {sel != null && <span className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${(sel / n) * 100}%`, width: `${100 / n}%`, background: "var(--surface-raised)", borderRadius: 4 }} />}
         {rows.map((r) => (
           <div key={r.id} id={r.id} className="relative z-[1] scroll-mt-24 pb-3 pt-2.5 transition-opacity" style={{ borderTop: r.id === "weight" ? undefined : "1px solid var(--border)", opacity: focus && !focus.charts.includes(r.id) ? 0.3 : 1 }}>
             <div className="mb-1.5 flex items-baseline justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: "var(--text)" }}>
+              <span className="flex shrink-0 items-center gap-1.5 text-[13px] font-semibold" style={{ color: "var(--text)" }}>
                 <span className="h-2 w-2 rounded-full" style={{ background: r.color }} />
                 {r.label}
               </span>
-              <span className="truncate text-[11px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                {r.summary ?? "Not enough logged yet"}
+              <span className={`min-w-0 truncate text-[11px] ${w ? "font-semibold" : ""}`} style={{ color: w ? "var(--text)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                {w ? r.week(w) : (r.summary ?? "Not enough logged yet")}
               </span>
             </div>
             <div className="relative h-[52px]">{r.chart}</div>
@@ -162,54 +165,42 @@ export default function Timeline({ t, range, onRange, unit, focus }: { t: Progre
         ))}
       </div>
 
-      <div className="mx-4 flex justify-between pb-3 pt-1 text-[10px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }} aria-hidden>
-        <span>{weeks[0] ? shortLocalDate(weeks[0].start) : ""}</span>
-        <span>{mid && weeks.length > 2 ? shortLocalDate(mid.start) : ""}</span>
-        <span>{weeks.at(-1) ? shortLocalDate(weeks.at(-1)!.start) : ""}</span>
+      {/* The axis: the range's dates, or the picked week's under its column. */}
+      <div className="relative mx-4 h-[30px] text-[10px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }} aria-live="polite">
+        {w && sel != null ? (
+          <span
+            className="absolute top-1 whitespace-nowrap text-[11px] font-semibold"
+            style={{ color: "var(--text)", ...(sel < n * 0.25 ? { left: `${(sel / n) * 100}%` } : sel >= n * 0.75 ? { right: `${((n - sel - 1) / n) * 100}%` } : { left: `${((sel + 0.5) / n) * 100}%`, transform: "translateX(-50%)" }) }}
+          >
+            {shortLocalDate(w.start)} to {shortLocalDate(w.end)}
+            {w.current && <span style={{ color: "var(--text-tertiary)", fontWeight: 500 }}> · so far</span>}
+          </span>
+        ) : (
+          <span className="flex justify-between pt-1" aria-hidden>
+            <span>{weeks[0] ? shortLocalDate(weeks[0].start) : ""}</span>
+            <span>{mid && weeks.length > 2 ? shortLocalDate(mid.start) : ""}</span>
+            <span>{weeks.at(-1) ? shortLocalDate(weeks.at(-1)!.start) : ""}</span>
+          </span>
+        )}
       </div>
-
-      {w && <WeekDetail w={w} unit={unit} />}
     </section>
   );
 }
 
-// ── The picked week ──
-
-function WeekDetail({ w, unit }: { w: ProgressWeek; unit: WeightUnit }) {
-  const kgUnit = unit === "lb" ? "lb" : "kg";
-  const cells: Array<[string, string, string | null]> = [
-    ["Weight", w.trendKg != null ? formatBodyWeight(w.trendKg, unit) : "–", w.trendChangeKg != null ? `${signed(kgToDisplay(w.trendChangeKg, unit))} ${kgUnit} on the week` : null],
-    ["Calories", w.kcal != null ? `${n0(w.kcal)} a day` : "–", w.balanceKcal != null ? `${n0(Math.abs(w.balanceKcal))} ${w.balanceKcal < 0 ? "under" : "over"} maintenance` : w.foodDays ? `${w.foodDays} days logged` : null],
-    ["Protein", w.proteinG != null ? `${n0(w.proteinG)} g a day` : "–", w.proteinTargetG != null && w.proteinG != null ? `target ${n0(w.proteinTargetG)} g` : null],
-    ["Training", w.sessions ? `${w.sessions} ${w.sessions === 1 ? "session" : "sessions"}` : "–", w.sessions ? `${w.hardSets} hard sets` : null],
-    ["Strength", w.strengthPct != null ? `${signed(w.strengthPct)}%` : "–", w.strengthPct != null ? "main lifts" : null],
-    ["Sleep", w.sleepH != null ? `${hm(w.sleepH)} a night` : "–", w.nights ? `${w.nights} nights` : null],
-  ];
-  const days = dayDiff(w.start, w.end) + 1;
+/** A connection's sessions in the picked week, each with its day and its strength against the lift's level, marked as in the legend. */
+function WeekSessions({ w, sessions }: { w: ProgressWeek; sessions: NonNullable<TimelineFocus["sessions"]> }) {
+  const inWeek = (p: SessionPoint) => p.date >= w.start && p.date <= w.end;
+  const list = [...sessions.high.filter(inWeek).map((p) => ({ ...p, high: true })), ...sessions.low.filter(inWeek).map((p) => ({ ...p, high: false }))].sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (!list.length) return <>No sessions in either group</>;
   return (
-    <div className="flex flex-col gap-2 px-4 pb-4 pt-3" style={{ borderTop: "1px solid var(--border)" }} aria-live="polite">
-      <span className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>
-        Week of {shortLocalDate(w.start)}
-        {w.current && <span style={{ color: "var(--text-tertiary)", fontWeight: 500 }}> · {days} of 7 days so far</span>}
-      </span>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-        {cells.map(([label, value, sub]) => (
-          <div key={label} className="flex min-w-0 flex-col">
-            <dt className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
-              {label}
-            </dt>
-            <dd className="truncate text-[15px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-              {value}
-            </dd>
-            {sub && (
-              <dd className="truncate text-[11px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                {sub}
-              </dd>
-            )}
-          </div>
-        ))}
-      </dl>
-    </div>
+    <span className="inline-flex items-center gap-2">
+      {list.map((p) => (
+        <span key={`${p.date}${p.high}`} className="inline-flex items-center gap-1">
+          <span className="h-[7px] w-[7px] rounded-full" style={p.high ? { background: sessions.color } : { border: "1.5px solid var(--text-tertiary)" }} />
+          {longLocalDate(p.date).slice(0, 3)} {signed(p.pct)}%
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -218,7 +209,7 @@ function WeekDetail({ w, unit }: { w: ProgressWeek; unit: WeightUnit }) {
 
 const slot = (k: number, n: number) => ({ left: `${(k / n) * 100}%`, width: `${100 / n}%` });
 
-function Bars({ weeks, value, target, fixedTarget, color, minTop = 0 }: { weeks: ProgressWeek[]; value: (w: ProgressWeek) => number | null; target?: (w: ProgressWeek) => number | null; fixedTarget?: number; color: string; minTop?: number }) {
+function Bars({ weeks, value, target, fixedTarget, color, minTop = 0, sel }: { weeks: ProgressWeek[]; value: (w: ProgressWeek) => number | null; target?: (w: ProgressWeek) => number | null; fixedTarget?: number; color: string; minTop?: number; sel: number | null }) {
   const n = weeks.length;
   const vals = weeks.map(value);
   const targets = weeks.map((w) => (target ? target(w) : null));
@@ -227,7 +218,7 @@ function Bars({ weeks, value, target, fixedTarget, color, minTop = 0 }: { weeks:
     <>
       {vals.map((v, k) => (
         <span key={k} className="absolute bottom-0 flex h-full items-end justify-center" style={slot(k, n)}>
-          {v != null && v > 0 && <span className="w-[62%] max-w-[14px] rounded-t-[3px]" style={{ height: `${Math.max(4, (v / top) * 100)}%`, background: color, opacity: weeks[k].current ? 0.55 : 1 }} />}
+          {v != null && v > 0 && <span className="w-[62%] max-w-[14px] rounded-t-[3px] transition-opacity" style={{ height: `${Math.max(4, (v / top) * 100)}%`, background: color, opacity: (weeks[k].current ? 0.55 : 1) * (sel != null && sel !== k ? 0.45 : 1) }} />}
         </span>
       ))}
       {targets.map((tv, k) => (tv != null ? <span key={`t${k}`} className="absolute border-t border-dashed" style={{ ...slot(k, n), bottom: `${(tv / top) * 100}%`, borderColor: "var(--text-tertiary)" }} /> : null))}
@@ -236,7 +227,7 @@ function Bars({ weeks, value, target, fixedTarget, color, minTop = 0 }: { weeks:
   );
 }
 
-function CaloriesChart({ weeks }: { weeks: ProgressWeek[] }) {
+function CaloriesChart({ weeks, sel }: { weeks: ProgressWeek[]; sel: number | null }) {
   const n = weeks.length;
   const all = weeks.flatMap((w) => [w.kcal, w.maintenanceKcal]).filter((x): x is number => x != null);
   if (!all.length) return null;
@@ -248,7 +239,7 @@ function CaloriesChart({ weeks }: { weeks: ProgressWeek[] }) {
     <>
       {weeks.map((w, k) => (
         <span key={k} className="absolute bottom-0 flex h-full items-end justify-center" style={slot(k, n)}>
-          {w.kcal != null && <span className="w-[62%] max-w-[14px] rounded-t-[3px]" style={{ height: `${Math.max(4, y(w.kcal))}%`, background: "var(--macro-kcal)", opacity: w.current ? 0.55 : 1 }} />}
+          {w.kcal != null && <span className="w-[62%] max-w-[14px] rounded-t-[3px] transition-opacity" style={{ height: `${Math.max(4, y(w.kcal))}%`, background: "var(--macro-kcal)", opacity: (w.current ? 0.55 : 1) * (sel != null && sel !== k ? 0.45 : 1) }} />}
         </span>
       ))}
       {pts.length >= 2 && (
@@ -260,7 +251,7 @@ function CaloriesChart({ weeks }: { weeks: ProgressWeek[] }) {
   );
 }
 
-function WeightChart({ t }: { t: ProgressTimeline }) {
+function WeightChart({ t, pick }: { t: ProgressTimeline; pick: ProgressWeek | null }) {
   const total = Math.max(1, t.weeks.length * 7);
   if (t.days.length < 2) return null;
   const vals = t.days.flatMap((d) => (d.kg != null ? [d.trendKg, d.kg] : [d.trendKg]));
@@ -272,6 +263,8 @@ function WeightChart({ t }: { t: ProgressTimeline }) {
   const x = (date: string) => ((dayDiff(t.from, date) + 0.5) / total) * 100;
   const y = (v: number) => 100 - ((v - lo) / (hi - lo)) * 100;
   const path = t.days.map((d, k) => `${k === 0 ? "M" : "L"}${x(d.date).toFixed(2)},${y(d.trendKg).toFixed(2)}`).join(" ");
+  // The picked week's trend, marked where the week ends (the number in the heading).
+  const end = pick ? [...t.days].reverse().find((d) => d.date <= pick.end && d.date >= pick.start) : null;
   return (
     <>
       {t.days.length <= 200 &&
@@ -279,12 +272,13 @@ function WeightChart({ t }: { t: ProgressTimeline }) {
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
         <path d={path} fill="none" stroke="var(--chart-trend)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
+      {end && <span className="absolute h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${x(end.date)}%`, top: `${y(end.trendKg)}%`, background: "var(--chart-trend)", border: "2px solid var(--surface)" }} />}
     </>
   );
 }
 
 /** A connection's sessions by date, each against its lift's own level: the top third filled, the bottom third hollow, the level dashed. */
-function SessionDots({ t, sessions }: { t: ProgressTimeline; sessions: NonNullable<TimelineFocus["sessions"]> }) {
+function SessionDots({ t, sessions, pick }: { t: ProgressTimeline; sessions: NonNullable<TimelineFocus["sessions"]>; pick: ProgressWeek | null }) {
   const total = Math.max(1, t.weeks.length * 7);
   const inRange = (p: SessionPoint) => p.date >= t.from && p.date <= t.through;
   const all = [...sessions.high, ...sessions.low].filter(inRange);
@@ -292,20 +286,23 @@ function SessionDots({ t, sessions }: { t: ProgressTimeline; sessions: NonNullab
   const span = Math.max(3, ...all.map((p) => Math.abs(p.pct)));
   const x = (d: LocalDate) => ((dayDiff(t.from, d) + 0.5) / total) * 100;
   const y = (v: number) => 50 - (v / span) * 44;
+  // The picked week's sessions grow, the rest step back.
+  const size = (p: SessionPoint) => (!pick ? 7 : p.date >= pick.start && p.date <= pick.end ? 10 : 7);
+  const fade = (p: SessionPoint) => (pick && !(p.date >= pick.start && p.date <= pick.end) ? 0.4 : 1);
   return (
     <>
       <span className="absolute inset-x-0 border-t border-dashed" style={{ top: "50%", borderColor: "var(--text-tertiary)", opacity: 0.8 }} />
       {sessions.low.filter(inRange).map((p) => (
-        <span key={`l${p.date}`} className="absolute h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${x(p.date)}%`, top: `${y(p.pct)}%`, border: "1.5px solid var(--text-tertiary)", background: "var(--surface)" }} />
+        <span key={`l${p.date}`} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${x(p.date)}%`, top: `${y(p.pct)}%`, width: size(p), height: size(p), opacity: fade(p), border: "1.5px solid var(--text-tertiary)", background: "var(--surface)" }} />
       ))}
       {sessions.high.filter(inRange).map((p) => (
-        <span key={`h${p.date}`} className="absolute h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${x(p.date)}%`, top: `${y(p.pct)}%`, background: sessions.color }} />
+        <span key={`h${p.date}`} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${x(p.date)}%`, top: `${y(p.pct)}%`, width: size(p), height: size(p), opacity: fade(p), background: sessions.color }} />
       ))}
     </>
   );
 }
 
-function StrengthChart({ weeks }: { weeks: ProgressWeek[] }) {
+function StrengthChart({ weeks, sel }: { weeks: ProgressWeek[]; sel: number | null }) {
   const n = weeks.length;
   const vals = weeks.map((w) => w.strengthPct);
   const present = vals.filter((v): v is number => v != null);
@@ -313,15 +310,15 @@ function StrengthChart({ weeks }: { weeks: ProgressWeek[] }) {
   const lo = Math.min(-2, ...present);
   const hi = Math.max(2, ...present);
   const y = (v: number) => 100 - ((v - lo) / (hi - lo)) * 100;
-  const pts = vals.map((v, k) => (v == null ? null : { x: ((k + 0.5) / n) * 100, y: y(v) })).filter((p): p is { x: number; y: number } => p != null);
+  const pts = vals.map((v, k) => (v == null ? null : { k, x: ((k + 0.5) / n) * 100, y: y(v) })).filter((p): p is { k: number; x: number; y: number } => p != null);
   return (
     <>
       <span className="absolute inset-x-0 border-t border-dashed" style={{ top: `${y(0)}%`, borderColor: "var(--text-tertiary)", opacity: 0.8 }} />
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
         <polyline points={pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")} fill="none" stroke="var(--chart-training)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
-      {pts.map((p, k) => (
-        <span key={k} className="absolute h-[6px] w-[6px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${p.x}%`, top: `${p.y}%`, background: "var(--surface)", border: "1.5px solid var(--chart-training)" }} />
+      {pts.map((p) => (
+        <span key={p.k} className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full ${p.k === sel ? "h-[9px] w-[9px]" : "h-[6px] w-[6px]"}`} style={{ left: `${p.x}%`, top: `${p.y}%`, background: p.k === sel ? "var(--chart-training)" : "var(--surface)", border: "1.5px solid var(--chart-training)" }} />
       ))}
     </>
   );

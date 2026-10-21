@@ -121,7 +121,7 @@ export default function HowItsGoing() {
           </h2>
           <div className="grid grid-cols-2 gap-2.5">
             {model.tiles.map((t, i) => (
-              <PulseTile key={t.row.id} row={t.row} chart={t.chart} wide={i === model.tiles.length - 1 && model.tiles.length % 2 === 1} />
+              <PulseTile key={t.row.id} row={t.row} chart={t.chart} unit={unit} wide={i === model.tiles.length - 1 && model.tiles.length % 2 === 1} />
             ))}
           </div>
         </section>
