@@ -1,12 +1,21 @@
-# Handoff (2026-10-21)
+# Handoff (2026-10-21, end of the local session)
 
-For a session picking up from the long cloud session that built PR1 to C7. Read `CLAUDE.md` first, then this, then the latest rows of `STATUS.md`.
+For a session picking up after the 21 Oct local session (PR3 to PR5, then the tester-ready tickets). Read `CLAUDE.md` first, then this, then `docs/plan/07-tester-ready.md` and the "Tester-ready" section of `STATUS.md`.
+
+## Start here
+
+- **Goal now: outside testers on TestFlight.** All session tickets TR1 to TR7 in `07-tester-ready.md` are done and merged (consent and delete account, privacy notice and DPIA draft, error reporting, tester kit, iOS privacy manifest and review texts, nightly backup workflow, MacroFactor import). `npm run check` (699 tests) and `npm run build` pass on `c5e7d78`. TR8 (real-device check) waits for the TestFlight build.
+- **Waiting on the founder (FT steps in `07-tester-ready.md`):** Apple Developer enrolment is stuck: the app refused his UK driving licence, he has emailed Apple to verify with his passport (passports are accepted in most regions; the Apple ID name must match exactly). Xcode not installed yet (his Mac: macOS 15.7.3 Sequoia, M4; Xcode 26.x runs on it, Xcode 27 needs Tahoe 26.6+). Not yet done: deploy (FT3), accounts switched on (FT4, now allowed since TR1 is in), rotate keys (FT5), Tally form and support email (FT6), recruit testers (FT8), ICO fee and a UK GDPR read of `/privacy` and `docs/plan/legal/DPIA-draft.md` (FT9).
+- **The founder is building the AI coach in his own separate session.** Don't touch `app/api/assistant/route.ts` or `app/assistant/page.tsx` without asking.
+- **Naming clash:** STATUS also has older "TR1–TR7" rows (training redesign, 18 Oct). The tester-ready tickets are the ones in the "Tester-ready" section.
+- **Local setup on the founder's Mac:** the repo is `/Users/raffychuter/gym-app`; an older clone at `~/Desktop/postbag/gym-app` is stale, don't use it. The dev server for him runs on http://localhost:3000 from this repo. `.claude/launch.json` (not committed) has "dev" and "dev-accounts-fake" (the app pointed at a fake Supabase for testing sign-in and sync with Playwright). Session worktrees live in `.claude/worktrees/` (lint skips them); they can be cleaned up once merged. If the dev server serves a stale stylesheet, stop it, delete `.next/dev`, start again.
+- **Strategy agreed with the founder:** TestFlight with 5 to 20 lifters for 6 to 8 weeks before any public App Store launch; polish only what testers hit; imports (Hevy, Strong, MacroFactor, Apple Health backfill) matter because the analysis needs weeks of data. Paid launch later needs In-App Purchase (RevenueCat plus Stripe on web), possibly a limited company; research notes at the end of `07-tester-ready.md`.
 
 ## Where things stand
 
 - Branch `claude/admiring-ptolemy-mz6jwu`. Everything below is committed and pushed.
-- Production (gym-app-eta-nine.vercel.app and gym-app-psi-wheat.vercel.app, one `vercel deploy --prod` updates both) is still at A2 (f7f7920). PR1, PR2, T1, O1, C7 and everything from the 21 Oct local session (PR3 to PR4, below) are built but not deployed.
-- 21 Oct local session (STATUS rows PR3 to PR4): Progress redesigned (goal first; Connections as a ranked list in kg with a session strip on tap; Findings in one line each; labelled charts; each main lift in kg, which was X1; HRV and resting HR with a watch; short histories open on All; no maintenance gap from an incomplete log), "Early read" gone from Train, "Ask the coach why" behind the parked assistant (`ASSISTANT_ENABLED`), and accounts and sync (PR4), off until the founder runs `supabase/migrations/0003_sync.sql`, turns on email codes and sets `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` on Vercel (steps in the PR4 STATUS row).
+- Production (gym-app-eta-nine.vercel.app and gym-app-psi-wheat.vercel.app, one `vercel deploy --prod` updates both) is still at A2 (f7f7920). PR1, PR2, T1, O1, C7, PR3 to PR5 and the tester-ready tickets are built but not deployed. The Vercel CLI is not installed or logged in on the founder's Mac.
+- 21 Oct local session (STATUS rows PR3 to PR5): Progress redesigned (goal first; Connections as a ranked list in kg with a session strip on tap; Findings in one line each; labelled charts; each main lift in kg, which was X1; HRV and resting HR with a watch; short histories open on All; no maintenance gap from an incomplete log), "Early read" gone from Train, "Ask the coach why" behind the parked assistant (`ASSISTANT_ENABLED`), and accounts and sync (PR4), off until the founder runs `supabase/migrations/0003_sync.sql`, turns on email codes and sets `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` on Vercel (steps in the PR4 STATUS row).
 - Why: the Vercel account is on the free Hobby plan, whose limit (100 deployments in 24 hours) is shared by every project on the account. A client site there (mad-hatters-party-shop-website) rebuilds on every TinaCMS save and used it up. gym-app is not linked to Git on Vercel, so pushing never deploys; it deploys from the CLI only. Check the deploy log for "Aliased", not just the exit code.
 - A cloud session has a reminder to retry the deploy at 10:05 UTC on 22 Oct.
 
@@ -27,8 +36,9 @@ For a session picking up from the long cloud session that built PR1 to C7. Read 
 
 1. **Done in PR3:** each main lift on Progress (X1).
 2. **Deploy** everything once the Vercel limit allows, then smoke-test both hosts.
-3. **Accounts** first cut built (PR4). Left: the founder's three switch-on steps, a real-project smoke test on the phone, API routes keyed by `auth.uid()` for the daily AI cap, delete account and data, database backups, sign-in offered in `/setup`.
-4. Earlier offers waiting on the founder: gate changes (MIN_LOGGED_SHARE 0.7, MIN_WEIGHIN_RATIO 0.25), a MacroFactor import, the AI coach as a premium feature. The assistant prompt in `app/api/assistant/route.ts` (a hotspot) still says "Body tab".
+3. **Accounts** built (PR4) with consent and delete account (TR1) and a nightly backup workflow (TR6, the founder adds the secrets and triggers the first run). Left: the founder's switch-on steps, a real-project smoke test on the phone, API routes keyed by `auth.uid()` for the daily AI cap, sign-in offered in `/setup`.
+4. **Progress for a new user** (PR5): a list of what each part needs and "See an example" on made-up data.
+5. Earlier offers waiting on the founder: gate changes (MIN_LOGGED_SHARE 0.7, MIN_WEIGHIN_RATIO 0.25), the AI coach as a premium feature. (The MacroFactor import is done, TR7; "Body tab" is gone from the assistant prompt, PR3f.)
 
 ## The founder's own to-dos
 
