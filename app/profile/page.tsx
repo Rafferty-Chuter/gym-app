@@ -20,6 +20,7 @@ import { saveBasics } from "@/lib/physique/io/goalSetup";
 import { receivedLabel, useHealthLink } from "@/lib/physique/io/healthLink";
 import { useNativeHealth } from "@/lib/physique/io/nativeHealth";
 import { BODY_FAT_OPTIONS, SEX_OPTIONS } from "@/lib/physique/profileOptions";
+import { ACCOUNTS_ENABLED } from "@/lib/sync/config";
 import { useUnit } from "@/lib/unit-preference";
 import { setHeightUnit, useHeightUnit } from "@/lib/ui/heightUnit";
 import { formatHeight } from "@/lib/units";
@@ -104,6 +105,16 @@ export default function ProfilePage() {
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         <PageHeader caption="Settings" title="Profile" />
+
+        {/* PR4: only when the deployment has accounts switched on. */}
+        {ACCOUNTS_ENABLED && (
+          <section className="flex flex-col gap-2" aria-label="Account">
+            <Caption>Account</Caption>
+            <RowGroup>
+              <Row label="Account" sub="Your data on every device" value="" trailing={<Chevron />} onClick={() => router.push("/account")} ariaLabel="Account. Open" />
+            </RowGroup>
+          </section>
+        )}
 
         <section className="flex flex-col gap-2" aria-label="Units">
           <Caption>Units</Caption>

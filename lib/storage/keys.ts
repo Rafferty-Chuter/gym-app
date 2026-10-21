@@ -67,6 +67,9 @@ export const STORAGE_KEYS = [
   { key: "physique.v1.onboarding", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/onboarding.ts" },
   { key: "physique.v1.musclePriorities", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/musclePriorities.ts" },
   { key: "physique.v1.deload", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/deload.ts" },
+  // ── Account and sync (PR4) ──
+  { key: "sync.v1.state", scope: "local", version: 1, includeInBackup: false, owner: "lib/sync/run.ts" },
+  { key: "sync.v1.auth", scope: "local", version: 1, includeInBackup: false, owner: "lib/sync/client.ts (Supabase session)" },
   // ── Session-scoped handoffs ──
   { key: "assistantQuickPrompt", scope: "session", version: 1, includeInBackup: false, owner: "app/page.tsx → app/assistant" },
   { key: "assistantAutoSend", scope: "session", version: 1, includeInBackup: false, owner: "app/page.tsx → app/assistant" },
