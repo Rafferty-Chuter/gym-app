@@ -38,7 +38,8 @@ type RowSpec = { id: string; group?: string; label: string; color: string; href?
 /**
  * The Progress timeline (PR1, PR3): weight against the goal, calories
  * against maintenance, protein against target, hard sets, each main lift's
- * estimated 1RM in kilos, and sleep against the person's usual, all on the
+ * estimated 1RM in kilos, sleep and (with a watch) HRV and resting heart
+ * rate against the person's usual, all on the
  * same weeks, every reference line named in its heading. Tap or drag across any chart
  * (T1) and one column runs through all of them, each chart's heading turns
  * to that week's number and the week's dates show at the top. Tapping the
@@ -157,8 +158,9 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
           </>
         ) : null,
       week: (w) => (w.sleepH != null ? `${hm(w.sleepH)} a night · ${w.nights} nights` : w.nights ? `${w.nights} ${w.nights === 1 ? "night" : "nights"} logged` : "Not logged"),
-      chart: <SleepChart weeks={weeks} usual={s.usualSleepH} sel={sel} />,
+      chart: <UsualDots weeks={weeks} value={(w) => w.sleepH} usual={s.usualSleepH} color="var(--chart-sleep)" hollow={(v, u) => v < u - SHORT_WEEK_H} minPad={0.25} sel={sel} />,
     },
+    ...watchRows(weeks, s, sel),
   ];
 
   const w = sel != null ? weeks[sel] : null;
@@ -388,31 +390,86 @@ function LiftChart({ l, sel, t }: { l: LiftWeeks; sel: number | null; t: Progres
   );
 }
 
-/** Each week's average night against the person's usual (C7: their own baseline, not a fixed 7 or 8 hours); a week well under it is hollow. */
-function SleepChart({ weeks, usual, sel }: { weeks: ProgressWeek[]; usual: number | null; sel: number | null }) {
+/**
+ * Each week's value against the person's usual over the range (C7: their
+ * own baseline, not a fixed number), as dots joined faintly, the usual
+ * dashed. Sleep marks a week well under it hollow.
+ */
+function UsualDots({ weeks, value, usual, color, hollow, minPad, sel }: { weeks: ProgressWeek[]; value: (w: ProgressWeek) => number | null; usual: number | null; color: string; hollow?: (v: number, usual: number) => boolean; minPad: number; sel: number | null }) {
   const n = weeks.length;
-  const present = weeks.map((w, k) => (w.sleepH != null ? { k, v: w.sleepH } : null)).filter((p): p is { k: number; v: number } => p != null);
+  const present = weeks.map((w, k) => (value(w) != null ? { k, v: value(w) as number } : null)).filter((p): p is { k: number; v: number } => p != null);
   if (!present.length) return null;
   const vals = [...present.map((p) => p.v), ...(usual != null ? [usual] : [])];
-  const pad = Math.max(0.25, (Math.max(...vals) - Math.min(...vals)) * 0.2);
+  const pad = Math.max(minPad, (Math.max(...vals) - Math.min(...vals)) * 0.2);
   const lo = Math.min(...vals) - pad;
   const hi = Math.max(...vals) + pad * 1.8;
   const y = (v: number) => 100 - ((v - lo) / (hi - lo)) * 100;
   return (
     <>
-      {usual != null && (
-        <>
-          <span className="absolute inset-x-0 border-t border-dashed" style={{ top: `${y(usual)}%`, borderColor: "var(--chart-sleep)", opacity: 0.7 }} />
-        </>
-      )}
+      {usual != null && <span className="absolute inset-x-0 border-t border-dashed" style={{ top: `${y(usual)}%`, borderColor: color, opacity: 0.7 }} />}
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
-        <polyline points={present.map((p) => `${cx(p.k, n)},${y(p.v)}`).join(" ")} fill="none" stroke="var(--chart-sleep)" strokeOpacity={0.55} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        <polyline points={present.map((p) => `${cx(p.k, n)},${y(p.v)}`).join(" ")} fill="none" stroke={color} strokeOpacity={0.55} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
       {present.map((p) => {
-        const short = usual != null && p.v < usual - SHORT_WEEK_H;
+        const open = usual != null && hollow != null && hollow(p.v, usual);
         const size = p.k === sel ? 10 : 7;
-        return <span key={p.k} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${cx(p.k, n)}%`, top: `${y(p.v)}%`, width: size, height: size, ...(short ? { border: "1.5px solid var(--chart-sleep)", background: "var(--surface)" } : { background: "var(--chart-sleep)" }), opacity: weeks[p.k].current ? 0.55 : 1 }} />;
+        return <span key={p.k} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${cx(p.k, n)}%`, top: `${y(p.v)}%`, width: size, height: size, ...(open ? { border: `1.5px solid ${color}`, background: "var(--surface)" } : { background: color }), opacity: weeks[p.k].current ? 0.55 : 1 }} />;
       })}
     </>
   );
+}
+
+/**
+ * The watch's HRV and resting heart rate (PR3g), on the same weeks, each
+ * against the person's usual; only when a watch has sent them. The
+ * heading reads the last full week, where a recent change shows.
+ */
+function watchRows(weeks: ProgressWeek[], s: ProgressTimeline["summary"], sel: number | null): RowSpec[] {
+  const last = (f: (w: ProgressWeek) => number | null) => [...weeks].reverse().find((w) => !w.current && f(w) != null);
+  const rows: RowSpec[] = [];
+  if (weeks.some((w) => w.hrvMs != null)) {
+    const w0 = last((w) => w.hrvMs);
+    rows.push({
+      id: "hrv",
+      label: "HRV",
+      color: "var(--chart-hrv)",
+      summary: (
+        <>
+          {w0 ? `${n0(w0.hrvMs!)} ms last week` : "Not enough nights yet"}
+          {s.usualHrvMs != null && (
+            <>
+              {" · "}
+              <Swatch color="var(--chart-hrv)" dashed />
+              your usual {n0(s.usualHrvMs)}
+            </>
+          )}
+        </>
+      ),
+      week: (w) => (w.hrvMs != null ? `${n0(w.hrvMs)} ms a night` : "Not enough nights"),
+      chart: <UsualDots weeks={weeks} value={(w) => w.hrvMs} usual={s.usualHrvMs} color="var(--chart-hrv)" minPad={2} sel={sel} />,
+    });
+  }
+  if (weeks.some((w) => w.restingHr != null)) {
+    const w0 = last((w) => w.restingHr);
+    rows.push({
+      id: "rhr",
+      label: "Resting heart rate",
+      color: "var(--chart-heart)",
+      summary: (
+        <>
+          {w0 ? `${n0(w0.restingHr!)} bpm last week` : "Not enough nights yet"}
+          {s.usualRestingHr != null && (
+            <>
+              {" · "}
+              <Swatch color="var(--chart-heart)" dashed />
+              your usual {n0(s.usualRestingHr)}
+            </>
+          )}
+        </>
+      ),
+      week: (w) => (w.restingHr != null ? `${n0(w.restingHr)} bpm` : "Not enough nights"),
+      chart: <UsualDots weeks={weeks} value={(w) => w.restingHr} usual={s.usualRestingHr} color="var(--chart-heart)" minPad={1} sel={sel} />,
+    });
+  }
+  return rows;
 }

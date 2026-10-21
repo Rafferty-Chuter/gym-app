@@ -78,6 +78,10 @@ export type ProgressWeek = {
   /** Mean sleep over valid nights, hours. */
   sleepH: number | null;
   nights: number;
+  /** Mean of the watch's nightly HRV, ms, in the range's one method (PR3g); null under WEEK_MIN_DAYS nights with it. */
+  hrvMs: number | null;
+  /** Mean of the watch's resting heart rate, bpm (PR3g); null under WEEK_MIN_DAYS nights with it. */
+  restingHr: number | null;
 };
 
 /** One main lift on the timeline's columns, in kg (PR3, X1). */
@@ -117,6 +121,9 @@ export type ProgressTimeline = {
     sleepH: number | null;
     /** The person's usual night over the range (median of valid nights), the sleep chart's reference; null under SLEEP_USUAL_MIN_NIGHTS. */
     usualSleepH: number | null;
+    /** The usual HRV and resting heart rate over the range (medians), the watch charts' references (PR3g); null under SLEEP_USUAL_MIN_NIGHTS nights with them. */
+    usualHrvMs: number | null;
+    usualRestingHr: number | null;
   };
 };
 
@@ -216,6 +223,13 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
     byDate.set(d, cur);
   }
 
+  // HRV in one method only: SDNN and RMSSD are not comparable, so the range reads the latest night's (PR3g).
+  const watchNights = [...nights.values()].filter((n) => n.date >= from && n.date <= through).map((n) => n.night);
+  const latestHrv = watchNights.filter((n) => n.hrvMs != null).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+  const hrvMethod = latestHrv?.hrvMethod ?? "sdnn";
+  const hrvOf = (n: SleepNight | undefined) => (n && n.hrvMs != null && (n.hrvMethod ?? "sdnn") === hrvMethod ? n.hrvMs : null);
+  const rhrOf = (n: SleepNight | undefined) => (n && n.restingHr != null ? n.restingHr : null);
+
   const weeks: ProgressWeek[] = [];
   const liftCols: Array<Array<number | null>> = mainLifts.map(() => []);
   let prevTrendEnd: number | null = trendAt(addDays(from, -1));
@@ -270,6 +284,8 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
       strengthPct: liftPcts.length ? mean(liftPcts) : null,
       sleepH: meanOrNull(sleep, minDays),
       nights: sleep.length,
+      hrvMs: meanOrNull(dates.map((d) => hrvOf(nights.get(d)?.night)).filter((v): v is number => v != null), minDays),
+      restingHr: meanOrNull(dates.map((d) => rhrOf(nights.get(d)?.night)).filter((v): v is number => v != null), minDays),
     });
     if (trendEnd != null) prevTrendEnd = trendEnd;
   }
@@ -309,8 +325,16 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
       strengthPct: strengths.length >= 2 ? strengths[strengths.length - 1] : null,
       sleepH: vals((w) => w.sleepH).length ? mean(vals((w) => w.sleepH)) : null,
       usualSleepH: rangeNights.length >= SLEEP_USUAL_MIN_NIGHTS ? median(rangeNights) : null,
+      usualHrvMs: usualOf(watchNights.map(hrvOf)),
+      usualRestingHr: usualOf(watchNights.map(rhrOf)),
     },
   };
+}
+
+/** The median of the values present, or null under SLEEP_USUAL_MIN_NIGHTS of them. */
+function usualOf(values: ReadonlyArray<number | null>): number | null {
+  const v = values.filter((x): x is number => x != null);
+  return v.length >= SLEEP_USUAL_MIN_NIGHTS ? median(v) : null;
 }
 
 /** A straight line through a lift's sessions by day (least squares), or null below LIFT_FIT_MIN_SESSIONS or LIFT_FIT_MIN_DAYS. */

@@ -196,3 +196,47 @@ describe("Progress timeline: the range it opens on (PR3e)", () => {
     expect(defaultRange({ ...inputs, weighIns: [], foodEntries: [], sleepNights: [], workouts: [] }, now)).toBe("3M");
   });
 });
+
+describe("Progress timeline: the watch's HRV and resting heart rate (PR3g)", () => {
+  const watch = makeScenario({
+    seed: 33,
+    days: 63,
+    preDays: 21,
+    startDate: addDays(sc.today, -62),
+    bodyweightKg: 85,
+    trueTdeeKcal: 2800,
+    intake: "toTarget",
+    goal: { ratePctPerWeek: -0.6, targetKg: 78 },
+    lifts: [{ name: "Squat", startE1rm: 150, profile: "linear", changePct: 0, perWeek: 2, cv: 0.03 }],
+    sleep: { meanH: 7.3, sdH: 0.5, loggedShare: 1, source: "healthkit", hrv: { meanMs: 48, sdPct: 10, rhrBpm: 52, dropFromDay: 54, dropPct: 20 } },
+  });
+  const wNow = { today: watch.today, tz: "UTC" };
+  const wInputs = { ...inputs, weighIns: watch.weighIns, foodEntries: watch.foodEntries, dayFlags: watch.dayFlags, sleepNights: watch.sleepNights, workouts: watch.workouts, program: watch.program, expenditure: null };
+
+  it("gives each week's HRV and resting heart rate, and the person's usual over the range", () => {
+    const t = progressTimeline(wInputs, "3M", wNow);
+    const hrv = t.weeks.map((w) => w.hrvMs).filter((v): v is number => v != null);
+    const rhr = t.weeks.map((w) => w.restingHr).filter((v): v is number => v != null);
+    expect(hrv.length).toBeGreaterThanOrEqual(8);
+    expect(rhr.length).toBeGreaterThanOrEqual(8);
+    expect(t.summary.usualHrvMs).toBeGreaterThan(42);
+    expect(t.summary.usualHrvMs).toBeLessThan(54);
+    expect(t.summary.usualRestingHr).toBeGreaterThan(50);
+    expect(t.summary.usualRestingHr).toBeLessThan(54);
+    // HRV drops 20% from day 54: the last full week sits under the usual.
+    expect(t.weeks.at(-2)!.hrvMs!).toBeLessThan(t.summary.usualHrvMs!);
+  });
+
+  it("reads one HRV method only, the latest, as the two are not comparable", () => {
+    const mixed = watch.sleepNights.map((n, k) => (k < 30 && n.hrvMs != null ? { ...n, hrvMs: n.hrvMs * 2, hrvMethod: "rmssd" as const } : n));
+    const t = progressTimeline({ ...wInputs, sleepNights: mixed }, "3M", wNow);
+    expect(t.summary.usualHrvMs).toBeLessThan(54);
+  });
+
+  it("is empty without a watch", () => {
+    const t = progressTimeline(inputs, "3M", now);
+    expect(t.weeks.every((w) => w.hrvMs == null && w.restingHr == null)).toBe(true);
+    expect(t.summary.usualHrvMs).toBeNull();
+    expect(t.summary.usualRestingHr).toBeNull();
+  });
+});
