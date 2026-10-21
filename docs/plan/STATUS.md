@@ -128,6 +128,27 @@ Record wrong verdicts here as `YYYY-MM-DD · rule id · what it said · what was
 | PR5 Progress for a new user: what each part needs, and an example | done | 2026-10-21 | Founder, seeing Progress with no data: it looked the same as before, mostly empty boxes. **Earns its place:** the analysis is the reason to pay, and a new user sees none of it for weeks; this shows what is coming, how far along they are and what the full screen looks like. **From Mobbin:** WHOOP ("4 recoveries until initial calibration"), Visible ("1 / 4 days completed" with a bar), MacroFactor (the real layout kept, "Waiting" in place of numbers), Oura and Ultrahuman ("ready in about 14 days"); impeccable's onboard reference (show, don't tell; sample data; one next step). **Built:** `lib/physique/progressUnlocks.ts` (pure): each part with the engine's own minimum, how far along and roughly how long at the person's pace: weight trend (6 weigh-ins, then 14 days, the rate's gate), maintenance (21 updating days), lifts (5 of the last 6 weeks, the main-lift rule), sleep (7 nights for the usual), connections (24 sessions, with sleep or food alongside); `components/progress/FirstUse.tsx`: "Progress fills in as you log" on day one, "Still filling in · N of 5 ready" after, a row per waiting part with a bar and "About 4 days" / "About 7 weeks at your pace", each row opening where it is logged (weight opens the weigh-in sheet), sleep's row pointing to Apple Health; parts drop off as they open, the card goes when all have. **Timeline:** a measure with nothing in the range is left out and named once ("Training joins once there's a week of it") instead of rows of "Not enough logged yet"; no timeline at all with nothing. Before a goal or a weigh-in the goal card stays away; Connections waits in the list until it reads. **See an example:** `lib/physique/exampleData.ts` (the CONNECTIONS history, now shared with the dev seed page) builds 16 weeks of made-up data in memory with its expenditure and the judge's analysis, loaded on tap; Progress draws from it under "Example · 16 weeks of made-up data. Nothing is saved. · Back to mine", with no log button, weigh-ins, goal Change, report link or exercise links. Tests: 3 new (day one at zero with the engine's minimums, ten days in with counts and time left, everything ready on the example). Evidence: `npm run check` 629/629, eslint 0 errors, `npm run build` passes; Chromium 390px light and dark: a fresh browser shows the list only, the example draws the full screen and leaves storage byte for byte unchanged, Back to mine returns, Early read "2 of 5 ready", DATA-RATE "Day 10 of 14 · About 4 days", ON-TRACK "16 of 24 sessions · About 4 weeks at your pace", CONNECTIONS no list; no page errors: `docs/plan/screens/PR5/`. `/code-review medium`: no findings. Schema impact: none. |
 | W2 Gaps stated plainly | done | 2026-10-17 | `lib/physique/gaps.ts` (pure): the 7 days before today (`GAP_LOOKBACK_DAYS`), never today; a kind has gaps only from its first record onward; fasting days and edited totals count as logged; a kind with nothing in the whole window collapses to one line ("No weigh-ins in the last 7 days"); sentences "Yesterday / Thursday / Last Friday has no food logged · weigh-in · sleep logged", newest first. 6 tests in `__tests__/gaps.test.ts`. `components/physique/GapRows.tsx` ("Not logged" group, one row per gap) on Home (`GapLines.tsx`, all kinds, 5 rows then "N more, shown on each tab", plain anchors into `/food|/body|/sleep?date=`), Food (under the week strip; a row opens `components/food/GapSheet.tsx`: Log food, copy a nearby logged day onto it with a ‹ › picker, or Fasting day / set a total through Edit day; `/food?date=` on a past unlogged day opens the sheet straight away), Body (a row opens the weight sheet on that day) and Sleep (a row opens the sleep sheet for that night). No streaks, no nudges, nothing when nothing is missing. Browser run at 390 px with seeded gaps: Home 5 rows, Home → Food link opened the sheet, copy filled the day and the row went, Body row opened "Thu 15 Oct", Sleep row opened "Night before Fri 16 Oct", no section once complete, no horizontal scroll. Screenshots `docs/plan/screens/W2/`. |
 
+## Tester-ready (see `07-tester-ready.md`)
+| Ticket | Status | Date | Evidence / notes |
+|---|---|---|---|
+| FT1 Apple Developer Program (founder) | todo | | |
+| FT2 Xcode (founder) | todo | | macOS 15.7.3 on the founder's Mac: Xcode 26.x, or Tahoe 26.6+ for Xcode 27 |
+| FT3 Deploys that work (founder) | todo | | |
+| FT4 Accounts switched on (founder, after TR1) | todo | | |
+| FT5 Rotate keys (founder) | todo | | |
+| FT6 Feedback form and support email (founder) | todo | | |
+| FT7 Build and upload to TestFlight (founder) | todo | | |
+| FT8 Recruit 5 to 20 lifters (founder) | todo | | |
+| FT9 ICO fee, DPIA, privacy review (founder) | todo | | |
+| TR1 Consent before sync, delete account | todo | | |
+| TR2 Privacy notice and DPIA draft | todo | | |
+| TR3 Error reporting | todo | | |
+| TR4 Tester kit | todo | | |
+| TR5 iOS ready for TestFlight review | todo | | |
+| TR6 Nightly database backup | todo | | |
+| TR7 MacroFactor food import (nice to have) | todo | | |
+| TR8 Real-device check (after FT7) | todo | | |
+
 ## M2 — Hardening
 | Ticket | Status | Date | Evidence / notes |
 |---|---|---|---|

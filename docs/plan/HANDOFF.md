@@ -23,6 +23,8 @@ For a session picking up from the long cloud session that built PR1 to C7. Read 
 
 ## Open work
 
+**Next: getting ready for testers.** `docs/plan/07-tester-ready.md` lists every founder step (FT) and every session ticket (TR), with the order, what each touches and the acceptance criteria; STATUS has a "Tester-ready" section. One session per TR ticket. The AI coach is being built in the founder's own separate session.
+
 1. **Done in PR3:** each main lift on Progress (X1).
 2. **Deploy** everything once the Vercel limit allows, then smoke-test both hosts.
 3. **Accounts** first cut built (PR4). Left: the founder's three switch-on steps, a real-project smoke test on the phone, API routes keyed by `auth.uid()` for the daily AI cap, delete account and data, database backups, sign-in offered in `/setup`.
