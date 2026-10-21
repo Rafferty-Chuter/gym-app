@@ -89,11 +89,18 @@ export type Connection = {
   diffPct: number;
   high: ConnectionGroup;
   low: ConnectionGroup;
+  /** The sessions behind each third, for drawing them on the timeline (PR2). */
+  points: { high: SessionPoint[]; low: SessionPoint[] };
 };
+
+/** One session in a comparison: its date and strength against the lift's own level, %. */
+export type SessionPoint = { date: LocalDate; pct: number };
 
 export type ConnectionsResult = {
   from: LocalDate;
   through: LocalDate;
+  /** Weeks read: CONN_WINDOW_DAYS, or longer when the caller asks for more history. */
+  weeks: number;
   /** Sessions with a strength reading in the window. */
   sessions: number;
   /** Clear differences first (largest first), then the conditions with none. Empty below every minimum. */
@@ -145,7 +152,7 @@ export function sessionStrength(workouts: readonly StoredWorkout[], unit: Weight
 
 // ── Comparison ──
 
-type Pair = { pct: number; v: number };
+type Pair = { pct: number; v: number; date?: LocalDate };
 
 /** Top third against bottom third, or null when the thirds are too small or the values do not separate. */
 export function compareThirds(pairs: readonly Pair[]): { high: Pair[]; low: Pair[]; diff: number; lo: number; hi: number } | null {
@@ -248,14 +255,16 @@ const round1 = (v: number) => Math.round(v * 10) / 10;
  * HRV over the CONN_WINDOW_DAYS to `now.today`. Conditions without enough
  * sessions are left out; the rest are "linked" or "none".
  */
-export function connections(i: ConnectionInputs, now: Now): ConnectionsResult {
+export function connections(i: ConnectionInputs, now: Now, opts: { days?: number } = {}): ConnectionsResult {
   const through = now.today;
-  const from = addDays(through, -(CONN_WINDOW_DAYS - 1));
+  // PR2: Progress can read more history (6M, All); never less than the window the minimums were set for.
+  const days = Math.max(CONN_WINDOW_DAYS, opts.days ?? 0);
+  const from = addDays(through, -(days - 1));
   const strength = sessionStrength(i.workouts, i.unit, now, from);
   const read = conditionReaders(i, from, now);
   const items: Connection[] = [];
   for (const id of ORDER) {
-    const pairs = strength.map((s) => ({ pct: s.pct, v: read[id](s.date) })).filter((p): p is Pair => p.v != null && Number.isFinite(p.v));
+    const pairs = strength.map((s) => ({ pct: s.pct, v: read[id](s.date), date: s.date })).filter((p): p is Pair & { date: LocalDate } => p.v != null && Number.isFinite(p.v));
     const c = compareThirds(pairs);
     if (!c) continue;
     const w = WORDING[id];
@@ -274,10 +283,11 @@ export function connections(i: ConnectionInputs, now: Now): ConnectionsResult {
       diffPct,
       high: { value: hv, pct: round1(mean(c.high.map((p) => p.pct))), sessions: c.high.length },
       low: { value: lv, pct: round1(mean(c.low.map((p) => p.pct))), sessions: c.low.length },
+      points: { high: c.high.map((p) => ({ date: p.date as LocalDate, pct: p.pct })), low: c.low.map((p) => ({ date: p.date as LocalDate, pct: p.pct })) },
     });
   }
   items.sort((a, b) => (a.state === b.state ? Math.abs(b.diffPct) - Math.abs(a.diffPct) : a.state === "linked" ? -1 : 1));
-  return { from, through, sessions: strength.length, items };
+  return { from, through, weeks: Math.round(days / 7), sessions: strength.length, items };
 }
 
 /** Sessions with a strength reading needed before any comparison can be read. */

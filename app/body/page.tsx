@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useUnit } from "@/lib/unit-preference";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
-import { type LocalDate, type Now } from "@/lib/dates";
+import { addDays, dayDiff, type LocalDate, type Now } from "@/lib/dates";
 import { formatWeight, type WeightUnit } from "@/lib/units";
 import { latestTrend } from "@/lib/physique/weight";
 import { deleteWeighIn, saveWaist, saveWeighIn, useBodyData } from "@/lib/physique/io/bodyData";
@@ -19,12 +19,12 @@ import { goalEta } from "@/lib/physique/goalEta";
 import WeightEntries from "@/components/physique/WeightEntries";
 import AutoCheckIn from "@/components/physique/AutoCheckIn";
 import ThisWeekCard from "@/components/progress/ThisWeekCard";
-import Timeline from "@/components/progress/Timeline";
+import Timeline, { type TimelineFocus } from "@/components/progress/Timeline";
 import FindingsCard from "@/components/report/Findings";
-import ConnectionsCard from "@/components/report/Connections";
+import ConnectionsCard, { CONNECTION_COLOR } from "@/components/report/Connections";
 import { progressTimeline, type ProgressRange } from "@/lib/physique/progressTimeline";
-import { connections } from "@/lib/physique/connections";
-import { findings } from "@/lib/physique/findings";
+import { connections, type ConnectionId } from "@/lib/physique/connections";
+import { FIND_WINDOW_DAYS, findings, type FindingId } from "@/lib/physique/findings";
 import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { useWorkouts } from "@/lib/physique/io/workouts";
 import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
@@ -32,6 +32,19 @@ import { Chevron, Row } from "@/components/physique/ui";
 import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 
 type SheetKind = "weight" | "waist" | null;
+
+/** The charts each finding is about (PR2). */
+const FINDING_CHARTS: Record<FindingId, string[]> = {
+  underlog: ["calories", "weight"],
+  "sleep-lifts": ["sleep", "strength"],
+  "protein-low": ["protein"],
+  "gain-fast": ["weight", "calories"],
+  "cut-fast-lifts": ["weight", "strength"],
+};
+/** The chart each connection's condition lives on, beside strength (PR2). */
+const CONNECTION_CHART: Record<ConnectionId, string> = { sleep: "sleep", calories: "calories", protein: "protein", rate: "weight", rest: "training", hrv: "sleep" };
+
+type Picked = { kind: "finding" | "connection"; id: string } | null;
 
 export default function BodyPage() {
   const hydrated = useIsHydrated();
@@ -77,13 +90,42 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     () => progressTimeline({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, program: data.program, expenditure: expenditure?.series ?? null, unit }, range, now),
     [data, workouts, expenditure, unit, range, now]
   );
-  const conn = useMemo(() => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, unit }, now), [workouts, data, unit, now]);
+  // PR2: connections read the chosen range, never less than the 16 weeks their minimums need.
+  const connDays = range === "6M" || range === "All" ? dayDiff(timeline.from, today) + 1 : 0;
+  const conn = useMemo(
+    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, unit }, now, { days: connDays }),
+    [workouts, data, unit, now, connDays]
+  );
   const found = useMemo(() => {
     const p = getPhysiqueProfileSync();
     const sleepLink = conn.items.find((c) => c.id === "sleep" && c.state === "linked");
     const goal = data.goal && !data.goal.completedAt ? data.goal : null;
     return findings({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, goal, program: data.program, profile: { sex: p.sex, age: p.age, heightCm: p.heightCm }, workouts, unit, sleepConnectionPct: sleepLink?.diffPct ?? null }, today);
   }, [data, workouts, unit, conn, today]);
+
+  // A tapped finding or connection shows on the timeline; tapping it again clears it.
+  const [picked, setPicked] = useState<Picked>(null);
+  function pick(next: NonNullable<Picked>) {
+    const same = picked?.kind === next.kind && picked.id === next.id;
+    setPicked(same ? null : next);
+    if (!same) window.setTimeout(() => document.getElementById("timeline")?.scrollIntoView({ block: "start", behavior: "smooth" }), 30);
+  }
+  const focus = useMemo<TimelineFocus | null>(() => {
+    if (!picked) return null;
+    const clear = () => setPicked(null);
+    if (picked.kind === "finding") {
+      const f = found.find((x) => x.id === picked.id);
+      return f ? { label: f.title, charts: FINDING_CHARTS[f.id], from: addDays(today, -(FIND_WINDOW_DAYS - 1)), onClear: clear } : null;
+    }
+    const c = conn.items.find((x) => x.id === picked.id);
+    if (!c) return null;
+    return {
+      label: c.state === "linked" ? c.text : `${c.label}: no clear difference (${c.high.value} against ${c.low.value})`,
+      charts: ["strength", CONNECTION_CHART[c.id]],
+      sessions: { high: c.points.high, low: c.points.low, color: CONNECTION_COLOR[c.id], highLabel: c.high.value, lowLabel: c.low.value },
+      onClear: clear,
+    };
+  }, [picked, found, conn, today]);
 
   // Home's tiles link to a chart (`/body#calories`): scroll to it once the timeline is drawn.
   useEffect(() => {
@@ -139,11 +181,11 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           </Link>
         )}
 
-        <Timeline t={timeline} range={range} onRange={setRange} unit={unit} />
+        <Timeline t={timeline} range={range} onRange={setRange} unit={unit} focus={focus} />
 
-        <FindingsCard items={found} />
+        <FindingsCard items={found} onSelect={(f) => pick({ kind: "finding", id: f.id })} selectedId={picked?.kind === "finding" ? picked.id : null} />
 
-        <ConnectionsCard result={conn} />
+        <ConnectionsCard result={conn} onSelect={(c) => pick({ kind: "connection", id: c.id })} selectedId={picked?.kind === "connection" ? picked.id : null} />
 
         {/* The goal and the waist: one panel with hairlines between. */}
         <section className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }} aria-label="Goal">

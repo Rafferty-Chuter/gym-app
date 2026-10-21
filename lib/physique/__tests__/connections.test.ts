@@ -88,6 +88,24 @@ describe("Connections (L1)", () => {
     expect(ids).not.toContain("hrv");
   });
 
+  it("returns the sessions behind each third, and reads longer history only when asked (PR2)", () => {
+    const h = history(2, 5);
+    const res = connections(h, now);
+    expect(res.weeks).toBe(16);
+    const sleep = res.items.find((c) => c.id === "sleep")!;
+    expect(sleep.points.high).toHaveLength(sleep.high.sessions);
+    expect(sleep.points.low).toHaveLength(sleep.low.sessions);
+    for (const p of [...sleep.points.high, ...sleep.points.low]) {
+      expect(p.date >= res.from && p.date <= res.through).toBe(true);
+    }
+    const meanHigh = sleep.points.high.reduce((a, p) => a + p.pct, 0) / sleep.points.high.length;
+    expect(Math.round(meanHigh * 10) / 10).toBe(sleep.high.pct);
+    expect(connections(h, now, { days: 30 }).weeks).toBe(16);
+    const longer = connections(h, now, { days: 182 });
+    expect(longer.weeks).toBe(26);
+    expect(longer.from < res.from).toBe(true);
+  });
+
   it("compares thirds only when they separate and each holds the minimum", () => {
     const tied = Array.from({ length: 3 * CONN_MIN_GROUP + 3 }, (_, i) => ({ pct: i % 2, v: 2 }));
     expect(compareThirds(tied)).toBeNull();

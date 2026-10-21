@@ -3,7 +3,8 @@
 import { useRef, useState, type ReactNode } from "react";
 import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
-import { dayDiff } from "@/lib/dates";
+import { dayDiff, type LocalDate } from "@/lib/dates";
+import type { SessionPoint } from "@/lib/physique/connections";
 import type { ProgressRange, ProgressTimeline, ProgressWeek } from "@/lib/physique/progressTimeline";
 import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 
@@ -14,8 +15,23 @@ const n0 = (v: number) => Math.round(v).toLocaleString("en-GB");
 const signed = (v: number, digits = 1) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(digits)}`;
 const hm = (h: number) => formatHoursMin(Math.round(h * 60));
 
+/**
+ * What the timeline is showing for a picked finding or connection (PR2):
+ * the charts it is about stay bright and the rest dim, the weeks it covers
+ * are marked, and for a connection its sessions are drawn on the strength
+ * chart, the top third filled in the condition's colour, the bottom third
+ * hollow, so the difference can be checked against the sessions themselves.
+ */
+export type TimelineFocus = {
+  label: string;
+  charts: string[];
+  from?: LocalDate;
+  sessions?: { high: SessionPoint[]; low: SessionPoint[]; color: string; highLabel: string; lowLabel: string };
+  onClear: () => void;
+};
+
 /** One chart's rows: its id (the Home tiles link to it), name, colour and what the range adds up to. */
-type RowSpec = { id: string; label: string; color: string; summary: string | null; chart: ReactNode };
+type RowSpec = { id: string; label: string; color: string; summary: ReactNode | null; chart: ReactNode };
 
 /**
  * The Progress timeline (PR1): weight, calories against maintenance,
@@ -24,7 +40,7 @@ type RowSpec = { id: string; label: string; color: string; summary: string | nul
  * them, with that week's numbers underneath, so what moved together can be
  * seen without the app saying it.
  */
-export default function Timeline({ t, range, onRange, unit }: { t: ProgressTimeline; range: ProgressRange; onRange: (r: ProgressRange) => void; unit: WeightUnit }) {
+export default function Timeline({ t, range, onRange, unit, focus }: { t: ProgressTimeline; range: ProgressRange; onRange: (r: ProgressRange) => void; unit: WeightUnit; focus?: TimelineFocus | null }) {
   const weeks = t.weeks;
   const n = Math.max(1, weeks.length);
   const lastWithData = (() => {
@@ -57,14 +73,33 @@ export default function Timeline({ t, range, onRange, unit }: { t: ProgressTimel
     },
     { id: "protein", label: "Protein", color: "var(--macro-protein)", summary: s.proteinG != null ? `${n0(s.proteinG)} g a day` : null, chart: <Bars weeks={weeks} value={(w) => w.proteinG} target={(w) => w.proteinTargetG} color="var(--macro-protein)" /> },
     { id: "training", label: "Training", color: "var(--chart-training)", summary: s.setsPerWeek != null ? `${n0(s.setsPerWeek)} hard sets a week` : null, chart: <Bars weeks={weeks} value={(w) => (w.sessions > 0 ? w.hardSets : null)} color="var(--chart-training)" /> },
-    { id: "strength", label: "Strength", color: "var(--chart-training)", summary: s.strengthPct != null ? `${signed(s.strengthPct)}% · ${t.lifts.slice(0, 3).join(", ")}` : null, chart: <StrengthChart weeks={weeks} /> },
+    {
+      id: "strength",
+      label: "Strength",
+      color: "var(--chart-training)",
+      summary: focus?.sessions ? (
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-[7px] w-[7px] rounded-full" style={{ background: focus.sessions.color }} />
+            {focus.sessions.highLabel}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-[7px] w-[7px] rounded-full" style={{ border: "1.5px solid var(--text-tertiary)" }} />
+            {focus.sessions.lowLabel}
+          </span>
+        </span>
+      ) : s.strengthPct != null ? (
+        `${signed(s.strengthPct)}% · ${t.lifts.slice(0, 3).join(", ")}`
+      ) : null,
+      chart: focus?.sessions ? <SessionDots t={t} sessions={focus.sessions} /> : <StrengthChart weeks={weeks} />,
+    },
     { id: "sleep", label: "Sleep", color: "var(--chart-sleep)", summary: s.sleepH != null ? `${hm(s.sleepH)} a night` : null, chart: <Bars weeks={weeks} value={(w) => w.sleepH} fixedTarget={7} color="var(--chart-sleep)" minTop={9} /> },
   ];
 
   const w = weeks[sel];
   const mid = weeks[Math.floor((weeks.length - 1) / 2)];
   return (
-    <section aria-label="Over time" className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
+    <section id="timeline" aria-label="Over time" className="scroll-mt-20 overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
       <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-4">
         <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
           Over time
@@ -77,6 +112,17 @@ export default function Timeline({ t, range, onRange, unit }: { t: ProgressTimel
           ))}
         </div>
       </div>
+
+      {focus && (
+        <div className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-[12px] px-3 py-2" style={{ background: "var(--surface-raised)" }} aria-live="polite">
+          <span className="min-w-0 text-[12px] leading-snug" style={{ color: "var(--text)" }}>
+            Showing: {focus.label}
+          </span>
+          <button type="button" onClick={focus.onClear} className="shrink-0 text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+            Clear
+          </button>
+        </div>
+      )}
 
       <div
         ref={stackRef}
@@ -93,10 +139,15 @@ export default function Timeline({ t, range, onRange, unit }: { t: ProgressTimel
         onPointerLeave={() => (dragging.current = false)}
         aria-hidden
       >
+        {/* A finding's weeks, marked through every chart. */}
+        {focus?.from &&
+          weeks.map((wk, k) =>
+            wk.end >= focus.from! ? <span key={`f${k}`} className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${(k / n) * 100}%`, width: `${100 / n}%`, background: "color-mix(in srgb, var(--primary) 9%, transparent)" }} /> : null,
+          )}
         {/* The picked week, one column through every chart. */}
         <span className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${(sel / n) * 100}%`, width: `${100 / n}%`, background: "var(--surface-raised)", opacity: 0.7, borderRadius: 4 }} />
         {rows.map((r) => (
-          <div key={r.id} id={r.id} className="relative z-[1] scroll-mt-24 pb-3 pt-2.5" style={{ borderTop: r.id === "weight" ? undefined : "1px solid var(--border)" }}>
+          <div key={r.id} id={r.id} className="relative z-[1] scroll-mt-24 pb-3 pt-2.5 transition-opacity" style={{ borderTop: r.id === "weight" ? undefined : "1px solid var(--border)", opacity: focus && !focus.charts.includes(r.id) ? 0.3 : 1 }}>
             <div className="mb-1.5 flex items-baseline justify-between gap-2">
               <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: "var(--text)" }}>
                 <span className="h-2 w-2 rounded-full" style={{ background: r.color }} />
@@ -228,6 +279,28 @@ function WeightChart({ t }: { t: ProgressTimeline }) {
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
         <path d={path} fill="none" stroke="var(--chart-trend)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
+    </>
+  );
+}
+
+/** A connection's sessions by date, each against its lift's own level: the top third filled, the bottom third hollow, the level dashed. */
+function SessionDots({ t, sessions }: { t: ProgressTimeline; sessions: NonNullable<TimelineFocus["sessions"]> }) {
+  const total = Math.max(1, t.weeks.length * 7);
+  const inRange = (p: SessionPoint) => p.date >= t.from && p.date <= t.through;
+  const all = [...sessions.high, ...sessions.low].filter(inRange);
+  if (!all.length) return null;
+  const span = Math.max(3, ...all.map((p) => Math.abs(p.pct)));
+  const x = (d: LocalDate) => ((dayDiff(t.from, d) + 0.5) / total) * 100;
+  const y = (v: number) => 50 - (v / span) * 44;
+  return (
+    <>
+      <span className="absolute inset-x-0 border-t border-dashed" style={{ top: "50%", borderColor: "var(--text-tertiary)", opacity: 0.8 }} />
+      {sessions.low.filter(inRange).map((p) => (
+        <span key={`l${p.date}`} className="absolute h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${x(p.date)}%`, top: `${y(p.pct)}%`, border: "1.5px solid var(--text-tertiary)", background: "var(--surface)" }} />
+      ))}
+      {sessions.high.filter(inRange).map((p) => (
+        <span key={`h${p.date}`} className="absolute h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${x(p.date)}%`, top: `${y(p.pct)}%`, background: sessions.color }} />
+      ))}
     </>
   );
 }

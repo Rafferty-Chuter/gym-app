@@ -1,10 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Caption } from "@/components/physique/ui";
-import { CONN_MIN_SESSIONS, CONN_WINDOW_DAYS, type Connection, type ConnectionId, type ConnectionsResult } from "@/lib/physique/connections";
+import { CONN_MIN_SESSIONS, type Connection, type ConnectionId, type ConnectionsResult } from "@/lib/physique/connections";
 
 /** Each condition in its measure's colour (DESIGN.md rev 4.2). */
-const COLOR: Record<ConnectionId, string> = {
+export const CONNECTION_COLOR: Record<ConnectionId, string> = {
   sleep: "var(--chart-sleep)",
   calories: "var(--macro-kcal)",
   protein: "var(--macro-protein)",
@@ -43,6 +44,34 @@ function CompareBars({ c, color }: { c: Connection; color: string }) {
   );
 }
 
+/** A row that opens its sessions on the timeline when the screen offers it; a plain block otherwise. */
+function Pick({ c, onSelect, selected, plain, className, children }: { c: Connection; onSelect?: (c: Connection) => void; selected: boolean; plain?: boolean; className: string; children: ReactNode }) {
+  const style = { ...(plain ? {} : divider), background: selected ? "var(--surface-raised)" : undefined };
+  if (!onSelect) {
+    return (
+      <div className={className} style={style} aria-label={plain ? c.text : undefined}>
+        {children}
+      </div>
+    );
+  }
+  return (
+    <button type="button" onClick={() => onSelect(c)} className={`${className} transition-colors active:bg-[var(--surface-raised)]`} style={style} aria-pressed={selected} aria-label={`${c.text} ${selected ? "Shown on the charts" : "Show on the charts"}`}>
+      {children}
+    </button>
+  );
+}
+
+function ShowLine({ selected }: { selected: boolean }) {
+  return (
+    <span className="flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+      {selected ? "Shown on the charts above" : "Show on the charts"}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden>
+        <path d={selected ? "M6 15l6-6 6 6" : "M9 6l6 6-6 6"} />
+      </svg>
+    </span>
+  );
+}
+
 /**
  * Connections (L1): how sleep, food and weight change line up with the
  * lifts across the last 16 weeks, from `lib/physique/connections.ts`. Clear
@@ -50,11 +79,11 @@ function CompareBars({ c, color }: { c: Connection; color: string }) {
  * with no clear difference, which is worth knowing too. Words say what the
  * numbers show, not what to do.
  */
-export default function ConnectionsCard({ result }: { result: ConnectionsResult }) {
+export default function ConnectionsCard({ result, onSelect, selectedId }: { result: ConnectionsResult; /** Progress (PR2): tap one to see its sessions on the timeline. */ onSelect?: (c: Connection) => void; selectedId?: string | null }) {
   if (result.sessions === 0) return null;
   const linked = result.items.filter((c) => c.state === "linked");
   const none = result.items.filter((c) => c.state === "none");
-  const weeks = Math.round(CONN_WINDOW_DAYS / 7);
+  const weeks = result.weeks;
   return (
     <section aria-label="Connections" className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
       <div className="flex flex-col gap-1 px-4 pb-3.5 pt-4">
@@ -72,20 +101,21 @@ export default function ConnectionsCard({ result }: { result: ConnectionsResult 
       </div>
 
       {linked.map((c) => (
-        <div key={c.id} className="flex flex-col gap-2 px-4 py-3.5" style={divider}>
+        <Pick key={c.id} c={c} onSelect={onSelect} selected={selectedId === c.id} className="flex w-full flex-col gap-2 px-4 py-3.5 text-left">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
               {c.label}
             </span>
-            <span className="text-[17px] font-semibold tracking-[-0.01em]" style={{ color: COLOR[c.id], fontVariantNumeric: "tabular-nums" }}>
+            <span className="text-[17px] font-semibold tracking-[-0.01em]" style={{ color: CONNECTION_COLOR[c.id], fontVariantNumeric: "tabular-nums" }}>
               {signedPct(c.diffPct)}
             </span>
           </div>
           <p className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
             {c.text}
           </p>
-          <CompareBars c={c} color={COLOR[c.id]} />
-        </div>
+          <CompareBars c={c} color={CONNECTION_COLOR[c.id]} />
+          {onSelect && <ShowLine selected={selectedId === c.id} />}
+        </Pick>
       ))}
 
       {none.length > 0 && (
@@ -93,12 +123,12 @@ export default function ConnectionsCard({ result }: { result: ConnectionsResult 
           <Caption>No clear difference</Caption>
           {/* The heading says it once; each row is the measure and its two thirds. */}
           {none.map((c) => (
-            <div key={c.id} className="flex items-baseline justify-between gap-3 text-[13px]" aria-label={c.text}>
+            <Pick key={c.id} c={c} onSelect={onSelect} selected={selectedId === c.id} plain className="-mx-2 flex w-[calc(100%+16px)] items-baseline justify-between gap-3 rounded-[8px] px-2 py-1 text-left text-[13px]">
               <span style={{ color: "var(--text)" }}>{c.label}</span>
               <span className="text-right" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                 {c.high.value} against {c.low.value}
               </span>
-            </div>
+            </Pick>
           ))}
         </div>
       )}
