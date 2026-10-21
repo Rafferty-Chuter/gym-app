@@ -46,9 +46,10 @@ describe("daily-log CSV (I1)", () => {
     // Hours asleep from bed and wake when not given: in bed less the minutes to drop off.
     expect(r.sleepNights[0]).toMatchObject({ id: "imp-n-2026-10-16", bedtime: "23:00", wakeTime: "07:00", inBedMin: 480, asleepMin: 460 });
     expect(r.steps).toHaveLength(1);
-    // A second import of the same days replaces rather than doubles.
+    // A second import of the same days never doubles: a day held unchanged is left as it is (TR7), a new one is added.
     const again = dailyLogRecords(rows, { ...none, weighIns: r.weighIns }, NOW_ISO);
-    expect(again.weighIns.map((w) => w.id)).toEqual(["imp-w-2026-10-16", "imp-w-2026-10-17"]);
+    expect(again.weighIns.map((w) => w.id)).toEqual(["imp-w-2026-10-17"]);
+    expect(again.same.weight).toBe(1);
   });
 
   it("writes the format it reads", () => {

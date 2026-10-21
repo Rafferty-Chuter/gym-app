@@ -8,18 +8,26 @@
  * removes that goal and its program, never one the user set themselves.
  */
 
-import type { Now } from "@/lib/dates";
+import type { LocalDate, Now } from "@/lib/dates";
 import { kvGet, kvSet } from "@/lib/storage/kv";
 import { createSingleton } from "@/lib/storage/repo";
 import { createGoal, loadGoalContext } from "@/lib/physique/io/goalSetup";
-import { foodEntriesRepo, goalHistoryRepo, goalStore, programStore, sleepNightsRepo, stepsRepo, weighInsRepo } from "@/lib/physique/io/repos";
+import { foodEntriesRepo, goalHistoryRepo, goalStore, profileStore, programStore, sleepNightsRepo, stepsRepo, weighInsRepo } from "@/lib/physique/io/repos";
+import { firstLoggedDate, savePhysiqueProfile } from "@/lib/physique/io/profile";
+import { snapshotSeed } from "@/lib/physique/expenditure";
 import { latestTrend } from "@/lib/physique/weight";
+import type { ExpenditureSeed } from "@/lib/physique/types";
 import { dailyLogRecords, type DailyLogParse } from "@/lib/import/dailyLog";
 import { SAMPLE_WORKOUT_SUFFIX } from "@/lib/import/sample";
 import type { WeightUnit } from "@/lib/units";
 import { commitImportedWorkouts, type CommitMode, type CommitResult, type ImportableWorkout, type ImportedWeighIn } from "@/lib/csvImport";
 
-type ImportMeta = { goalId?: string; at: string };
+type ImportMeta = {
+  goalId?: string;
+  at: string;
+  /** The maintenance start an import moved back, and what it was before, so removing the import puts it back (TR7). */
+  expenditure?: { set: LocalDate; before: LocalDate | null; seedBefore: ExpenditureSeed | null };
+};
 
 const importMetaStore = createSingleton<ImportMeta>("physique.v1.importMeta");
 
@@ -27,6 +35,9 @@ export type ImportOutcome = {
   counts: { weighIns: number; food: number; nights: number; steps: number };
   /** Days per kind where the user's own log was kept. */
   kept: number;
+  /** Distinct days written, and days an earlier import already held exactly so (TR7). */
+  days: number;
+  sameDays: number;
   /** "set" when the file's goal was saved; otherwise one sentence on why not; null when there was none or it was not asked for. */
   goal: "set" | string | null;
 };
@@ -46,9 +57,12 @@ export async function commitDailyLog(parsed: DailyLogParse, opts: { setGoal: boo
   const outcome: ImportOutcome = {
     counts: { weighIns: recs.weighIns.length, food: recs.foodEntries.length, nights: recs.sleepNights.length, steps: recs.steps.length },
     kept: recs.kept.weight + recs.kept.food + recs.kept.sleep + recs.kept.steps,
+    days: recs.days,
+    sameDays: recs.sameDays,
     goal: null,
   };
   await importMetaStore.set({ ...(importMetaStore.snapshot() ?? {}), at: opts.nowIso });
+  await startMaintenanceAtHistory(opts.now, opts.unit, opts.nowIso);
 
   const g = parsed.goal;
   if (!g || !opts.setGoal) return outcome;
@@ -74,9 +88,31 @@ export async function commitDailyLog(parsed: DailyLogParse, opts: { setGoal: boo
     outcome.goal = r.error;
     return outcome;
   }
-  await importMetaStore.set({ goalId: r.goal.id, at: opts.nowIso });
+  await importMetaStore.set({ ...importMetaStore.snapshot(), goalId: r.goal.id, at: opts.nowIso });
   outcome.goal = "set";
   return outcome;
+}
+
+/**
+ * Maintenance is estimated from `expenditureStartDate` on, and a goal set
+ * before the import fixed that at the goal's first day, which would leave
+ * the imported history out of it. Move it back to the first day with both
+ * food and a weigh-in, with the seed taken there (as `createGoal` takes
+ * it), and remember the old one for `removeImportedData`. Unset, the
+ * engine already starts at the first logged day.
+ */
+async function startMaintenanceAtHistory(now: Now, unit: WeightUnit, nowIso: string): Promise<void> {
+  const stored = profileStore.snapshot();
+  const current = stored?.expenditureStartDate;
+  if (!current) return;
+  const first = firstLoggedDate(weighInsRepo.snapshot().map((w) => w.date), foodEntriesRepo.snapshot().map((f) => f.date));
+  if (!first || first >= current) return;
+  const ctx = loadGoalContext(now, unit);
+  const seed = snapshotSeed({ profile: { ...ctx.profile, expenditureStartDate: first }, goals: ctx.goals, weighIns: ctx.inputs.weighIns, workouts: ctx.inputs.workouts, tz: now.tz, startDate: first, onboarding: ctx.inputs.onboarding });
+  const meta = importMetaStore.snapshot();
+  const before = meta?.expenditure ?? { before: current, seedBefore: stored?.expenditureSeed ?? null };
+  await importMetaStore.set({ ...meta, at: nowIso, expenditure: { set: first, before: before.before, seedBefore: before.seedBefore } });
+  await savePhysiqueProfile({ expenditureStartDate: first, expenditureSeed: seed ?? undefined });
 }
 
 /** True when anything imported is still stored. */
@@ -96,7 +132,8 @@ function sampleWorkouts(): StoredLike[] {
 /**
  * Remove every imported record, the sample workouts, and the goal and
  * program an import set (the goal before it is not restored: it was closed
- * into history when the import replaced it). The user's own logs stay.
+ * into history when the import replaced it), and put back a maintenance
+ * start the import moved. The user's own logs stay.
  */
 export async function removeImportedData(): Promise<void> {
   for (const repo of [weighInsRepo, foodEntriesRepo, sleepNightsRepo, stepsRepo] as const) {
@@ -117,6 +154,10 @@ export async function removeImportedData(): Promise<void> {
     await goalStore.clear();
     await programStore.clear();
     await goalHistoryRepo.remove(meta.goalId);
+  }
+  const exp = meta?.expenditure;
+  if (exp && profileStore.snapshot()?.expenditureStartDate === exp.set) {
+    await savePhysiqueProfile({ expenditureStartDate: exp.before ?? undefined, expenditureSeed: exp.seedBefore ?? undefined });
   }
   await importMetaStore.clear();
 }

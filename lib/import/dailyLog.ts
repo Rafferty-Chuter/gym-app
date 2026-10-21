@@ -190,6 +190,12 @@ export type DailyLogRecords = {
   steps: DailySteps[];
   /** Days skipped per kind because the user had already logged them. */
   kept: { weight: number; food: number; sleep: number; steps: number };
+  /** Days per kind an earlier import already holds exactly as the file has them; left as they are (TR7). */
+  same: { weight: number; food: number; sleep: number; steps: number };
+  /** Distinct days with a record to write. */
+  days: number;
+  /** Distinct days where everything the file has was already there. */
+  sameDays: number;
 };
 
 /** Dates that already hold a record of this kind that did not come from an import. */
@@ -197,25 +203,53 @@ function ownDates(records: ReadonlyArray<{ date: LocalDate; source: string }>): 
   return new Set(records.filter((r) => r.source !== "import").map((r) => r.date));
 }
 
+function importedById<T extends { id: string; source: string }>(records: readonly T[]): Map<string, T> {
+  return new Map(records.filter((r) => r.source === "import").map((r) => [r.id, r]));
+}
+
+/** Same fields and values, apart from when it was written. Every field of these records is a plain value. */
+function sameRecord(a: object, b: object): boolean {
+  const ka = Object.keys(a).filter((k) => k !== "loggedAt");
+  const kb = Object.keys(b).filter((k) => k !== "loggedAt");
+  return ka.length === kb.length && ka.every((k) => (a as Record<string, unknown>)[k] === (b as Record<string, unknown>)[k]);
+}
+
 /**
  * Records for the rows. Ids come from the date (`imp-w-2026-08-10`), so a
- * second import of the same days replaces the first. A day the user logged
- * themselves (any source but "import") keeps its own record of that kind.
+ * second import of the same days replaces the first, and a day it holds
+ * unchanged is not written again (TR7: a second import adds nothing). A day
+ * the user logged themselves (any source but "import") keeps its own
+ * record of that kind.
  */
 export function dailyLogRecords(rows: readonly DailyRow[], existing: Existing, nowIso: string): DailyLogRecords {
   const own = { weight: ownDates(existing.weighIns), food: ownDates(existing.foodEntries), sleep: ownDates(existing.sleepNights), steps: ownDates(existing.steps) };
+  const prior = { weight: importedById(existing.weighIns), food: importedById(existing.foodEntries), sleep: importedById(existing.sleepNights), steps: importedById(existing.steps) };
   const kept = { weight: 0, food: 0, sleep: 0, steps: 0 };
+  const same = { weight: 0, food: 0, sleep: 0, steps: 0 };
+  const written = new Set<LocalDate>();
+  const unchanged = new Set<LocalDate>();
   const base = (id: string, date: LocalDate) => ({ id, date, loggedAt: nowIso, source: "import" as const, schemaVersion: 1 as const });
-  const out: DailyLogRecords = { weighIns: [], foodEntries: [], sleepNights: [], steps: [], kept };
+  const out: DailyLogRecords = { weighIns: [], foodEntries: [], sleepNights: [], steps: [], kept, same, days: 0, sameDays: 0 };
+  /** Queue a record unless an earlier import holds it unchanged. */
+  const add = <K extends keyof typeof same, T extends { id: string; date: LocalDate }>(kind: K, list: T[], rec: T) => {
+    const before = prior[kind].get(rec.id);
+    if (before && sameRecord(before, rec)) {
+      same[kind]++;
+      unchanged.add(rec.date);
+    } else {
+      list.push(rec);
+      written.add(rec.date);
+    }
+  };
   for (const r of rows) {
     if (r.weightKg != null) {
       if (own.weight.has(r.date)) kept.weight++;
-      else out.weighIns.push({ ...base(`imp-w-${r.date}`, r.date), kg: Math.round(r.weightKg * 100) / 100 });
+      else add("weight", out.weighIns, { ...base(`imp-w-${r.date}`, r.date), kg: Math.round(r.weightKg * 100) / 100 });
     }
     if (r.kcal != null) {
       if (own.food.has(r.date)) kept.food++;
       else
-        out.foodEntries.push({
+        add("food", out.foodEntries, {
           ...base(`imp-f-${r.date}`, r.date),
           label: DAY_TOTAL_LABEL,
           kcal: Math.round(r.kcal),
@@ -231,13 +265,15 @@ export function dailyLogRecords(rows: readonly DailyRow[], existing: Existing, n
     const asleep = r.asleepMin ?? (inBed != null && inBed > ASLEEP_OFFSET_MIN ? inBed - ASLEEP_OFFSET_MIN : null);
     if (asleep != null && asleep > 0) {
       if (own.sleep.has(r.date)) kept.sleep++;
-      else out.sleepNights.push({ ...base(`imp-n-${r.date}`, r.date), asleepMin: Math.round(asleep), ...(r.bedtime ? { bedtime: r.bedtime } : {}), ...(r.wake ? { wakeTime: r.wake } : {}), ...(inBed != null && inBed >= asleep ? { inBedMin: inBed } : {}) });
+      else add("sleep", out.sleepNights, { ...base(`imp-n-${r.date}`, r.date), asleepMin: Math.round(asleep), ...(r.bedtime ? { bedtime: r.bedtime } : {}), ...(r.wake ? { wakeTime: r.wake } : {}), ...(inBed != null && inBed >= asleep ? { inBedMin: inBed } : {}) });
     }
     if (r.steps != null) {
       if (own.steps.has(r.date)) kept.steps++;
-      else out.steps.push({ ...base(`imp-s-${r.date}`, r.date), steps: Math.round(r.steps) });
+      else add("steps", out.steps, { ...base(`imp-s-${r.date}`, r.date), steps: Math.round(r.steps) });
     }
   }
+  out.days = written.size;
+  out.sameDays = [...unchanged].filter((d) => !written.has(d)).length;
   return out;
 }
 
