@@ -178,6 +178,7 @@ function TrainContent({ now }: { now: Now }) {
               })}
             </div>
           </div>
+          {/* PR3: with nothing to judge yet the row had only "Early read" to say; the Exercises row opens the same charts. */}
           {analysis && <StrengthRow strength={analysis.strength} onOpen={() => router.push("/exercises")} />}
           {volume && (
             <Row
@@ -258,16 +259,16 @@ function TrainContent({ now }: { now: Now }) {
   );
 }
 
-const STRENGTH_WORD: Record<StrengthStatus, { word: string; color: string }> = {
+const STRENGTH_WORD: Record<Exclude<StrengthStatus, "unclear">, { word: string; color: string }> = {
   rising: { word: "Rising", color: "var(--status-good)" },
   holding: { word: "Holding", color: "var(--status-good)" },
   "one-lift": { word: "One lift down", color: "var(--status-watch)" },
   dropping: { word: "Dropping", color: "var(--status-watch)" },
-  unclear: { word: "Early read", color: "var(--text-tertiary)" },
 };
 
 /** Main lifts since the phase began, from the strength engine: the status, and the two biggest movers. Opens the exercise charts. */
 function StrengthRow({ strength, onOpen }: { strength: PhysiqueAnalysis["strength"]; onOpen: () => void }) {
+  if (strength.status === "unclear") return null;
   const w = STRENGTH_WORD[strength.status];
   const moved = strength.lifts.filter((l) => l.changePct != null).sort((a, b) => Math.abs(b.changePct as number) - Math.abs(a.changePct as number));
   const pct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(0)}%`;
