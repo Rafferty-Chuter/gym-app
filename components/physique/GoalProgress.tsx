@@ -5,8 +5,6 @@ import { Caption } from "@/components/physique/ui";
 import { goalProgress } from "@/lib/physique/goalProgress";
 import { goalEta } from "@/lib/physique/goalEta";
 import GoalEtaLine from "@/components/physique/GoalEtaLine";
-import PhaseStrip from "@/components/physique/PhaseStrip";
-import { phasePlan } from "@/lib/physique/phasePlan";
 import type { DayFlags, PhysiqueGoal, WeighIn } from "@/lib/physique/types";
 import { formatWeight, type WeightUnit } from "@/lib/units";
 import type { LocalDate } from "@/lib/dates";
@@ -15,7 +13,6 @@ import type { LocalDate } from "@/lib/dates";
 export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, unit, bare = false }: { goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags?: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit; /** Inside a panel that draws the surface (Body's progress group). */ bare?: boolean }) {
   const p = useMemo(() => goalProgress(goal, weighIns, today), [goal, weighIns, today]);
   const eta = useMemo(() => goalEta(goal, weighIns, dayFlags, today), [goal, weighIns, dayFlags, today]);
-  const plan = useMemo(() => phasePlan(goal, p, eta, today), [goal, p, eta, today]);
   if (!p) return null;
   // One bar of done against the whole goal (B2). The weekly bars it replaced repeated the weight chart above.
   const share = p.totalKg > 0 ? Math.min(1, Math.max(0, p.doneKg / p.totalKg)) : 0;
@@ -34,7 +31,6 @@ export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, uni
         {formatWeight(p.doneKg, unit)} of {formatWeight(p.totalKg, unit)} · {formatWeight(p.remainingKg, unit)} to go
       </p>
       {eta && <GoalEtaLine eta={eta} />}
-      {plan && <PhaseStrip plan={plan} today={today} unit={unit} />}
     </section>
   );
 }

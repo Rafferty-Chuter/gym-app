@@ -164,7 +164,7 @@ export function reminderMessage(missing: ReminderKind | null, today: LocalDate, 
   if (opts.weekly) {
     // No numbers leave the phone (the server only knows which days were logged), so the push says what is inside.
     const start = addDays(today, -7);
-    return { title: `Weekly report · ${shortRange(start, addDays(today, -1))}`, body: "Where you're heading, what to fix and next week's targets.", url: `/report?week=${start}` };
+    return { title: `Weekly report · ${shortRange(start, addDays(today, -1))}`, body: "Your week in numbers, and next week's targets.", url: `/report?week=${start}` };
   }
   if (missing === "weight") return { title: "Today", body: "No weigh-in yet.", url: `/body?date=${today}` };
   if (missing === "food") return { title: "Today", body: "Nothing logged yet.", url: "/food" };

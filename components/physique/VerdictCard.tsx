@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Chevron, ErrorLine, SecondaryButton, StatusDot } from "@/components/physique/ui";
-import { applyRecommendation } from "@/lib/physique/io/recommendations";
+import { Chevron, StatusDot } from "@/components/physique/ui";
 import type { Now } from "@/lib/dates";
-import type { PhysiqueAnalysis, Recommendation } from "@/lib/physique/types";
+import type { PhysiqueAnalysis } from "@/lib/physique/types";
 import { STATUS_HEX } from "@/lib/ui/status";
 import { assistantHrefFor, stashAssistantPrompt } from "@/lib/ui/assistantPrompt";
 import { ASSISTANT_ENABLED } from "@/lib/features";
@@ -13,47 +11,22 @@ import type { WeightUnit } from "@/lib/units";
 
 /** The "Ask why" prompt the assistant receives; it answers from the PHYSIQUE CONTEXT block. */
 export function askWhyPrompt(analysis: PhysiqueAnalysis): string {
-  return `Why does my Body tab say "${analysis.verdict.title}"? Explain the verdict from my numbers and what, if anything, I should change.`;
-}
-
-function applyLabel(rec: Recommendation): string | null {
-  switch (rec.kind) {
-    case "change_rate":
-      return "Apply";
-    case "refresh_targets":
-      return "Update targets";
-    default:
-      return null;
-  }
+  return `Why does my Body tab say "${analysis.verdict.title}"? Explain it from my numbers.`;
 }
 
 /**
- * The verdict panel (DESIGN.md rev 4.1): dot and title, the sentence, the
- * window and n; then, in the same panel under hairlines, the flags, the
- * recommendation with its button, and "Ask why". One surface, not a line
- * with boxes floating under it. Safety verdicts show no numbers.
+ * The verdict panel (DESIGN.md rev 4.1, facts only since Z3): dot and
+ * title, the sentence, the window and n; then, in the same panel under
+ * hairlines, the flags. No advice and no buttons that change the plan:
+ * targets move in the weekly review, the goal in its own screen. Safety
+ * verdicts show no numbers.
  */
-export default function VerdictCard({ analysis, now, unit }: { analysis: PhysiqueAnalysis; now: Now; unit: WeightUnit }) {
+export default function VerdictCard({ analysis }: { analysis: PhysiqueAnalysis; now?: Now; unit?: WeightUnit }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const v = analysis.verdict;
   const color = STATUS_HEX[analysis.status.state];
   const isSafety = v.id.startsWith("SAFE-");
-  const rec = analysis.recommendation;
-  const button = rec ? applyLabel(rec) : null;
   const caption = v.windowDays ? `${v.windowDays} days${v.n ? ` · ${v.n} ${v.id.startsWith("SLEEP") ? "nights" : "weigh-ins"}` : ""}` : null;
-
-  async function apply() {
-    if (!rec) return;
-    setBusy(true);
-    setError(null);
-    const r = await applyRecommendation(rec, now, unit, new Date().toISOString());
-    setBusy(false);
-    if (r.ok) setNote(r.summary);
-    else setError(r.error);
-  }
 
   function askWhy() {
     const prompt = askWhyPrompt(analysis);
@@ -101,29 +74,6 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
             </li>
           ))}
         </ul>
-      )}
-
-      {rec && analysis.recommendationLabel && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3" style={divider}>
-          <span className="text-[13px] font-medium" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-            {note ?? analysis.recommendationLabel}
-          </span>
-          {rec.kind === "confirm_days" ? (
-            // Partial food days are confirmed on Food, on that day. A plain anchor: Food reads `?date=` when it loads, which a soft navigation would miss (A1).
-            <a href={`/food?date=${rec.dates[0] ?? ""}`} className="shrink-0 text-[13px] font-semibold" style={{ color: "var(--text)" }}>
-              Open day
-            </a>
-          ) : rec.kind === "log_more" && rec.what === "waist" ? null : button && !note ? (
-            <SecondaryButton small onClick={apply} disabled={busy}>
-              {button}
-            </SecondaryButton>
-          ) : null}
-        </div>
-      )}
-      {error && (
-        <div className="px-4 pb-3">
-          <ErrorLine text={error} />
-        </div>
       )}
 
       {ASSISTANT_ENABLED && analysis.goal && !isSafety && (

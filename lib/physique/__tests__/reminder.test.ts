@@ -81,7 +81,7 @@ describe("reminder", () => {
     expect(isReportDay(today)).toBe(false);
     expect(shortRange("2026-10-12", "2026-10-18")).toBe("12 to 18 Oct");
     expect(shortRange("2026-09-28", "2026-10-04")).toBe("28 Sep to 4 Oct");
-    const report = { title: "Weekly report · 12 to 18 Oct", body: "Where you're heading, what to fix and next week's targets.", url: "/report?week=2026-10-12" };
+    const report = { title: "Weekly report · 12 to 18 Oct", body: "Your week in numbers, and next week's targets.", url: "/report?week=2026-10-12" };
     expect(reminderMessage(null, monday, { weekly: true })).toEqual(report);
     expect(reminderMessage("weight", monday, { weekly: true })).toEqual(report);
   });

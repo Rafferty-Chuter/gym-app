@@ -243,9 +243,9 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
                 <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                   {preview.validation.outside === "faster"
                     ? draft.type === "gain"
-                      ? "Faster than the evidence suggests for lean gain: in studies, gains this fast mostly add fat. I understand."
-                      : "Faster than the range that protects strength on a cut. I understand."
-                    : "Slower than the usual range. That is fine, it just takes longer. I understand."}
+                      ? "Faster than the usual lean-gain range. I understand."
+                      : "Faster than the usual range for a cut. I understand."
+                    : "Slower than the usual range. I understand."}
                 </span>
               </button>
             )}
@@ -294,17 +294,6 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
                 <span className="absolute top-0.5 h-6 w-6 rounded-full transition-transform" style={{ background: startToday ? "var(--text-on-primary)" : "var(--text-tertiary)", transform: startToday ? "translateX(22px)" : "translateX(2px)" }} />
               </span>
             </button>
-
-            {ctx.recentCutEnded && draft.type === "gain" && (
-              <div className="flex flex-col gap-2 rounded-[16px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-                <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                  You finished a cut recently. Running 2 to 4 weeks at maintenance first lets the new maintenance be measured before the gain starts.
-                </p>
-                <SecondaryButton small onClick={switchToMaintenance}>
-                  Maintain for now
-                </SecondaryButton>
-              </div>
-            )}
 
             <div className="flex flex-col gap-2 rounded-[16px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
               <p className="text-[15px]">Are you pregnant, or have you had an eating disorder?</p>

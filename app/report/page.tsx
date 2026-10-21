@@ -25,7 +25,7 @@ import { useReview } from "@/lib/physique/io/review";
 import { useDeload } from "@/lib/physique/io/deload";
 import { readDeload } from "@/lib/training/deload";
 import ReviewDecision from "@/components/report/ReviewDecision";
-import { FixesCard, SummaryCard } from "@/components/report/InsightCards";
+import { SummaryCard } from "@/components/report/InsightCards";
 import ReportSections from "@/components/report/ReportSections";
 import LinkedReasonsCard from "@/components/report/LinkedReasons";
 import { linkedReasons } from "@/lib/physique/linkedReasons";
@@ -119,7 +119,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     return out;
   }, [analysis, data, workouts, unit, now, today, deloadRecord, report, plannedSessions, reviewModel, start, reviewWeek]);
 
-  // W5: what happened tied to why. Lifts and recovery read as of today, so only this week and last week carry them.
+  // W5: the weight trend against what was eaten. Z3: only the energy-balance link is shown; the lifts and recovery guesses gave way to measured connections.
   const links = useMemo(() => {
     if (!analysis || !report.hasData) return [];
     const sleepShort = analysis.sleep.status === "short" || analysis.sleep.status === "severe";
@@ -133,7 +133,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
       plannedSessions,
       kg: (x: number) => formatWeight(x, unit, 1),
       current: dayDiff(report.end, today) <= 7,
-    });
+    }).filter((l) => l.id === "weight");
   }, [analysis, report, prevReport, data.sleepNights, today, activeGoal, plannedSessions, unit]);
 
   // The strength engine's change since the phase began, per lift, for the training rows.
@@ -172,8 +172,6 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         <LinkedReasonsCard links={links} />
 
         {report.hasData && <ReportSections report={report} prev={prevReport.hasData ? prevReport : null} tiles={tiles} unit={unit} goal={activeGoal} sincePhase={sincePhase} />}
-
-        {insight && report.hasData && <FixesCard fixes={insight.fixes} more={insight.more} goingWell={insight.goingWell} />}
 
         {reviewModel && start === reviewWeek && reviewModel.hasProgram && <ReviewDecision key={reviewModel.plan.weekStart} model={reviewModel} now={now} unit={unit} />}
 

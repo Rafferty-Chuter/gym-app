@@ -367,9 +367,6 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
               <Stepper label="Most reps" value={targetItem.repMax ?? 12} min={targetItem.repMin ?? 1} max={30} onChange={(v) => update(targetItem.key, (x) => ({ ...x, repMax: v }))} />
               <Stepper label="Reps in reserve" value={targetItem.rir ?? 2} min={0} max={5} onChange={(v) => update(targetItem.key, (x) => ({ ...x, rir: v }))} />
             </RowGroup>
-            <p className="text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
-              The next-set suggestion works inside this range: add reps until the top, then add weight.
-            </p>
           </div>
         )}
       </Sheet>

@@ -38,7 +38,7 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
         {hasProgram ? (
           <section className="flex flex-col gap-3 rounded-[16px] p-4" style={{ background: "var(--surface)" }} aria-label="Decision">
             <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
-              This week&apos;s decision
+              Targets
             </span>
             <div className="flex flex-col gap-1">
               <span className="text-[17px] font-semibold">{done ? "Reviewed" : d.title}</span>
@@ -64,7 +64,7 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
             ) : d.kind === "accept" ? (
               <div data-no-print className="flex flex-col gap-2">
                 <PrimaryButton onClick={() => void run("accept")} disabled={busy}>
-                  Accept
+                  Update targets
                 </PrimaryButton>
                 <SecondaryButton onClick={() => void run("keep")} disabled={busy}>
                   Keep current
@@ -79,7 +79,7 @@ export default function ReviewDecision({ model, now, unit }: { model: ReviewMode
           </section>
         ) : (
           <RowGroup>
-            <Row label="No goal yet" sub="Set one and each week ends in a decision on your targets" value={<span style={{ color: "var(--text-tertiary)" }}>Set</span>} onClick={() => router.push("/body/goal")} ariaLabel="Set a goal" />
+            <Row label="No goal set" sub="With a goal, food targets update here each week" value={<span style={{ color: "var(--text-tertiary)" }}>Set</span>} onClick={() => router.push("/body/goal")} ariaLabel="Set a goal" />
           </RowGroup>
         )}
 

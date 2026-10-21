@@ -70,26 +70,23 @@ describe("review (G3)", () => {
     expect(review.reads.training.title).toBe("2 of 2 sessions · 12 hard sets");
     expect(review.reads.training.detail).toBe("2 lifts: 1 down, 1 flat");
     expect(review.reads.sleep).toEqual({ state: "good", title: "7h 42m a night", detail: "7 nights" });
-    expect(review.verdict.title).toBe("Eat to target first");
-    expect(review.verdict.recommendationLabel).toBe("Eat to target (about 220 kcal/day more)");
+    expect(review.verdict.title).toBe("220 kcal under target");
     expect(review.decision).toEqual({
       kind: "accept",
-      title: "Update targets",
+      title: "New targets",
       lines: ["Targets 2,082 → 2,192 kcal · protein 160 g · fat 86 g · carbs 194 g"],
       changes: [{ kind: "targets", from: { kcal: 2082, proteinG: 160, fatG: 80, carbsG: 180 }, to: { kcal: 2192, proteinG: 160, fatG: 86, carbsG: 194 } }],
     });
   });
 
-  it("a due deload joins the decision and the training read says so", () => {
+  it("a due deload is not offered (Z3): the decision only moves food targets", () => {
     const sc = scenario();
     const review = buildReview(reviewInputs(sc, {}, DUE));
-    expect(review.reads.training.state).toBe("watch");
-    expect(review.reads.training.detail).toMatch(/^Deload due · 5 weeks since the last/);
     expect(review.decision.kind).toBe("accept");
     if (review.decision.kind !== "accept") return;
-    expect(review.decision.title).toMatch(/start a deload$/);
-    expect(review.decision.changes.some((c) => c.kind === "deload")).toBe(true);
-    expect(review.decision.lines.some((l) => l.startsWith("Deload due"))).toBe(true);
+    expect(review.decision.title).toBe("New targets");
+    expect(review.decision.changes.some((c) => c.kind === "deload")).toBe(false);
+    expect(review.decision.lines.some((l) => /deload/i.test(l))).toBe(false);
   });
 
   it("a safety verdict holds: nothing is applied", () => {
@@ -106,8 +103,8 @@ describe("review (G3)", () => {
     const foodEntries = sc.foodEntries.filter((f) => f.date < addDays(sc.today, -9));
     const review = buildReview(reviewInputs(sc, { foodEntries }));
     expect(review.decision.kind).toBe("hold");
-    expect(review.decision.title).toBe("Targets hold until logging resumes");
-    expect(review.decision.lines[0]).toMatch(/^Log \d more days? of food/);
+    expect(review.decision.title).toBe("Targets on hold");
+    expect(review.decision.lines[0]).toMatch(/^The estimate picks up again after \d more days? of food\.$/);
   });
 
   it("thin weeks read early: few food days, no nights, no sessions", () => {

@@ -11,7 +11,7 @@
 
 import type { LocalDate } from "@/lib/dates";
 import type { CheckInModule, CheckInPlan } from "@/lib/physique/checkIn";
-import { fmtKcal, recommendationLabel } from "@/lib/physique/copy";
+import { fmtKcal } from "@/lib/physique/copy";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { ADHERENCE_TOLERANCE_KCAL } from "@/lib/physique/intake";
 import { PRO2_MIN_G_PER_KG } from "@/lib/physique/judge";
@@ -93,14 +93,6 @@ function module<K extends CheckInModule["kind"]>(plan: CheckInPlan, kind: K): Ex
 function sameTargets(a: ProgramTargets | null, b: ProgramTargets): boolean {
   return a != null && a.kcal === b.kcal && a.proteinG === b.proteinG && a.fatG === b.fatG && a.carbsG === b.carbsG;
 }
-
-const EVENT_WORD: Readonly<Record<DayEventType, string>> = {
-  creatine_start: "Creatine started",
-  carb_switch: "A carb switch",
-  illness: "Illness",
-  travel: "Travel",
-  period: "A period",
-};
 
 // ── Reads ──
 
@@ -194,19 +186,6 @@ function targetsLine(from: ProgramTargets | null, to: ProgramTargets): string {
   return `Targets ${fmtKcal(from.kcal)} → ${fmtKcal(to.kcal)} kcal · ${macros}`;
 }
 
-function titleFor(changes: ReviewChange[]): string {
-  const rec = changes.find((c): c is Extract<ReviewChange, { kind: "recommendation" }> => c.kind === "recommendation");
-  const targets = changes.some((c) => c.kind === "targets");
-  const deload = changes.some((c) => c.kind === "deload");
-  let head: string | null = null;
-  if (rec) {
-    if (rec.recommendation.kind === "change_rate") head = Math.abs(rec.recommendation.toPctPerWeek) < Math.abs(rec.recommendation.fromPctPerWeek) ? "Ease the goal" : "Raise the goal";
-    else head = "Update targets";
-  } else if (targets) head = "Update targets";
-  if (deload) return head ? `${head} and start a deload` : "Start a deload";
-  return head ?? "Keep going";
-}
-
 /** The one decision (02 §9 steps 4 and 5), in priority: safety, logging break, then whatever changes. */
 export function decide(inputs: ReviewInputs): ReviewDecision {
   const { plan, analysis, deload } = inputs;
@@ -216,34 +195,27 @@ export function decide(inputs: ReviewInputs): ReviewDecision {
   }
   const brk = module(plan, "logging_break");
   if (brk) {
-    const line = brk.foodDaysNeeded > 0 ? `Log ${plural(brk.foodDaysNeeded, "more day")} of food and the estimate picks up again.` : "Log a weigh-in and the estimate picks up again.";
-    return { kind: "hold", title: "Targets hold until logging resumes", lines: [line] };
+    const line = brk.foodDaysNeeded > 0 ? `The estimate picks up again after ${plural(brk.foodDaysNeeded, "more day")} of food.` : "The estimate picks up again after a weigh-in.";
+    return { kind: "hold", title: "Targets on hold", lines: [line] };
   }
 
+  // Z3: the review only moves food targets to the new maintenance estimate. No goal changes and no deloads are offered.
   const changes: ReviewChange[] = [];
   const lines: string[] = [];
   const rec = analysis.recommendation;
   const update = module(plan, "program_update");
-  if (rec && (rec.kind === "change_rate" || rec.kind === "refresh_targets")) {
+  if (rec && rec.kind === "refresh_targets") {
     changes.push({ kind: "recommendation", recommendation: rec });
-    lines.push(recommendationLabel(rec) ?? "");
+    lines.push(`Targets ${fmtKcal(rec.fromKcal)} → ${fmtKcal(rec.toKcal)} kcal`);
   } else if (update) {
     lines.push(targetsLine(update.from, update.to));
     if (!sameTargets(update.from, update.to)) changes.push({ kind: "targets", from: update.from, to: update.to });
   }
-  if (deload.state === "due") {
-    changes.push({ kind: "deload", reason: deload.reason });
-    lines.push(`${deloadLine(deload) ?? "Deload due"}. A week at half the sets and 10 % lighter loads.`);
-  }
-  const water = module(plan, "water_event");
-  if (water && water.events.length > 0 && changes.length > 0) {
-    const last = water.events[water.events.length - 1];
-    lines.push(`${EVENT_WORD[last.type]} in the last fortnight. If the scale moved for that reason, keep current targets this week.`);
-  }
+  void deload;
   if (changes.length === 0) {
-    return { kind: "keep", title: "Keep going", lines: lines.length > 0 ? lines : ["Targets and the training block stay as they are."] };
+    return { kind: "keep", title: "Targets stay the same", lines: lines.length > 0 ? lines : [] };
   }
-  return { kind: "accept", title: titleFor(changes), lines: lines.filter(Boolean), changes };
+  return { kind: "accept", title: "New targets", lines: lines.filter(Boolean), changes };
 }
 
 // ── Review ──

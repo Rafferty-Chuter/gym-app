@@ -172,16 +172,17 @@ describe("formatting", () => {
   });
 
   it("copy matches the design library examples", () => {
-    expect(verdictCopy("NO-GOAL", { phase: "none" })).toEqual({ title: "Set a goal", detail: "Set a target weight to get a verdict." });
+    // Z3: facts only, no advice.
+    expect(verdictCopy("NO-GOAL", { phase: "none" })).toEqual({ title: "No goal set", detail: "Add a target weight in Body to read the trend against it." });
     expect(verdictCopy("DATA-EXP", { phase: "lose", updatingDays: 8 }).detail).toBe("Maintenance estimate: day 9 of about 21.");
-    expect(verdictCopy("DATA-HOLD", { phase: "lose", foodDaysNeeded: 2 }).detail).toBe("Log 2 more days of food this week to resume updates.");
+    expect(verdictCopy("DATA-HOLD", { phase: "lose", foodDaysNeeded: 2 }).detail).toBe("Targets update after 2 more days of food this week.");
     const partial = verdictCopy("DATA-PARTIAL", { phase: "lose", partialDays: [{ date: "2026-09-15", kcal: 640 }, { date: "2026-09-17", kcal: 900 }] });
     expect(partial.title).toBe("Confirm two days");
     expect(partial.detail).toBe("Tue and Thu look incomplete (640 and 900 kcal). Confirm them first.");
     expect(verdictCopy("ON-TRACK", { phase: "lose", strength: "holding", rate: { ratePctPerWeek: -0.6, windowDays: 28, n: 24 } }).detail).toBe("Losing 0.6 %/wk over 28 days (24 weigh-ins), lifts holding.");
-    expect(verdictCopy("ADH-1", { phase: "lose", adherenceDeltaKcal: -320 }).detail).toBe("You've averaged 320 kcal under target over 14 days. Eat to target before we change your goal.");
+    expect(verdictCopy("ADH-1", { phase: "lose", adherenceDeltaKcal: -320 })).toEqual({ title: "320 kcal under target", detail: "On average over the last 14 days." });
     expect(verdictCopy("SLEEP-1", { phase: "lose", sleepMeanH: 6.07, sleepNights: 14, lifts: [{ name: "Squat", changePct: -3 }, { name: "Bench", changePct: -4 }] }).detail).toBe(
-      "Sleep is averaging 6h04m over 14 nights, and Squat and Bench are down 3 to 4%. Get sleep back first."
+      "Averaging 6h04m over 14 nights, and Squat and Bench are down 3 to 4%."
     );
   });
 });

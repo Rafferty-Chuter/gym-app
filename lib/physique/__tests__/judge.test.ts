@@ -88,7 +88,8 @@ describe("direction checks", () => {
     expect(a.verdict.id).toBe("LOSS-1");
     expect(a.verdict.title).toBe("Losing faster than planned");
     expect(a.recommendation?.kind ?? null).not.toBe("change_rate");
-    expect(a.verdict.detail).toContain("still catching up");
+    // Z3: the verdict states the numbers; no word on the maintenance estimate.
+    expect(a.verdict.detail).not.toMatch(/maintenance estimate/);
   });
 
   it("LOSS-6 refresh lowers kcal and LOSS-1 refresh raises it (frozen seeds)", () => {
@@ -116,7 +117,7 @@ describe("direction checks", () => {
     expect(b.recommendation?.kind).toBe("refresh_targets");
     const r1 = b.recommendation as Extract<Recommendation, { kind: "refresh_targets" }>;
     expect(r1.toKcal).toBeGreaterThan(r1.fromKcal);
-    expect(b.verdict.detail).toContain("Your maintenance estimate is low");
+    expect(b.verdict.detail).toMatch(/while eating to target/);
   });
 });
 
@@ -297,7 +298,8 @@ describe("adherence rules", () => {
     expect(a.verdict.id).toBe("ADH-1");
     expect(a.recommendation?.kind).toBe("eat_to_target");
     expect((a.recommendation as { deltaKcal: number }).deltaKcal).toBeLessThan(-300);
-    expect(a.verdict.detail).toMatch(/averaged \d+ kcal under target over 14 days/);
+    expect(a.verdict.title).toMatch(/^\d+ kcal under target$/);
+    expect(a.verdict.detail).toBe("On average over the last 14 days.");
     expect(a.status.state).toBe("watch");
     const near = makeScenario(loss1Row(3, { goal: { ratePctPerWeek: -0.6, confirmed: true, targetKg: 75 }, intakeOffsetKcal: -100, intakeSdKcal: 100, lifts: [] }));
     expect(ids(analyse(near))).not.toContain("ADH-1");
@@ -329,7 +331,7 @@ describe("cut outcome rules", () => {
   it("LOSS-1: −1.4 %/wk with two lifts −8% → ease −1.0 → −0.6 (+~400 kcal/day); lifts −4% → not; outranked by ADH-1", () => {
     const a = analyse(fixedCut({ deficit: 1400, lifts: stepLifts(-8, 35, 0) }));
     expect(a.verdict.id).toBe("LOSS-1");
-    expect(a.verdict.title).toBe("Slow the cut");
+    expect(a.verdict.title).toBe("Losing faster than planned");
     expect(a.verdict.windowDays).toBe(28);
     expect(a.verdict.n).toBeGreaterThanOrEqual(12);
     expect(a.strength.status).toBe("dropping");
@@ -344,8 +346,8 @@ describe("cut outcome rules", () => {
     // Lifts −4%: not dropping, not STR-OK, so no LOSS rule; −1.4 is confidently outside a −0.6 goal, so no ON-TRACK either.
     const mild = analyse(fixedCut({ deficit: 1400, goalRate: -0.6, lifts: stepLifts(-4, 35, 0) }));
     expect(ids(mild)).not.toContain("LOSS-1");
-    expect(mild.verdict).toMatchObject({ id: "NO-CHANGE", title: "Nothing to change yet" });
-    expect(mild.verdict.detail).toMatch(/^Losing 1\.\d %\/wk over 28 days \(\d+ weigh-ins\) against a −0\.6 %\/wk goal\. Targets stay as they are for now\.$/);
+    expect(mild.verdict).toMatchObject({ id: "NO-CHANGE", title: "Off the planned rate" });
+    expect(mild.verdict.detail).toMatch(/^Losing 1\.\d %\/wk over 28 days \(\d+ weigh-ins\) against a −0\.6 %\/wk goal\.$/);
     const adh = analyse(makeScenario({ ...SCENARIO_TABLE[2].spec(5), lifts: stepLifts(-8, 35, 0) }));
     expect(adh.verdict.id).toBe("ADH-1");
     expect(adh.flags.map((f) => f.id)).toContain("LOSS-1");
@@ -365,7 +367,7 @@ describe("cut outcome rules", () => {
     const a = analyse(fixedCut({ deficit: 1000, targetKg: 84, lifts: stepLifts(-8, 35, 0) }));
     expect(a.verdict.id).toBe("LOSS-4");
     expect(a.recommendation).toEqual(expect.objectContaining({ kind: "change_rate", fromPctPerWeek: -1.0, toPctPerWeek: -0.5 }));
-    expect(a.verdict.detail).toContain("Near your goal");
+    expect(a.verdict.title).toBe("Losing fast, lifts down");
     expect(ids(analyse(fixedCut({ deficit: 1000, targetKg: 70, lifts: stepLifts(-8, 35, 0) })))).not.toContain("LOSS-4");
     // A 1,500 kcal deficit from day 0 ends near 77 kg, so 77 is "near goal" there.
     const b = analyse(fixedCut({ deficit: 1500, targetKg: 77, lifts: stepLifts(-8, 35, 0) }));
@@ -373,23 +375,23 @@ describe("cut outcome rules", () => {
     expect(b.flags.map((f) => f.id)).toContain("LOSS-4");
     const adv = analyse(fixedCut({ deficit: 1000, targetKg: 70, trainingStatus: "advanced", lifts: stepLifts(-8, 35, 0) }));
     expect(adv.verdict.id).toBe("LOSS-4");
-    expect(adv.verdict.detail).toContain("At your training stage");
+    expect(adv.verdict.title).toBe("Losing fast, lifts down");
   });
 
   it("LOSS-2: −1.3 %/wk with lifts holding → no recommendation; near goal → ease; −1.0 → not yet clear, never on track; outranked by LOSS-3", () => {
     const a = analyse(fixedCut({ deficit: 1300, lifts: FLAT_LIFTS }));
     expect(a.verdict.id).toBe("LOSS-2");
     expect(a.recommendation).toBeNull();
-    expect(a.verdict.detail).toContain("No change unless this continues");
+    expect(a.verdict.detail).toMatch(/against a 1\.0 goal, lifts holding\.$/);
     const near = analyse(fixedCut({ deficit: 1300, targetKg: 78, lifts: FLAT_LIFTS }));
     expect(near.verdict.id).toBe("LOSS-2");
     expect(near.recommendation).toEqual(expect.objectContaining({ kind: "change_rate", toPctPerWeek: -0.5 }));
     const slow = analyse(fixedCut({ deficit: 950, goalRate: -0.6, lifts: FLAT_LIFTS }));
     expect(ids(slow)).not.toContain("LOSS-2");
     // −1.0 against −0.6 is outside the ±0.25 band but not confidently so: shown as it is, not called on track.
-    expect(slow.verdict).toMatchObject({ id: "NO-CHANGE", title: "Nothing to change yet" });
+    expect(slow.verdict).toMatchObject({ id: "NO-CHANGE", title: "Not clear yet" });
     expect(slow.status.state).toBe("watch");
-    expect(slow.verdict.detail).toMatch(/^Losing \d\.\d %\/wk over 28 days \(\d+ weigh-ins\) against a −0\.6 %\/wk goal\. Not clear enough yet to change anything\.$/);
+    expect(slow.verdict.detail).toMatch(/^Losing \d\.\d %\/wk over 28 days \(\d+ weigh-ins\) against a −0\.6 %\/wk goal\.$/);
     const fast = analyse(fixedCut({ deficit: 2200, days: 49, lifts: FLAT_LIFTS }));
     expect(fast.verdict.id).toBe("LOSS-3");
     expect(fast.flags.map((f) => f.id)).toContain("LOSS-2");
@@ -399,7 +401,7 @@ describe("cut outcome rules", () => {
     const a = analyse(fixedCut({ deficit: 1300 }));
     expect(a.verdict.id).toBe("LOSS-2u");
     expect(a.strength.status).toBe("unclear");
-    expect(a.verdict.detail).toContain("no lift data to judge retention");
+    expect(a.verdict.detail).toMatch(/against a 1\.0 goal\.$/);
     expect(ids(analyse(fixedCut({ deficit: 1300, lifts: FLAT_LIFTS })))).not.toContain("LOSS-2u");
   });
 
@@ -407,7 +409,7 @@ describe("cut outcome rules", () => {
     const a = analyse(fixedCut({ deficit: 0, goalRate: -0.6 }));
     expect(a.verdict.id).toBe("LOSS-6");
     expect(a.verdict.title).toBe("Weight loss has stalled");
-    expect(a.verdict.detail).toContain("still catching up");
+    expect(a.verdict.detail).toMatch(/against a −0\.6 goal\.$/);
     expect(a.recommendation).toBeNull();
     expect(a.status.state).toBe("watch");
     expect(ids(analyse(fixedCut({ deficit: 300, goalRate: -0.6 })))).not.toContain("LOSS-6");
@@ -437,7 +439,8 @@ describe("cut outcome rules", () => {
     const noLifts = analyse(fixedCut({ deficit: 1000, goalRate: -1.0 }));
     expect(noLifts.verdict.detail).not.toContain("lifts");
     const nothing = analyse(fixedCut({ deficit: 1400, goalRate: -0.6, lifts: stepLifts(-4, 35, 0) }));
-    expect(nothing.verdict).toMatchObject({ id: "NO-CHANGE", title: "Nothing to change yet" });
+    expect(nothing.verdict).toMatchObject({ id: "NO-CHANGE" });
+    expect(["Off the planned rate", "Not clear yet"]).toContain(nothing.verdict.title);
     expect(nothing.status.state).toBe("watch");
     const hold = makeScenario({ seed: 9, days: 42, bodyweightKg: 85, trueTdeeKcal: 2800, intake: { meanKcal: 2800 }, goal: { ratePctPerWeek: 0, targetKg: 85 } });
     const m = analyse(hold);
@@ -470,7 +473,8 @@ describe("bulk outcome rules", () => {
     expect(a.recommendation).toEqual(expect.objectContaining({ kind: "change_rate", fromPctPerWeek: 0.75, toPctPerWeek: GAIN_BANDS.intermediate.default }));
     expect((a.recommendation as { kcalDeltaAtCurrentBW: number }).kcalDeltaAtCurrentBW).toBeLessThan(0);
     expect(a.recommendationLabel).toMatch(/^Ease goal to 0\.25 %\/wk \(about −\d+ kcal\/day\)$/);
-    expect(a.verdict.detail).toContain("gains this fast mostly add fat");
+    expect(a.verdict.title).toBe("Gaining faster than planned");
+    expect(a.verdict.detail).not.toMatch(/studies/);
     expect(ids(analyse(fixedBulk({ surplus: 350 })))).not.toContain("GAIN-1");
     // 35 bulk days: a window today but none a week earlier.
     const one = analyse(fixedBulk({ surplus: 600, days: 56 }));
@@ -521,7 +525,8 @@ describe("sleep rules", () => {
     expect(a.verdict.id).toBe("SLEEP-1");
     expect(a.recommendation).toEqual({ kind: "sleep", targetHours: expect.any(Number) });
     expect((a.recommendation as { targetHours: number }).targetHours).toBeLessThanOrEqual(8);
-    expect(a.verdict.detail).toMatch(/^Sleep is averaging \dh\d\dm over 1[34] nights, and .* are down 3%\. Get sleep back first\.$/);
+    expect(a.verdict.title).toBe("Sleep is short");
+    expect(a.verdict.detail).toMatch(/^Averaging \dh\d\dm over 1[34] nights, and .* are down 3%\.$/);
     expect(a.status.state).toBe("watch");
     const ok = makeScenario({ seed: 3, days: 42, preDays: 7, bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", intakeSdKcal: 150, goal: { ratePctPerWeek: -0.6 }, sleep: { meanH: 7.6, sdH: 0.3, source: "manual" }, lifts: stepLifts(-3, 28, 0) });
     expect(ids(analyse(ok))).not.toContain("SLEEP-1");

@@ -247,7 +247,7 @@ Flat. Depth is expressed by surface level, not shadow.
 
 - **Panel** (rev 4.1). `surface`, `rounded.lg`, holding one idea: the verdict with its flags, a chart with its numbers and range pills, a group of rows. Sections inside a panel are split by a 1px `border` hairline running edge to edge. Two panels that say one thing become one panel; a panel never sits inside another.
 - **Row.** Label on the left in `text-secondary`, value on the right in `number`, optional trailing chevron or `+`. 56px tall, `surface`. Rows sit in a group (`rounded.lg`) separated by 1px `border` lines, not gaps.
-- **Verdict panel** (rev 4.1; was a bare line). One panel: an 8px status dot and the 17px title, the `body` sentence, then flags, the recommendation and "Ask why" as hairline-split rows inside the same panel.
+- **Verdict panel** (rev 4.1; facts only since Z3). One panel: an 8px status dot and the 17px title, the `body` sentence, then the flags as hairline-split rows. The title says what happened ("260 kcal under target", "Losing faster than planned"), the sentence gives the numbers; no advice, no plan, no causes from studies, and no button that changes the plan (targets move in the weekly review). Safety notes are the exception.
 - **Chart tile** (rev 4.2, Home's "Last 7 days"). Two to a row (an odd last tile spans the row), `surface`, `rounded.lg`: the measure's name (15px/600), its judgement in the status colour (12px), a 40px chart in the measure's colour, a hairline, then the number (17px/600) with its unit quieter and a chevron. Bars sit centred in seven day slots (58% of the slot, at most 14px, 3px top corners), a grey 3px stub for a day with nothing and a dashed target line; lines carry a hollow dot on each day, the last one filled, and the area under them fades from the colour at 28% to nothing (the only gradient on a card, because it encodes the data). The chart and the words come from the same two week reports (`lib/physique/pulseCharts.ts`), and a tile without enough data draws no chart.
 - **Contributor row** (WHOOP-style). Label, a 48px mini bar or sparkline in greys, value, and a small up or down tick in the status colour.
 - **Segmented pills.** `pill` in a row with 4px gaps; the selected one is `primary` with `text-on-primary`. Used for time ranges (1W 1M 3M 6M 1Y All) and small choices.
@@ -270,7 +270,7 @@ Flat. Depth is expressed by surface level, not shadow.
 
 ## Do's and Don'ts
 
-- Do lead with the verdict, then the two strongest numbers, then one action.
+- Do lead with what happened, then the two strongest numbers. Say what the data shows, never what to do about it (Z3); the only instructions are safety notes and how to use the app.
 - Do stay silent when things are fine: an "On track" line with no advice is the finished state.
 - Do state the window and n next to any judgement.
 - Do keep logging to three taps or fewer, with values prefilled from yesterday.

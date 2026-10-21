@@ -187,12 +187,6 @@ function liftsHoldingClause(f: VerdictFacts): string {
   return "";
 }
 
-/** Case 2/3 of 02 §8.2 A: the coach is lagging, or still settling. */
-function coachClause(f: VerdictFacts, direction: "low" | "high"): string {
-  if (f.recommendation?.kind === "refresh_targets") return ` Your maintenance estimate is ${direction}.`;
-  return " Your maintenance estimate is still catching up.";
-}
-
 function sinceClause(f: VerdictFacts): string {
   return f.phase === "lose" ? " since the cut began" : f.phase === "gain" ? " since the bulk began" : "";
 }
@@ -202,7 +196,8 @@ function sinceClause(f: VerdictFacts): string {
 type CopyFn = (f: VerdictFacts) => VerdictCopy;
 
 const COPY: Record<RuleId, CopyFn> = {
-  "NO-GOAL": () => ({ title: "Set a goal", detail: "Set a target weight to get a verdict." }),
+  // Z3: every verdict states what happened, in numbers. No advice, no plans, no causes from studies.
+  "NO-GOAL": () => ({ title: "No goal set", detail: "Add a target weight in Body to read the trend against it." }),
 
   "DATA-RATE": (f) => {
     const n = Math.max(1, f.weighInsNeeded ?? 1);
@@ -216,7 +211,7 @@ const COPY: Record<RuleId, CopyFn> = {
     const food = k > 0 ? `${k} more day${k === 1 ? "" : "s"} of food` : "";
     const weigh = f.weighInNeeded ? "a weigh-in" : "";
     const what = food && weigh ? `${food} and ${weigh}` : food || weigh || "food";
-    return { title: "Holding", detail: `Log ${what} this week to resume updates.` };
+    return { title: "Targets on hold", detail: `Targets update after ${what} this week.` };
   },
 
   "DATA-PARTIAL": (f) => {
@@ -233,69 +228,35 @@ const COPY: Record<RuleId, CopyFn> = {
   "G-EXP-2": (f) => {
     const pct = f.intakeDropShare != null ? `${Math.round(f.intakeDropShare * 100)}%` : "sharply";
     return {
-      title: "Logging gap likely",
-      detail: `Logged intake fell ${pct} over 14 days with no matching change in the trend. Check your logging; targets hold until it settles.`,
+      title: "Logged intake fell",
+      detail: `Logged intake fell ${pct} over 14 days with no matching change in the weight trend. Targets hold until it settles.`,
     };
   },
 
   "ADH-1": (f) => {
     const d = f.adherenceDeltaKcal ?? 0;
     const dir = d < 0 ? "under" : "over";
-    return {
-      title: "Eat to target first",
-      detail: `You've averaged ${Math.round(Math.abs(d) / 10) * 10} kcal ${dir} target over 14 days. Eat to target before we change your goal.`,
-    };
+    return { title: `${Math.round(Math.abs(d) / 10) * 10} kcal ${dir} target`, detail: "On average over the last 14 days." };
   },
 
-  "DB-1": () => ({
-    title: "A diet break may help",
-    detail:
-      "Six weeks in, you've been over target on 3 or more days a week for 2 weeks. A one-week break at maintenance may help adherence. In trials it did not slow fat loss; expect 0.5 to 1.5 kg of water back.",
-  }),
+  "DB-1": () => ({ title: "Over target 3 or more days a week", detail: "For the last 2 weeks, six weeks into the cut." }),
 
   "LOSS-1": (f) => {
     const down = f.lifts?.length ? `, and ${joinNames(f.lifts.map((l) => l.name))} ${f.lifts.length > 1 ? "are" : "is"} ${fmtDrop(f.lifts.map((l) => l.changePct))}${sinceClause(f)}` : "";
-    if (f.goalOutOfRange) {
-      return {
-        title: "Slow the cut",
-        detail: `${rateClause(f)}${down}. A ${fmtRate(f.goalRate ?? 0)} %/wk goal is above the range that protects strength.`,
-      };
-    }
     const adherent = f.adherent ? ", while eating to target" : "";
-    return {
-      title: "Losing faster than planned",
-      detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal${adherent}${down}.${coachClause(f, "low")}`,
-    };
+    return { title: "Losing faster than planned", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal${adherent}${down}.` };
   },
 
-  "LOSS-3": (f) => {
-    const tail = f.goalOutOfRange
-      ? ` A ${fmtRate(f.goalRate ?? 0)} %/wk goal is above the range that protects strength.`
-      : f.adherent
-        ? coachClause(f, "low")
-        : "";
-    return {
-      title: "Losing very fast",
-      detail: `${rateClause(f)}. Rates above 1.5 %/wk are linked in studies to strength and hormone losses.${tail}`,
-    };
-  },
+  "LOSS-3": (f) => ({ title: "Losing very fast", detail: `${rateClause(f)}.` }),
 
   "LOSS-4": (f) => {
     const down = f.lifts?.length ? `, and ${joinNames(f.lifts.map((l) => l.name))} ${f.lifts.length > 1 ? "are" : "is"} ${fmtDrop(f.lifts.map((l) => l.changePct))}${sinceClause(f)}` : "";
-    const stage = f.nearGoal ? "Near your goal" : "At your training stage";
-    const tail = f.goalOutOfRange ? ` ${stage}, a ${fmtRate(f.goalRate ?? 0)} %/wk goal is above the range that protects strength.` : ` ${stage}, a slower rate protects strength.${coachClause(f, "low")}`;
-    return { title: "Slow the cut at your stage", detail: `${rateClause(f)}${down}.${tail}` };
+    return { title: f.lifts?.length ? "Losing fast, lifts down" : "Losing fast", detail: `${rateClause(f)}${down}.` };
   },
 
-  "LOSS-2": (f) => {
-    const near = f.nearGoal ? " Near your goal, a slower rate is the safer choice." : " No change unless this continues.";
-    return { title: "Faster than needed", detail: `${rateClause(f)} with lifts holding.${near}` };
-  },
+  "LOSS-2": (f) => ({ title: "Losing faster than planned", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal, lifts holding.` }),
 
-  "LOSS-2u": (f) => {
-    const near = f.nearGoal ? " Near your goal, a slower rate is the safer choice." : " No change unless this continues.";
-    return { title: "Faster than needed", detail: `${rateClause(f)}; no lift data to judge retention.${near}` };
-  },
+  "LOSS-2u": (f) => ({ title: "Losing faster than planned", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal.` }),
 
   "LOSS-6": (f) => {
     const adherent = f.adherent ? ", while eating to target" : "";
@@ -303,34 +264,20 @@ const COPY: Record<RuleId, CopyFn> = {
     const lead = r ? `${fmtSignedRate(r.ratePctPerWeek)} %/wk ${fmtWindow(r.windowDays, r.n)}` : "The trend is flat";
     return {
       title: "Weight loss has stalled",
-      detail: `${lead} against a ${fmtSignedRate(f.goalRate ?? 0)} goal${adherent}.${coachClause(f, "high")}`,
+      detail: `${lead} against a ${fmtSignedRate(f.goalRate ?? 0)} goal${adherent}.`,
     };
   },
 
-  "GAIN-1": (f) => {
-    const tail = f.goalOutOfRange
-      ? ` A ${fmtRate(f.goalRate ?? 0)} %/wk goal is above the lean-gain band for your training status.`
-      : f.adherent
-        ? coachClause(f, "high")
-        : "";
-    return { title: "Gaining faster than a lean bulk needs", detail: `${rateClause(f)}. In studies, gains this fast mostly add fat.${tail}` };
-  },
+  "GAIN-1": (f) => ({ title: "Gaining faster than planned", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal.` }),
 
   "GAIN-2": (f) => {
     const adherent = f.adherent ? ", while eating to target" : "";
-    const tail = f.goalOutOfRange ? ` A ${fmtRate(f.goalRate ?? 0)} %/wk goal sits under the lean-gain band for your training status.` : coachClause(f, "low");
-    return {
-      title: "Not gaining, and lifts have stalled",
-      detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal${adherent}, with lifts flat.${tail}`,
-    };
+    return { title: "Not gaining, lifts flat", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal${adherent}.` };
   },
 
   "GAIN-3": (f) => {
     const up = f.lifts?.length ? `, but lifts are ${fmtRise(f.lifts.map((l) => l.changePct))}` : "";
-    return {
-      title: "Lifts still progressing",
-      detail: `${rateClause(f)}, below your ${fmtRate(f.goalRate ?? 0)} goal${up}. Gains near maintenance are similar in studies, so no change is needed.`,
-    };
+    return { title: "Gaining slower than planned", detail: `${rateClause(f)}, below your ${fmtRate(f.goalRate ?? 0)} goal${up}.` };
   },
 
   "GAIN-4": (f) => ({
@@ -341,16 +288,10 @@ const COPY: Record<RuleId, CopyFn> = {
   "RECOMP-1": (f) => {
     const up = f.lifts?.length ? `, lifts ${fmtRise(f.lifts.map((l) => l.changePct))}` : "";
     const r = f.rate;
-    return {
-      title: "Looks like recomposition",
-      detail: `Scale flat ${r ? fmtWindow(r.windowDays, r.n) : "over 28 days"}${up}, waist down ${Math.abs(f.waistDeltaCm ?? 0).toFixed(1)} cm. No change needed.`,
-    };
+    return { title: "Scale flat, waist down", detail: `Scale flat ${r ? fmtWindow(r.windowDays, r.n) : "over 28 days"}${up}, waist down ${Math.abs(f.waistDeltaCm ?? 0).toFixed(1)} cm.` };
   },
 
-  "RECOMP-WAIST": () => ({
-    title: "Log your waist",
-    detail: "Lifts are up while the scale is flat. A weekly waist measurement tells recomposition from a stall.",
-  }),
+  "RECOMP-WAIST": () => ({ title: "Lifts up, scale flat", detail: "No waist measurement in the last 4 weeks." }),
 
   "STR-1": (f) => ({
     title: "Lifts are dropping",
@@ -361,21 +302,18 @@ const COPY: Record<RuleId, CopyFn> = {
     const l = f.lifts?.[0];
     return {
       title: "One lift is down",
-      detail: `${l ? `${l.name} is ${fmtDrop([l.changePct])}${sinceClause(f)}` : "One main lift is down 5% or more"} while the others hold. That usually points to programming, technique or fatigue, not nutrition.`,
+      detail: `${l ? `${l.name} is ${fmtDrop([l.changePct])}${sinceClause(f)}` : "One main lift is down 5% or more"} while the others hold.`,
     };
   },
 
   "SLEEP-1": (f) => {
     const down = f.lifts?.length ? `, and ${joinNames(f.lifts.map((l) => l.name))} ${f.lifts.length > 1 ? "are" : "is"} ${fmtDrop(f.lifts.map((l) => l.changePct))}` : "";
-    return {
-      title: "Don't cut calories further",
-      detail: `Sleep is averaging ${fmtHours(f.sleepMeanH ?? 0)} over ${f.sleepNights ?? 14} nights${down}. Get sleep back first.`,
-    };
+    return { title: "Sleep is short", detail: `Averaging ${fmtHours(f.sleepMeanH ?? 0)} over ${f.sleepNights ?? 14} nights${down}.` };
   },
 
   "SLEEP-1i": (f) => ({
     title: "Sleep is short",
-    detail: `Sleep is averaging ${fmtHours(f.sleepMeanH ?? 0)} over ${f.sleepNights ?? 14} nights. In studies, short sleep during a cut shifted more of the loss to lean tissue.`,
+    detail: `Averaging ${fmtHours(f.sleepMeanH ?? 0)} over ${f.sleepNights ?? 14} nights.`,
   }),
 
   "SLEEP-2": (f) => ({
@@ -385,22 +323,22 @@ const COPY: Record<RuleId, CopyFn> = {
 
   "SLEEP-3": () => ({
     title: "Two short nights",
-    detail: "Expect reps at a fixed load to be down. Keep the top set; drop a back-off set if RIR collapses.",
+    detail: "Two nights in a row under 6 hours.",
   }),
 
   "PRO-1": (f) => ({
     title: "Protein is low for a cut",
-    detail: `${(f.proteinGPerKg ?? 0).toFixed(1)} g/kg in ${f.proteinWeeksLow ?? 2} of the last 3 weeks${f.proteinTargetG ? `; your target is ${f.proteinTargetG} g` : ""}. Under 1.8 g/kg is below the range shown to keep lean mass in a deficit.`,
+    detail: `${(f.proteinGPerKg ?? 0).toFixed(1)} g/kg in ${f.proteinWeeksLow ?? 2} of the last 3 weeks${f.proteinTargetG ? `; your target is ${f.proteinTargetG} g` : ""}.`,
   }),
 
   "PRO-2": (f) => ({
     title: "Protein is low",
-    detail: `${(f.proteinGPerKg ?? 0).toFixed(1)} g/kg over 14 days${f.proteinTargetG ? `; your target is ${f.proteinTargetG} g` : ""}. Gains in studies plateau around 1.6 g/kg.`,
+    detail: `${(f.proteinGPerKg ?? 0).toFixed(1)} g/kg over 14 days${f.proteinTargetG ? `; your target is ${f.proteinTargetG} g` : ""}.`,
   }),
 
   "FAT-1": (f) => ({
     title: "Fat is low",
-    detail: `${(f.fatGPerKg ?? 0).toFixed(1)} g/kg over 14 days, ${Math.round((f.fatShare ?? 0) * 100)}% of calories. That is under the usual minimum of 0.5 g/kg.`,
+    detail: `${(f.fatGPerKg ?? 0).toFixed(1)} g/kg over 14 days, ${Math.round((f.fatShare ?? 0) * 100)}% of calories, under 0.5 g/kg.`,
   }),
 
   "ON-TRACK": (f) => {
@@ -415,10 +353,9 @@ const COPY: Record<RuleId, CopyFn> = {
   "NO-CHANGE": (f) => {
     // A rate off plan with no rule to act on (research H): shown as it is, never called on track.
     if (f.rate && f.goalRate != null) {
-      const tail = f.rateClear ? "Targets stay as they are for now." : "Not clear enough yet to change anything.";
-      return { title: "Nothing to change yet", detail: `${rateClause(f)} against a ${fmtSignedRate(f.goalRate)} %/wk goal. ${tail}` };
+      return { title: f.rateClear ? "Off the planned rate" : "Not clear yet", detail: `${rateClause(f)} against a ${fmtSignedRate(f.goalRate)} %/wk goal.` };
     }
-    return { title: "Nothing to change", detail: "Nothing to change this week." };
+    return { title: "Steady", detail: "Nothing new this week." };
   },
 
   "SAFE-0": () => ({ title: "No deficit targets under 18", detail: "Calorie targets for a deficit aren't available under 18. Targets stay at maintenance." }),

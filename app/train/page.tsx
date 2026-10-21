@@ -23,7 +23,7 @@ import { usePriorityGoal } from "@/lib/priorityGoal";
 import { buildCoachStructuredAnalysis, EMPTY_COACH_STRUCTURED_ANALYSIS } from "@/lib/coachStructuredAnalysis";
 import { bandsFor } from "@/lib/training/volumeTargets";
 import { deloadLine, readDeload } from "@/lib/training/deload";
-import { endDeload, startDeload, useDeload } from "@/lib/physique/io/deload";
+import { endDeload, useDeload } from "@/lib/physique/io/deload";
 import type { Phase } from "@/lib/training/progression";
 import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
 import { goalStore } from "@/lib/physique/io/repos";
@@ -86,7 +86,8 @@ function TrainContent({ now }: { now: Now }) {
     () => readDeload({ workouts: [...workouts], unit, now, status: physiqueGoal?.trainingStatusAtCreation ?? "intermediate", record: deloadRecord }),
     [workouts, unit, now, physiqueGoal?.trainingStatusAtCreation, deloadRecord]
   );
-  const deloadText = deloadLine(deload);
+  // Z3: no deload prompts. The row shows only while a deload runs; lighter weeks are also found from set counts.
+  const deloadText = deload.state === "active" ? deloadLine(deload) : null;
 
   const model = useMemo(() => {
     const today = now.today;
@@ -194,11 +195,11 @@ function TrainContent({ now }: { now: Now }) {
                   {deloadText}
                 </span>
                 <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                  {deload.state === "active" ? "Half the sets, loads 10 % lighter, four in reserve. Trends skip this week." : "A week at half the sets and lighter loads, then the block restarts."}
+                  Trends skip this week.
                 </span>
               </div>
-              <SecondaryButton small onClick={() => void (deload.state === "active" ? endDeload(now.today) : startDeload(now.today, deload.state === "due" ? deload.reason : "manual", new Date().toISOString()))}>
-                {deload.state === "active" ? "End" : "Start"}
+              <SecondaryButton small onClick={() => void endDeload(now.today)}>
+                End
               </SecondaryButton>
             </div>
           )}

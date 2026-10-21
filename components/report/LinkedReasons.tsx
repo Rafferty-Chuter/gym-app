@@ -42,16 +42,16 @@ function FigureBars({ figures, caption }: { figures: LinkFigure[]; caption: stri
 }
 
 /**
- * What's behind the week (W5): each outcome with its likely causes and
- * the numbers that tie them, weight first. The engine links; this only lays
- * it out.
+ * Food and weight (W5, facts only since Z3): what the weight trend did
+ * against what was eaten, with the energy-balance arithmetic behind it.
+ * No notes on what to do; the engine links, this only lays it out.
  */
 export default function LinkedReasonsCard({ links }: { links: Link[] }) {
   if (!links.length) return null;
   return (
-    <section aria-label="What's behind it" className="flex flex-col gap-3 rounded-[16px] p-4" style={{ background: "var(--surface)" }}>
+    <section aria-label="Food and weight" className="flex flex-col gap-3 rounded-[16px] p-4" style={{ background: "var(--surface)" }}>
       <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
-        What&apos;s behind it
+        Food and weight
       </span>
       <ul className="flex flex-col divide-y divide-[var(--border)]">
         {links.map((l) => (
@@ -81,11 +81,6 @@ export default function LinkedReasonsCard({ links }: { links: Link[] }) {
                 <div className="pt-1">
                   <FigureBars figures={l.figures} caption={l.figuresCaption} />
                 </div>
-              )}
-              {l.note && (
-                <p className="text-[13px] font-medium leading-snug" style={{ color: "var(--text)" }}>
-                  {l.note}
-                </p>
               )}
             </div>
           </li>

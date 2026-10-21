@@ -39,12 +39,12 @@ function inputs(sc: ReturnType<typeof scenario>, over: Partial<JudgeInputs> = {}
 }
 
 describe("weekly insight (W3)", () => {
-  it("a cut on its way: the heading dates the target and names the phases after it", () => {
+  it("a cut on its way: the heading dates the target at the current rate, with no plan narrative (Z3)", () => {
     const i = inputs(scenario());
     const h = heading(i);
     expect(h.title).toMatch(/^78\.0 kg around \d{4}-\d{2}-\d{2}$/);
-    expect(h.lines[0]).toMatch(/^At −\d\.\d+ %\/wk(, .+)?\. \d+\.\d kg to go\.$/);
-    expect(h.lines[1]).toMatch(/^Cut to .+, then 3 weeks at maintenance\.$/);
+    expect(h.lines[0]).toMatch(/^At −\d\.\d+ %\/wk\. \d+\.\d kg to go\.$/);
+    expect(h.lines.some((l) => /maintenance|then/.test(l))).toBe(false);
     expect(h.lines.at(-1)).toBe("Lifts holding since the phase started.");
     expect(i.analysis.strength.status).toBe("holding");
   });
@@ -114,10 +114,10 @@ describe("weekly insight (W3)", () => {
     expect(buildWeeklyInsight(i).goingWell).toEqual(expect.arrayContaining(["weighed in 7 of 7 days", "sleep near 8 hours", "every session done"]));
   });
 
-  it("no goal: the heading asks for one; old weeks carry no heading", () => {
+  it("no goal: the heading says so; old weeks carry no heading", () => {
     const sc = makeScenario({ seed: 91, days: 40, bodyweightKg: 85, trueTdeeKcal: 2800, goal: null, sleep: { meanH: 7.5, sdH: 0.3, source: "manual", loggedShare: 1 } });
     const i = inputs(sc as ReturnType<typeof scenario>);
-    expect(heading(i).title).toBe("No goal yet");
+    expect(heading(i).title).toBe("No goal set");
     const old = buildWeeklyInsight({ ...i, report: { ...i.report, end: addDays(sc.today, -20) } });
     expect(old.heading).toBeNull();
   });

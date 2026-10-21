@@ -1,7 +1,7 @@
 "use client";
 
 import { StatusDot } from "@/components/physique/ui";
-import type { Fix, Heading } from "@/lib/physique/weeklyInsight";
+import type { Heading } from "@/lib/physique/weeklyInsight";
 import { STATUS_HEX } from "@/lib/ui/status";
 
 /**
@@ -64,75 +64,6 @@ export function HeadingCard({ heading }: { heading: Heading }) {
           </p>
         ))}
       </div>
-    </section>
-  );
-}
-
-/**
- * What to fix (W3): up to three, most important first, each with what the
- * numbers say and one action. Rows with a link open the place to do it;
- * plain anchors, since targets read ?date= on mount.
- */
-export function FixesCard({ fixes, more, goingWell }: { fixes: Fix[]; more: number; goingWell: string[] }) {
-  const well = goingWell.length ? `Going well: ${goingWell.join(", ")}.` : null;
-  return (
-    <section aria-label="What to fix" className="flex flex-col gap-3 rounded-[16px] p-4" style={{ background: "var(--surface)" }}>
-      <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
-        Focus for next week
-      </span>
-      {fixes.length === 0 ? (
-        <p className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
-          Nothing to change. Keep the same plan.
-        </p>
-      ) : (
-        <ol className="flex flex-col divide-y divide-[var(--border)]">
-          {fixes.map((f, i) => {
-            const inner = (
-              <div className="flex gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold" style={{ background: "var(--surface-raised)", color: STATUS_HEX[f.state] }}>
-                  {i + 1}
-                </span>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
-                    {f.title}
-                  </span>
-                  <span className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                    {f.why}
-                  </span>
-                  <span className="text-[13px] font-semibold leading-snug" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-                    {f.action}
-                  </span>
-                </div>
-                {f.href && (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="mt-1 h-4 w-4 shrink-0" aria-hidden>
-                    <path d="M9 6l6 6-6 6" />
-                  </svg>
-                )}
-              </div>
-            );
-            return (
-              <li key={f.id} className="py-3 first:pt-0 last:pb-0">
-                {f.href ? (
-                  <a href={f.href} className="block transition-colors active:opacity-70" aria-label={`${f.title}. ${f.why} ${f.action} Open`}>
-                    {inner}
-                  </a>
-                ) : (
-                  inner
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      )}
-      {(more > 0 || well) && (
-        <div className="flex flex-col gap-1">
-          {well && (
-            <p className="text-[12px] leading-snug" style={{ color: "var(--text-secondary)" }}>
-              {well}
-            </p>
-          )}
-        </div>
-      )}
     </section>
   );
 }

@@ -218,7 +218,7 @@ export function nightScore(nights: readonly SleepNight[], date: LocalDate): Nigh
   } else if (weakest.id === "duration") {
     reason = `${shortMin(short)} under ${hoursWord(goalH)}.`;
   } else if (weakest.id === "timing" && offset !== null && usual) {
-    reason = `Up ${shortMin(Math.abs(offset))} ${offset > 0 ? "later" : "earlier"} than your usual ${usual.hhmm}. A steady wake time does more than a lie-in.`;
+    reason = `Up ${shortMin(Math.abs(offset))} ${offset > 0 ? "later" : "earlier"} than your usual ${usual.hhmm}.`;
   } else {
     reason = `${Math.round((eff ?? 0) * 100)}% of the night asleep, under the ${Math.round(EFFICIENCY.good * 100)}% that counts as good.`;
   }

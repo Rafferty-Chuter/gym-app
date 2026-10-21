@@ -570,7 +570,7 @@ function buildVolumeContent(
     return {
       state,
       status,
-      explanation: `${groupsLabel} weekly volume is above the productive range while progress is stalling or unclear. High volume only pays off when it shows up in the lifts; here it isn't.`,
+      explanation: `${groupsLabel} weekly volume is above range while progress is stalling or unclear.`,
       prompt: `My ${groupsLower} volume is above range and progress is stalling. Walk me through what to drop.`,
       chart: <BarChart rows={rows} />,
     };
@@ -594,16 +594,15 @@ function buildVolumeContent(
     let explanation: string;
     if (mostMusclesLow && isLowFrequencyWeek) {
       const sessionWord = weeklyWorkouts.length === 1 ? "session" : "sessions";
-      explanation = `Most muscles are below the productive volume range, but you have only logged ${weeklyWorkouts.length} ${sessionWord} this week. Volume will catch up with normal frequency.`;
+      explanation = `Most muscles are below range, with ${weeklyWorkouts.length} ${sessionWord} logged this week.`;
     } else if (mostMusclesLow) {
-      explanation =
-        "Most muscles are below the productive volume range. Either training intensity is high enough that the lower volume is sufficient, or volume should come up. See the breakdown below.";
+      explanation = "Most muscles are below range this week.";
     } else if (lowEntries.length > 0) {
-      explanation = lowEntries[0].summary;
+      explanation = `${formatGroupList(lowEntries.map((v) => v.label))} below range this week.`;
     } else if (lowRows.length > 0) {
-      explanation = `${joinGroups(lowRows.map((r) => r.group))} weekly volume is below the productive range for hypertrophy. The breakdown below shows where you are.`;
+      explanation = `${joinGroups(lowRows.map((r) => r.group))} below range this week.`;
     } else {
-      explanation = "Weekly volume is running low on at least one muscle group. The breakdown below shows where you are.";
+      explanation = "At least one muscle group is below range this week.";
     }
 
     const lowGroupsText =
@@ -628,7 +627,7 @@ function buildVolumeContent(
       return {
         state,
         status,
-        explanation: `${groupsLabel} volume is above the productive range, but the lifts are still moving. Worth watching for fatigue, not yet a problem.`,
+        explanation: `${groupsLabel} volume is above range while the lifts are still moving.`,
         prompt: `My ${groupsLower} volume is above range but lifts are still progressing. Should I keep pushing or back off?`,
         chart: <BarChart rows={rows} />,
       };
@@ -638,7 +637,7 @@ function buildVolumeContent(
       status,
       explanation:
         coach.volumeBalance[0]?.summary ??
-        "Some muscles are above range but lifts are still moving. Worth watching for fatigue.",
+        "Some muscles are above range while lifts are still moving.",
       prompt: "There are volume balance notes on my training this week. Walk me through them.",
       chart: <BarChart rows={rows} />,
     };

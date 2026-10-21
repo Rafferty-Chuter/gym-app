@@ -11,10 +11,10 @@
 import { dayDiff, type LocalDate } from "@/lib/dates";
 import { fmtKcal, fmtSignedRate, joinNames } from "@/lib/physique/copy";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
-import { vsPlanWord, type GoalEta } from "@/lib/physique/goalEta";
+import type { GoalEta } from "@/lib/physique/goalEta";
 import { ADHERENCE_TOLERANCE_KCAL } from "@/lib/physique/intake";
 import { PRO2_MIN_G_PER_KG } from "@/lib/physique/judge";
-import { planLine, type PhasePlan } from "@/lib/physique/phasePlan";
+import type { PhasePlan } from "@/lib/physique/phasePlan";
 import type { RecoveryRead } from "@/lib/physique/recovery";
 import { REVIEW_MIN_FOOD_DAYS, REVIEW_MIN_NIGHTS, REVIEW_SHORT_NIGHTS, REVIEW_SLEEP_SHORTFALL_H } from "@/lib/physique/review";
 import type { WeekReport } from "@/lib/physique/weekReport";
@@ -125,9 +125,9 @@ export function strengthLine(analysis: PhysiqueAnalysis): string | null {
   }
 }
 
-/** Where the goal is heading as of today: the ETA against the plan, what is left, the phases after, and the lifts. */
+/** Where the goal is heading as of today: the date at the current rate, what is left, and the lifts. */
 export function heading(i: InsightInputs): Heading {
-  const { goal, eta, plan, analysis, fmt } = i;
+  const { goal, eta, analysis, fmt } = i;
   const lines: string[] = [];
   const liftsLine = strengthLine(analysis);
 
@@ -135,7 +135,7 @@ export function heading(i: InsightInputs): Heading {
     return { state: "attention", title: "Goal on hold", lines: ["Targets stay where they are. The note on Body says why."] };
   }
   if (!goal) {
-    return { state: "unknown", title: "No goal yet", lines: ["Set a target weight and this shows where you're heading and when you get there."] };
+    return { state: "unknown", title: "No goal set", lines: [] };
   }
   if (goal.type === "maintain") {
     const trend = analysis.weight.trendKg;
@@ -145,13 +145,13 @@ export function heading(i: InsightInputs): Heading {
     return { state: onTrack ? "good" : trend == null ? "unknown" : "watch", title: onTrack ? "Holding steady" : "Maintaining", lines };
   }
   if (!eta) {
-    return { state: "unknown", title: "Early read", lines: ["Weigh in most mornings. The first estimate needs a week or two of weigh-ins."] };
+    return { state: "unknown", title: "Early read", lines: ["The first rate needs a week or two of weigh-ins."] };
   }
   const target = fmt.kg(goal.targetKg);
   const rate = `${fmtSignedRate(eta.ratePctPerWeek)} %/wk`;
   const goalRate = `${fmtSignedRate(goal.ratePctPerWeek)} %/wk`;
   if (eta.reached) {
-    return { state: "good", title: "Target reached", lines: [`Trend at ${target}. Choose what comes next from Body.`] };
+    return { state: "good", title: "Target reached", lines: [`Trend at ${target}.`] };
   }
   if (eta.reason === "away") {
     const flat = Math.abs(eta.ratePctPerWeek) < HEADING_FLAT_RATE;
@@ -161,18 +161,16 @@ export function heading(i: InsightInputs): Heading {
   }
   if (eta.basis === "planned") {
     lines.push(`${plural(eta.weighInsNeeded, "more weigh-in")} for a first rate.`);
-    if (eta.date) lines.push(`At the plan's ${goalRate}: ${target} around ${fmt.date(eta.date)}.`);
     if (liftsLine) lines.push(liftsLine);
     return { state: "unknown", title: "Early read", lines };
   }
   if (eta.reason === "slow" || !eta.date) {
     lines.push(`At ${rate} the target is over a year away. The plan is ${goalRate}.`, `${fmt.kg(eta.remainingKg)} still to go.`);
     if (liftsLine) lines.push(liftsLine);
-    return { state: "watch", title: "Too slow to reach the target this year", lines };
+    return { state: "watch", title: "Over a year from the target", lines };
   }
-  const vs = vsPlanWord(eta.daysVsPlan);
-  lines.push(`At ${rate}${vs ? `, ${vs}` : ""}. ${fmt.kg(eta.remainingKg)} to go.`);
-  if (plan) lines.push(`${planLine(plan, fmt.date)}.`);
+  // Z3: the date at the current rate and what is left; no plan narrative.
+  lines.push(`At ${rate}. ${fmt.kg(eta.remainingKg)} to go.`);
   if (liftsLine) lines.push(liftsLine);
   const offPlan = eta.daysVsPlan != null && Math.abs(eta.daysVsPlan) > HEADING_OFF_PLAN_DAYS;
   return { state: offPlan ? "watch" : "good", title: `${target} around ${fmt.date(eta.date)}`, lines };

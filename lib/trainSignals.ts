@@ -31,12 +31,6 @@ export const INDICATOR_WINDOW_LABEL: Record<Indicator["key"], string> = {
   progress: "Per lift · last 6 sessions",
 };
 
-function trimToOneLine(text: string, maxLen: number): string {
-  const first = text.split(/(?<=[.!?])\s+/)[0]?.trim() ?? text.trim();
-  if (first.length <= maxLen) return first;
-  return first.slice(0, maxLen - 1).trimEnd() + "…";
-}
-
 // Coarse coach group → detailed group fan-out, mirrored from /signal/[key]/page.tsx.
 export function buildIndicators(coach: CoachStructuredAnalysis, workouts: StoredWorkout[], thisWeekTotalSets: number, thisWeekWorkoutsCount: number, bands?: Parameters<typeof computeVolumeStatus>[2]): Indicator[] {
   const workoutsCount = workouts.length;
@@ -81,20 +75,16 @@ export function buildIndicators(coach: CoachStructuredAnalysis, workouts: Stored
   } else if (volumeStatus.status === "Excessive") {
     const excessiveGroups = volumeStatus.rows.filter((r) => r.status === "excessive").map((r) => r.group.toLowerCase());
     const joined = excessiveGroups.join(" and ");
-    volumeContext = joined ? `${joined[0].toUpperCase()}${joined.slice(1)} volume is above the productive range while progress is stalling.` : "Volume on at least one muscle group is above the productive range.";
+    volumeContext = joined ? `${joined[0].toUpperCase()}${joined.slice(1)} volume is above range.` : "Volume on at least one muscle group is above range.";
     volumePrompt = joined ? `My ${joined} volume is above range. Walk me through what to drop.` : "My volume is above range on at least one muscle group. Walk me through what to drop.";
   } else if (volumeStatus.status === "Running low") {
     const lowGroups = volumeStatus.rows.filter((r) => r.status === "low").map((r) => r.group.toLowerCase());
     const groupsJoined = lowVolumeEntries.length > 0 ? lowVolumeEntries.map((v) => v.label.toLowerCase()).join(" and ") : lowGroups.join(" and ");
-    volumeContext =
-      lowVolumeEntries.length > 0
-        ? trimToOneLine(lowVolumeEntries[0].summary, 120)
-        : groupsJoined
-          ? `${groupsJoined[0].toUpperCase()}${groupsJoined.slice(1)} weekly volume is below where it should be.`
-          : "Weekly volume is running low for at least one muscle group.";
+    // Z3: which muscles, not what to do about them.
+    volumeContext = groupsJoined ? `${groupsJoined[0].toUpperCase()}${groupsJoined.slice(1)} below range this week.` : "At least one muscle group is below range this week.";
     volumePrompt = groupsJoined ? `Weekly volume looks light on ${groupsJoined}. Walk me through where I'm short and what to add this week.` : "My weekly volume is running low. Walk me through where I'm short and what to add this week.";
   } else if (volumeStatus.status === "Worth a look") {
-    volumeContext = coach.volumeBalance.length > 0 ? trimToOneLine(coach.volumeBalance[0].summary, 120) : "Some muscles are above range but lifts are still moving. Worth watching for fatigue.";
+    volumeContext = "Some muscles are above range while lifts are still moving.";
     volumePrompt = "There are volume balance notes on my training this week. Walk me through them.";
   } else if (volumeStatus.status === "Early read") {
     volumeContext = `Only ${workoutsCount} session${workoutsCount === 1 ? "" : "s"} logged. A few more and the weekly read becomes meaningful.`;
