@@ -8,6 +8,7 @@ import RestTimerBanner from "@/components/RestTimerBanner";
 import ReminderSync from "@/components/physique/ReminderSync";
 import NativeShell from "@/components/NativeShell";
 import AutoSync from "@/components/sync/AutoSync";
+import ClientErrorReporter from "@/components/errors/ClientErrorReporter";
 import { APPEARANCE_BOOT } from "@/lib/ui/appearance";
 
 const geistSans = Geist({
@@ -51,6 +52,7 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AppProviders>
+          <ClientErrorReporter />
           {children}
           <ReminderSync />
           <NativeShell />

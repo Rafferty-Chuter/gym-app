@@ -29,6 +29,7 @@ import { readAppearance, setAppearance, type Appearance } from "@/lib/ui/appeara
 import { getRestTimerSettings, REST_TIMER_SETTINGS_EVENT, setRestTimerSettings, type RestTimerSettings } from "@/lib/restTimerSettings";
 import { downloadAllWorkoutsCsv } from "@/lib/exportWorkoutsCsv";
 import type { Sex } from "@/lib/physique/types";
+import { APP_VERSION } from "@/lib/appVersion";
 
 
 const pill = (on: boolean) => ({ background: on ? "var(--primary)" : "var(--surface-raised)", color: on ? "var(--text-on-primary)" : "var(--text-secondary)" });
@@ -45,11 +46,9 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: () => void; la
 /**
  * Profile (CL1): units, who you are, Apple Health, training settings,
  * reminders, Apple Health, data. Every row saves on the tap. Nothing here
- * is a form to submit.
+ * is a form to submit. The version under About (TR3) names the build for
+ * a tester's feedback.
  */
-/** Shown under About; testers quote it in feedback. */
-const APP_VERSION = "1.0 beta";
-
 export default function ProfilePage() {
   const hydrated = useIsHydrated();
   const router = useRouter();
