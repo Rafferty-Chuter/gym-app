@@ -2,7 +2,7 @@
 name: Gym AI
 description: A calm, precise physique and training coach for serious natural lifters. Mist: soft green and misty sky, light or dark with the phone.
 colors:
-  # Mist (rev 4.1). Light values; the dark mode set is under colors-dark. Both live in app/globals.css.
+  # Mist (rev 4.2). Light values; the dark mode set is under colors-dark. Both live in app/globals.css.
   page-top: "#d9e6ec"
   bg: "#edf2f0"
   surface: "#fafcfb"
@@ -27,6 +27,10 @@ colors:
   status-attention: "#c2475b"
   status-unknown: "#8a9a9a"
   chart-trend: "#34936a"
+  chart-training: "#d4741f"
+  chart-sleep: "#3a8fbd"
+  chart-steps: "#7b61c9"
+  chart-heart: "#c24f8f"
   chart-raw: "#a7b6b3"
   chart-projection: "#8a9a9a"
   chart-band: "#e2eae7"
@@ -64,6 +68,10 @@ colors-dark:
   status-attention: "#ef8f99"
   status-unknown: "#72878a"
   chart-trend: "#a9e0c1"
+  chart-training: "#f0a65e"
+  chart-sleep: "#86c4e4"
+  chart-steps: "#b4a3f2"
+  chart-heart: "#ee8cc0"
   chart-raw: "#4d6266"
   chart-projection: "#72878a"
   chart-band: "#1c2a2d"
@@ -190,6 +198,8 @@ Gym AI is a product-register interface (the design serves a task, it is not the 
 
 **Rev 4.1, 2026-10-21 (final polish for testers and the App Store).** Same palette, fewer boxes. A screen is a few panels, each holding one idea, with rows inside a panel split by hairlines instead of gaps between separate cards. Panels and row groups take `rounded.lg` (16px); controls (buttons, inputs, chips) keep `rounded.md` (12px). Colour does more work: the weight trend is green, maintenance is the kcal blue, and food rows carry the macro colours. Copy names what a number is, not where it came from.
 
+**Rev 4.2, 2026-10-21 (Home as a dashboard).** The founder: MacroFactor's front page "looks much more finished", with bold colours in its graphs; the same effect, not a copy. Home's last 7 days became chart tiles, and each measure got its own strong colour, used wherever that measure is drawn.
+
 Anchors: MacroFactor (Weight Trend, Expenditure, Strategy screens), WHOOP (contributor rows, the insight box), Apple Stocks (chart scrubbing, time-range pills).
 
 Light and dark (rev 4). The app follows the phone's setting (`prefers-color-scheme`); Profile > Appearance can pin Light or Dark (`data-theme` on `<html>`, set before first paint). Dark suits the dim bedroom and gym lighting; light suits daytime. Both are the same palette, so every rule here holds in both.
@@ -199,7 +209,7 @@ Light and dark (rev 4). The app follows the phone's setting (`prefers-color-sche
 Restrained strategy: misty neutrals, one action colour (soft green), and colour for status and data. Every colour is a CSS variable in `app/globals.css` with a light and a dark value; components never hard-code a colour.
 
 - **Page.** `--page` is a vertical gradient from `page-top` (misty sky) into `bg` over the first 380px; the sticky header sits on `page-top`.
-- **Green and sky.** `green` is the soft green for data that is going well and for training bars; `green-strong` for green text and links; `green-dim` for quiet fills. `sky` is the misty blue for sleep and secondary data; `sky-strong` for sky text.
+- **Green and sky.** `green` is the soft green for data that is going well and for progress fills; `green-strong` for green text and links; `green-dim` for quiet fills. `sky` is the misty blue for sleep and secondary data; `sky-strong` for sky text.
 - **Sleep.** `.theme-sleep` keeps Sleep in the family: a dawn (light) or dusk (dark) sky (`sleep-top`) at the top, `sky` for its own data (score ring, sleep window, bars), stage colours (awake peach, REM sky, core blue, deep lavender) in the stage chart and tiles only, and rating words in Excellent `sky-strong`, Good `status-good`, Fair `status-watch`, Poor `status-attention`.
 
 - **Backgrounds.** `bg` is the page. `surface` is a row or card. `surface-raised` is a control (button, key, chip) sitting on a surface. `surface-pressed` is the pressed state. Never stack more than two levels; nested cards are wrong.
@@ -208,6 +218,7 @@ Restrained strategy: misty neutrals, one action colour (soft green), and colour 
 - **Primary action.** Soft green (`primary`, deep sage in light, pale sage in dark) with `text-on-primary`. One per screen at most (Start workout, Save, Finish). The same fill marks a selected pill, day or toggle.
 - **Status.** `status-good` / `status-watch` / `status-attention` / `status-unknown`. Shown as a 8px dot or a short pill next to text, never as a card background. The same four colours drive the Signals tiles and the physique verdict.
 - **Charts.** Trend line in `chart-trend` (green since rev 4.1; it was the text colour), 2px on the Body chart and 1.5px in Home's weight tile. Maintenance (the energy chart, its band and legend) uses `macro-kcal`. Raw weigh-ins as 4px dots in `chart-raw`. Goal projection as a dashed `chart-projection` line. A target band uses `chart-band`.
+- **Metric colours** (rev 4.2). One hue per measure, 3:1 or more on `surface` in both modes: weight and waist trend `chart-trend` (green; waist uses `chart-steps`), calories `macro-kcal`, protein `macro-protein`, fibre `macro-carb`, training `chart-training` (orange, also Train's week bars), sleep and wake time `chart-sleep`, steps `chart-steps` (violet), resting heart rate `chart-heart`. Status colours stay for judgements (the words), metric colours for the data (the marks); never one for the other. The map lives in `components/physique/PulseTile.tsx` (`PULSE_COLOR`).
 - **Macro colours** (rev 2, from MacroFactor): kcal `macro-kcal` (blue), protein `macro-protein` (red), fat `macro-fat` (yellow), carbs `macro-carb` (green), all muted. They appear only in nutrition bars, charts and food rows (rev 4.1: kcal in `text-secondary`, then "38P 14F 57C" with each letter in its macro colour, `components/food/MacroText.tsx`), never on buttons or status. Over target is not red: the bar simply fills and its target tick turns to the text colour.
 
 ## Typography
@@ -237,6 +248,7 @@ Flat. Depth is expressed by surface level, not shadow.
 - **Panel** (rev 4.1). `surface`, `rounded.lg`, holding one idea: the verdict with its flags, a chart with its numbers and range pills, a group of rows. Sections inside a panel are split by a 1px `border` hairline running edge to edge. Two panels that say one thing become one panel; a panel never sits inside another.
 - **Row.** Label on the left in `text-secondary`, value on the right in `number`, optional trailing chevron or `+`. 56px tall, `surface`. Rows sit in a group (`rounded.lg`) separated by 1px `border` lines, not gaps.
 - **Verdict panel** (rev 4.1; was a bare line). One panel: an 8px status dot and the 17px title, the `body` sentence, then flags, the recommendation and "Ask why" as hairline-split rows inside the same panel.
+- **Chart tile** (rev 4.2, Home's "Last 7 days"). Two to a row (an odd last tile spans the row), `surface`, `rounded.lg`: the measure's name (15px/600), its judgement in the status colour (12px), a 40px chart in the measure's colour, a hairline, then the number (17px/600) with its unit quieter and a chevron. Bars sit centred in seven day slots (58% of the slot, at most 14px, 3px top corners), a grey 3px stub for a day with nothing and a dashed target line; lines carry a hollow dot on each day, the last one filled, and the area under them fades from the colour at 28% to nothing (the only gradient on a card, because it encodes the data). The chart and the words come from the same two week reports (`lib/physique/pulseCharts.ts`), and a tile without enough data draws no chart.
 - **Contributor row** (WHOOP-style). Label, a 48px mini bar or sparkline in greys, value, and a small up or down tick in the status colour.
 - **Segmented pills.** `pill` in a row with 4px gaps; the selected one is `primary` with `text-on-primary`. Used for time ranges (1W 1M 3M 6M 1Y All) and small choices.
 - **Bottom sheet.** Title in `title`, content, one primary action at the bottom. Dismiss by swipe or the scrim. Safe-area padding at the bottom.
@@ -265,7 +277,7 @@ Flat. Depth is expressed by surface level, not shadow.
 - Do use the four status colours identically everywhere (Signals tiles, verdict dot, home card).
 - Don't use the status colours on buttons, borders, backgrounds or glows. Green as an action is `primary`; `status-good` means good, nothing else.
 - Don't put a number in a ring or dial, except the sleep score (rev 3). Elsewhere states are words; detail views have numbers.
-- Don't add blurred glass, side stripes or hero-metric tiles. The only gradient is the misty page (and Sleep's sky); never as decoration on a card.
+- Don't add blurred glass, side stripes or hero-metric tiles. The only gradients are the misty page (and Sleep's sky) and the fade under a chart line (rev 4.2); never as decoration on a card.
 - Don't show confetti, streaks, exclamation marks, or praise.
 - Don't show a score for recovery; show a word and the numbers. Sleep has one score (rev 3), never without its word and reason.
 - Don't list missed days on a tab that a device fills on its own: a night the watch missed is an empty bar, not a "not logged" row.

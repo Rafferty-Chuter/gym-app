@@ -63,8 +63,9 @@ export function NutritionRing({ eatenKcal, targetKcal, view, onToggleView, size 
     </span>
   );
   return (
-    <div className="flex items-center justify-between gap-2">
-      {side(remaining ? "Eaten" : "Left", targetKcal == null ? "–" : remaining ? n(eatenKcal) : n(Math.max(0, left ?? 0)), "start")}
+    // Without a target the ring already says what was eaten, so the sides (two dashes) are left out.
+    <div className={`flex items-center gap-2 ${targetKcal == null ? "justify-center" : "justify-between"}`}>
+      {targetKcal != null && side(remaining ? "Eaten" : "Left", remaining ? n(eatenKcal) : n(Math.max(0, left ?? 0)), "start")}
       {onToggleView ? (
         <button type="button" onClick={onToggleView} className="rounded-full" aria-label={`${label}. Tap to show ${remaining ? "eaten" : "what is left"}`}>
           {ring}
@@ -74,7 +75,7 @@ export function NutritionRing({ eatenKcal, targetKcal, view, onToggleView, size 
           {ring}
         </span>
       )}
-      {side("Target", targetKcal == null ? "–" : n(targetKcal), "end")}
+      {targetKcal != null && side("Target", n(targetKcal), "end")}
     </div>
   );
 }

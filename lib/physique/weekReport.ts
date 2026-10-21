@@ -54,6 +54,12 @@ export type WeekDay = {
   steps: number | null;
   sessions: number;
   hardSets: number;
+  /** True when the day's food is marked partial, so its kcal is not in the week's mean (H2: drawn faded). */
+  foodPartial: boolean;
+  /** Wake time on the night axis in minutes (`nightAxisMin`), for the consistency dots. */
+  wakeMin: number | null;
+  /** The night's resting heart rate in bpm. */
+  rhr: number | null;
 };
 
 export type WeekGapKind = "food" | "weight" | "sleep";
@@ -357,6 +363,9 @@ export function buildWeekReport(inputs: WeekReportInputs, start: LocalDate, now:
       steps: stepsByDay.get(date) ?? null,
       sessions: tr?.sessions ?? 0,
       hardSets: tr?.hardSets ?? 0,
+      foodPartial: f?.status === "partial",
+      wakeMin: night && night.valid ? nightAxisMin(night.night.wakeTime) : null,
+      rhr: night && typeof night.night.restingHr === "number" && night.night.restingHr > 0 ? night.night.restingHr : null,
     };
   });
 

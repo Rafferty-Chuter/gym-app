@@ -162,7 +162,7 @@ function TrainContent({ now }: { now: Now }) {
               {model.week.map((d) => (
                 <div key={d.date} className="flex flex-col items-center gap-1.5">
                   <div className="flex h-10 w-full items-end justify-center" aria-hidden>
-                    <div className="w-3 rounded-[2px]" style={{ height: `${Math.max(d.volume > 0 ? 6 : 2, (d.volume / maxVol) * 40)}px`, background: d.volume > 0 ? "var(--green)" : "var(--border)" }} />
+                    <div className="w-3 rounded-[2px]" style={{ height: `${Math.max(d.volume > 0 ? 6 : 2, (d.volume / maxVol) * 40)}px`, background: d.volume > 0 ? "var(--chart-training)" : "var(--border)" }} />
                   </div>
                   <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold" style={{ background: d.n > 0 ? "var(--primary)" : "var(--surface-raised)", color: d.n > 0 ? "var(--text-on-primary)" : "var(--text-tertiary)" }}>
                     {d.letter}

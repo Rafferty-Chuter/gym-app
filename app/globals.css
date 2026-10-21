@@ -34,6 +34,11 @@
   --status-attention: #ef8f99;
   --status-unknown: #72878a;
   --chart-trend: #a9e0c1;
+  /* Metric colours for Home's chart tiles (H2): one hue per measure, 3:1 or more on the surface. */
+  --chart-training: #f0a65e;
+  --chart-sleep: #86c4e4;
+  --chart-steps: #b4a3f2;
+  --chart-heart: #ee8cc0;
   --chart-raw: #4d6266;
   --chart-projection: #72878a;
   --chart-band: #1c2a2d;
@@ -84,6 +89,10 @@
     --status-attention: #c2475b;
     --status-unknown: #8a9a9a;
     --chart-trend: #34936a;
+    --chart-training: #d4741f;
+    --chart-sleep: #3a8fbd;
+    --chart-steps: #7b61c9;
+    --chart-heart: #c24f8f;
     --chart-raw: #a7b6b3;
     --chart-projection: #8a9a9a;
     --chart-band: #e2eae7;
@@ -131,6 +140,10 @@
   --status-attention: #c2475b;
   --status-unknown: #8a9a9a;
   --chart-trend: #34936a;
+  --chart-training: #d4741f;
+  --chart-sleep: #3a8fbd;
+  --chart-steps: #7b61c9;
+  --chart-heart: #c24f8f;
   --chart-raw: #a7b6b3;
   --chart-projection: #8a9a9a;
   --chart-band: #e2eae7;
@@ -441,6 +454,10 @@ input[type="search"]::-webkit-search-cancel-button {
     --status-attention: #c2475b;
     --status-unknown: #8a9a9a;
     --chart-trend: #34936a;
+    --chart-training: #d4741f;
+    --chart-sleep: #3a8fbd;
+    --chart-steps: #7b61c9;
+    --chart-heart: #c24f8f;
     --chart-raw: #a7b6b3;
     --chart-projection: #8a9a9a;
     --chart-band: #e2eae7;
