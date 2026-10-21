@@ -24,14 +24,27 @@ function rateWords(kgPerWeek: number, unit: WeightUnit): string {
   return `${kgPerWeek < 0 ? "Losing" : "Gaining"} ${formatWeight(Math.abs(kgPerWeek), unit)} a week`;
 }
 
-/** The goal's date in two or three words, or why there is none. */
-function etaWords(eta: GoalEta): string {
-  if (eta.reached) return "Target reached";
-  if (eta.reason === "away") return "Moving away from the target";
-  if (eta.reason === "slow") return "Over a year away";
-  if (eta.basis === "planned") return eta.weighInsNeeded > 0 ? `${eta.weighInsNeeded} more weigh-in${eta.weighInsNeeded === 1 ? "" : "s"} for a date` : "Date in two weeks";
-  return `Around ${longLocalDate(eta.date as string)}`;
+/** Weeks out past which a date reads as a month: a day a year away is false precision. OURS: half a year. */
+const MONTH_ONLY_WEEKS = 26;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Around Sat 7 Nov", "Around Fri 8 Jan 2027" across a new year, "Around Sep 2027" more than MONTH_ONLY_WEEKS out. */
+function aroundDate(date: LocalDate, weeksLeft: number | null, today: LocalDate): string {
+  if (weeksLeft != null && weeksLeft > MONTH_ONLY_WEEKS) return `Around ${MONTHS[Number(date.slice(5, 7)) - 1]} ${date.slice(0, 4)}`;
+  return `Around ${longLocalDate(date)}${date.slice(0, 4) !== today.slice(0, 4) ? ` ${date.slice(0, 4)}` : ""}`;
 }
+
+/** The goal's date in a few words, or why there is none. */
+function etaWords(eta: GoalEta, today: LocalDate): string {
+  if (eta.reached) return "Target reached";
+  if (eta.reason === "away") return "No date at this rate";
+  if (eta.reason === "slow") return "Over a year away";
+  if (eta.basis === "planned") return eta.weighInsNeeded > 0 ? `${eta.weighInsNeeded} more weigh-in${eta.weighInsNeeded === 1 ? "" : "s"} for a date` : "A date after two weeks of weigh-ins";
+  return aroundDate(eta.date as LocalDate, eta.weeksLeft, today);
+}
+
+/** Verdicts that turn the goal down (a target or a deficit the app won't coach): no date or distance to it is shown. */
+const NOT_COACHED = new Set(["SAFE-0", "SAFE-3", "SAFE-4", "SAFE-5"]);
 
 /**
  * The goal (PR3), the top of Progress: where the trend weight is against
@@ -47,14 +60,18 @@ export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, un
   const eta = useMemo(() => goalEta(active, weighIns, dayFlags, today), [active, weighIns, dayFlags, today]);
   const reportWeek = defaultReportWeek(today);
 
+  const verdict = analysis?.verdict ?? null;
+  const coached = !(verdict && NOT_COACHED.has(verdict.id));
   const trendKg = trend?.trendKg ?? null;
   const ratePct = eta?.basis === "observed" ? eta.ratePctPerWeek : (analysis?.weight.ratePctPerWeek ?? null);
   const rateLine = trendKg != null && ratePct != null ? rateWords((ratePct * trendKg) / 100, unit) : null;
-  const planLine = active && active.type !== "maintain" && trendKg != null ? `plan ${formatWeight((Math.abs(active.ratePctPerWeek) * trendKg) / 100, unit)}` : null;
-  const verdict = analysis?.verdict ?? null;
+  const planLine = coached && active && active.type !== "maintain" && trendKg != null ? `plan ${formatWeight((Math.abs(active.ratePctPerWeek) * trendKg) / 100, unit)}` : null;
   const safety = [verdict, ...(analysis?.flags ?? [])].filter((v) => v && v.id.startsWith("SAFE-"));
   const heading = active ? `${active.type === "lose" ? "Cut to" : active.type === "gain" ? "Lean gain to" : "Maintain"} ${formatWeight(active.targetKg, unit)}` : "No goal set";
-  const share = progress && progress.totalKg > 0 ? Math.min(1, Math.max(0, progress.doneKg / progress.totalKg)) : null;
+  // The judge's word, unless it only says there is nothing to judge yet ("Calibrating", "No goal set"): the line beside it already says why.
+  const word = verdict && analysis && analysis.status.state !== "unknown" ? verdict.title : null;
+  const dateLine = coached && eta ? etaWords(eta, today) : null;
+  const share = coached && progress && progress.totalKg > 0 ? Math.min(1, Math.max(0, progress.doneKg / progress.totalKg)) : null;
 
   return (
     <section aria-label="Goal" className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
@@ -77,7 +94,7 @@ export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, un
               {trendKg != null ? "Trend weight" : "No weigh-ins yet"}
             </span>
           </span>
-          {progress && !eta?.reached && (
+          {coached && progress && !eta?.reached && (
             <span className="flex flex-col items-end">
               <span className="text-[20px] font-semibold leading-none" style={{ color: "var(--chart-trend)", fontVariantNumeric: "tabular-nums" }}>
                 {formatWeight(progress.remainingKg, unit)}
@@ -106,22 +123,22 @@ export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, un
         )}
       </div>
 
-      {(eta || rateLine || verdict) && (
+      {(dateLine || rateLine || word) && (
         <div className="flex items-center justify-between gap-3 px-4 py-3" style={divider}>
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
-              {eta ? etaWords(eta) : (rateLine ?? "Weight trend")}
+              {dateLine ?? rateLine ?? verdict?.title}
             </span>
-            {(eta ? rateLine : planLine) && (
+            {(dateLine ? rateLine || planLine : rateLine && planLine) && (
               <span className="text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                {eta ? [rateLine, planLine].filter(Boolean).join(" · ") : planLine}
+                {dateLine ? [rateLine, planLine].filter(Boolean).join(" · ") : planLine}
               </span>
             )}
           </span>
-          {verdict && analysis && (
+          {word && analysis && (dateLine || rateLine) && (
             <span className="flex shrink-0 items-center gap-1.5 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
               <StatusDot color={STATUS_HEX[analysis.status.state]} />
-              {verdict.title}
+              {word}
             </span>
           )}
         </div>

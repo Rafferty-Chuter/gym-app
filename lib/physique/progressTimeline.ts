@@ -32,8 +32,14 @@ export const WEEK_MIN_DAYS = 3;
 export const ALL_MAX_WEEKS = 104;
 /** Columns a range draws at most; a longer history puts two or more weeks in each (C7). OURS: about half a year of weekly bars is as many as stay readable and tappable on a phone. */
 export const MAX_COLUMNS = 26;
-/** Columns with a lift's best before a line is drawn through them (PR3). OURS: one week's best swings a few percent with sleep and food, so fewer than four bests draws the noise. */
-export const LIFT_FIT_MIN_COLUMNS = 4;
+/** Sessions of a lift in the range before a line is drawn through them (PR3). OURS: two weeks of three sessions; fewer draws the noise. */
+export const LIFT_FIT_MIN_SESSIONS = 6;
+/** Days from a lift's first session in the range to its last before a line is drawn. OURS: three weeks, so one hard week does not make a trend. */
+export const LIFT_FIT_MIN_DAYS = 21;
+/** How many standard errors a lift's line must sit from flat before its change is shown (PR3). OURS: a fit through one best a week drew "+6 kg" on flat lifts with 3% session noise; through every session at 2.5 SE, about one flat lift in fifty reads as changing. */
+export const LIFT_FIT_Z = 2.5;
+/** Columns the lift's current level is the median of. OURS: three weeks, as the strength engine's blocks of three. */
+export const LIFT_LEVEL_COLUMNS = 3;
 
 export type ProgressRange = "1M" | "3M" | "6M" | "All";
 /** Weeks per range, the current week included. */
@@ -79,8 +85,12 @@ export type LiftWeeks = {
   name: string;
   /** The column's best estimated 1RM, kg; null for a column without the lift. */
   e1rmKg: Array<number | null>;
-  /** A straight line through the columns' bests, from the first column with one to the last; null below LIFT_FIT_MIN_COLUMNS. */
-  fit: { fromIdx: number; toIdx: number; fromKg: number; toKg: number } | null;
+  /** A straight line through every session's estimated 1RM in the range (least squares on the day), first session to last; null below LIFT_FIT_MIN_SESSIONS or LIFT_FIT_MIN_DAYS. `clear` when its slope is LIFT_FIT_Z standard errors from flat: only then is the change shown. */
+  fit: { fromDate: LocalDate; toDate: LocalDate; fromKg: number; toKg: number; clear: boolean } | null;
+  /** The median of the last LIFT_LEVEL_COLUMNS columns with a best, kg: the lift's level now. */
+  levelKg: number | null;
+  /** The line's change over the range when it is clear, kg; null otherwise, and then nothing is said about the change (a sudden drop can fail a straight line, so "steady" would claim too much). */
+  changeKg: number | null;
 };
 
 export type ProgressTimeline = {
@@ -273,7 +283,11 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
     weeks,
     days,
     lifts: mainLifts.map((l) => l.name),
-    liftWeeks: mainLifts.map((l, k) => ({ name: l.name, e1rmKg: liftCols[k], fit: fitColumns(liftCols[k]) })),
+    liftWeeks: mainLifts.map((l, k) => {
+      const recent = liftCols[k].filter((v): v is number => v != null).slice(-LIFT_LEVEL_COLUMNS);
+      const fit = fitSessions(liftBest[k]);
+      return { name: l.name, e1rmKg: liftCols[k], fit, levelKg: recent.length ? median(recent) : null, changeKg: fit?.clear ? fit.toKg - fit.fromKg : null };
+    }),
     summary: {
       trendChangeKg: trendVals.length >= 2 ? trendVals[trendVals.length - 1] - (trendAt(addDays(from, -1)) ?? trendVals[0]) : null,
       kcal: vals((w) => w.kcal).length ? mean(vals((w) => w.kcal)) : null,
@@ -287,19 +301,15 @@ export function progressTimeline(i: TimelineInputs, range: ProgressRange, now: N
   };
 }
 
-/** A straight line through a lift's column bests (least squares), or null below LIFT_FIT_MIN_COLUMNS. */
-function fitColumns(cols: ReadonlyArray<number | null>): LiftWeeks["fit"] {
-  const xs: number[] = [];
-  const ys: number[] = [];
-  cols.forEach((v, k) => {
-    if (v != null) {
-      xs.push(k);
-      ys.push(v);
-    }
-  });
-  if (xs.length < LIFT_FIT_MIN_COLUMNS) return null;
-  const f = olsSlope(xs, ys);
-  const fromIdx = xs[0];
-  const toIdx = xs[xs.length - 1];
-  return { fromIdx, toIdx, fromKg: f.intercept + f.slope * fromIdx, toKg: f.intercept + f.slope * toIdx };
+/** A straight line through a lift's sessions by day (least squares), or null below LIFT_FIT_MIN_SESSIONS or LIFT_FIT_MIN_DAYS. */
+function fitSessions(byDate: ReadonlyMap<LocalDate, number>): LiftWeeks["fit"] {
+  const dates = [...byDate.keys()].sort();
+  if (dates.length < LIFT_FIT_MIN_SESSIONS) return null;
+  const fromDate = dates[0];
+  const toDate = dates[dates.length - 1];
+  const span = dayDiff(fromDate, toDate);
+  if (span < LIFT_FIT_MIN_DAYS) return null;
+  const f = olsSlope(dates.map((d) => dayDiff(fromDate, d)), dates.map((d) => byDate.get(d) as number));
+  const clear = Number.isFinite(f.se) && f.se > 0 && Math.abs(f.slope) / f.se >= LIFT_FIT_Z;
+  return { fromDate, toDate, fromKg: f.intercept, toKg: f.intercept + f.slope * span, clear };
 }

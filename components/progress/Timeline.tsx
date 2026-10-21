@@ -6,7 +6,7 @@ import { shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import { usePick } from "@/components/charts/usePick";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { formatEffect } from "@/lib/physique/liftEffect";
-import { dayDiff, type LocalDate } from "@/lib/dates";
+import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
 import type { LiftWeeks, ProgressRange, ProgressTimeline, ProgressWeek } from "@/lib/physique/progressTimeline";
 import { formatBodyWeight, formatWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 
@@ -59,12 +59,13 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus }: { t
     label: l.name,
     color: "var(--chart-lift)",
     href: `/exercise?name=${encodeURIComponent(l.name)}`,
-    summary: l.fit ? `${formatWeight(l.fit.toKg, unit, 0)} est. 1RM · ${formatEffect(l.fit.toKg - l.fit.fromKg, unit)}` : lastValue(l) != null ? `${formatWeight(lastValue(l)!, unit, 0)} est. 1RM` : null,
+    // The change shows only when the line is clearly not flat (LIFT_FIT_Z); otherwise nothing is said about it, as a week's best swings a few percent on its own.
+    summary: l.levelKg != null ? `${formatWeight(l.levelKg, unit, 0)} est. 1RM${l.changeKg != null ? ` · ${formatEffect(l.changeKg, unit)}` : ""}` : null,
     week: (w) => {
       const v = l.e1rmKg[weeks.indexOf(w)];
       return v != null ? `${formatWeight(v, unit, 0)} est. 1RM` : "Not trained";
     },
-    chart: <LiftChart l={l} sel={sel} />,
+    chart: <LiftChart l={l} sel={sel} t={t} />,
   }));
   const rows: RowSpec[] = [
     {
@@ -74,7 +75,7 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus }: { t
       summary:
         s.trendChangeKg != null ? (
           <>
-            {signed(kgToDisplay(s.trendChangeKg, unit))} {kgUnit} over {RANGE_WORDS[range]}
+            {signed(kgToDisplay(s.trendChangeKg, unit))} {kgUnit} {t.days.length && t.days[0].date > addDays(t.from, 6) ? `since ${shortLocalDate(t.days[0].date)}` : `over ${RANGE_WORDS[range]}`}
             {goalInView(t, goalKg ?? null) && (
               <>
                 {" · "}
@@ -245,10 +246,6 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus }: { t
   );
 }
 
-function lastValue(l: LiftWeeks): number | null {
-  return [...l.e1rmKg].reverse().find((v): v is number => v != null) ?? null;
-}
-
 function lastTarget(weeks: readonly ProgressWeek[]): number | null {
   return [...weeks].reverse().find((w) => w.proteinTargetG != null)?.proteinTargetG ?? null;
 }
@@ -365,12 +362,14 @@ function WeightChart({ t, pick, goalKg }: { t: ProgressTimeline; pick: ProgressW
   );
 }
 
-/** A lift's weekly best estimated 1RM as dots joined up, with a faint straight line through them for the direction (PR3, X1). */
-function LiftChart({ l, sel }: { l: LiftWeeks; sel: number | null }) {
+/** A lift's weekly best estimated 1RM as dots joined up, and, when its change is clear, a faint straight line through its sessions (PR3, X1). */
+function LiftChart({ l, sel, t }: { l: LiftWeeks; sel: number | null; t: ProgressTimeline }) {
   const n = l.e1rmKg.length;
+  const total = Math.max(1, t.weeks.length * 7 * t.periodWeeks);
+  const dx = (date: LocalDate) => ((dayDiff(t.from, date) + 0.5) / total) * 100;
   const present = l.e1rmKg.map((v, k) => (v != null ? { k, v } : null)).filter((p): p is { k: number; v: number } => p != null);
   if (!present.length) return null;
-  const vals = [...present.map((p) => p.v), ...(l.fit ? [l.fit.fromKg, l.fit.toKg] : [])];
+  const vals = [...present.map((p) => p.v), ...(l.fit?.clear ? [l.fit.fromKg, l.fit.toKg] : [])];
   const pad = Math.max(1, (Math.max(...vals) - Math.min(...vals)) * 0.15);
   const lo = Math.min(...vals) - pad;
   const hi = Math.max(...vals) + pad;
@@ -378,7 +377,7 @@ function LiftChart({ l, sel }: { l: LiftWeeks; sel: number | null }) {
   return (
     <>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
-        {l.fit && <line x1={cx(l.fit.fromIdx, n)} x2={cx(l.fit.toIdx, n)} y1={y(l.fit.fromKg)} y2={y(l.fit.toKg)} stroke="var(--chart-lift)" strokeOpacity={0.4} strokeWidth={3} strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
+        {l.fit?.clear && <line x1={dx(l.fit.fromDate)} x2={dx(l.fit.toDate)} y1={y(l.fit.fromKg)} y2={y(l.fit.toKg)} stroke="var(--chart-lift)" strokeOpacity={0.4} strokeWidth={3} strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
         <polyline points={present.map((p) => `${cx(p.k, n)},${y(p.v)}`).join(" ")} fill="none" stroke="var(--chart-lift)" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
       {present.map((p) => (

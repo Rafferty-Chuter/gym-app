@@ -233,7 +233,8 @@ export function findings(i: FindingInputs, through: LocalDate): Finding[] {
       out.push({
         id: "protein-low",
         title: "Protein is under the level studies support",
-        data: `Protein averaged ${n0(g)} g a day over ${complete.length} complete days in the last 4 weeks, ${gPerKg.toFixed(1)} g per kg of body weight.`,
+        // Two decimals when one would round up to the level it is under ("1.8, under 1.8" read as a contradiction).
+        data: `Protein averaged ${n0(g)} g a day over ${complete.length} complete days in the last 4 weeks, ${Number(gPerKg.toFixed(1)) >= floor ? gPerKg.toFixed(2) : gPerKg.toFixed(1)} g per kg of body weight.`,
         evidence: cut
           ? `Keeping muscle in a deficit takes more: a review of lean lifters puts it at 2.3 to 3.1 g per kg of lean mass, about 1.8 g per kg of body weight or more (Helms 2014).`
           : `A meta-analysis of 49 trials found muscle gains from training levelled off at about 1.6 g per kg a day, with some people gaining up to 2.2 (Morton 2018).`,

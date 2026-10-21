@@ -3,7 +3,7 @@ import { addDays, dayDiff } from "@/lib/dates";
 import { makeScenario } from "@/lib/physique/fixtures";
 import { computeExpenditure } from "@/lib/physique/expenditure";
 import { weekStart } from "@/lib/physique/food/week";
-import { LIFT_FIT_MIN_COLUMNS, MAX_COLUMNS, progressTimeline, rangeStart, RANGE_WEEKS, WEEK_MIN_DAYS, type TimelineInputs } from "@/lib/physique/progressTimeline";
+import { LIFT_FIT_MIN_DAYS, MAX_COLUMNS, progressTimeline, rangeStart, RANGE_WEEKS, WEEK_MIN_DAYS, type TimelineInputs } from "@/lib/physique/progressTimeline";
 
 const sc = makeScenario({
   seed: 5,
@@ -123,7 +123,8 @@ describe("Progress timeline: each main lift in kg (PR3, X1)", () => {
     expect(squat.fit).not.toBeNull();
     expect(squat.fit!.toKg - squat.fit!.fromKg).toBeGreaterThan(2);
     const few = progressTimeline(inputs, "1M", { ...now, today: addDays(sc.startDate, 20) });
-    for (const l of few.liftWeeks) if (l.e1rmKg.filter((v) => v != null).length < LIFT_FIT_MIN_COLUMNS) expect(l.fit).toBeNull();
+    expect(LIFT_FIT_MIN_DAYS).toBe(21);
+    for (const l of few.liftWeeks) expect(l.fit).toBeNull();
   });
 
   it("reads sleep against the person's usual over the range, not a fixed number", () => {
@@ -133,5 +134,56 @@ describe("Progress timeline: each main lift in kg (PR3, X1)", () => {
     expect(t.summary.usualSleepH!).toBeLessThan(7.6);
     const none = progressTimeline({ ...inputs, sleepNights: sc.sleepNights.slice(-3) }, "3M", now);
     expect(none.summary.usualSleepH).toBeNull();
+  });
+});
+
+describe("Progress timeline: a lift's change only when it is clear (PR3)", () => {
+  const flat = (seed: number) =>
+    makeScenario({
+      seed,
+      days: 63,
+      preDays: 21,
+      startDate: addDays(sc.today, -62),
+      bodyweightKg: 85,
+      trueTdeeKcal: 2800,
+      intake: "toTarget",
+      goal: { ratePctPerWeek: -0.6, targetKg: 78 },
+      sleep: { meanH: 7.2, sdH: 0.4, source: "manual", loggedShare: 1 },
+      lifts: [
+        { name: "Squat", startE1rm: 150, profile: "linear", changePct: 0, perWeek: 2, cv: 0.03 },
+        { name: "Bench Press", startE1rm: 110, profile: "linear", changePct: 0, perWeek: 2, cv: 0.03 },
+      ],
+    });
+
+  it("calls flat lifts with session-to-session noise clear at most rarely", () => {
+    let clear = 0;
+    let lifts = 0;
+    for (let seed = 100; seed < 130; seed++) {
+      const f = flat(seed);
+      const t = progressTimeline({ ...inputs, weighIns: f.weighIns, foodEntries: f.foodEntries, dayFlags: f.dayFlags, sleepNights: f.sleepNights, workouts: f.workouts, program: f.program, expenditure: null }, "3M", { today: f.today, tz: "UTC" });
+      for (const l of t.liftWeeks) {
+        lifts += 1;
+        if (l.changeKg != null) clear += 1;
+      }
+    }
+    expect(lifts).toBe(60);
+    expect(clear).toBeLessThanOrEqual(3);
+  });
+
+  it("calls a lift dropping 8% in 8 weeks clear, through 3% session noise", () => {
+    const f = makeScenario({ seed: 7, days: 63, preDays: 21, startDate: addDays(sc.today, -62), bodyweightKg: 90, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -1, targetKg: 75 }, sleep: { meanH: 7.2, sdH: 0.4, source: "manual", loggedShare: 1 }, lifts: [{ name: "Squat", startE1rm: 150, profile: "linear", changePct: -8, perWeek: 2, cv: 0.03 }] });
+    const t = progressTimeline({ ...inputs, weighIns: f.weighIns, foodEntries: f.foodEntries, dayFlags: f.dayFlags, sleepNights: f.sleepNights, workouts: f.workouts, program: f.program, expenditure: null }, "3M", { today: f.today, tz: "UTC" });
+    const squat = t.liftWeeks.find((l) => l.name === "Squat")!;
+    expect(squat.fit?.clear).toBe(true);
+    expect(squat.fit!.toKg - squat.fit!.fromKg).toBeLessThan(-6);
+  });
+
+  it("calls a steadily rising lift clear, with a level from its recent weeks", () => {
+    const t = progressTimeline(inputs, "3M", now);
+    const squat = t.liftWeeks.find((l) => l.name === "Squat")!;
+    expect(squat.fit?.clear).toBe(true);
+    expect(squat.changeKg).toBeGreaterThan(2);
+    expect(squat.levelKg).not.toBeNull();
+    expect(squat.levelKg!).toBeGreaterThan(squat.fit!.fromKg);
   });
 });
