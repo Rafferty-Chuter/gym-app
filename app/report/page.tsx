@@ -28,6 +28,8 @@ import ReviewDecision from "@/components/report/ReviewDecision";
 import { SummaryCard } from "@/components/report/InsightCards";
 import ReportSections from "@/components/report/ReportSections";
 import LinkedReasonsCard from "@/components/report/LinkedReasons";
+import ConnectionsCard from "@/components/report/Connections";
+import { connections } from "@/lib/physique/connections";
 import { linkedReasons } from "@/lib/physique/linkedReasons";
 import { coverageLine, scorecard } from "@/lib/physique/weekScorecard";
 import { rateBands } from "@/lib/physique/targets";
@@ -136,6 +138,12 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     }).filter((l) => l.id === "weight");
   }, [analysis, report, prevReport, data.sleepNights, today, activeGoal, plannedSessions, unit]);
 
+  // L1: how sleep, food and weight change line up with the lifts over the 16 weeks to the report's last day.
+  const conn = useMemo(
+    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, unit }, { today: report.through, tz: now.tz }),
+    [workouts, data, unit, report.through, now.tz]
+  );
+
   // The strength engine's change since the phase began, per lift, for the training rows.
   const sincePhase = useMemo(() => new Map((analysis?.strength.lifts ?? []).map((l) => [l.name, l.changePct ?? null] as const)), [analysis]);
 
@@ -170,6 +178,8 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         <SummaryCard verdict={report.verdict} heading={insight?.heading ?? null} />
 
         <LinkedReasonsCard links={links} />
+
+        <ConnectionsCard result={conn} />
 
         {report.hasData && <ReportSections report={report} prev={prevReport.hasData ? prevReport : null} tiles={tiles} unit={unit} goal={activeGoal} sincePhase={sincePhase} />}
 

@@ -27,7 +27,21 @@ import { PrimaryButton, SecondaryButton } from "@/components/physique/ui";
 const WORKOUT_HISTORY_KEY = "workoutHistory";
 const SEED_TAG = "[seed]";
 
-type Preset = { id: string; label: string; spec: (today: string) => ScenarioSpec };
+type Scenario = ReturnType<typeof makeScenario>;
+type Preset = { id: string; label: string; spec: (today: string) => ScenarioSpec; /** A change to the generated data (dev only), e.g. an effect for the connections. */ post?: (sc: Scenario) => Scenario };
+
+/** Top sets 4% lighter after a night under 6.5 hours, so the report's connections have something to find (L1). */
+function shortNightsCost(sc: Scenario): Scenario {
+  const hours = new Map(sc.sleepNights.map((n) => [n.date, n.asleepMin / 60]));
+  return {
+    ...sc,
+    workouts: sc.workouts.map((w) => {
+      const h = hours.get(w.completedAt.slice(0, 10));
+      if (h == null || h >= 6.5) return w;
+      return { ...w, exercises: w.exercises.map((ex) => ({ ...ex, sets: ex.sets.map((st) => ({ ...st, weight: String(Math.round((parseFloat(st.weight) * 0.96) / 2.5) * 2.5) })) })) };
+    }),
+  };
+}
 
 /**
  * Scenario presets. The P5 rows mirror `lib/physique/__tests__/judgeHelpers.ts`
@@ -153,6 +167,25 @@ const PRESETS: Preset[] = [
       waist: { startCm: 86, changeCm: -1 },
     }),
   },
+  {
+    id: "connections",
+    label: "CONNECTIONS · 16 weeks, 3 sessions a week, top sets 4% lighter after nights under 6.5 h",
+    spec: (today) => ({
+      seed: 17,
+      days: 112,
+      startDate: startFor(today, 112),
+      bodyweightKg: 85,
+      trueTdeeKcal: 2800,
+      intake: "toTarget",
+      goal: { ratePctPerWeek: -0.5, targetKg: 78 },
+      sleep: { meanH: 7.0, sdH: 0.7, source: "manual", loggedShare: 1 },
+      lifts: [
+        { name: "Squat", startE1rm: 150, profile: "linear", changePct: 3, perWeek: 3, cv: 0.015 },
+        { name: "Bench Press", startE1rm: 110, profile: "linear", changePct: 2, perWeek: 3, cv: 0.015 },
+      ],
+    }),
+    post: shortNightsCost,
+  },
 ];
 
 /**
@@ -220,7 +253,8 @@ export default function SeedPhysiqueClient() {
     setStatus("Backing up first…");
     try {
       downloadAppLocalStorageSnapshot();
-      const sc = makeScenario(preset.spec(now.today));
+      const generated = makeScenario(preset.spec(now.today));
+      const sc = preset.post ? preset.post(generated) : generated;
       await clearPhysiqueData();
       await weighInsRepo.bulkUpsert(sc.weighIns);
       const meals = asMeals(sc.foodEntries);
