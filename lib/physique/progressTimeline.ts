@@ -135,6 +135,18 @@ export type TimelineInputs = {
 
 const meanOrNull = (xs: number[], min = WEEK_MIN_DAYS): number | null => (xs.length >= min ? mean(xs) : null);
 
+/**
+ * The range Progress opens on (PR3e): the whole history while it is
+ * shorter than three months, so a new user's charts are not mostly empty
+ * space, and three months after that.
+ */
+export function defaultRange(i: TimelineInputs, now: Now): ProgressRange {
+  const first = firstDataDate(i, now.tz);
+  if (!first) return "3M";
+  const weeks = dayDiff(weekStart(first), weekStart(now.today)) / 7 + 1;
+  return weeks < RANGE_WEEKS["3M"] ? "All" : "3M";
+}
+
 /** The earliest date anything was logged, or null with no data at all. */
 function firstDataDate(i: TimelineInputs, tz: string): LocalDate | null {
   const dates: LocalDate[] = [];

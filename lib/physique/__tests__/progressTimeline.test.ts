@@ -3,7 +3,7 @@ import { addDays, dayDiff } from "@/lib/dates";
 import { makeScenario } from "@/lib/physique/fixtures";
 import { computeExpenditure } from "@/lib/physique/expenditure";
 import { weekStart } from "@/lib/physique/food/week";
-import { LIFT_FIT_MIN_DAYS, MAX_COLUMNS, progressTimeline, rangeStart, RANGE_WEEKS, WEEK_MIN_DAYS, type TimelineInputs } from "@/lib/physique/progressTimeline";
+import { defaultRange, LIFT_FIT_MIN_DAYS, MAX_COLUMNS, progressTimeline, rangeStart, RANGE_WEEKS, WEEK_MIN_DAYS, type TimelineInputs } from "@/lib/physique/progressTimeline";
 
 const sc = makeScenario({
   seed: 5,
@@ -185,5 +185,14 @@ describe("Progress timeline: a lift's change only when it is clear (PR3)", () =>
     expect(squat.changeKg).toBeGreaterThan(2);
     expect(squat.levelKg).not.toBeNull();
     expect(squat.levelKg!).toBeGreaterThan(squat.fit!.fromKg);
+  });
+});
+
+describe("Progress timeline: the range it opens on (PR3e)", () => {
+  it("opens on the whole history while it is shorter than three months, then on three months", () => {
+    const short = { ...inputs, weighIns: sc.weighIns.slice(-20), foodEntries: sc.foodEntries.slice(-20), sleepNights: sc.sleepNights.slice(-20), workouts: sc.workouts.slice(-6) };
+    expect(defaultRange(short, now)).toBe("All");
+    expect(defaultRange(inputs, now)).toBe("3M");
+    expect(defaultRange({ ...inputs, weighIns: [], foodEntries: [], sleepNights: [], workouts: [] }, now)).toBe("3M");
   });
 });

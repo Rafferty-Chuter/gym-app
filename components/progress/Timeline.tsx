@@ -44,7 +44,7 @@ type RowSpec = { id: string; group?: string; label: string; color: string; href?
  * to that week's number and the week's dates show at the top. Tapping the
  * week again goes back to the range.
  */
-export default function Timeline({ t, range, onRange, unit, goalKg, focus }: { t: ProgressTimeline; range: ProgressRange; onRange: (r: ProgressRange) => void; unit: WeightUnit; /** The goal's target, drawn on the weight chart. */ goalKg?: number | null; focus?: TimelineFocus | null }) {
+export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIncomplete = false }: { t: ProgressTimeline; range: ProgressRange; onRange: (r: ProgressRange) => void; unit: WeightUnit; /** The goal's target, drawn on the weight chart. */ goalKg?: number | null; focus?: TimelineFocus | null; /** Findings read the food log as incomplete (PR3e): maintenance is estimated from that log, so its line and the gap to it would mislead. */ logIncomplete?: boolean }) {
   const weeks = t.weeks;
   const n = Math.max(1, weeks.length);
   const k = t.periodWeeks;
@@ -97,7 +97,8 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus }: { t
         s.kcal != null ? (
           <>
             {n0(s.kcal)} a day
-            {s.balanceKcal != null && (
+            {logIncomplete && " · log looks incomplete"}
+            {!logIncomplete && s.balanceKcal != null && (
               <>
                 {` · ${n0(Math.abs(s.balanceKcal))} ${s.balanceKcal < 0 ? "under" : "over"} `}
                 <Swatch color="var(--text-secondary)" />
@@ -106,8 +107,8 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus }: { t
             )}
           </>
         ) : null,
-      week: (w) => (w.kcal != null ? `${n0(w.kcal)} a day${w.balanceKcal != null ? ` · ${n0(Math.abs(w.balanceKcal))} ${w.balanceKcal < 0 ? "under" : "over"} maintenance` : ""}` : w.foodDays ? `${w.foodDays} ${w.foodDays === 1 ? "day" : "days"} logged` : "Not logged"),
-      chart: <CaloriesChart weeks={weeks} sel={sel} />,
+      week: (w) => (w.kcal != null ? `${n0(w.kcal)} a day${!logIncomplete && w.balanceKcal != null ? ` · ${n0(Math.abs(w.balanceKcal))} ${w.balanceKcal < 0 ? "under" : "over"} maintenance` : ""}` : w.foodDays ? `${w.foodDays} ${w.foodDays === 1 ? "day" : "days"} logged` : "Not logged"),
+      chart: <CaloriesChart weeks={weeks} sel={sel} maintenance={!logIncomplete} />,
     },
     {
       id: "protein",
@@ -289,20 +290,20 @@ function Bars({ weeks, value, target, color, sel }: { weeks: ProgressWeek[]; val
 }
 
 /** What was eaten against maintenance, the gap between them shaded: under the line is a deficit, over it a surplus. */
-function CaloriesChart({ weeks, sel }: { weeks: ProgressWeek[]; sel: number | null }) {
+function CaloriesChart({ weeks, sel, maintenance }: { weeks: ProgressWeek[]; sel: number | null; /** Draw maintenance and the gap to it; off when the log looks incomplete. */ maintenance: boolean }) {
   const n = weeks.length;
-  const all = weeks.flatMap((w) => [w.kcal, w.maintenanceKcal]).filter((x): x is number => x != null);
+  const all = weeks.flatMap((w) => [w.kcal, maintenance ? w.maintenanceKcal : null]).filter((x): x is number => x != null);
   if (!all.length) return null;
   const pad = Math.max(80, (Math.max(...all) - Math.min(...all)) * 0.18);
   const lo = Math.min(...all) - pad;
   const hi = Math.max(...all) + pad;
   const y = (v: number) => 100 - ((v - lo) / (hi - lo)) * 100;
-  const maint = weeks.map((w, k) => (w.maintenanceKcal != null ? { k, v: w.maintenanceKcal } : null)).filter((p): p is { k: number; v: number } => p != null);
+  const maint = weeks.map((w, k) => (maintenance && w.maintenanceKcal != null ? { k, v: w.maintenanceKcal } : null)).filter((p): p is { k: number; v: number } => p != null);
   const eaten = weeks.map((w, k) => (w.kcal != null ? { k, v: w.kcal } : null)).filter((p): p is { k: number; v: number } => p != null);
   // The gap, shaded over each run of weeks with both numbers.
   const runs: Array<Array<{ k: number; a: number; b: number }>> = [];
   weeks.forEach((w, k) => {
-    if (w.kcal == null || w.maintenanceKcal == null) return;
+    if (!maintenance || w.kcal == null || w.maintenanceKcal == null) return;
     const last = runs.at(-1);
     const p = { k, a: w.kcal, b: w.maintenanceKcal };
     if (last && last.at(-1)!.k === k - 1) last.push(p);

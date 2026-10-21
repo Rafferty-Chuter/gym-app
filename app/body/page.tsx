@@ -18,7 +18,7 @@ import GoalCard from "@/components/progress/GoalCard";
 import Timeline, { type TimelineFocus } from "@/components/progress/Timeline";
 import FindingsCard from "@/components/report/Findings";
 import ConnectionsCard from "@/components/report/Connections";
-import { progressTimeline, type ProgressRange } from "@/lib/physique/progressTimeline";
+import { defaultRange, progressTimeline, type ProgressRange } from "@/lib/physique/progressTimeline";
 import { connections } from "@/lib/physique/connections";
 import { referenceLift } from "@/lib/physique/liftEffect";
 import { FIND_WINDOW_DAYS, findings, type FindingId } from "@/lib/physique/findings";
@@ -78,11 +78,14 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const analysis = usePhysiqueAnalysis(now, unit);
   const workouts = useWorkouts();
   const expenditure = useExpenditure(now);
-  const [range, setRange] = useState<ProgressRange>("3M");
-  const timeline = useMemo(
-    () => progressTimeline({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, program: data.program, expenditure: expenditure?.series ?? null, unit }, range, now),
-    [data, workouts, expenditure, unit, range, now]
+  const timelineInputs = useMemo(
+    () => ({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, program: data.program, expenditure: expenditure?.series ?? null, unit }),
+    [data, workouts, expenditure, unit]
   );
+  // PR3e: a short history opens on all of it, so the charts are not mostly empty; a range picked stays picked.
+  const [pickedRange, setRange] = useState<ProgressRange | null>(null);
+  const range = pickedRange ?? defaultRange(timelineInputs, now);
+  const timeline = useMemo(() => progressTimeline(timelineInputs, range, now), [timelineInputs, range, now]);
   // PR2: connections read the chosen range, never less than the 16 weeks their minimums need.
   const connDays = range === "6M" || range === "All" ? dayDiff(timeline.from, today) + 1 : 0;
   const conn = useMemo(
@@ -156,7 +159,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         <FindingsCard items={found} onSelect={(f) => pick(f.id)} selectedId={picked} />
 
-        <Timeline t={timeline} range={range} onRange={setRange} unit={unit} goalKg={goal && !goal.completedAt && goal.type !== "maintain" ? goal.targetKg : null} focus={focus} />
+        <Timeline t={timeline} range={range} onRange={setRange} unit={unit} goalKg={goal && !goal.completedAt && goal.type !== "maintain" ? goal.targetKg : null} focus={focus} logIncomplete={found.some((f) => f.id === "underlog")} />
 
         {/* The records behind the weight line, one tap away (PR3). */}
         <section className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }} aria-label="Weigh-ins and waist">
