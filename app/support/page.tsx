@@ -62,5 +62,5 @@ export default function SupportPage() {
       body: <p>Gym AI gives general information about food, training and sleep, worked out from what you log. It is not medical advice. If you have a medical condition, are pregnant or have a history of disordered eating, talk to a doctor or registered dietitian before changing how you eat.</p>,
     },
   ];
-  return <DocPage title="Support" updated="21 October 2026" intro={<p>Help with Gym AI, and how to reach the person who builds it.</p>} sections={sections} />;
+  return <DocPage title="Support" updated="21 October 2026" sections={sections} />;
 }

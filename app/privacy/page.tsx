@@ -85,7 +85,6 @@ export default function PrivacyPage() {
     <DocPage
       title="Privacy"
       updated="21 October 2026"
-      intro={<p>Gym AI keeps your log on your phone. This page says exactly what is stored, where, and what is sent elsewhere to make a feature work.</p>}
       sections={SECTIONS}
     />
   );

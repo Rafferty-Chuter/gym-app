@@ -12,6 +12,7 @@ import { queueEmptyWorkout, workoutInProgress } from "@/lib/training/startWorkou
 import { loggedExercises } from "@/lib/training/exerciseHistory";
 import { getHardSets } from "@/lib/completedSets";
 import { localDateKey, addDays, type Now } from "@/lib/dates";
+import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import { useUnit } from "@/lib/unit-preference";
 import { parseWeightText } from "@/lib/units";
 import PageHeader from "@/components/ui/PageHeader";
@@ -128,7 +129,8 @@ function TrainContent({ now }: { now: Now }) {
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
         {/* No header plus (B2): "New routine" sits with the routines it makes. */}
-        <PageHeader caption={`${model.weekCount} ${model.weekCount === 1 ? "workout" : "workouts"} · last 7 days`} title="Train" />
+        {/* The date, as on the other tabs: the week's count is in the panel below. */}
+        <PageHeader caption={`Today · ${longLocalDate(now.today)}`} title="Train" />
 
         <button
           type="button"
@@ -205,9 +207,11 @@ function TrainContent({ now }: { now: Now }) {
         <section aria-label="Your routines">
           <div className="mb-2 flex items-center justify-between">
             <Caption>Routines</Caption>
-            <Link href="/templates/new" className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
-              New routine ›
-            </Link>
+            {templates.length > 0 && (
+              <Link href="/templates/new" className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                New routine ›
+              </Link>
+            )}
           </div>
           {templates.length > 0 ? (
             <RoutineList templates={templates} onChanged={() => setTemplates(getStoredTemplates())} />

@@ -183,30 +183,11 @@ export default function DescribePanel({ d, consumedKcal, targetKcal }: { d: Desc
   );
 }
 
-/** Tap to fill: what a good description looks like (polish). */
-const EXAMPLES: readonly string[] = ["2 eggs on toast with butter and a flat white", "Nando's half chicken, peri chips and a Coke Zero", "Chicken katsu curry from Wagamama", "Greek yoghurt, granola and blueberries"];
-
 function DescribeInput({ d }: { d: DescribeState }) {
   const len = d.text.length;
   const over = len > MAX_DESCRIBE_CHARS;
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3 px-1">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--green-dim)", color: "var(--green-strong)" }} aria-hidden>
-          <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-            <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" />
-            <path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z" />
-          </svg>
-        </span>
-        <span className="flex min-w-0 flex-col">
-          <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
-            Describe what you ate
-          </span>
-          <span className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
-            A meal, a takeaway order or a whole recipe
-          </span>
-        </span>
-      </div>
       <div className="relative">
         <textarea
           value={d.text}
@@ -216,7 +197,6 @@ function DescribeInput({ d }: { d: DescribeState }) {
           className="block w-full resize-none rounded-[16px] py-3.5 pl-4 pr-11 text-[15px] leading-relaxed outline-none focus:ring-1"
           style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }}
           aria-label="Describe what you ate, or paste a recipe"
-          aria-describedby="describe-hint"
         />
         {d.text && (
           <button type="button" onClick={() => d.setText("")} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }} aria-label="Clear the text">
@@ -226,31 +206,12 @@ function DescribeInput({ d }: { d: DescribeState }) {
           </button>
         )}
       </div>
-      {!d.text && (
-        <div className="flex flex-col gap-1.5">
-          <span className="px-1 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
-            Try
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {EXAMPLES.map((t) => (
-              <button key={t} type="button" onClick={() => d.setText(t)} className="rounded-full px-3 py-2 text-left text-[13px] transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }}>
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      <div className="flex items-center justify-between gap-3 px-1 text-[11px]">
-        <span id="describe-hint" style={{ color: "var(--text-tertiary)" }}>
-          You check every food and amount before anything is logged.
+      {/* The count only matters near the limit (C9). */}
+      {len > MAX_DESCRIBE_CHARS * 0.8 && (
+        <span className="self-end px-1 text-[11px]" style={{ color: over ? "var(--status-watch)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+          {len.toLocaleString("en-GB")} / {MAX_DESCRIBE_CHARS.toLocaleString("en-GB")}
         </span>
-        {/* The count only matters near the limit (C9). */}
-        {len > MAX_DESCRIBE_CHARS * 0.8 && (
-          <span className="shrink-0" style={{ color: over ? "var(--status-watch)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-            {len.toLocaleString("en-GB")} / {MAX_DESCRIBE_CHARS.toLocaleString("en-GB")}
-          </span>
-        )}
-      </div>
+      )}
       {d.error && (
         <p role="alert" className="flex items-start gap-2 rounded-[12px] px-3 py-2.5 text-[13px] leading-snug" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>
           <span className="mt-[5px]">

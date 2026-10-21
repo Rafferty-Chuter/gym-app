@@ -119,7 +119,7 @@ export default function ProfilePage() {
                   ))}
                 </span>
               }
-              sub="Body weights stay in kg underneath. Logged workouts switch to the new unit."
+              sub="Logged workouts switch to the new unit."
             />
             <Row
               label="Height"

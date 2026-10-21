@@ -147,7 +147,7 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           <p className="mt-2 text-[12px]" style={{ color: "var(--text-secondary)" }}>
             {model.summary.points.length === 0
               ? "The maintenance estimate starts once there is a weigh-in and a day of food."
-              : `Change since ${longLocalDate(model.summary.points[0].date)}, worked out from logged food and the weight trend.`}
+              : `Change since ${longLocalDate(model.summary.points[0].date)}.`}
           </p>
         </section>
 

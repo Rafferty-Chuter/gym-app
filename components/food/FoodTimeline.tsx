@@ -36,14 +36,9 @@ export default function FoodTimeline({ timeline, tz, onAddAt, onEdit, onCopyDay,
         </button>
       )}
       {rows.length === 0 && (
-        <div className="flex flex-col items-center gap-1 rounded-[16px] px-4 py-7 text-center" style={{ background: "var(--surface)" }}>
-          <p className="text-[15px] font-medium" style={{ color: "var(--text)" }}>
-            Nothing logged on this day
-          </p>
-          <p className="text-[13px]" style={{ color: "var(--text-tertiary)" }}>
-            Search, scan or describe a meal below.
-          </p>
-        </div>
+        <p className="rounded-[16px] px-4 py-7 text-center text-[15px]" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>
+          Nothing logged on this day
+        </p>
       )}
       {/* One card per hour, entries under hairlines (polish): the hour and its totals sit above, like MacroFactor's log. */}
       <ol className="flex flex-col gap-4">

@@ -8,7 +8,7 @@ export type DocSection = { title: string; body: ReactNode };
  * the date it was last changed, then titled sections. Server-rendered so
  * the App Store and testers can open it without the app's data.
  */
-export default function DocPage({ title, updated, intro, sections }: { title: string; updated: string; intro: ReactNode; sections: readonly DocSection[] }) {
+export default function DocPage({ title, updated, intro, sections }: { title: string; updated: string; intro?: ReactNode; sections: readonly DocSection[] }) {
   return (
     <main className="min-h-screen pb-16" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-5 pt-6 sm:px-6">
@@ -24,9 +24,11 @@ export default function DocPage({ title, updated, intro, sections }: { title: st
           </span>
           <h1 className="text-[34px] font-semibold leading-[1.05] tracking-[-0.02em]">{title}</h1>
         </header>
-        <div className="text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-          {intro}
-        </div>
+        {intro && (
+          <div className="text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            {intro}
+          </div>
+        )}
         {sections.map((s) => (
           <section key={s.title} className="flex flex-col gap-2" aria-label={s.title}>
             <h2 className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
