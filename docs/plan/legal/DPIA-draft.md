@@ -45,6 +45,8 @@ Related: the privacy notice (`/privacy`), `docs/plan/07-tester-ready.md` (TR1 co
 | Supabase `push_devices` | Push subscription, time zone, reminder time, logged dates for the last 9 days and the first date of each kind, hash of the Health Auto Export token | `supabase/migrations/0002_push.sql`, `lib/server/pushSchemas.ts` |
 | Vercel logs | Request logs (IP, time, path); our cost lines (client id, model, token counts, cost); zod issue paths; error messages. Never values | `lib/api/guard.ts`, `lib/assistantCostLogging.ts` |
 | Anthropic | Describe text (and coach requests when on), transiently | `app/api/food/parse/route.ts`, `app/api/assistant/route.ts` |
+| Vercel logs: crash reports (TR3) | Error message, stack, route, app version; numbers, quoted text, emails and URL queries scrubbed on the phone and again on the server; IP used only as a rate-limit key | `app/api/client-error/route.ts`, `lib/errors/clientError.ts` |
+| GitHub Actions artifacts (TR6) | Nightly `pg_dump` of the `public` and `auth` schemas (no sessions, tokens or audit log), encrypted with a passphrase (GnuPG AES-256), kept 30 days. The repo is public: anyone can download the encrypted file, so the passphrase is the only protection | `.github/workflows/db-backup.yml`, `docs/plan/backups.md` |
 
 Synced keys (`syncedKeys()` = every key with `includeInBackup` less `DEVICE_ONLY_KEYS`): `workoutHistory`, `workoutTemplates`, `userExerciseLibrary`, `onboardingProfile`, `userCoachingProfile`, unit and appearance settings, `trainingFocus`, `experienceLevel`, `priorityGoal`, `assistantThreadsV1`, `assistantSelectiveMemoryV1`, `assistantMemory`, and every `physique.v1.*` log key (`weighIns`, `foodEntries`, `savedFoods`, `dayFlags`, `sleepNights` (with HRV and resting HR), `waist`, `steps`, `importMeta`, `goal`, `goalHistory`, `profile`, `program`, `checkIns`, `foodPrefs`, `musclePriorities`, `deload`). Stay on the device: `activeWorkout`, `restTimerNotifySettings`, the assistant ids, `physique.v1.healthLink`, `pushLink`, `nativeHealth`, `onboarding`, `sync.v1.*`.
 
@@ -63,10 +65,11 @@ Synced keys (`syncedKeys()` = every key with `includeInBackup` less `DEVICE_ONLY
 | Vercel | Processor | Hosting; request logs | Functions for Apple Health, reminders and food search pinned to `lhr1` (London). Describe (`app/api/food/parse`) and the assistant routes are not pinned, so they run in the project's default region | `[FOUNDER]` check the project's default function region (Settings → Functions) and Vercel's DPA; record log retention on the current plan |
 | Open Food Facts | Recipient | Search words and barcodes only, sent by our server with our User-Agent | France | No personal data sent (`lib/server/off.ts`) |
 | Apple, Google or Mozilla push services | Recipient | The push message ("No weigh-in yet.", "Weekly report") to the subscription endpoint | Varies | `lib/server/push.ts`, `lib/physique/reminder.ts` `reminderMessage` (no numbers) |
+| GitHub | Processor | Encrypted database backups, 30 days | United States | `[FOUNDER]` GitHub's DPA (Customer Agreement); keep the passphrase in a password manager |
 | Tally | Processor (if used) | What a person writes in the feedback form | EU | `[FOUNDER]` FT6 |
 | Email provider for sign-in codes | Processor | Email address, code | `[FOUNDER]` Supabase's built-in sender or custom SMTP | `[FOUNDER]` |
 
-`[FOUNDER]` TR3 may add Sentry (error reports). If it does, add it here and to `/privacy`.
+TR3 chose the built-in `/api/client-error` route over Sentry; if Sentry is added later, add it here and to `/privacy`.
 
 **Data flow.**
 
@@ -87,7 +90,7 @@ Apple Health ──read on the phone──► phone
 
 - **Nature of the data.** Special category (health): weight, waist, body fat, sleep (times, stages), HRV, resting heart rate, steps, food intake, training. Also: email address, age, sex, height, goal, push endpoint, time zone, IP address in request logs. No criminal offence data. No precise location (time zone only).
 - **How much and how often.** Daily entries per person. PR4's end-to-end test with 16 weeks of made-up data synced 694 rows across 10 keys (`STATUS.md` PR4). Health Auto Export sends one row per metric per day. Describe: one request per use.
-- **How long.** Account: until deletion (TR1). Health Auto Export: until disconnect. Reminders: until off or 5 failed sends. Vercel logs: Vercel's retention for the plan. Anthropic: its retention for API inputs. `[FOUNDER]` decide what happens to an account, or a Health Auto Export device, that has not been used for a long time (for example delete after 12 months without a sign-in, with an email first); nothing in the code does this today.
+- **How long.** Account: until deletion (TR1); a deleted account stays in the encrypted backups until they age out (30 days, TR6). Health Auto Export: until disconnect. Reminders: until off or 5 failed sends. Vercel logs: Vercel's retention for the plan. Anthropic: its retention for API inputs. `[FOUNDER]` decide what happens to an account, or a Health Auto Export device, that has not been used for a long time (for example delete after 12 months without a sign-in, with an email first); nothing in the code does this today.
 - **How many people.** 5 to 20 testers for 6 to 8 weeks (FT8). `[FOUNDER]` expected numbers after the test.
 - **Geography.** UK testers. Data in London (Supabase, pinned Vercel functions) and the United States (Anthropic, unpinned Vercel functions). `[FOUNDER]` is the TestFlight link limited to the UK or open?
 
@@ -154,7 +157,7 @@ Apple Health ──read on the phone──► phone
 | R11 | **Harm from verdicts** (for example someone with disordered eating pushed toward a deficit). Safety question, calorie floor, no deficit under 18, silence below data gates. | Possible | Significant | Medium |
 | R12 | **Secrets shared in an old cloud session** (service-role key, CRON_SECRET, Vercel token, Anthropic key) could give access to every user's server rows. | Possible | Severe | High |
 | R13 | **No breach procedure.** A breach must be reported to the ICO within 72 hours where it risks people's rights. | Remote | Significant | Medium |
-| R14 | **Database loss** (Supabase Free has no backups): synced data lost if the project fails. | Possible | Significant | Medium |
+| R14 | **Database loss** (Supabase Free has no backups): synced data lost if the project fails. TR6 adds backups, which are themselves a copy of everyone's health data in a public repo's artifacts, protected only by the passphrase. | Possible | Significant | Medium |
 
 ---
 
@@ -175,7 +178,7 @@ Apple Health ──read on the phone──► phone
 | R11 | Existing safety measures; testers' check-ins ask how verdicts felt. | Reduced | Low | `[FOUNDER]` |
 | R12 | FT5: rotate every shared secret, update Vercel and `.env.local`, redeploy. | Eliminated | Low | `[FOUNDER]` |
 | R13 | A one-page breach plan: who decides, how to assess, ICO report within 72 hours, tell affected people when high risk; keep a breach log. | Reduced | Low | `[FOUNDER]` |
-| R14 | TR6 nightly encrypted `pg_dump`, kept 30 days, restore tested. | Reduced | Low | `[FOUNDER]` |
+| R14 | TR6 nightly encrypted `pg_dump`, kept 30 days, restore tested; a long random passphrase kept only in a password manager; consider making the repo private. | Reduced | Low | `[FOUNDER]` |
 
 ---
 

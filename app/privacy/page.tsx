@@ -72,9 +72,8 @@ export default function PrivacyPage() {
           {/* src: lib/sync/run.ts syncedKeys (every backup key less DEVICE_ONLY_KEYS) over lib/storage/keys.ts: weighIns, waist, foodEntries, sleepNights (with HRV and resting HR), steps, workoutHistory, workoutTemplates, goal, profile, settings, assistantThreadsV1 */}
           {/* src: supabase/migrations/0003_sync.sql (sync_records, each user reads their own rows only); app/account/page.tsx (signInWithOtp, email code). Region: docs/plan/03-architecture.md A3 (eu-west-2), not code: the founder confirms it in the Supabase dashboard */}
           <p>Your log (weight, waist, food, sleep and heart readings, workouts, routines, goal, profile, settings, coach chats) is then copied to your account, stored by Supabase in London with your email address.</p>
-          {/* src: lib/sync/run.ts DEVICE_ONLY_KEYS (activeWorkout, device ids); includeInBackup false in lib/storage/keys.ts (physique.v1.healthLink, pushLink, nativeHealth) */}
-          {/* TR1: Profile → Account → Stop syncing. Today Sign out (app/account/page.tsx) stops sync and keeps the data */}
-          <p>A workout in progress and your Apple Health and reminder links stay on the phone. Profile → Account → Stop syncing ends it.</p>
+          {/* TR1: Profile → Account → Stop syncing. Today Sign out (app/account/page.tsx) stops sync and keeps the data. What never syncs (DEVICE_ONLY_KEYS, includeInBackup false) is listed in the DPIA, step 2 */}
+          <p>Profile → Account → Stop syncing ends it.</p>
         </>
       ),
     },
@@ -122,7 +121,11 @@ export default function PrivacyPage() {
           <li>Anthropic, in the United States: Describe and the coach. Its terms forbid training on this data and cover transfers from the UK; ask us for a copy.</li>
           {/* src: preferredRegion "lhr1" in app/api/ingest/hae, health/pull, push/*, food/search, food/barcode; lib/api/guard.ts and lib/assistantCostLogging.ts (client id, token counts and cost; zod issue paths, never values). Request logs: Vercel, not code */}
           <li>Vercel hosts the app, with the Apple Health, reminder and food search parts in London, and keeps short-lived request logs (IP address, time, page). Our own logs never hold what you typed, ate, weighed or slept.</li>
-          {/* src: lib/server/push.ts sendPush (web-push to the subscription's endpoint); NEXT_PUBLIC_TALLY_FEEDBACK_URL in app/profile/page.tsx, app/support/page.tsx */}
+          {/* src: lib/errors/reportClientError.ts → app/api/client-error/route.ts (preferredRegion lhr1; lib/errors/clientError.ts scrubMessage removes every number, quoted text and email; the address is a rate-limit key, never logged) */}
+          <li>Error reports carry the error, the screen and the app version, with numbers removed.</li>
+          {/* src: .github/workflows/db-backup.yml (pg_dump, GnuPG AES-256, artifact kept 30 days); docs/plan/backups.md */}
+          <li>GitHub keeps encrypted nightly copies of our database for 30 days.</li>
+          {/* src: lib/server/push.ts sendPush (web-push to the subscription's endpoint); lib/feedback.ts FEEDBACK_URL (NEXT_PUBLIC_TALLY_FEEDBACK_URL) */}
           <li>Also your phone&apos;s push service and, if you use the feedback form, Tally.</li>
         </ul>
       ),
@@ -165,7 +168,7 @@ export default function PrivacyPage() {
       body: (
         /* src: app/profile/page.tsx "Move to another phone" → app/dev/data-transfer (every backup key as text). One month: UK GDPR Art 12(3), not code */
         <p>
-          You can ask for a copy of your data, and for us to correct it, delete it, or limit or stop using it. Profile → Move to another phone copies everything on your phone. To ask, <Reach subject="My data" />. We reply within a month.
+          You can ask for a copy of your data, or for us to correct, delete, limit or stop using it. Profile → Move to another phone copies everything on your phone. To ask, <Reach subject="My data" />. We reply within a month.
         </p>
       ),
     },

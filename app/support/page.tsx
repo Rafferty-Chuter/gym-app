@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import DocPage, { type DocSection } from "@/components/ui/DocPage";
+import { FEEDBACK_URL } from "@/lib/feedback";
 
 export const metadata: Metadata = { title: "Support · Gym AI", description: "Help with Gym AI and how to get in touch." };
 
@@ -9,7 +10,7 @@ const linkStyle = { color: "var(--text)" };
 /** Support (polish, App Store readiness): how to reach us, and answers to what testers ask first. */
 export default function SupportPage() {
   const email = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
-  const form = process.env.NEXT_PUBLIC_TALLY_FEEDBACK_URL;
+  const form = FEEDBACK_URL;
   const sections: DocSection[] = [
     {
       title: "Getting in touch",
@@ -26,14 +27,14 @@ export default function SupportPage() {
           )}
           {form && (
             <li>
-              Or use the{" "}
+              {email ? "Or use the" : "Use the"}{" "}
               <a href={form} className="underline" style={linkStyle} target="_blank" rel="noopener noreferrer">
                 feedback form
               </a>
-              , also under Profile → Send feedback. A screenshot helps.
+              , also at the top of Profile. A screenshot helps.
             </li>
           )}
-          {!email && !form && <li>Use Send feedback in Profile. A screenshot helps.</li>}
+          {!email && !form && <li>This version has no contact details set yet.</li>}
         </ul>
       ),
     },
