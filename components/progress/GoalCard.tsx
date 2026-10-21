@@ -53,7 +53,7 @@ const NOT_COACHED = new Set(["SAFE-0", "SAFE-3", "SAFE-4", "SAFE-5"]);
  * weekly report. Facts first; the long reasoning lives in the report and,
  * later, the assistant.
  */
-export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, unit }: { analysis: PhysiqueAnalysis | null; goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit }) {
+export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, unit, example = false }: { analysis: PhysiqueAnalysis | null; goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit; /** Drawn from the made-up example (PR5): no links into the person's own goal or report. */ example?: boolean }) {
   const active = goal && !goal.completedAt ? goal : null;
   const trend = useMemo(() => latestTrend(weighIns.filter((w) => w.date <= today)), [weighIns, today]);
   const progress = useMemo(() => goalProgress(active, weighIns, today), [active, weighIns, today]);
@@ -80,9 +80,9 @@ export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, un
           <span className="text-[12px] font-medium" style={{ color: "var(--text-tertiary)" }}>
             {heading}
           </span>
-          <Link href="/body/goal" className="text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }} aria-label={active ? "Change goal" : "Set goal"}>
+          {!example && <Link href="/body/goal" className="text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }} aria-label={active ? "Change goal" : "Set goal"}>
             {active ? "Change" : "Set goal"}
-          </Link>
+          </Link>}
         </div>
 
         <div className="mt-1.5 flex items-end justify-between gap-3">
@@ -151,7 +151,7 @@ export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, un
         </p>
       ))}
 
-      <Link href={`/report?week=${reportWeek}`} className="flex min-h-[48px] items-center justify-between gap-3 px-4 py-2.5 transition-colors active:bg-[var(--surface-raised)]" style={divider} aria-label={`Weekly report, ${shortLocalDate(reportWeek)} to ${shortLocalDate(addDays(reportWeek, 6))}. Open`}>
+      {!example && <Link href={`/report?week=${reportWeek}`} className="flex min-h-[48px] items-center justify-between gap-3 px-4 py-2.5 transition-colors active:bg-[var(--surface-raised)]" style={divider} aria-label={`Weekly report, ${shortLocalDate(reportWeek)} to ${shortLocalDate(addDays(reportWeek, 6))}. Open`}>
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
             Weekly report
@@ -161,7 +161,7 @@ export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, un
           </span>
         </span>
         <Chevron />
-      </Link>
+      </Link>}
     </section>
   );
 }

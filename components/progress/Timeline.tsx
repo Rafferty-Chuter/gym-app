@@ -45,7 +45,7 @@ type RowSpec = { id: string; group?: string; label: string; color: string; href?
  * to that week's number and the week's dates show at the top. Tapping the
  * week again goes back to the range.
  */
-export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIncomplete = false }: { t: ProgressTimeline; range: ProgressRange; onRange: (r: ProgressRange) => void; unit: WeightUnit; /** The goal's target, drawn on the weight chart. */ goalKg?: number | null; focus?: TimelineFocus | null; /** Findings read the food log as incomplete (PR3e): maintenance is estimated from that log, so its line and the gap to it would mislead. */ logIncomplete?: boolean }) {
+export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIncomplete = false, readOnly = false }: { t: ProgressTimeline; range: ProgressRange; onRange: (r: ProgressRange) => void; unit: WeightUnit; /** The goal's target, drawn on the weight chart. */ goalKg?: number | null; focus?: TimelineFocus | null; /** Findings read the food log as incomplete (PR3e): maintenance is estimated from that log, so its line and the gap to it would mislead. */ logIncomplete?: boolean; /** The made-up example (PR5): no links to the person's own exercise pages. */ readOnly?: boolean }) {
   const weeks = t.weeks;
   const n = Math.max(1, weeks.length);
   const k = t.periodWeeks;
@@ -59,7 +59,7 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
     group: "strength",
     label: l.name,
     color: "var(--chart-lift)",
-    href: `/exercise?name=${encodeURIComponent(l.name)}`,
+    href: readOnly ? undefined : `/exercise?name=${encodeURIComponent(l.name)}`,
     // The change shows only when the line is clearly not flat (LIFT_FIT_Z); otherwise nothing is said about it, as a week's best swings a few percent on its own.
     summary: l.levelKg != null ? `${formatWeight(l.levelKg, unit, 0)} est. 1RM${l.changeKg != null ? ` · ${formatEffect(l.changeKg, unit)}` : ""}` : null,
     week: (w) => {
@@ -163,8 +163,12 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
     ...watchRows(weeks, s, sel),
   ];
 
+  // PR5: a measure with nothing in the range yet is left out, named once at the foot, rather than a row of "Not enough logged yet".
+  const shown = rows.filter((r) => r.summary != null);
+  const waiting = rows.filter((r) => r.summary == null && r.group !== "strength").map((r) => r.label.toLowerCase());
   const w = sel != null ? weeks[sel] : null;
   const mid = weeks[Math.floor((weeks.length - 1) / 2)];
+  if (!shown.length) return null;
   const bright = (r: RowSpec) => !focus || focus.charts.includes(r.id) || (r.group != null && focus.charts.includes(r.group));
   return (
     <section id="timeline" aria-label="Over time" className="scroll-mt-20 overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
@@ -212,7 +216,7 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
           )}
         {/* The picked week, one column through every chart. */}
         {sel != null && <span className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${(sel / n) * 100}%`, width: `${100 / n}%`, background: "var(--surface-raised)", borderRadius: 4 }} />}
-        {rows.map((r, i) => (
+        {shown.map((r, i) => (
           <div key={r.id} id={r.id} className="relative z-[1] scroll-mt-24 pb-3 pt-2.5 transition-opacity" style={{ borderTop: i === 0 ? undefined : "1px solid var(--border)", opacity: bright(r) ? 1 : 0.3 }}>
             <div className="mb-1.5 flex items-baseline justify-between gap-2">
               {r.href ? (
@@ -230,7 +234,7 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
                 </span>
               )}
               <span className={`min-w-0 truncate text-[11px] ${w ? "font-semibold" : ""}`} style={{ color: w ? "var(--text)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                {w ? r.week(w) : (r.summary ?? "Not enough logged yet")}
+                {w ? r.week(w) : r.summary}
               </span>
             </div>
             <div className="relative" style={{ height: r.height ?? 52 }}>
@@ -240,6 +244,11 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
         ))}
       </div>
 
+      {waiting.length > 0 && (
+        <p className="mx-4 border-t pt-2.5 text-[12px] leading-snug" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
+          {waiting.length === 1 ? waiting[0].charAt(0).toUpperCase() + waiting[0].slice(1) : `${waiting.slice(0, -1).join(", ").replace(/^./, (c) => c.toUpperCase())} and ${waiting.at(-1)}`} {waiting.length === 1 ? "joins" : "join"} once there&apos;s a week of {waiting.length === 1 ? "it" : "them"}.
+        </p>
+      )}
       <div className="mx-4 flex justify-between pb-3 pt-1 text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }} aria-hidden>
         <span>{weeks[0] ? shortLocalDate(weeks[0].start) : ""}</span>
         <span>{mid && weeks.length > 2 ? shortLocalDate(mid.start) : ""}</span>
