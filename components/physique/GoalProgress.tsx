@@ -12,7 +12,7 @@ import { formatWeight, type WeightUnit } from "@/lib/units";
 import type { LocalDate } from "@/lib/dates";
 
 /** MacroFactor's goal waterfall: one bar per week, light toward the goal, dark away, grey remaining. */
-export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, unit }: { goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags?: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit }) {
+export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, unit, bare = false }: { goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags?: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit; /** Inside a panel that draws the surface (Body's progress group). */ bare?: boolean }) {
   const p = useMemo(() => goalProgress(goal, weighIns, today), [goal, weighIns, today]);
   const eta = useMemo(() => goalEta(goal, weighIns, dayFlags, today), [goal, weighIns, dayFlags, today]);
   const plan = useMemo(() => phasePlan(goal, p, eta, today), [goal, p, eta, today]);
@@ -20,7 +20,7 @@ export default function GoalProgress({ goal, weighIns, dayFlags = {}, today, uni
   // One bar of done against the whole goal (B2). The weekly bars it replaced repeated the weight chart above.
   const share = p.totalKg > 0 ? Math.min(1, Math.max(0, p.doneKg / p.totalKg)) : 0;
   return (
-    <section className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="Goal progress">
+    <section className={bare ? "p-4" : "rounded-[16px] p-4"} style={bare ? undefined : { background: "var(--surface)" }} aria-label="Goal progress">
       <div className="flex items-baseline justify-between">
         <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
           Goal progress

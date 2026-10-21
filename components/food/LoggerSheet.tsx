@@ -374,11 +374,11 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
               </button>
             </div>
             {savedList.length === 0 ? (
-              <p className="py-4 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
+              <p className="px-1 py-4 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
                 {saved.length === 0 ? "No saved foods yet. Everything you log is kept here for next time." : "No match."}
               </p>
             ) : (
-              <ul className="flex flex-col">
+              <ul className="flex flex-col divide-y divide-[var(--border)] overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
                 {savedList.map((s) =>
                   foodRow(
                     s,

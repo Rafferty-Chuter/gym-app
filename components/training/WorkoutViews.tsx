@@ -47,7 +47,7 @@ export function StatsStrip({ stats, records, unit }: { stats: WorkoutStats; reco
     { label: "Records", value: String(records), good: records > 0 },
   ];
   return (
-    <dl className="grid grid-cols-4 overflow-hidden rounded-[12px]" style={{ background: "var(--surface)" }}>
+    <dl className="grid grid-cols-4 overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
       {cells.map((c, i) => (
         <div key={c.label} className="flex min-w-0 flex-col gap-1 px-3 py-3" style={i > 0 ? { borderLeft: "1px solid var(--border)" } : undefined}>
           <dt className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
@@ -76,7 +76,7 @@ export function RecordMark({ kinds }: { kinds: readonly RecordKind[] }) {
 export function RecordList({ records, unit }: { records: readonly WorkoutRecord[]; unit: string }) {
   if (records.length === 0) return null;
   return (
-    <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+    <ul className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
       {records.map((r, i) => (
         <li key={`${r.name}-${r.kind}-${i}`} className="flex min-h-[56px] items-center justify-between gap-3 px-4 py-2">
           <span className="flex min-w-0 flex-col">
@@ -100,7 +100,7 @@ export function RecordList({ records, unit }: { records: readonly WorkoutRecord[
 export function ExerciseBestList({ workout, recordKinds, unit, linked = true }: { workout: StoredWorkout; recordKinds: Map<string, RecordKind[]>; unit: string; linked?: boolean }) {
   const rows = (workout.exercises ?? []).filter((ex) => getCompletedLoggedSets(ex.sets ?? []).length > 0);
   return (
-    <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+    <ul className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
       {rows.map((ex, i) => {
         const hard = getCompletedLoggedSets(ex.sets ?? []).filter((s) => setTypeOf(s) !== "warmup").length;
         const kinds = recordKinds.get(exerciseIdentity(ex)) ?? [];
@@ -152,7 +152,7 @@ export function ExerciseSetsList({ workout, recordKinds, unit }: { workout: Stor
         let n = 0;
         const kinds = recordKinds.get(exerciseIdentity(ex)) ?? [];
         return (
-          <section key={`${ex.name}-${i}`} className="overflow-hidden rounded-[12px]" style={{ background: "var(--surface)" }} aria-label={ex.name}>
+          <section key={`${ex.name}-${i}`} className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }} aria-label={ex.name}>
             <Link href={exerciseHref(ex)} className="flex min-h-[52px] items-center gap-2 px-4 py-2 transition-colors active:bg-[var(--surface-raised)]">
               <span className="min-w-0 flex-1 truncate text-[16px] font-semibold" style={{ color: "var(--text)" }}>
                 {ex.name}

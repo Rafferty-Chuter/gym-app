@@ -72,7 +72,7 @@ export default function TodayStrip() {
 
   const ready = hydrated && now && day;
   const nowIso = () => new Date().toISOString();
-  const tile = "flex min-h-[112px] flex-col justify-between rounded-[12px] px-3 py-2.5 text-left transition-colors active:bg-[var(--surface-raised)] disabled:opacity-60";
+  const tile = "flex min-h-[112px] flex-col justify-between rounded-[16px] px-3 py-2.5 text-left transition-colors active:bg-[var(--surface-raised)] disabled:opacity-60";
   const tileStyle = { background: "var(--surface)" };
 
   // Weight tile words: the trend and its rate when the engine has one, else the last entry.
@@ -81,7 +81,7 @@ export default function TodayStrip() {
 
   return (
     <>
-      <section className="flex flex-col gap-4 rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="Nutrition today">
+      <section className="flex flex-col gap-4 rounded-[16px] p-4" style={{ background: "var(--surface)" }} aria-label="Nutrition today">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
             Nutrition
@@ -180,7 +180,7 @@ function Sparkline({ points }: { points: readonly number[] }) {
   const path = points.map((v, i) => `${i === 0 ? "M" : "L"}${((i / (points.length - 1)) * (w - 2) + 1).toFixed(1)},${(h - 2 - ((v - min) / span) * (h - 4)).toFixed(1)}`).join(" ");
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="block w-full" style={{ height: h }} preserveAspectRatio="none" aria-hidden>
-      <path d={path} fill="none" stroke="var(--text)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <path d={path} fill="none" stroke="var(--chart-trend)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }

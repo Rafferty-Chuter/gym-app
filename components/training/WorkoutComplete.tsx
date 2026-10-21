@@ -80,7 +80,7 @@ export default function WorkoutComplete({
         )}
 
         {routineChanges && routineChanges.length > 0 && routineName && (
-          <section className="flex flex-col gap-3 rounded-[12px] px-4 py-4" style={{ background: "var(--surface)" }} aria-label="Routine changes">
+          <section className="flex flex-col gap-3 rounded-[16px] px-4 py-4" style={{ background: "var(--surface)" }} aria-label="Routine changes">
             <div className="flex flex-col gap-1">
               <p className="text-[15px] font-semibold">Update &ldquo;{routineName}&rdquo;?</p>
               <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>

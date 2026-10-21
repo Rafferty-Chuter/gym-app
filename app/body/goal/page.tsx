@@ -191,7 +191,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
               <span style={{ color: "var(--text)" }}>{STATUS_LABEL[status]}</span>
               <span>· {statusSource === "lifts" ? "from your lifts" : statusSource === "years" ? "from your training years" : "set by you"}</span>
             </button>
-            <div className="rounded-[12px] px-4 py-3" style={{ background: "var(--surface)" }}>
+            <div className="rounded-[16px] px-4 py-3" style={{ background: "var(--surface)" }}>
               <div className="flex items-baseline justify-between">
                 <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ fontVariantNumeric: "tabular-nums" }}>
                   {formatRate(draft.rate)}
@@ -230,7 +230,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
                 role="checkbox"
                 aria-checked={confirmedOutside}
                 onClick={() => setConfirmedOutside((c) => !c)}
-                className="flex items-start gap-3 rounded-[12px] px-4 py-3 text-left"
+                className="flex items-start gap-3 rounded-[16px] px-4 py-3 text-left"
                 style={{ background: "var(--surface)", border: `1px solid ${confirmedOutside ? "var(--border-strong)" : "var(--border)"}` }}
               >
                 <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md" style={{ background: confirmedOutside ? "var(--primary)" : "var(--surface-raised)", color: "var(--text-on-primary)" }} aria-hidden>
@@ -281,7 +281,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
               role="switch"
               aria-checked={startToday}
               onClick={() => setStartToday((s) => !s)}
-              className="flex min-h-[56px] items-center justify-between rounded-[12px] px-4 text-left"
+              className="flex min-h-[56px] items-center justify-between rounded-[16px] px-4 text-left"
               style={{ background: "var(--surface)" }}
             >
               <span className="flex flex-col">
@@ -296,7 +296,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
             </button>
 
             {ctx.recentCutEnded && draft.type === "gain" && (
-              <div className="flex flex-col gap-2 rounded-[12px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+              <div className="flex flex-col gap-2 rounded-[16px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
                 <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                   You finished a cut recently. Running 2 to 4 weeks at maintenance first lets the new maintenance be measured before the gain starts.
                 </p>
@@ -306,7 +306,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
               </div>
             )}
 
-            <div className="flex flex-col gap-2 rounded-[12px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <div className="flex flex-col gap-2 rounded-[16px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
               <p className="text-[15px]">Are you pregnant, or have you had an eating disorder?</p>
               <div className="flex gap-2" role="radiogroup" aria-label="Safety question">
                 {[

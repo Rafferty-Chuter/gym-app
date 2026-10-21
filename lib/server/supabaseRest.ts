@@ -93,6 +93,15 @@ export async function getDevice(cfg: SupabaseConfig, deviceHash: string): Promis
   return rows[0] ?? null;
 }
 
+/** Everything stored for a device: its samples, then its device row. Used when the user disconnects. */
+export async function deleteHealthDevice(cfg: SupabaseConfig, deviceHash: string): Promise<void> {
+  const h = encodeURIComponent(deviceHash);
+  const samples = await fetch(`${cfg.url}/rest/v1/health_samples?device_hash=eq.${h}`, { method: "DELETE", headers: headers(cfg, { Prefer: "return=minimal" }) });
+  if (!samples.ok) throw new Error(`samples delete failed: ${samples.status}`);
+  const device = await fetch(`${cfg.url}/rest/v1/health_devices?device_hash=eq.${h}`, { method: "DELETE", headers: headers(cfg, { Prefer: "return=minimal" }) });
+  if (!device.ok) throw new Error(`device delete failed: ${device.status}`);
+}
+
 /** Samples received after `since` (ISO), oldest first, capped. */
 export async function listSamples(cfg: SupabaseConfig, deviceHash: string, since: string | null, limit = 2000): Promise<SampleRow[]> {
   const params = new URLSearchParams({ device_hash: `eq.${deviceHash}`, select: "metric,day,value,source,received_at", order: "received_at.asc", limit: String(limit) });

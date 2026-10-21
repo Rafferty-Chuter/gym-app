@@ -46,6 +46,9 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: () => void; la
  * reminders, Apple Health, data. Every row saves on the tap. Nothing here
  * is a form to submit.
  */
+/** Shown under About; testers quote it in feedback. */
+const APP_VERSION = "1.0 beta";
+
 export default function ProfilePage() {
   const hydrated = useIsHydrated();
   const router = useRouter();
@@ -209,8 +212,22 @@ export default function ProfilePage() {
             <Row label="Move to another phone" sub="Copy everything as text and paste it there" value="" trailing={<Chevron />} onClick={() => router.push("/dev/data-transfer")} ariaLabel="Move to another phone. Open" />
             {feedbackUrl && <Row label="Send feedback" sub="Opens a short form" value="" trailing={<Chevron />} onClick={() => window.open(feedbackUrl, "_blank", "noopener,noreferrer")} ariaLabel="Send feedback. Opens in a new tab" />}
           </RowGroup>
+          <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+            Your log is stored on this phone. Move it across before switching phones.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-2" aria-label="About">
+          <Caption>About</Caption>
+          <RowGroup>
+            <Row label="Privacy" sub="What is stored and what leaves the phone" value="" trailing={<Chevron />} onClick={() => router.push("/privacy")} ariaLabel="Privacy policy. Open" />
+            <Row label="Help and support" sub="Questions, feedback, deleting your data" value="" trailing={<Chevron />} onClick={() => router.push("/support")} ariaLabel="Help and support. Open" />
+          </RowGroup>
+          <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+            General information, not medical advice. Food data: McCance and Widdowson&apos;s Composition of Foods (UK, Open Government Licence v3.0) and Open Food Facts (Open Database Licence).
+          </p>
           <p className="pb-2 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-            Everything stays on this phone. Export before switching phones.
+            Gym AI {APP_VERSION}
           </p>
         </section>
       </div>

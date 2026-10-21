@@ -72,8 +72,8 @@ const TABS: BottomTab[] = [
 
 export default function BottomTabs() {
   const pathname = usePathname();
-  // The welcome screen stands alone; the tabs would only invite skipping it.
-  if (pathname === "/welcome") return null;
+  // The welcome screen stands alone; the tabs would only invite skipping it. Privacy and support are reading pages, opened from the App Store too.
+  if (pathname === "/welcome" || pathname === "/privacy" || pathname === "/support") return null;
 
   function isActive(tab: BottomTab) {
     if (tab.href === "/") return pathname === "/";

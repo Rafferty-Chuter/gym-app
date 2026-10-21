@@ -66,7 +66,7 @@ export default function HistoryPage() {
               <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
                 {g.label} · {g.items.length} {g.items.length === 1 ? "workout" : "workouts"}
               </p>
-              <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+              <ul className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
                 {g.items.map((w) => {
                   const st = workoutStats(w);
                   const recs = records.get(w.completedAt) ?? [];

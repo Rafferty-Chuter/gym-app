@@ -15,11 +15,13 @@ import {
   goalStore,
   profileStore,
   programStore,
+  savedFoodsRepo,
   sleepNightsRepo,
   waistRepo,
   weighInsRepo,
 } from "@/lib/physique/io/repos";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
+import type { FoodEntry, SavedFood } from "@/lib/physique/types";
 import { PrimaryButton, SecondaryButton } from "@/components/physique/ui";
 
 const WORKOUT_HISTORY_KEY = "workoutHistory";
@@ -153,6 +155,49 @@ const PRESETS: Preset[] = [
   },
 ];
 
+/**
+ * Realistic meals for the demo (polish): each day's single "Day total" becomes
+ * breakfast, lunch, a snack and dinner with real names and local times, the
+ * parts adding up exactly to the day's kcal and macros, so every engine read
+ * is unchanged and the Food tab looks as it will for a real user.
+ */
+const MEALS: ReadonlyArray<{ time: string; share: number; foods: ReadonlyArray<readonly [string, string]> }> = [
+  { time: "08:05", share: 0.22, foods: [["Porridge with banana and honey", "1 bowl"], ["Greek yoghurt, granola and berries", "1 bowl"], ["2 eggs on sourdough toast", "2 slices"], ["Protein pancakes with blueberries", "3 pancakes"]] },
+  { time: "13:10", share: 0.3, foods: [["Chicken, rice and broccoli", "1 box"], ["Tuna sandwich and an apple", "1 sandwich"], ["Chicken Caesar wrap", "1 wrap"], ["Beef chilli with rice", "1 bowl"]] },
+  { time: "16:20", share: 0.13, foods: [["Whey protein shake", "1 scoop"], ["Protein bar", "1 bar"], ["Cottage cheese and pineapple", "1 pot"], ["Rice cakes with peanut butter", "3 cakes"]] },
+  { time: "19:40", share: 0.35, foods: [["Salmon, new potatoes and green beans", "1 plate"], ["Turkey mince bolognese", "1 plate"], ["Chicken stir-fry with noodles", "1 plate"], ["Steak, sweet potato and salad", "1 plate"]] },
+];
+
+const savedIdFor = (label: string) => `seed-sf-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+function asMeals(entries: readonly FoodEntry[]): FoodEntry[] {
+  return entries.flatMap((e, dayIndex) => {
+    if (e.label !== "Day total") return [e];
+    const out: FoodEntry[] = [];
+    const left = { kcal: e.kcal, proteinG: e.proteinG, carbsG: e.carbsG, fatG: e.fatG };
+    MEALS.forEach((m, i) => {
+      const last = i === MEALS.length - 1;
+      const part = (v: number, key: keyof typeof left) => (last ? left[key] : Math.round(v * m.share));
+      const meal = { kcal: part(e.kcal, "kcal"), proteinG: part(e.proteinG, "proteinG"), carbsG: part(e.carbsG, "carbsG"), fatG: part(e.fatG, "fatG") };
+      for (const k of Object.keys(left) as Array<keyof typeof left>) left[k] -= meal[k];
+      const [label, serving] = m.foods[dayIndex % m.foods.length];
+      out.push({ ...e, ...meal, id: `${e.id}-${i}`, label, serving, time: m.time, method: "saved", savedFoodId: savedIdFor(label) });
+    });
+    return out;
+  });
+}
+
+/** The demo meals as saved foods, so the logger's go-tos and latest list fill as they do for a real user. */
+function savedFromMeals(entries: readonly FoodEntry[]): SavedFood[] {
+  const byId = new Map<string, SavedFood>();
+  for (const e of [...entries].sort((a, b) => (a.date < b.date ? -1 : 1))) {
+    if (!e.savedFoodId) continue;
+    const prev = byId.get(e.savedFoodId);
+    byId.set(e.savedFoodId, { id: e.savedFoodId, label: e.label, kcal: e.kcal, proteinG: e.proteinG, carbsG: e.carbsG, fatG: e.fatG, serving: e.serving, lastUsedAt: `${e.date}T${e.time ?? "12:00"}:00.000Z`, useCount: (prev?.useCount ?? 0) + 1, schemaVersion: 1 });
+  }
+  return [...byId.values()];
+}
+
 function readWorkouts(): StoredWorkout[] {
   const raw = kvGet<unknown>(WORKOUT_HISTORY_KEY);
   return Array.isArray(raw) ? (raw as StoredWorkout[]) : [];
@@ -178,7 +223,9 @@ export default function SeedPhysiqueClient() {
       const sc = makeScenario(preset.spec(now.today));
       await clearPhysiqueData();
       await weighInsRepo.bulkUpsert(sc.weighIns);
-      await foodEntriesRepo.bulkUpsert(sc.foodEntries);
+      const meals = asMeals(sc.foodEntries);
+      await foodEntriesRepo.bulkUpsert(meals);
+      await savedFoodsRepo.bulkUpsert(savedFromMeals(meals));
       await sleepNightsRepo.bulkUpsert(sc.sleepNights);
       await waistRepo.bulkUpsert(sc.waist);
       for (const [k, v] of Object.entries(sc.dayFlags)) await dayFlagsStore.set(k, v);

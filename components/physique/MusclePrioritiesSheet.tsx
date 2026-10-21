@@ -22,7 +22,7 @@ export default function MusclePrioritiesSheet({ open, onClose, phase }: { open: 
         <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
           {`Grow is the default. Emphasise up to ${EMPHASISE_MAX} muscles you want to bring up, and Maintain what can wait on a cut. Each sets the week's band of hard sets.`}
         </p>
-        <ul className="flex flex-col overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+        <ul className="flex flex-col overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
           {VOLUME_GROUP_ORDER.map((g: MuscleGroup) => {
             const p = priorityOf(priorities, g);
             return (

@@ -156,7 +156,7 @@ function WorkoutDetail() {
           {draft.exercises.map((ex, ei) => {
             let n = 0;
             return (
-              <section key={`${ex.name}-${ei}`} className="rounded-[12px] px-4 py-3" style={{ background: "var(--surface)" }} aria-label={ex.name}>
+              <section key={`${ex.name}-${ei}`} className="rounded-[16px] px-4 py-3" style={{ background: "var(--surface)" }} aria-label={ex.name}>
                 <p className="pb-2 text-[16px] font-semibold">{ex.name}</p>
                 <div className="grid grid-cols-[28px_1fr_16px_1fr_36px] items-center gap-x-2 pb-1 text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
                   <span className="text-center">SET</span>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import SavedFoodRow, { PlusButton } from "@/components/food/SavedFoodRow";
+import MacroText from "@/components/food/MacroText";
 import BarcodeScanner from "@/components/food/BarcodeScanner";
 import { ErrorLine, PrimaryButton } from "@/components/physique/ui";
 import { loadCofid, searchFoods } from "@/lib/food/cofid";
@@ -33,8 +34,6 @@ export const OFF_MIN_CHARS = 3;
 export const LOCAL_LIMIT = 8;
 
 const n = (v: number) => Math.round(v).toLocaleString("en-GB");
-const inputClass = "h-11 rounded-[12px] px-3 text-[15px] outline-none focus:ring-1";
-const inputStyle = { background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" };
 
 type OffState = { status: "idle" | "loading" | "error"; items: FoodItem[] };
 
@@ -123,15 +122,16 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
     const usual = portionChoices(item)[0];
     const m = scaleMacros(item, usual.grams);
     return (
-      <li key={item.id} className="flex items-center gap-2">
-        <button type="button" onClick={() => setSelected({ item, viaBarcode: false })} className="flex min-w-0 flex-1 flex-col rounded-[12px] px-3 py-2.5 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`${labelFor(item)}. Choose amount`}>
+      <li key={item.id} className="flex items-center gap-2 pr-3">
+        <button type="button" onClick={() => setSelected({ item, viaBarcode: false })} className="flex min-w-0 flex-1 flex-col gap-0.5 py-3 pl-4 text-left transition-colors active:opacity-70" aria-label={`${labelFor(item)}. Choose amount`}>
           <span className="truncate text-[15px]" style={{ color: "var(--text)" }}>
             {item.name}
           </span>
-          <span className="truncate text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+          <span className="truncate text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             {item.brand ? `${item.brand} · ` : ""}
-            {usual.label} · {n(m.kcal)} kcal · {Math.round(m.proteinG)}P {Math.round(m.fatG)}F {Math.round(m.carbsG)}C
+            {usual.label}
           </span>
+          <MacroText kcal={m.kcal} proteinG={m.proteinG} fatG={m.fatG} carbsG={m.carbsG} />
         </button>
         <PlusButton onClick={() => void logAmount(item, usual.grams, usual.label, false)} label={`Log ${usual.label} of ${labelFor(item)}`} disabled={busy} />
       </li>
@@ -154,21 +154,31 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
 
   const section = (title: string, children: React.ReactNode) => (
     <section aria-label={title}>
-      <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
+      <p className="mb-1.5 px-1 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
         {title}
       </p>
       {children}
     </section>
   );
+  // Results and recents in one card with hairlines, as the Food tab lists them (polish).
+  const list = "flex flex-col divide-y divide-[var(--border)] overflow-hidden rounded-[16px]";
+  const listStyle = { background: "var(--surface)" };
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex gap-2">
-        <input ref={inputRef} type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search foods and products" className={`${inputClass} min-w-0 flex-1`} style={inputStyle} aria-label="Search foods" autoComplete="off" autoCorrect="off" spellCheck={false} />
-        <button type="button" onClick={() => setScanning(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px]" style={{ background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" }} aria-label="Scan a barcode">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" className="h-5 w-5" aria-hidden>
+        <label className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-full px-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth={2} strokeLinecap="round" className="h-[18px] w-[18px] shrink-0" aria-hidden>
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="M16 16l4 4" />
+          </svg>
+          <input ref={inputRef} type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search foods" className="h-full min-w-0 flex-1 bg-transparent text-[15px] outline-none" style={{ color: "var(--text)" }} aria-label="Search foods" autoComplete="off" autoCorrect="off" spellCheck={false} />
+        </label>
+        <button type="button" onClick={() => setScanning(true)} className="flex h-12 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label="Scan a barcode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" className="h-[18px] w-[18px]" aria-hidden>
             <path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3M7 8v8M10 8v8M13 8v8M17 8v8" />
           </svg>
+          Scan
         </button>
       </div>
       {lookup !== "idle" && (
@@ -183,13 +193,13 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
               Loading the food list
             </p>
           ) : local.length > 0 ? (
-            section("Foods", <ul className="flex flex-col">{local.map(resultRow)}</ul>)
+            section("Foods", <ul className={list} style={listStyle}>{local.map(resultRow)}</ul>)
           ) : null}
           {q.length >= OFF_MIN_CHARS &&
             section(
               "Products",
               off.items.length > 0 ? (
-                <ul className="flex flex-col">{off.items.map(resultRow)}</ul>
+                <ul className={list} style={listStyle}>{off.items.map(resultRow)}</ul>
               ) : (
                 <p className="py-2 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
                   {off.status === "loading" ? "Searching products" : off.status === "error" ? "Could not reach the product database." : "No UK products match. Try a brand name, or scan the barcode."}
@@ -204,20 +214,17 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {recent.goTos.length > 0 && section(`Go-tos for ${hourLabel(hour)}`, <ul className="flex flex-col">{recent.goTos.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>)}
+          {recent.goTos.length > 0 && section(`Go-tos for ${hourLabel(hour)}`, <ul className={list} style={listStyle}>{recent.goTos.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>)}
           {section(
             "Latest",
             recent.latest.length === 0 && recent.goTos.length === 0 ? (
-              <p className="py-2 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
-                Nothing logged yet. Search a food above, or scan a barcode.
+              <p className="px-1 py-2 text-[13px]" style={{ color: "var(--text-tertiary)" }}>
+                Foods you log show here for one tap next time.
               </p>
             ) : (
-              <ul className="flex flex-col">{recent.latest.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>
+              <ul className={list} style={listStyle}>{recent.latest.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>
             )
           )}
-          <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-            Generic foods: McCance and Widdowson&apos;s Composition of Foods (UK, Open Government Licence). Products: Open Food Facts.
-          </p>
         </div>
       )}
       <BarcodeScanner open={scanning} onClose={() => setScanning(false)} onCode={onCode} />
@@ -273,8 +280,9 @@ function AmountPanel({ item, busy, onBack, onLog }: { item: FoodItem; busy: bool
         <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
           {item.name}
         </span>
-        <span className="text-[12px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-          {item.brand ? `${item.brand} · ` : ""}per 100 g: {n(item.per100.kcal)} kcal · {Math.round(item.per100.proteinG)}P {Math.round(item.per100.fatG)}F {Math.round(item.per100.carbsG)}C
+        <span className="flex flex-wrap items-baseline gap-x-1.5 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
+          {item.brand ? `${item.brand} · ` : ""}per 100 g
+          <MacroText kcal={item.per100.kcal} proteinG={item.per100.proteinG} fatG={item.per100.fatG} carbsG={item.per100.carbsG} size={12} />
         </span>
       </div>
       <div className="flex flex-col gap-1.5">
@@ -312,8 +320,9 @@ function AmountPanel({ item, busy, onBack, onLog }: { item: FoodItem; busy: bool
           {unit.kind !== "g" && grams > 0 ? ` · ${Math.round(grams)} g` : ""}
         </span>
       </div>
-      <p className="text-[15px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }} aria-live="polite">
-        {n(m.kcal)} kcal · {Math.round(m.proteinG)}P {Math.round(m.fatG)}F {Math.round(m.carbsG)}C
+      <p className="flex flex-wrap items-baseline gap-x-3 text-[15px] font-semibold" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }} aria-live="polite">
+        <span>{n(m.kcal)} kcal</span>
+        <MacroText kcal={m.kcal} proteinG={m.proteinG} fatG={m.fatG} carbsG={m.carbsG} showKcal={false} size={15} />
       </p>
       <ErrorLine text={error} />
       <PrimaryButton

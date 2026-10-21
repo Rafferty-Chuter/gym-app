@@ -136,11 +136,71 @@ function TrainContent({ now }: { now: Now }) {
             if (!inProgress) queueEmptyWorkout();
             router.push("/workout");
           }}
-          className="flex w-full items-center justify-center gap-2 rounded-[12px] py-3.5 text-center text-[15px] font-semibold transition-colors duration-150 active:bg-[var(--surface-pressed)]"
-          style={inProgress ? { background: "var(--primary)", color: "var(--text-on-primary)" } : { background: "var(--surface-raised)", color: "var(--text)" }}
+          className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[14px] text-center text-[17px] font-semibold transition-colors duration-150 active:bg-[var(--primary-pressed)]"
+          style={{ background: "var(--primary)", color: "var(--text-on-primary)" }}
         >
-          {inProgress ? "Resume workout" : "+ Start empty workout"}
+          {!inProgress && (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" className="h-[18px] w-[18px]" aria-hidden>
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          )}
+          {inProgress ? "Resume workout" : "Start empty workout"}
         </button>
+
+        {/* This week, how training is going and the deload: one panel with hairlines, not four boxes (polish). */}
+        <section className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }} aria-label="This week">
+          <div className="p-4">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
+                {model.weekCount} {model.weekCount === 1 ? "workout" : "workouts"}
+              </span>
+              <Caption>last 7 days · {fmtVol(model.weekVolume)} lifted</Caption>
+            </div>
+            <div className="mt-3 grid grid-cols-7 gap-1.5">
+              {model.week.map((d) => (
+                <div key={d.date} className="flex flex-col items-center gap-1.5">
+                  <div className="flex h-10 w-full items-end justify-center" aria-hidden>
+                    <div className="w-3 rounded-[2px]" style={{ height: `${Math.max(d.volume > 0 ? 6 : 2, (d.volume / maxVol) * 40)}px`, background: d.volume > 0 ? "var(--green)" : "var(--border)" }} />
+                  </div>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold" style={{ background: d.n > 0 ? "var(--primary)" : "var(--surface-raised)", color: d.n > 0 ? "var(--text-on-primary)" : "var(--text-tertiary)" }}>
+                    {d.letter}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {analysis && <StrengthRow strength={analysis.strength} onOpen={() => router.push("/exercises")} />}
+          {volume && (
+            <Row
+              label="Volume"
+              sub={`Last 7 days · ${volume.context}`}
+              value={
+                <span className="flex items-center gap-2">
+                  <StatusDot color={INDICATOR_DOT_COLOR[volume.state]} />
+                  {volume.status}
+                </span>
+              }
+              trailing={<Chevron />}
+              onClick={() => router.push("/signal/volume")}
+              ariaLabel={`Volume: ${volume.status}. ${volume.context} Open`}
+            />
+          )}
+          {deloadText && (
+            <div className="flex items-center justify-between gap-3 px-4 py-3" aria-label="Deload">
+              <div className="flex min-w-0 flex-col">
+                <span className="text-[15px]" style={{ color: "var(--text)" }}>
+                  {deloadText}
+                </span>
+                <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                  {deload.state === "active" ? "Half the sets, loads 10 % lighter, four in reserve. Trends skip this week." : "A week at half the sets and lighter loads, then the block restarts."}
+                </span>
+              </div>
+              <SecondaryButton small onClick={() => void (deload.state === "active" ? endDeload(now.today) : startDeload(now.today, deload.state === "due" ? deload.reason : "manual", new Date().toISOString()))}>
+                {deload.state === "active" ? "End" : "Start"}
+              </SecondaryButton>
+            </div>
+          )}
+        </section>
 
         <section aria-label="Your routines">
           <div className="mb-2 flex items-center justify-between">
@@ -152,7 +212,7 @@ function TrainContent({ now }: { now: Now }) {
           {templates.length > 0 ? (
             <RoutineList templates={templates} onChanged={() => setTemplates(getStoredTemplates())} />
           ) : (
-            <div className="flex flex-col items-start gap-3 rounded-[12px] px-4 py-4" style={{ background: "var(--surface)" }}>
+            <div className="flex flex-col items-start gap-3 rounded-[16px] px-4 py-4" style={{ background: "var(--surface)" }}>
               <span className="text-[15px] font-semibold">No routines yet</span>
               <span className="-mt-2 text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 Save the exercises and sets you repeat, then start them in one tap.
@@ -163,69 +223,6 @@ function TrainContent({ now }: { now: Now }) {
             </div>
           )}
         </section>
-
-        {deloadText && (
-          <section className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3" style={{ background: "var(--surface)" }} aria-label="Deload">
-            <div className="flex min-w-0 flex-col">
-              <span className="text-[15px]" style={{ color: "var(--text)" }}>
-                {deloadText}
-              </span>
-              <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                {deload.state === "active" ? "Half the sets, loads 10 % lighter, four in reserve. Trends skip this week." : "A week at half the sets and lighter loads, then the block restarts."}
-              </span>
-            </div>
-            <SecondaryButton small onClick={() => void (deload.state === "active" ? endDeload(now.today) : startDeload(now.today, deload.state === "due" ? deload.reason : "manual", new Date().toISOString()))}>
-              {deload.state === "active" ? "End" : "Start"}
-            </SecondaryButton>
-          </section>
-        )}
-
-        <section className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="This week">
-          <div className="flex items-baseline justify-between">
-            <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
-              {model.weekCount} {model.weekCount === 1 ? "workout" : "workouts"}
-            </span>
-            <Caption>last 7 days · {fmtVol(model.weekVolume)} lifted</Caption>
-          </div>
-          <div className="mt-3 grid grid-cols-7 gap-1.5">
-            {model.week.map((d) => (
-              <div key={d.date} className="flex flex-col items-center gap-1.5">
-                <div className="flex h-10 w-full items-end justify-center" aria-hidden>
-                  <div className="w-3 rounded-[2px]" style={{ height: `${Math.max(d.volume > 0 ? 6 : 2, (d.volume / maxVol) * 40)}px`, background: d.volume > 0 ? "var(--green)" : "var(--border)" }} />
-                </div>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold" style={{ background: d.n > 0 ? "var(--primary)" : "var(--surface-raised)", color: d.n > 0 ? "var(--text-on-primary)" : "var(--text-tertiary)" }}>
-                  {d.letter}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {(analysis || volume) && (
-          <section aria-label="How training is going">
-            <div className="mb-2">
-              <Caption>How training is going</Caption>
-            </div>
-            <RowGroup>
-              {analysis && <StrengthRow strength={analysis.strength} onOpen={() => router.push("/exercises")} />}
-              {volume && (
-                <Row
-                  label="Volume"
-                  sub={`Last 7 days · ${volume.context}`}
-                  value={
-                    <span className="flex items-center gap-2">
-                      <StatusDot color={INDICATOR_DOT_COLOR[volume.state]} />
-                      {volume.status}
-                    </span>
-                  }
-                  trailing={<Chevron />}
-                  onClick={() => router.push("/signal/volume")}
-                  ariaLabel={`Volume: ${volume.status}. ${volume.context} Open`}
-                />
-              )}
-            </RowGroup>
-          </section>
-        )}
 
         <RowGroup>
           <Row

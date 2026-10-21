@@ -89,7 +89,7 @@ export default function ExercisesPage() {
                 Nothing logged matches &ldquo;{q}&rdquo;.
               </p>
             ) : (
-              <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+              <ul className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
                 {shownLogged.map((e) => {
                   const meta = (e.exerciseId ? getExerciseById(e.exerciseId) : null) ?? getExerciseByName(e.name);
                   return row(`l-${e.name}`, exerciseHref(e), e.name, `${exerciseSubtitle(meta)} · ${e.sessions} ${e.sessions === 1 ? "session" : "sessions"}`, shortDate(e.lastAt));
@@ -102,7 +102,7 @@ export default function ExercisesPage() {
         {library.length > 0 && (
           <section className="flex flex-col gap-2">
             <Caption>Not logged yet</Caption>
-            <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+            <ul className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
               {library.map((x) => row(`x-${x.id}`, exerciseHref({ name: x.name, exerciseId: x.id }), x.name, exerciseSubtitle(x)))}
             </ul>
           </section>

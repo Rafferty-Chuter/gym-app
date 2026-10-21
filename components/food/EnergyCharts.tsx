@@ -131,11 +131,12 @@ export function ExpenditureChart({ points, plusMinus, height = 190, ariaLabel }:
           </text>
         </g>
       ))}
-      {model.band && <path d={model.band} fill="var(--text)" opacity={0.07} />}
+      {/* Maintenance is calories, so it takes the kcal blue of the ring and the bars (polish, rev 4.1). */}
+      {model.band && <path d={model.band} fill={KCAL_COLOR} opacity={0.12} />}
       {model.runs.map((r, i) => (
-        <path key={i} d={r.d} fill="none" stroke={r.state === "holding" ? "var(--text-tertiary)" : "var(--text)"} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={r.state === "holding" ? "3 4" : undefined} />
+        <path key={i} d={r.d} fill="none" stroke={r.state === "holding" ? "var(--text-tertiary)" : KCAL_COLOR} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={r.state === "holding" ? "3 4" : undefined} />
       ))}
-      <circle cx={model.end.cx} cy={model.end.cy} r={3.5} fill="var(--text)" />
+      <circle cx={model.end.cx} cy={model.end.cy} r={3.5} fill={KCAL_COLOR} />
       <text x={model.padL} y={height - 4} fontSize={9} fill="var(--text-tertiary)">
         {shortLocalDate(model.first)}
       </text>

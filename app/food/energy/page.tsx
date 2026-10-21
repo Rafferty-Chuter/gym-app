@@ -71,11 +71,27 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           <h1 className="mt-1 text-[34px] font-semibold leading-none tracking-[-0.02em]">Maintenance</h1>
         </header>
 
-        <section className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="Maintenance over the range">
-          <div className="grid grid-cols-2 gap-3">
+        {/* One panel (polish): today's estimate first, then the range under a hairline. */}
+        <section className="rounded-[16px] p-4" style={{ background: "var(--surface)" }} aria-label="Maintenance">
+          <div className="flex flex-col gap-1">
+            <Caption>Maintenance now</Caption>
+            <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: e?.kcal != null ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              {e?.kcal != null ? n(e.kcal) : "–"}
+              {e?.kcal != null && (
+                <span className="text-[13px] font-medium tracking-normal" style={{ color: "var(--text-secondary)" }}>
+                  {" "}
+                  kcal a day
+                </span>
+              )}
+            </span>
+            <span className="mt-1 text-[12px]" style={{ color: "var(--text-secondary)" }}>
+              {e?.kcal != null ? strategy : "Needs food and weigh-ins on the same days"}
+            </span>
+          </div>
+          <div className="-mx-4 mt-4 grid grid-cols-2 gap-3 px-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
             <div className="flex flex-col">
               <Caption>Average</Caption>
-              <span className="text-[28px] font-semibold leading-tight tracking-[-0.02em]" style={{ color: model.summary.averageKcal != null ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              <span className="text-[22px] font-semibold leading-tight tracking-[-0.02em]" style={{ color: model.summary.averageKcal != null ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
                 {model.summary.averageKcal != null ? n(model.summary.averageKcal) : "–"}
                 <span className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>
                   {" "}
@@ -85,7 +101,7 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
             </div>
             <div className="flex flex-col">
               <Caption>Change</Caption>
-              <span className="text-[28px] font-semibold leading-tight tracking-[-0.02em]" style={{ color: model.summary.differenceKcal != null ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              <span className="text-[22px] font-semibold leading-tight tracking-[-0.02em]" style={{ color: model.summary.differenceKcal != null ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
                 {model.summary.differenceKcal != null ? signedKcal(model.summary.differenceKcal) : "–"}
                 <span className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>
                   {" "}
@@ -112,7 +128,7 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
               {model.summary.points.some((p) => p.state === "holding") && (
                 <>
                   <span className="flex items-center gap-1">
-                    <span className="inline-block h-0.5 w-3 rounded" style={{ background: "var(--text)" }} />
+                    <span className="inline-block h-0.5 w-3 rounded" style={{ background: "var(--macro-kcal)" }} />
                     Updating
                   </span>
                   <span className="flex items-center gap-1">
@@ -123,7 +139,7 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
               )}
               {e?.plusMinus && (
                 <span className="flex items-center gap-1">
-                  <span className="inline-block h-2 w-3 rounded-sm" style={{ background: "color-mix(in srgb, var(--text) 12%, transparent)" }} />±{e.plusMinus}
+                  <span className="inline-block h-2 w-3 rounded-sm" style={{ background: "color-mix(in srgb, var(--macro-kcal) 12%, transparent)" }} />±{e.plusMinus}
                 </span>
               )}
             </div>
@@ -135,18 +151,6 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
           </p>
         </section>
 
-
-        <section className="grid grid-cols-1 gap-3" aria-label="Current">
-          <div className="flex flex-col gap-1 rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
-            <Caption>Maintenance now</Caption>
-            <span className="text-[28px] font-semibold leading-tight tracking-[-0.02em]" style={{ color: e?.kcal != null ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-              {e?.kcal != null ? n(e.kcal) : "–"}
-            </span>
-            <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
-              {e?.kcal != null ? `kcal a day · ${strategy}` : "Needs food and weigh-ins on the same days"}
-            </span>
-          </div>
-        </section>
 
         <section aria-label="Targets history">
           <div className="mb-2 flex items-baseline justify-between">

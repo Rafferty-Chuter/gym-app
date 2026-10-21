@@ -166,7 +166,7 @@ export default function HomeAssistantCard() {
             Assistant
           </h2>
           <article
-            className="rounded-[12px] p-4 sm:p-5"
+            className="rounded-[16px] p-4 sm:p-5"
             style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
           >
             <header className="flex items-center gap-2.5 mb-3">

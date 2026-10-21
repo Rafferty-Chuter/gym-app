@@ -39,7 +39,7 @@ function WatchNight({ onClose, nightTitle, night }: Props & { night: SleepNight 
   return (
     <Sheet open onClose={onClose} title="Sleep" footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
       <p className="mb-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
-        {nightTitle} · from Apple Health
+        {nightTitle}
       </p>
       {rows.map((r) => (
         <div key={r.label} className="flex items-center justify-between py-3" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -52,7 +52,7 @@ function WatchNight({ onClose, nightTitle, night }: Props & { night: SleepNight 
         </div>
       ))}
       <p className="mt-3 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
-        Your watch recorded this night. To change it, edit it in the Health app.
+        Recorded by your watch. To change it, edit it in the Health app.
       </p>
     </Sheet>
   );

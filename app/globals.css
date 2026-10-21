@@ -33,7 +33,7 @@
   --status-watch: #e6b765;
   --status-attention: #ef8f99;
   --status-unknown: #72878a;
-  --chart-trend: #e6efeb;
+  --chart-trend: #a9e0c1;
   --chart-raw: #4d6266;
   --chart-projection: #72878a;
   --chart-band: #1c2a2d;
@@ -83,7 +83,7 @@
     --status-watch: #b0731a;
     --status-attention: #c2475b;
     --status-unknown: #8a9a9a;
-    --chart-trend: #17272a;
+    --chart-trend: #34936a;
     --chart-raw: #a7b6b3;
     --chart-projection: #8a9a9a;
     --chart-band: #e2eae7;
@@ -130,7 +130,7 @@
   --status-watch: #b0731a;
   --status-attention: #c2475b;
   --status-unknown: #8a9a9a;
-  --chart-trend: #17272a;
+  --chart-trend: #34936a;
   --chart-raw: #a7b6b3;
   --chart-projection: #8a9a9a;
   --chart-band: #e2eae7;
@@ -440,7 +440,7 @@ input[type="search"]::-webkit-search-cancel-button {
     --status-watch: #b0731a;
     --status-attention: #c2475b;
     --status-unknown: #8a9a9a;
-    --chart-trend: #17272a;
+    --chart-trend: #34936a;
     --chart-raw: #a7b6b3;
     --chart-projection: #8a9a9a;
     --chart-band: #e2eae7;

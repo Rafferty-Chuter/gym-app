@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { Row, RowGroup } from "@/components/physique/ui";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import type { PhysiqueAnalysis } from "@/lib/physique/types";
@@ -26,7 +27,7 @@ function pct(v: number | null): string {
 }
 
 /** Main lifts since the phase started, and the 14-night sleep read. */
-export default function StrengthSleepRows({ analysis, showSleep = true }: { analysis: PhysiqueAnalysis; showSleep?: boolean }) {
+export default function StrengthSleepRows({ analysis, showSleep = true, bare = false }: { analysis: PhysiqueAnalysis; showSleep?: boolean; /** Rows only, for a group that draws the surface and the dividers. */ bare?: boolean }) {
   const s = analysis.strength;
   const sl = analysis.sleep;
   const liftsLine =
@@ -42,8 +43,9 @@ export default function StrengthSleepRows({ analysis, showSleep = true }: { anal
           : "Not enough sessions yet";
   const strengthColor = s.status === "dropping" ? STATUS_HEX.attention : s.status === "one-lift" ? STATUS_HEX.watch : s.status === "unclear" ? "var(--text-tertiary)" : "var(--text)";
   const sleepColor = sl.status === "severe" ? STATUS_HEX.attention : sl.status === "short" ? STATUS_HEX.watch : sl.status === "unknown" ? "var(--text-tertiary)" : "var(--text)";
+  const Wrap = bare ? Fragment : RowGroup;
   return (
-    <RowGroup>
+    <Wrap>
       <Row
         label={analysis.goal && analysis.goal.type !== "maintain" ? "Lifts since phase start" : "Lifts"}
         value={<span style={{ color: strengthColor }}>{STRENGTH_WORD[s.status]}</span>}
@@ -58,6 +60,6 @@ export default function StrengthSleepRows({ analysis, showSleep = true }: { anal
             : `${SLEEP_WORD[sl.status]}${sl.acute ? " · short night" : ""}`
         }
       />}
-    </RowGroup>
+    </Wrap>
   );
 }

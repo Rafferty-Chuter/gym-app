@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ErrorLine, SecondaryButton, StatusDot } from "@/components/physique/ui";
+import { Chevron, ErrorLine, SecondaryButton, StatusDot } from "@/components/physique/ui";
 import { applyRecommendation } from "@/lib/physique/io/recommendations";
 import type { Now } from "@/lib/dates";
 import type { PhysiqueAnalysis, Recommendation } from "@/lib/physique/types";
@@ -28,8 +28,10 @@ function applyLabel(rec: Recommendation): string | null {
 }
 
 /**
- * The verdict line (DESIGN.md): dot, sentence, window and n, then flags as
- * plain rows and the recommendation row. Safety verdicts show no numbers.
+ * The verdict panel (DESIGN.md rev 4.1): dot and title, the sentence, the
+ * window and n; then, in the same panel under hairlines, the flags, the
+ * recommendation with its button, and "Ask why". One surface, not a line
+ * with boxes floating under it. Safety verdicts show no numbers.
  */
 export default function VerdictCard({ analysis, now, unit }: { analysis: PhysiqueAnalysis; now: Now; unit: WeightUnit }) {
   const router = useRouter();
@@ -59,12 +61,13 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
     else router.push(assistantHrefFor(prompt));
   }
 
+  const divider = { borderTop: "1px solid var(--border)" };
   return (
-    <section className="flex flex-col gap-3" aria-label="Verdict">
-      <div className="flex flex-col gap-1">
+    <section className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }} aria-label="Verdict">
+      <div className="flex flex-col gap-1 px-4 pb-3.5 pt-4">
         <div className="flex items-center gap-2">
           <StatusDot color={color} />
-          <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
+          <span className="text-[17px] font-semibold tracking-[-0.01em]" style={{ color: "var(--text)" }}>
             {v.title}
           </span>
         </div>
@@ -86,9 +89,9 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
       </div>
 
       {analysis.flags.length > 0 && (
-        <ul className="flex flex-col divide-y divide-[var(--border)] overflow-hidden rounded-[12px]" style={{ background: "var(--surface)" }}>
+        <ul className="flex flex-col divide-y divide-[var(--border)]" style={divider}>
           {analysis.flags.slice(0, 3).map((f) => (
-            <li key={f.id} className="flex flex-col px-4 py-2.5">
+            <li key={f.id} className="flex flex-col gap-0.5 px-4 py-3">
               <span className="text-[13px] font-medium" style={{ color: "var(--text)" }}>
                 {f.title}
               </span>
@@ -101,8 +104,8 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
       )}
 
       {rec && analysis.recommendationLabel && (
-        <div className="flex items-center justify-between gap-3 rounded-[12px] px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <span className="text-[13px]" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
+        <div className="flex items-center justify-between gap-3 px-4 py-3" style={divider}>
+          <span className="text-[13px] font-medium" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
             {note ?? analysis.recommendationLabel}
           </span>
           {rec.kind === "confirm_days" ? (
@@ -117,11 +120,16 @@ export default function VerdictCard({ analysis, now, unit }: { analysis: Physiqu
           ) : null}
         </div>
       )}
-      <ErrorLine text={error} />
+      {error && (
+        <div className="px-4 pb-3">
+          <ErrorLine text={error} />
+        </div>
+      )}
 
       {ASSISTANT_ENABLED && analysis.goal && !isSafety && (
-        <button type="button" onClick={askWhy} className="w-fit text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-          Ask why →
+        <button type="button" onClick={askWhy} className="flex w-full items-center justify-between px-4 py-3 text-left text-[13px] font-semibold transition-colors active:bg-[var(--surface-raised)]" style={{ ...divider, color: "var(--text-secondary)" }}>
+          Ask why
+          <Chevron />
         </button>
       )}
     </section>

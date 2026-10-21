@@ -94,7 +94,7 @@ function ExerciseDetail() {
           </p>
         ) : (
           <>
-            <section className="flex flex-col gap-3 rounded-[12px] px-4 pb-3 pt-4" style={{ background: "var(--surface)" }} aria-label="Progress chart">
+            <section className="flex flex-col gap-3 rounded-[16px] px-4 pb-3 pt-4" style={{ background: "var(--surface)" }} aria-label="Progress chart">
               {metrics.length > 1 && (
                 <div className="grid gap-1 rounded-[10px] p-1" style={{ background: "var(--surface-raised)", gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))` }} role="tablist" aria-label="Chart measure">
                   {metrics.map((m) => (
@@ -138,7 +138,7 @@ function ExerciseDetail() {
             {records.repRecords.length > 0 && (
               <section className="flex flex-col gap-2">
                 <Caption>Heaviest for each rep count</Caption>
-                <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+                <ul className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
                   {records.repRecords.map((r) => (
                     <li key={r.reps} className="grid min-h-[44px] grid-cols-[1fr_auto_auto] items-center gap-4 px-4 text-[15px]" style={{ fontVariantNumeric: "tabular-nums" }}>
                       <span style={{ color: "var(--text-secondary)" }}>
@@ -158,7 +158,7 @@ function ExerciseDetail() {
 
             <section className="flex flex-col gap-2">
               <Caption>History</Caption>
-              <ul className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+              <ul className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
                 {shown.map((s) => (
                   <li key={s.completedAt}>
                     <Link href={workoutHref(s)} className="flex flex-col gap-1 px-4 py-3 transition-colors active:bg-[var(--surface-raised)]">

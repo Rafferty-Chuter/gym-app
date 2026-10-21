@@ -92,7 +92,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
     : "Log a weigh-in to start the trend";
 
   return (
-    <section className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label="Weight trend">
+    <section className="rounded-[16px] p-4" style={{ background: "var(--surface)" }} aria-label="Weight trend">
       {hero ? (
         <div className="flex items-end justify-between gap-3">
           <div className="flex flex-col">
@@ -108,7 +108,6 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
               {model.latest ? `Trend ${formatBodyWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
             </span>
           </div>
-          <Caption>{model.inWindow} weigh-ins</Caption>
         </div>
       ) : (
         <div className="flex items-baseline justify-between">
@@ -120,6 +119,12 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
       )}
       <div className="mt-3">
         <TimeSeriesChart points={model.points} unit={unit} projection={model.projection} ariaLabel={`Weight, ${range}`} emptyText="No weigh-ins yet." height={170} />
+      </div>
+      {/* Legend on its own line (polish): beside the range pills it ran off a 390px screen. */}
+      <div className="mt-2 flex items-center justify-end gap-3 text-[11px]" style={{ color: "var(--text-tertiary)" }} aria-hidden>
+        <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 rounded" style={{ background: "var(--chart-trend)" }} />Trend</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--chart-raw)" }} />Scale</span>
+        {model.projection && <span className="flex items-center gap-1"><span className="inline-block w-3 border-t border-dashed" style={{ borderColor: "var(--text-tertiary)" }} />Goal</span>}
       </div>
       <div className="mt-3 flex items-center justify-between gap-2">
         <div className="flex gap-1" role="tablist" aria-label="Range">
@@ -140,11 +145,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
             );
           })}
         </div>
-        <div className="flex items-center gap-3 text-[11px]" style={{ color: "var(--text-tertiary)" }} aria-hidden>
-          <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 rounded" style={{ background: "var(--primary)" }} />Trend</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--chart-raw)" }} />Scale</span>
-          {model.projection && <span className="flex items-center gap-1"><span className="inline-block w-3 border-t border-dashed" style={{ borderColor: "var(--text-tertiary)" }} />Goal</span>}
-        </div>
+        {hero && <Caption>{model.inWindow} weigh-ins</Caption>}
       </div>
       {!hero && (
         <p className="mt-2 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>

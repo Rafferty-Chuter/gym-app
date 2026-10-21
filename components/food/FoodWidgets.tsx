@@ -36,7 +36,7 @@ const MAINTENANCE_WORD: Record<ExpenditureState, string | null> = { calibrating:
 
 function Card({ children, ariaLabel }: { children: ReactNode; ariaLabel: string }) {
   return (
-    <section className="flex w-full shrink-0 snap-start flex-col rounded-[12px] p-4" style={{ background: "var(--surface)", scrollSnapAlign: "start" }} aria-label={ariaLabel}>
+    <section className="flex w-full shrink-0 snap-start flex-col rounded-[16px] p-4" style={{ background: "var(--surface)", scrollSnapAlign: "start" }} aria-label={ariaLabel}>
       {children}
     </section>
   );

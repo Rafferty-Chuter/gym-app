@@ -57,8 +57,24 @@ export async function ensureHealthLink(nowIso: string): Promise<HealthLink> {
   return link;
 }
 
-export async function disconnectHealthLink(): Promise<void> {
+/**
+ * Disconnect: delete everything the server holds for this token, then
+ * forget the token. If the server can't be reached the link is kept, so
+ * the user can try again rather than leave data behind unknowingly. A
+ * server without database keys holds nothing, so that counts as done.
+ */
+export async function disconnectHealthLink(): Promise<{ ok: true } | { ok: false }> {
+  const link = await healthLinkStore.get();
+  if (link?.token) {
+    try {
+      const res = await fetch("/api/health/pull", { method: "DELETE", headers: { Authorization: `Bearer ${link.token}` } });
+      if (!res.ok && res.status !== 503 && res.status !== 401) return { ok: false };
+    } catch {
+      return { ok: false };
+    }
+  }
   await healthLinkStore.clear();
+  return { ok: true };
 }
 
 /** The URL Health Auto Export posts to, for the settings screen. */

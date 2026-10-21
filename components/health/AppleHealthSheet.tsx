@@ -137,6 +137,7 @@ export default function AppleHealthSheet(props: Props) {
 function HealthAutoExportSheet({ open, onClose }: Props) {
   const link = useHealthLink();
   const [busy, setBusy] = useState(false);
+  const [disconnectFailed, setDisconnectFailed] = useState(false);
   const [copied, setCopied] = useState<"token" | "url" | "header" | null>(null);
   const [last, setLast] = useState<PullResult | null>(null);
   const nowIso = () => new Date().toISOString();
@@ -202,12 +203,15 @@ function HealthAutoExportSheet({ open, onClose }: Props) {
             </PrimaryButton>
             <SecondaryButton
               onClick={async () => {
-                await disconnectHealthLink();
+                setBusy(true);
+                const r = await disconnectHealthLink();
+                setBusy(false);
                 setLast(null);
+                setDisconnectFailed(!r.ok);
               }}
               disabled={busy}
             >
-              Disconnect
+              Disconnect and delete
             </SecondaryButton>
           </div>
         ) : (
@@ -242,8 +246,13 @@ function HealthAutoExportSheet({ open, onClose }: Props) {
             <li key={s}>{s}</li>
           ))}
         </ol>
+        {disconnectFailed && (
+          <p className="text-[13px]" style={{ color: "var(--status-watch)" }}>
+            Couldn&apos;t reach the server to delete your samples. Nothing was removed; try again when you&apos;re online.
+          </p>
+        )}
         <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-          The token is a password for writing to this device&apos;s data. It lives on this phone and in the Health Auto Export app, nowhere else. Disconnect to invalidate it.
+          The token is a password for writing to this device&apos;s data. It lives on this phone and in the Health Auto Export app, nowhere else. Disconnecting deletes the samples stored on the server and invalidates the token.
         </p>
       </div>
     </Sheet>

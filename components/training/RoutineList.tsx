@@ -42,7 +42,7 @@ export default function RoutineList({ templates, onChanged }: { templates: Worko
     <>
       <ul className="flex flex-col gap-2" aria-label="Routines">
         {templates.map((t) => (
-          <li key={t.id} className="rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
+          <li key={t.id} className="rounded-[16px] p-4" style={{ background: "var(--surface)" }}>
             <div className="flex items-start justify-between gap-2">
               <button type="button" onClick={() => setPreview(t)} className="min-w-0 flex-1 text-left" aria-label={`${t.name}. ${meta(t)}. Preview`}>
                 <span className="block truncate text-[17px] font-semibold" style={{ color: "var(--text)" }}>

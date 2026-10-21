@@ -178,7 +178,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         {reviewModel && start === reviewWeek && reviewModel.hasProgram && <ReviewDecision key={reviewModel.plan.weekStart} model={reviewModel} now={now} unit={unit} />}
 
         {!report.hasData && (
-          <p className="rounded-[12px] px-4 py-3 text-[13px]" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>
+          <p className="rounded-[16px] px-4 py-3 text-[13px]" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>
             {report.complete ? "Nothing was logged this week." : "Nothing logged this week yet."} Food, weigh-ins, nights and workouts show here as they are logged.
           </p>
         )}

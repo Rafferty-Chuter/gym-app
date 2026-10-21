@@ -44,7 +44,7 @@ type Props = {
 
 // ── Tokens (DESIGN.md) ──
 const COLOR_RAW = "var(--chart-raw)";
-const COLOR_TREND = "var(--text)";
+const COLOR_TREND = "var(--chart-trend)";
 const COLOR_PROJECTION = "var(--text-tertiary)";
 const COLOR_BAND = "var(--surface-raised)";
 const COLOR_GRID = "var(--border)";
@@ -191,7 +191,7 @@ export default function TimeSeriesChart({
     return (
       <div
         ref={ref}
-        className="flex items-center justify-center rounded-[12px] text-[13px]"
+        className="flex items-center justify-center rounded-[16px] text-[13px]"
         style={{ height, color: "var(--text-secondary)", background: "var(--surface)" }}
       >
         {emptyText}

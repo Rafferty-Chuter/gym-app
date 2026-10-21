@@ -19,7 +19,7 @@ import { goalEta } from "@/lib/physique/goalEta";
 import VerdictCard from "@/components/physique/VerdictCard";
 import StrengthSleepRows from "@/components/physique/StrengthSleepRows";
 import WeightEntries from "@/components/physique/WeightEntries";
-import { Chevron, Row, RowGroup } from "@/components/physique/ui";
+import { Chevron, Row } from "@/components/physique/ui";
 import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 
 type SheetKind = "weight" | "waist" | null;
@@ -36,7 +36,7 @@ function Shell() {
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto max-w-2xl px-5 pt-5 sm:px-6">
-        <div className="h-11 rounded-[12px]" style={{ background: "var(--surface)" }} />
+        <div className="h-11 rounded-[16px]" style={{ background: "var(--surface)" }} />
       </div>
     </main>
   );
@@ -99,11 +99,10 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         <WeightChartCard weighIns={data.weighIns} goal={data.goal} dayFlags={data.dayFlags} today={today} unit={unit} hero />
 
-        <GoalProgress goal={data.goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} />
-
-        {analysis && <StrengthSleepRows analysis={analysis} showSleep={false} />}
-
-        <RowGroup>
+        {/* Goal progress, lifts and waist: one progress panel with hairlines between, not three boxes (polish). */}
+        <section className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }} aria-label="Progress">
+          <GoalProgress goal={data.goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} bare />
+          {analysis && <StrengthSleepRows analysis={analysis} showSleep={false} bare />}
           <Row
             label="Waist"
             sub={model.lastWaist ? `Last ${longLocalDate(model.lastWaist.date)}` : "Weekly, optional"}
@@ -112,7 +111,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
             onClick={() => setSheet("waist")}
             ariaLabel="Log waist"
           />
-        </RowGroup>
+        </section>
 
         <WeightEntries
           weighIns={data.weighIns}

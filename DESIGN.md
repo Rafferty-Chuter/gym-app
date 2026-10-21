@@ -2,7 +2,7 @@
 name: Gym AI
 description: A calm, precise physique and training coach for serious natural lifters. Mist: soft green and misty sky, light or dark with the phone.
 colors:
-  # Mist (rev 4). Light values; the dark mode set is under colors-dark. Both live in app/globals.css.
+  # Mist (rev 4.1). Light values; the dark mode set is under colors-dark. Both live in app/globals.css.
   page-top: "#d9e6ec"
   bg: "#edf2f0"
   surface: "#fafcfb"
@@ -26,7 +26,7 @@ colors:
   status-watch: "#b0731a"
   status-attention: "#c2475b"
   status-unknown: "#8a9a9a"
-  chart-trend: "#17272a"
+  chart-trend: "#34936a"
   chart-raw: "#a7b6b3"
   chart-projection: "#8a9a9a"
   chart-band: "#e2eae7"
@@ -63,7 +63,7 @@ colors-dark:
   status-watch: "#e6b765"
   status-attention: "#ef8f99"
   status-unknown: "#72878a"
-  chart-trend: "#e6efeb"
+  chart-trend: "#a9e0c1"
   chart-raw: "#4d6266"
   chart-projection: "#72878a"
   chart-band: "#1c2a2d"
@@ -188,6 +188,8 @@ Gym AI is a product-register interface (the design serves a task, it is not the 
 
 **Rev 4, decided 2026-10-18 with the founder: Mist.** Soft green and misty sky across the whole app, replacing the black and white of rev 1 to 2 and the per-tab hues of rev 3 (Sleep's indigo did not suit the rest). The page is a misty sky that fades into a pale green-grey (light) or a deep green-slate (dark); cards sit on it as near-white or slate layers; the one action colour is a soft green; Sleep leans on the sky side. History: rev 1 (2026-10-16) was MacroFactor-style near-black with white actions and mint for good; rev 3 (earlier on 2026-10-18) gave each tab its own hue.
 
+**Rev 4.1, 2026-10-21 (final polish for testers and the App Store).** Same palette, fewer boxes. A screen is a few panels, each holding one idea, with rows inside a panel split by hairlines instead of gaps between separate cards. Panels and row groups take `rounded.lg` (16px); controls (buttons, inputs, chips) keep `rounded.md` (12px). Colour does more work: the weight trend is green, maintenance is the kcal blue, and food rows carry the macro colours. Copy names what a number is, not where it came from.
+
 Anchors: MacroFactor (Weight Trend, Expenditure, Strategy screens), WHOOP (contributor rows, the insight box), Apple Stocks (chart scrubbing, time-range pills).
 
 Light and dark (rev 4). The app follows the phone's setting (`prefers-color-scheme`); Profile > Appearance can pin Light or Dark (`data-theme` on `<html>`, set before first paint). Dark suits the dim bedroom and gym lighting; light suits daytime. Both are the same palette, so every rule here holds in both.
@@ -205,8 +207,8 @@ Restrained strategy: misty neutrals, one action colour (soft green), and colour 
 - **Text.** `text` for values and titles, `text-secondary` for supporting copy, `text-tertiary` for labels and metadata. Never pure white or pure black.
 - **Primary action.** Soft green (`primary`, deep sage in light, pale sage in dark) with `text-on-primary`. One per screen at most (Start workout, Save, Finish). The same fill marks a selected pill, day or toggle.
 - **Status.** `status-good` / `status-watch` / `status-attention` / `status-unknown`. Shown as a 8px dot or a short pill next to text, never as a card background. The same four colours drive the Signals tiles and the physique verdict.
-- **Charts.** Trend line in `chart-trend` (the text colour, 2px). Raw weigh-ins as 4px dots in `chart-raw`. Goal projection as a dashed `chart-projection` line. A target band uses `chart-band`.
-- **Macro colours** (rev 2, from MacroFactor): kcal `macro-kcal` (blue), protein `macro-protein` (red), fat `macro-fat` (yellow), carbs `macro-carb` (green), all muted. They appear only in nutrition bars and charts, never on buttons or status. Over target is not red: the bar simply fills and its target tick turns to the text colour.
+- **Charts.** Trend line in `chart-trend` (green since rev 4.1; it was the text colour), 2px on the Body chart and 1.5px in Home's weight tile. Maintenance (the energy chart, its band and legend) uses `macro-kcal`. Raw weigh-ins as 4px dots in `chart-raw`. Goal projection as a dashed `chart-projection` line. A target band uses `chart-band`.
+- **Macro colours** (rev 2, from MacroFactor): kcal `macro-kcal` (blue), protein `macro-protein` (red), fat `macro-fat` (yellow), carbs `macro-carb` (green), all muted. They appear only in nutrition bars, charts and food rows (rev 4.1: kcal in `text-secondary`, then "38P 14F 57C" with each letter in its macro colour, `components/food/MacroText.tsx`), never on buttons or status. Over target is not red: the bar simply fills and its target tick turns to the text colour.
 
 ## Typography
 
@@ -232,8 +234,9 @@ Flat. Depth is expressed by surface level, not shadow.
 
 ## Components
 
-- **Row.** Label on the left in `text-secondary`, value on the right in `number`, optional trailing chevron or `+`. 56px tall, `rounded.md`, `surface`. Rows in a group are separated by 1px `border` lines, not gaps.
-- **Verdict line.** Not a card. An 8px status dot, a `body` sentence in `text`, then a `caption` line with the window and n in `text-tertiary`. Flags are plain rows beneath. A recommendation is a row with an "Apply" or "Update targets" secondary button.
+- **Panel** (rev 4.1). `surface`, `rounded.lg`, holding one idea: the verdict with its flags, a chart with its numbers and range pills, a group of rows. Sections inside a panel are split by a 1px `border` hairline running edge to edge. Two panels that say one thing become one panel; a panel never sits inside another.
+- **Row.** Label on the left in `text-secondary`, value on the right in `number`, optional trailing chevron or `+`. 56px tall, `surface`. Rows sit in a group (`rounded.lg`) separated by 1px `border` lines, not gaps.
+- **Verdict panel** (rev 4.1; was a bare line). One panel: an 8px status dot and the 17px title, the `body` sentence, then flags, the recommendation and "Ask why" as hairline-split rows inside the same panel.
 - **Contributor row** (WHOOP-style). Label, a 48px mini bar or sparkline in greys, value, and a small up or down tick in the status colour.
 - **Segmented pills.** `pill` in a row with 4px gaps; the selected one is `primary` with `text-on-primary`. Used for time ranges (1W 1M 3M 6M 1Y All) and small choices.
 - **Bottom sheet.** Title in `title`, content, one primary action at the bottom. Dismiss by swipe or the scrim. Safe-area padding at the bottom.
@@ -244,7 +247,9 @@ Flat. Depth is expressed by surface level, not shadow.
 - **Page header** (rev 2). An 11px tracked caption (date or goal) above the page title in `hero` size, title case. The tab's primary log action is a 36px `primary` round `+` on the right. Sticky on `page-bg` (the top of the misty page).
 - **Week strip** (rev 2). Seven day pills (weekday letter over day number, 40×56), a 4px dot under logged days, the selected day filled `primary` with dark text. Swiping the strip moves a week.
 - **Widget carousel** (rev 2). Horizontal scroll-snap cards the width of the screen minus the gutters, with page dots (6px, `text-tertiary`, active `text`). Two or three cards, never more.
-- **Timeline** (rev 2). A 1px vertical `border` line with hour chips (`surface-raised`, `caption`) and a 24px `+` beside each hour; entries are `surface` rows with name, `number`-sized kcal, macro caption and an edit glyph; hour totals sit on the hour row in `caption`.
+- **Timeline** (rev 4.1). Only hours with food show. Each hour has a header line (the hour in 13px semibold, its kcal and coloured macros, a 28px `+` on the right) above one panel of its entries, split by hairlines. An entry shows the name, coloured macros with the serving (and "est." for a described meal), and kcal in `number` with the time beneath on the right. Tap to edit.
+- **Search field** (rev 4.1). A 48px pill with a magnifier, "Search foods", and a "Scan" pill beside it. Results, go-tos and latest foods are grouped panels with a round `primary` `+` per row.
+- **Reading pages** (rev 4.1). Privacy and Support use `components/ui/DocPage.tsx`: a back link, a caption with the date, the title in `hero`, then titled sections of `body` text. No tab bar.
 - **Contributor list** (rev 2, from Bevel). Rows of label · word (Poor / Fair / Good / Excellent in the status colour) · a 4px bar in `surface-raised` filled in `text-secondary`.
 - **Sleep score** (rev 3, kept in rev 4). One number out of 100 in a ring on the Sleep tab: hours slept against what the night needed, with points off for waking off the usual time and for a restless night (`lib/physique/sleepScore.ts`). Always shown with its word and one sentence on why; the parts are on the night page. It is the only score in the app.
 - **Range pills.** 1W 1M 3M 6M All as segmented pills under charts; selected is `primary`.

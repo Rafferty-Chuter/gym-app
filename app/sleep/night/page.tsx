@@ -8,7 +8,7 @@ import { nightLabel } from "@/components/sleep/NightHero";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import Hypnogram from "@/components/sleep/Hypnogram";
 import StageBars from "@/components/sleep/StageBars";
-import { SCaption, SCard, SRow, ScoreRing } from "@/components/sleep/parts";
+import { SCard, SRow, ScoreRing } from "@/components/sleep/parts";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { saveSleepNight, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
@@ -85,7 +85,7 @@ function NightDetail() {
             </SCard>
 
             {split && (
-              <SCard title="Stages" aside={<SCaption>From the watch</SCaption>} label="Stages" className="flex flex-col gap-4 px-4 py-4">
+              <SCard title="Stages" label="Stages" className="flex flex-col gap-4 px-4 py-4">
                 {night.segments?.length && night.bedtime ? <Hypnogram segments={night.segments} bedtime={night.bedtime} /> : null}
                 <StageBars split={split} typical={typical} />
                 {!night.segments?.length && (

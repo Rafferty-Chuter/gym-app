@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { SavedFood } from "@/lib/physique/types";
+import MacroText from "@/components/food/MacroText";
 
 const n = (v: number) => Math.round(v).toLocaleString("en-GB");
 
@@ -19,8 +20,8 @@ export function PlusButton({ onClick, label, disabled }: { onClick: () => void; 
 /** One saved food: tap the text to adjust before logging, with a trailing control. */
 export default function SavedFoodRow({ food, onPrefill, trailing }: { food: SavedFood; onPrefill: (s: SavedFood) => void; trailing: ReactNode }) {
   return (
-    <li className="flex items-center gap-2">
-      <button type="button" onClick={() => onPrefill(food)} className="flex min-w-0 flex-1 flex-col rounded-[12px] px-3 py-2.5 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`${food.label}, ${n(food.kcal)} kcal${food.recipe ? " a serving. Open the recipe" : ". Adjust before logging"}`}>
+    <li className="flex items-center gap-2 pr-3">
+      <button type="button" onClick={() => onPrefill(food)} className="flex min-w-0 flex-1 flex-col gap-0.5 py-3 pl-4 text-left transition-colors active:opacity-70" aria-label={`${food.label}, ${n(food.kcal)} kcal${food.recipe ? " a serving. Open the recipe" : ". Adjust before logging"}`}>
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[15px]" style={{ color: "var(--text)" }}>
             {food.label}
@@ -31,8 +32,13 @@ export default function SavedFoodRow({ food, onPrefill, trailing }: { food: Save
             </span>
           )}
         </span>
-        <span className="truncate text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-          {n(food.kcal)} kcal · {Math.round(food.proteinG)}P {Math.round(food.fatG)}F {Math.round(food.carbsG)}C{food.serving ? ` · ${food.serving}` : ""}
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <MacroText kcal={food.kcal} proteinG={food.proteinG} fatG={food.fatG} carbsG={food.carbsG} />
+          {food.serving && (
+            <span className="truncate text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+              {food.serving}
+            </span>
+          )}
         </span>
       </button>
       {trailing}

@@ -69,7 +69,7 @@ export function Row({ label, value, sub, below, onClick, trailing, ariaLabel }: 
 /** Rows in a group are separated by 1px lines, not gaps. */
 export function RowGroup({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+    <div className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
       {children}
     </div>
   );

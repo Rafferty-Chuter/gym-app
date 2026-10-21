@@ -211,7 +211,7 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
         <ErrorLine text={error} />
 
         {items.length === 0 && (
-          <div className="flex flex-col items-center gap-1 rounded-[12px] px-4 py-8 text-center" style={{ background: "var(--surface)" }}>
+          <div className="flex flex-col items-center gap-1 rounded-[16px] px-4 py-8 text-center" style={{ background: "var(--surface)" }}>
             <span className="text-[15px] font-semibold">No exercises yet</span>
             <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
               Add them, then set the sets for each. Weights are optional.
@@ -225,7 +225,7 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
           let n = 0;
           const repHint = d.repMin != null && d.repMax != null ? (d.repMin === d.repMax ? String(d.repMin) : `${d.repMin}–${d.repMax}`) : "–";
           return (
-            <section key={d.key} className="rounded-[12px] p-4" style={{ background: "var(--surface)" }} aria-label={d.name}>
+            <section key={d.key} className="rounded-[16px] p-4" style={{ background: "var(--surface)" }} aria-label={d.name}>
               <div className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate text-[17px] font-semibold">{d.name}</span>
                 <button type="button" onClick={() => setMenuKey(d.key)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--surface-raised)", color: "var(--text)" }} aria-label={`${d.name} options`}>

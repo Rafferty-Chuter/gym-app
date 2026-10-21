@@ -89,23 +89,28 @@ export default function NightHero({
               <Stat label="Woke" value={night.wakeTime ?? "–"} />
             </div>
           </div>
-          <p className="-mt-1 text-[12px]" style={{ color: "var(--sl-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-            {[eff !== null ? `${Math.round(eff * 100)}% efficiency` : null, night.source === "healthkit" ? "From Apple Health" : null].filter(Boolean).join(" · ")}
-          </p>
-          <p className="w-full rounded-[16px] px-4 py-3 text-[15px] leading-snug" style={{ background: "var(--sl-surface)", color: "var(--sl-text)" }}>
-            {score.reason}
-          </p>
-          <Link href={`/sleep/night?date=${date}`} className="-mt-1 flex w-full items-center justify-between rounded-[16px] px-4 py-3 text-[15px] transition-colors active:bg-[var(--sl-surface-raised)]" style={{ background: "var(--sl-surface)" }}>
-            <span>Night details</span>
-            <span className="flex items-center gap-1 text-[13px]" style={{ color: "var(--sl-text-tertiary)" }}>
-              Stages, score, recovery <Chevron />
-            </span>
-          </Link>
+          {eff !== null && (
+            <p className="-mt-1 text-[12px]" style={{ color: "var(--sl-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              {Math.round(eff * 100)}% efficiency
+            </p>
+          )}
+          {/* The night's one sentence and the way into its details: one panel, not two boxes (polish). */}
+          <div className="w-full overflow-hidden rounded-[16px]" style={{ background: "var(--sl-surface)" }}>
+            <p className="px-4 pb-3 pt-3.5 text-[15px] leading-snug" style={{ color: "var(--sl-text)" }}>
+              {score.reason}
+            </p>
+            <Link href={`/sleep/night?date=${date}`} className="flex w-full items-center justify-between px-4 py-3 text-[15px] transition-colors active:bg-[var(--sl-surface-raised)]" style={{ borderTop: "1px solid var(--sl-border)" }}>
+              <span>Night details</span>
+              <span className="flex items-center gap-1 text-[13px]" style={{ color: "var(--sl-text-tertiary)" }}>
+                Stages, score, recovery <Chevron />
+              </span>
+            </Link>
+          </div>
         </>
       ) : (
         <div className="flex w-full flex-col items-center gap-3 rounded-[16px] px-4 py-8 text-center" style={{ background: "var(--sl-surface)" }}>
           <p className="text-[15px]" style={{ color: "var(--sl-text-secondary)" }}>
-            {waiting && date === today ? "Last night is on its way from Apple Health." : "No sleep for this night."}
+            {waiting && date === today ? "No sleep for last night yet." : "No sleep for this night."}
           </p>
           <button type="button" onClick={onLog} className="h-[40px] rounded-[12px] px-4 text-[15px] font-semibold" style={{ background: "var(--sl-surface-raised)" }}>
             Add it yourself

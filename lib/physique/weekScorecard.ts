@@ -304,7 +304,7 @@ function stepsTile({ report, prev }: ScorecardInputs): Tile | null {
   if (h.meanSteps == null) return null;
   const vsLast = prev?.health.meanSteps != null ? h.meanSteps - prev.health.meanSteps : null;
   const delta = h.meanSteps >= STEPS_GOOD ? { text: `Over ${n(STEPS_GOOD)}`, tone: "good" as Tone } : vsLast != null ? { text: `${sign(vsLast)}${n(Math.abs(vsLast))} vs last week`, tone: "neutral" as Tone } : null;
-  return { id: "steps", label: "Steps a day", value: n(h.meanSteps), sub: `${h.stepDays} days from Apple Health`, delta, chart: { kind: "bars", values: report.days.map((d) => d.steps), target: STEPS_GOOD }, href: null };
+  return { id: "steps", label: "Steps a day", value: n(h.meanSteps), sub: `Over ${h.stepDays} ${h.stepDays === 1 ? "day" : "days"}`, delta, chart: { kind: "bars", values: report.days.map((d) => d.steps), target: STEPS_GOOD }, href: null };
 }
 
 function rhrTile({ report }: ScorecardInputs): Tile | null {
@@ -315,7 +315,7 @@ function rhrTile({ report }: ScorecardInputs): Tile | null {
     const d = h.meanRhr - h.usualRhr;
     delta = d >= RHR_FLAG_BPM ? { text: `+${d} bpm vs usual`, tone: "watch" } : { text: "Near usual", tone: "good" };
   }
-  return { id: "rhr", label: "Resting heart rate", value: `${h.meanRhr} bpm`, sub: h.usualRhr != null ? `Usually ${h.usualRhr} bpm` : `${h.rhrNights} nights from the watch`, delta, chart: { kind: "none" }, href: "/sleep" };
+  return { id: "rhr", label: "Resting heart rate", value: `${h.meanRhr} bpm`, sub: h.usualRhr != null ? `Usually ${h.usualRhr} bpm` : `Over ${h.rhrNights} ${h.rhrNights === 1 ? "night" : "nights"}`, delta, chart: { kind: "none" }, href: "/sleep" };
 }
 
 function waistTile({ report }: ScorecardInputs): Tile {

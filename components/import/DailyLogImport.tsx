@@ -162,7 +162,7 @@ export default function DailyLogImport() {
     <>
       <section className="flex flex-col gap-2" aria-label="Sample data">
         <Caption>Try it with sample data</Caption>
-        <div className="flex flex-col gap-3 rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
+        <div className="flex flex-col gap-3 rounded-[16px] p-4" style={{ background: "var(--surface)" }}>
           <p className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
             Eleven weeks: three at maintenance, then a cut from 86 kg that began eight weeks ago, with daily weigh-ins, food totals, sleep and steps, and four workouts a week. Days you logged yourself are kept, and it all comes out again with one tap.
           </p>
@@ -240,7 +240,7 @@ export default function DailyLogImport() {
         )}
 
         {preview && goal && (
-          <div className="flex flex-col gap-3 rounded-[12px] p-4" style={{ background: "var(--surface)" }}>
+          <div className="flex flex-col gap-3 rounded-[16px] p-4" style={{ background: "var(--surface)" }}>
             <div className="flex items-start justify-between gap-3">
               <span className="flex flex-col">
                 <span className="text-[15px] font-semibold">Goal in the file</span>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useNow } from "@/lib/ui/useToday";
 import { markWelcomeSeen } from "@/lib/physique/io/onboarding";
 import { PrimaryButton, SecondaryButton } from "@/components/physique/ui";
@@ -36,8 +37,13 @@ export default function WelcomePage() {
             Set up
           </PrimaryButton>
           <SecondaryButton onClick={() => void go("/")}>Look around first</SecondaryButton>
-          <p className="pt-2 text-center text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-            Set up starts with today&apos;s weight, then a target and a pace. About two minutes. Everything stays on this phone.
+          <p className="pt-2 text-center text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+            Set up starts with today&apos;s weight, then a target and a pace. About two minutes. Your log stays on this phone.
+            <br />
+            General information, not medical advice.{" "}
+            <Link href="/privacy" className="underline">
+              Privacy
+            </Link>
           </p>
         </div>
       </div>

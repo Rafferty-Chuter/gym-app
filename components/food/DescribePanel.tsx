@@ -183,18 +183,37 @@ export default function DescribePanel({ d, consumedKcal, targetKcal }: { d: Desc
   );
 }
 
+/** Tap to fill: what a good description looks like (polish). */
+const EXAMPLES: readonly string[] = ["2 eggs on toast with butter and a flat white", "Nando's half chicken, peri chips and a Coke Zero", "Chicken katsu curry from Wagamama", "Greek yoghurt, granola and blueberries"];
+
 function DescribeInput({ d }: { d: DescribeState }) {
   const len = d.text.length;
   const over = len > MAX_DESCRIBE_CHARS;
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3 px-1">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--green-dim)", color: "var(--green-strong)" }} aria-hidden>
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+            <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" />
+            <path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z" />
+          </svg>
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="text-[15px] font-semibold" style={{ color: "var(--text)" }}>
+            Describe what you ate
+          </span>
+          <span className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
+            A meal, a takeaway order or a whole recipe
+          </span>
+        </span>
+      </div>
       <div className="relative">
         <textarea
           value={d.text}
           onChange={(e) => d.setText(e.target.value)}
-          placeholder={"2 eggs on toast with butter, a flat white\nChicken katsu curry from Wagamama\nOr paste a recipe, method and all"}
-          rows={8}
-          className="block w-full resize-none rounded-[14px] py-3 pl-3.5 pr-11 text-[15px] leading-relaxed outline-none focus:ring-1"
+          placeholder="What did you eat? Amounts help: 2 eggs, a large flat white, half a pizza."
+          rows={6}
+          className="block w-full resize-none rounded-[16px] py-3.5 pl-4 pr-11 text-[15px] leading-relaxed outline-none focus:ring-1"
           style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }}
           aria-label="Describe what you ate, or paste a recipe"
           aria-describedby="describe-hint"
@@ -207,9 +226,23 @@ function DescribeInput({ d }: { d: DescribeState }) {
           </button>
         )}
       </div>
+      {!d.text && (
+        <div className="flex flex-col gap-1.5">
+          <span className="px-1 text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
+            Try
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLES.map((t) => (
+              <button key={t} type="button" onClick={() => d.setText(t)} className="rounded-full px-3 py-2 text-left text-[13px] transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text-secondary)" }}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3 px-1 text-[11px]">
         <span id="describe-hint" style={{ color: "var(--text-tertiary)" }}>
-          Meals, takeaways and recipes. Numbers come from the UK food database and chains&apos; published figures.
+          You check every food and amount before anything is logged.
         </span>
         {/* The count only matters near the limit (C9). */}
         {len > MAX_DESCRIBE_CHARS * 0.8 && (

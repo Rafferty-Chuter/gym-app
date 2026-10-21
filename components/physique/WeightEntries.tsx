@@ -55,7 +55,7 @@ export default function WeightEntries({ weighIns, today, unit, onOpen }: { weigh
           <div className="mb-2">
             <Caption>{g.label}</Caption>
           </div>
-          <ul className="divide-y divide-[var(--border)] overflow-hidden rounded-[12px]" style={{ background: "var(--surface)" }}>
+          <ul className="divide-y divide-[var(--border)] overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
             {g.items.map((r) => {
               const w = byDate.get(r.date);
               const meta = [typeof w?.bodyFatPct === "number" ? `${w.bodyFatPct.toFixed(1)} % fat` : null, w && w.source !== "manual" ? w.source : null].filter(Boolean).join(" · ");

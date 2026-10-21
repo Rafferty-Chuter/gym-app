@@ -26,7 +26,7 @@ export default function GapRows({ lines, onSelect, hrefFor, max }: Props) {
   return (
     <section aria-label="Not logged" className="flex flex-col gap-2">
       <Caption>Not logged</Caption>
-      <div className="overflow-hidden rounded-[12px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
+      <div className="overflow-hidden rounded-[16px] divide-y divide-[var(--border)]" style={{ background: "var(--surface)" }}>
         {shown.map((l) => {
           const inner = (
             <>
