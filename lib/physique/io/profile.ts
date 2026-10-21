@@ -4,7 +4,7 @@
  * is pure.
  */
 
-import { loadOnboardingProfile, saveOnboardingProfile, type OnboardingProfile } from "@/lib/onboardingProfile";
+import { loadOnboardingProfile, saveOnboardingProfile, type OnboardingProfile, type OnboardingYearsBand } from "@/lib/onboardingProfile";
 import { profileStore, weighInsRepo, foodEntriesRepo } from "@/lib/physique/io/repos";
 import type { PhysiqueProfile, Sex } from "@/lib/physique/types";
 
@@ -97,7 +97,7 @@ export async function savePhysiqueProfile(patch: Partial<PhysiqueProfile>): Prom
 }
 
 /** Merge the fields the goal flow collects into the onboarding profile (the canonical home for sex/age/height). */
-export function saveOnboardingBasics(patch: { sex?: Sex; age?: number; heightCm?: number }): void {
+export function saveOnboardingBasics(patch: { sex?: Sex; age?: number; heightCm?: number; yearsTrainingBand?: OnboardingYearsBand }): void {
   const current = loadOnboardingProfile() ?? ({ units: "kg" } as OnboardingProfile);
   saveOnboardingProfile({ ...current, ...patch });
 }

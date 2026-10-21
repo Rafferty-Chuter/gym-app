@@ -1,7 +1,7 @@
 "use client";
 
 import { BODY_FAT_OPTIONS, SEX_OPTIONS } from "@/lib/physique/profileOptions";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUnit } from "@/lib/unit-preference";
@@ -96,6 +96,12 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
     return previewGoal(ctx, { targetKg, ratePctPerWeek: draft.rate, status }, now);
   }, [ctx, draft, targetKg, status, now]);
 
+  // O1: someone with no goal so far, no weigh-in or no basics gets the guided setup, which asks for all of it.
+  const fresh = !activeGoal && ctx.goals.length === 0 && (ctx.profile.missing.length > 0 || ctx.trendKg == null);
+  useEffect(() => {
+    if (fresh) router.replace("/setup");
+  }, [fresh, router]);
+
   const underage = ctx.profile.age < ADULT_AGE;
   const safetyForcesMaintenance = safety === true || (underage && draft?.type === "lose");
 
@@ -130,6 +136,7 @@ function Wizard({ now, unit }: { now: Now; unit: WeightUnit }) {
     else setError(r.error);
   }
 
+  if (fresh) return <main className="min-h-screen" style={{ background: "var(--page)" }} />;
   const stepIndex = step === "basics" ? 0 : step === "target" ? 1 : step === "rate" ? 2 : 3;
 
   return (

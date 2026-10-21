@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Sheet from "@/components/ui/Sheet";
 import NumberPad, { NumberPadValue, parsePadValue } from "@/components/ui/NumberPad";
 import { PrimaryButton } from "@/components/physique/ui";
@@ -26,6 +26,33 @@ export default function HeightSheet({ open, onClose, initialCm, onSave }: { open
 }
 
 function Inner({ onClose, initialCm, onSave }: { onClose: () => void; initialCm: number | null; onSave: (cm: number) => void }) {
+  const h = useHeightInput(initialCm);
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title="Height"
+      footer={
+        <PrimaryButton
+          onClick={() => {
+            if (h.ok && h.cm != null) {
+              onSave(h.cm);
+              onClose();
+            }
+          }}
+          disabled={!h.ok}
+        >
+          Save
+        </PrimaryButton>
+      }
+    >
+      {h.view}
+    </Sheet>
+  );
+}
+
+/** The height picker itself, cm or ft / in, for the sheet and for the first-run setup (O1). */
+export function useHeightInput(initialCm: number | null): { cm: number | null; ok: boolean; view: ReactNode } {
   const unit = useHeightUnit();
   const [cmText, setCmText] = useState(initialCm != null ? String(Math.round(initialCm)) : "");
   const start = cmToFtIn(initialCm ?? DEFAULT_CM);
@@ -50,25 +77,8 @@ function Inner({ onClose, initialCm, onSave }: { onClose: () => void; initialCm:
 
   const pill = (on: boolean) => ({ background: on ? "var(--primary)" : "var(--surface-raised)", color: on ? "var(--text-on-primary)" : "var(--text-secondary)" });
 
-  return (
-    <Sheet
-      open
-      onClose={onClose}
-      title="Height"
-      footer={
-        <PrimaryButton
-          onClick={() => {
-            if (ok && cm != null) {
-              onSave(cm);
-              onClose();
-            }
-          }}
-          disabled={!ok}
-        >
-          Save
-        </PrimaryButton>
-      }
-    >
+  const view = (
+    <>
       <div className="flex justify-center pb-3">
         <span className="flex gap-1" role="radiogroup" aria-label="Height units">
           {(["cm", "ft"] as const).map((u) => (
@@ -92,8 +102,9 @@ function Inner({ onClose, initialCm, onSave }: { onClose: () => void; initialCm:
           </p>
         </div>
       )}
-    </Sheet>
+    </>
   );
+  return { cm, ok, view };
 }
 
 function Stepper({ label, value, unit, canDown, canUp, onStep }: { label: string; value: number; unit: string; canDown: boolean; canUp: boolean; onStep: (delta: 1 | -1) => void }) {

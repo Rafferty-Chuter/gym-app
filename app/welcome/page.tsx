@@ -7,9 +7,9 @@ import { PrimaryButton, SecondaryButton } from "@/components/physique/ui";
 
 /**
  * First open (B7): one screen, three lines, two choices. Set up opens the
- * weight sheet on Body, from where the goal flow (sex, height, age,
- * target, pace) is one tap; Look around first goes to Home. Either way
- * this screen is not shown again on this device.
+ * guided setup (O1: basics, today's weight, the goal and its targets);
+ * Look around first goes to Home. Either way this screen is not shown
+ * again on this device.
  */
 export default function WelcomePage() {
   const now = useNow();
@@ -32,12 +32,12 @@ export default function WelcomePage() {
           </ul>
         </div>
         <div className="flex flex-col gap-2">
-          <PrimaryButton onClick={() => void go(now ? `/body?date=${now.today}` : "/body")} disabled={!now}>
+          <PrimaryButton onClick={() => void go("/setup")} disabled={!now}>
             Set up
           </PrimaryButton>
           <SecondaryButton onClick={() => void go("/")}>Look around first</SecondaryButton>
           <p className="pt-2 text-center text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-            Set up starts with today&apos;s weight, then a target and a pace. About two minutes. Your log stays on this phone.
+            A few basics, today&apos;s weight, then your goal. About two minutes. Your log stays on this phone.
             <br />
             General information, not medical advice.{" "}
             <Link href="/privacy" className="underline">
