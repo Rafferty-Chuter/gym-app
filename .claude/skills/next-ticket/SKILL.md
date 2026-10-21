@@ -21,6 +21,7 @@ Run the build plan's session protocol for one ticket. The plan is in `docs/plan/
 - Precedence when documents disagree: `02-engine-spec.md` > `03-architecture.md` > `04-tickets.md` > `research/*`. Record any deviation you make, and why, in `STATUS.md`.
 
 ## 3. Build
+- First follow "Working path for anything new" in `CLAUDE.md`: say how the ticket earns its place against the other apps and the person's own effort, then check Mobbin for how two to four leading apps do it and build from the best.
 - Engine code in `lib/physique/` is pure (no storage, no `window`, no `Date.now()`), and test-first: write the acceptance tests, watch them fail, then implement.
 - New code goes in new files. Keep edits to the hotspot files listed in `CLAUDE.md` small.
 - Match the conventions in `CLAUDE.md`.

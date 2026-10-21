@@ -8,6 +8,19 @@ A Next.js 16 (app router) + React 19 + Tailwind 4 web app. It started as an assi
 
 **The build plan lives in `docs/plan/`. Start at `docs/plan/README.md`.** Work is done one ticket at a time; tickets are in `docs/plan/04-tickets.md` and progress is tracked in `docs/plan/STATUS.md`.
 
+## Working path for anything new
+
+The founder set this as the standard on 2026-10-21. Follow it before building any new feature or screen, and for small things such as wording when there is little guidance.
+
+**The final goal.** One app where a lifter sees their weight trend, food and training (and sleep) in one organised place over the whole of their goal, and sees how each affects the others, training above all, in ways they would not spot on their own. Facts from their own data, not advice. Something people will pay for. When unsure of the goal, ask the founder to restate it. (`PRODUCT.md` predates this: where it says "assistant-first" or "Body tab", this paragraph wins.)
+
+1. **Earn its place.** Before building, answer in two or three lines (in the ticket or the STATUS row):
+   - How does this help someone more than the other apps (MacroFactor, Hevy, Strong, MyFitnessPal, Cronometer, WHOOP, Bevel)?
+   - How does it get them to their goal better than they would manage on their own?
+   - Is it grounded in their own data, and would they pay for it?
+   No good answer: say so and don't build it, or build the smaller version that has one.
+2. **Copy what's proven.** Search Mobbin for how two to four leading apps do the same thing (screens and flows). Note what is objectively better in each (fewer taps, fewer words, clearer numbers, faster entry) and build from the best of them. When guidance is thin, this decides, down to small wording and interfaces such as food logging. Name the apps and screens used in the STATUS row.
+
 ## Commands
 
 | What | Command | Notes |
