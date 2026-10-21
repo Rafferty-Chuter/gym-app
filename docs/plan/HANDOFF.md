@@ -1,9 +1,10 @@
-# Handoff (2026-10-21, end of the local session)
+# Handoff (2026-10-22)
 
 For a session picking up after the 21 Oct local session (PR3 to PR5, then the tester-ready tickets). Read `CLAUDE.md` first, then this, then `docs/plan/07-tester-ready.md` and the "Tester-ready" section of `STATUS.md`.
 
 ## Start here
 
+- **22 Oct:** TR9 done (sign in from the welcome screen, so a tester on a new phone or after a reinstall gets their data instead of a second setup). Still no Xcode or Vercel CLI on the founder's Mac (checked 22 Oct).
 - **Goal now: outside testers on TestFlight.** All session tickets TR1 to TR7 in `07-tester-ready.md` are done and merged (consent and delete account, privacy notice and DPIA draft, error reporting, tester kit, iOS privacy manifest and review texts, nightly backup workflow, MacroFactor import). `npm run check` (699 tests) and `npm run build` pass on `c5e7d78`. TR8 (real-device check) waits for the TestFlight build.
 - **Waiting on the founder (FT steps in `07-tester-ready.md`):** Apple Developer enrolment is stuck: the app refused his UK driving licence, he has emailed Apple to verify with his passport (passports are accepted in most regions; the Apple ID name must match exactly). Xcode not installed yet (his Mac: macOS 15.7.3 Sequoia, M4; Xcode 26.x runs on it, Xcode 27 needs Tahoe 26.6+). Not yet done: deploy (FT3), accounts switched on (FT4, now allowed since TR1 is in), rotate keys (FT5), Tally form and support email (FT6), recruit testers (FT8), ICO fee and a UK GDPR read of `/privacy` and `docs/plan/legal/DPIA-draft.md` (FT9).
 - **The founder is building the AI coach in his own separate session.** Don't touch `app/api/assistant/route.ts` or `app/assistant/page.tsx` without asking.
@@ -36,7 +37,7 @@ For a session picking up after the 21 Oct local session (PR3 to PR5, then the te
 
 1. **Done in PR3:** each main lift on Progress (X1).
 2. **Deploy** everything once the Vercel limit allows, then smoke-test both hosts.
-3. **Accounts** built (PR4) with consent and delete account (TR1) and a nightly backup workflow (TR6, the founder adds the secrets and triggers the first run). Left: the founder's switch-on steps, a real-project smoke test on the phone, API routes keyed by `auth.uid()` for the daily AI cap, sign-in offered in `/setup`.
+3. **Accounts** built (PR4) with consent and delete account (TR1) and a nightly backup workflow (TR6, the founder adds the secrets and triggers the first run). Left: the founder's switch-on steps, a real-project smoke test on the phone, API routes keyed by `auth.uid()` for the daily AI cap. (Sign-in for a fresh device is on the welcome screen, TR9.)
 4. **Progress for a new user** (PR5): a list of what each part needs and "See an example" on made-up data.
 5. Earlier offers waiting on the founder: gate changes (MIN_LOGGED_SHARE 0.7, MIN_WEIGHIN_RATIO 0.25), the AI coach as a premium feature. (The MacroFactor import is done, TR7; "Body tab" is gone from the assistant prompt, PR3f.)
 
@@ -49,6 +50,6 @@ For a session picking up after the 21 Oct local session (PR3 to PR5, then the te
 ## Testing
 
 - `/dev/seed-physique` loads made-up data. CONNECTIONS is the richest: 16 weeks, top sets 4% lighter after nights under 6.5 h and 3% heavier after higher-carb days. WATCH carries HRV and resting HR.
-- Accounts without real keys: `.claude/launch.json` (local, not committed) had a "dev-accounts-fake" entry that starts the app pointed at `https://fake-project.supabase.co`; a Playwright script answering those requests exercised sign-in and two-device sync (PR4 row).
+- Accounts without real keys: `.claude/launch.json` (local, not committed) has a "dev-accounts-fake" entry that starts the app pointed at `https://fake-project.supabase.co` (and the delete route at the script's fake admin server). Then `APP_URL=http://localhost:3000 PLAYWRIGHT=<path to playwright/index.mjs> node scripts/e2e-accounts.mjs <screenshots dir>` runs sign-in, sync, consent, delete and the welcome sign-in (44 checks; a Playwright 1.62 copy sits in `~/.npm/_npx/`).
 - If the dev server serves a stale stylesheet (a new CSS variable missing), stop it, delete `.next/dev`, start again.
 - Never commit `.env.local`, tokens or the founder's own backup files.

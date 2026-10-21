@@ -1,6 +1,7 @@
 /**
- * End to end: accounts, consent and delete (PR4, TR1) in Chromium against a
- * fake Supabase, with the app's real supabase-js and the real delete route.
+ * End to end: accounts, consent and delete (PR4, TR1), and signing in from
+ * the welcome screen on a fresh device (TR9), in Chromium against a fake
+ * Supabase, with the app's real supabase-js and the real delete route.
  *
  * 1. Start the app pointed at the fake project (`.claude/launch.json`,
  *    "dev-accounts-fake"):
@@ -320,6 +321,101 @@ async function signIn(page, email) {
   check((await ls(page, "physique.v1.weighIns")) === null && (await ls(page, "consent.v1")) === null && (await ls(page, "sync.v1.auth")) === null, "this device is cleared too");
   check(errors.length === 0, `no page errors (${errors.join(" | ") || "none"})`);
   await shot(page, "after-clear-dark");
+  await context.close();
+}
+
+// ── Runs 3 and 4: signing in from the welcome screen on a fresh device ──
+
+/** A device with nothing on it, as after a reinstall or on a new phone. */
+async function freshDevice(colorScheme) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme });
+  await context.route(`${FAKE}/**`, browserRoute);
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  return { context, page, errors };
+}
+
+async function codeFor(page, email) {
+  await page.getByLabel("Email").fill(email);
+  await page.getByRole("button", { name: "Email me a code" }).click();
+  await page.getByLabel("6-digit code").fill(CODE);
+}
+
+const pathOf = (page) => new URL(page.url()).pathname;
+const welcomeSeen = async (page) => !!JSON.parse((await ls(page, "physique.v1.onboarding")) ?? "{}").welcomeSeenAt;
+
+{
+  // The account first gets data from another device.
+  const a = await phone("light");
+  await a.page.goto(`${APP}/account`);
+  await a.page.getByRole("heading", { name: "Before you sign in" }).waitFor();
+  await signIn(a.page, "returning@example.com");
+  const uid = uuid("returning@example.com");
+  check(rowsOf(uid).filter((r) => r.k === "physique.v1.weighIns").length === 3, "a returning person's account holds 3 weigh-ins from their old phone");
+  await a.context.close();
+
+  const { context, page, errors } = await freshDevice("light");
+  await page.goto(`${APP}/`);
+  await page.waitForURL((u) => new URL(u).pathname === "/welcome", { timeout: 15000 });
+  const signInLink = page.getByRole("link", { name: "Sign in" });
+  await signInLink.waitFor();
+  check(true, "a fresh device opens on the welcome screen, which offers Sign in");
+  await shot(page, "welcome-sign-in-light");
+  const before = store.log.length;
+  await signInLink.click();
+  await page.getByRole("heading", { name: "Before you sign in" }).waitFor();
+  check(pathOf(page) === "/welcome/sign-in", "Sign in opens the welcome's own sign-in page");
+  check((await page.locator("nav[aria-label=Main]").count()) === 0, "no tab bar on it, as on the welcome screen");
+  await page.waitForTimeout(1000);
+  check(store.log.length === before, "before the tick, nothing reaches the account from here either");
+  await shot(page, "welcome-consent-light");
+  await page.getByRole("checkbox").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await codeFor(page, "returning@example.com");
+  await page.waitForURL((u) => new URL(u).pathname === "/", { timeout: 15000 });
+  await page.waitForTimeout(1500);
+  check(pathOf(page) === "/", "after the code, the person lands on Home and stays there");
+  check(JSON.stringify((await weighInIds(page)).sort()) === JSON.stringify(["w1", "w2", "w3"]), "their 3 weigh-ins are on the new device");
+  check(await welcomeSeen(page), "the welcome screen is marked seen, so it doesn't come back");
+  check(errors.length === 0, `no page errors (${errors.join(" | ") || "none"})`);
+  await shot(page, "welcome-signed-in-home-light");
+  await context.close();
+}
+
+{
+  // A new email: the account has nothing logged, so the page says so and offers Set up.
+  const { context, page, errors } = await freshDevice("dark");
+  await page.goto(`${APP}/welcome/sign-in`);
+  await page.getByRole("checkbox").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await codeFor(page, "new-person@example.com");
+  await page.getByText("Nothing logged in this account yet").waitFor({ timeout: 15000 });
+  check(pathOf(page) === "/welcome/sign-in" && (await page.getByText("new-person@example.com").count()) === 1, "an empty account says so, with the email it signed in as");
+  await shot(page, "welcome-empty-dark");
+  await page.getByRole("button", { name: "Set up" }).click();
+  await page.waitForURL((u) => new URL(u).pathname === "/setup", { timeout: 15000 });
+  check(await welcomeSeen(page), "Set up goes to the setup, the welcome marked seen");
+  check(errors.length === 0, `no page errors (${errors.join(" | ") || "none"})`);
+  await context.close();
+}
+
+{
+  // A typo: "Use another email" signs out and asks for the email again, then the right account comes down.
+  const { context, page, errors } = await freshDevice("dark");
+  await page.goto(`${APP}/welcome/sign-in`);
+  await page.getByRole("checkbox").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await codeFor(page, "retuning@example.com");
+  await page.getByText("Nothing logged in this account yet").waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: "Use another email" }).click();
+  await page.getByLabel("Email").waitFor();
+  check(true, "Use another email signs out and goes back to the email (no second consent)");
+  await codeFor(page, "returning@example.com");
+  await page.waitForURL((u) => new URL(u).pathname === "/", { timeout: 15000 });
+  check(JSON.stringify((await weighInIds(page)).sort()) === JSON.stringify(["w1", "w2", "w3"]), "the right account's weigh-ins arrive after the typo");
+  check(errors.length === 0, `no page errors (${errors.join(" | ") || "none"})`);
+  await shot(page, "welcome-after-typo-home-dark");
   await context.close();
 }
 

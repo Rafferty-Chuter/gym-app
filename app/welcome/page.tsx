@@ -4,12 +4,16 @@ import Link from "next/link";
 import { useNow } from "@/lib/ui/useToday";
 import { markWelcomeSeen } from "@/lib/physique/io/onboarding";
 import { PrimaryButton, SecondaryButton } from "@/components/physique/ui";
+import { ACCOUNTS_ENABLED } from "@/lib/sync/config";
 
 /**
  * First open (B7): one screen, three lines, two choices. Set up opens the
  * guided setup (O1: basics, today's weight, the goal and its targets);
  * Look around first goes to Home. Either way this screen is not shown
- * again on this device.
+ * again on this device. With accounts on, one quiet line under the
+ * buttons signs in someone who already has an account (Hevy's "New to
+ * Hevy? Sign up", Mobbin), so a new phone gets their data, not a second
+ * setup.
  */
 export default function WelcomePage() {
   const now = useNow();
@@ -36,6 +40,14 @@ export default function WelcomePage() {
             Set up
           </PrimaryButton>
           <SecondaryButton onClick={() => void go("/")}>Look around first</SecondaryButton>
+          {ACCOUNTS_ENABLED && (
+            <p className="flex min-h-[44px] items-center justify-center gap-1 text-[15px]" style={{ color: "var(--text-secondary)" }}>
+              Have an account?
+              <Link href="/welcome/sign-in" className="flex min-h-[44px] items-center px-1 font-semibold" style={{ color: "var(--text)" }}>
+                Sign in
+              </Link>
+            </p>
+          )}
           <p className="pt-2 text-center text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
             A few basics, today&apos;s weight, then your goal. About two minutes. Your log stays on this phone.
             <br />

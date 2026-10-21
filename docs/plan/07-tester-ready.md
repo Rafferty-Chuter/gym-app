@@ -155,6 +155,18 @@ Do: find MacroFactor's export format (and MyFitnessPal's) from public docs or a 
 
 Acceptance: a MacroFactor export imports in one step, Progress shows maintenance and the weight trend straight after, a second import adds nothing.
 
+### TR9 · Sign in from the welcome screen
+S · depends on: PR4, TR1 · done 2026-10-22
+
+Why: a tester who reinstalls, changes phone or opens the web app on a second device lands on the welcome screen with only "Set up" or "Look around first", so they either set up a second goal beside the one in their account or have to find Profile → Account. The analysis needs weeks of history; it must follow them.
+
+Do: a quiet "Have an account? Sign in" line under the welcome buttons (accounts on only), opening `/welcome/sign-in`: the same consent, email and code as Profile → Account, then the first sync, then Home with their data. An account with nothing logged says so ("Nothing logged in this account yet", the email shown) and offers Set up or Use another email (a typo).
+
+Acceptance:
+- [x] Nothing reaches the account before the tick; the line is hidden while accounts are off.
+- [x] A returning person on a fresh device lands on Home with their data; the welcome doesn't come back.
+- [x] An empty account says so; Set up and Use another email both work.
+
 ### TR8 · Real-device check (after FT7)
 S · depends on: FT7 · a session with the founder holding the phone
 Checklist on the TestFlight build: first run and setup; email code autofills from Mail and signs in; consent shows before sync; Apple Health connect and the first read; weigh-in, food and a workout logged; Progress in light and dark, the example view; safe areas and the keyboard on every input; offline start; delete account; feedback link. Record pass or fail per line in STATUS; anything failing becomes its own ticket.
