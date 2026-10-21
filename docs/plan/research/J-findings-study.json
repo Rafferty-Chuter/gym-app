@@ -1,0 +1,498 @@
+{
+  "seeds": 30,
+  "days": 77,
+  "rows": [
+    {
+      "id": "sleep-gain",
+      "label": "Lean gain, sleeps 6.1 h, lifts flat",
+      "expect": [
+        "sleep-lifts"
+      ],
+      "found": 25,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {
+        "sleep-lifts": 25
+      },
+      "example": {
+        "verdict": "Not gaining, lifts flat: Losing 0.0 %/wk over 42 days (42 weigh-ins) against a 0.25 goal, while eating to target.",
+        "findings": [
+          {
+            "title": "Short sleep while the lifts aren't progressing",
+            "data": "Sleep averaged 6h 06m over 28 nights in the last 4 weeks, under the 7 hours adults need, and your main lifts have not progressed over the last 8 weeks (Bench Press −2.7%, Squat +2.9%).",
+            "evidence": "In a trial, five nights of 4 hours' sleep left muscle protein synthesis about a fifth lower (Saner 2020), and a review links short sleep with lower strength in compound lifts (Knowles 2018)."
+          }
+        ]
+      }
+    },
+    {
+      "id": "sleep-cut",
+      "label": "Cut, sleeps 6.1 h, lifts down 7%",
+      "expect": [
+        "sleep-lifts"
+      ],
+      "found": 30,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {
+        "sleep-lifts": 30
+      },
+      "example": {
+        "verdict": "On track: Losing 0.7 %/wk over 28 days (28 weigh-ins).",
+        "findings": [
+          {
+            "title": "Short sleep while the lifts aren't progressing",
+            "data": "Sleep averaged 6h 06m over 28 nights in the last 4 weeks, under the 7 hours adults need, and your main lifts are down over the last 8 weeks (Bench Press −12.1%, Squat −7.1%).",
+            "evidence": "In a trial of dieting adults, 5.5 hours in bed instead of 8.5 lost about the same weight, but 55% less of it was fat and 60% more was lean mass (Nedeltcheva 2010). In another, five nights of 4 hours' sleep left muscle protein synthesis about a fifth lower (Saner 2020)."
+          }
+        ]
+      }
+    },
+    {
+      "id": "protein-cut",
+      "label": "Cut, protein about 1.1 g/kg",
+      "expect": [
+        "protein-low"
+      ],
+      "found": 30,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {
+        "protein-low": 30
+      },
+      "example": {
+        "verdict": "On track: Losing 0.7 %/wk over 28 days (28 weigh-ins), lifts holding.",
+        "findings": [
+          {
+            "title": "Protein is under the level studies support",
+            "data": "Protein averaged 93 g a day over 27 complete days in the last 4 weeks, 1.1 g per kg of body weight.",
+            "evidence": "Keeping muscle in a deficit takes more: a review of lean lifters puts it at 2.3 to 3.1 g per kg of lean mass, about 1.8 g per kg of body weight or more (Helms 2014)."
+          }
+        ]
+      }
+    },
+    {
+      "id": "protein-gain",
+      "label": "Lean gain, protein about 1.3 g/kg",
+      "expect": [
+        "protein-low"
+      ],
+      "found": 30,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {
+        "protein-low": 30
+      },
+      "example": {
+        "verdict": "Not clear yet: Losing 0.2 %/wk over 28 days (28 weigh-ins) against a +0.25 %/wk goal.",
+        "findings": [
+          {
+            "title": "Protein is under the level studies support",
+            "data": "Protein averaged 103 g a day over 28 complete days in the last 4 weeks, 1.3 g per kg of body weight.",
+            "evidence": "A meta-analysis of 49 trials found muscle gains from training levelled off at about 1.6 g per kg a day, with some people gaining up to 2.2 (Morton 2018)."
+          }
+        ]
+      }
+    },
+    {
+      "id": "gain-over",
+      "label": "Lean gain, eats 600 over target",
+      "expect": [
+        "gain-fast"
+      ],
+      "found": 30,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {
+        "gain-fast": 30
+      },
+      "example": {
+        "verdict": "510 kcal over target: On average over the last 14 days.",
+        "findings": [
+          {
+            "title": "Gaining faster than studies find useful",
+            "data": "The trend rose +0.70 %/wk over the last 4 weeks, on 3,372 kcal a day, 486 over the 2,886 target.",
+            "evidence": "A review for lifters puts a useful rate at about 0.25 to 0.5 % of body weight a week, less for the more trained, with faster gains adding more fat (Iraki 2019). In a trial with elite athletes, a larger surplus added more fat without adding more lean mass (Garthe 2013)."
+          }
+        ]
+      }
+    },
+    {
+      "id": "cut-fast",
+      "label": "Cut, 1,100 kcal deficit, lifts down 7% (protein kept high)",
+      "expect": [
+        "cut-fast-lifts"
+      ],
+      "found": 30,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {
+        "cut-fast-lifts": 30
+      },
+      "example": {
+        "verdict": "Losing faster than planned: Losing 1.5 %/wk over 28 days (28 weigh-ins) against a 1.0 goal, and Bench Press and Squat are down 6 to 9% since the cut began.",
+        "findings": [
+          {
+            "title": "Losing fast while lifts drop",
+            "data": "The trend fell −1.24 %/wk over the last 4 weeks, and over 8 weeks Bench Press −9.9%, Squat −12.8%.",
+            "evidence": "In a trial with athletes, losing about 0.7 % of body weight a week kept more lean mass and strength than 1.4 % a week (Garthe 2011)."
+          }
+        ]
+      }
+    },
+    {
+      "id": "underlog-60",
+      "label": "Eats maintenance, logs 60% of it, 'can't lose'",
+      "expect": [
+        "underlog"
+      ],
+      "found": 30,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {
+        "underlog": 30
+      },
+      "example": {
+        "verdict": "At the calorie floor: Your target won't go under 1,500 kcal. Consider maintenance, and a registered dietitian if the goal still matters.",
+        "findings": [
+          {
+            "title": "Some food may be missing from the log",
+            "data": "Over the last 4 weeks you logged 1,731 kcal a day and the weight trend held (+0.03 %/wk), which puts what you burn at about 1,704 kcal a day. Lying still all day, your body would use about 2,005: 1,823 at rest plus about a tenth for digesting food.",
+            "evidence": "Burning less than that while up and about isn't possible, so some food is likely missing from the log, and the protein and calorie numbers from it read low too. Studies that measured real intake with doubly labelled water find self-reports usually fall short (Hill and Davies 2001), by half in some people (Schoeller 1995), including those who said they couldn't lose weight on little food (Lichtman 1992)."
+          }
+        ]
+      }
+    },
+    {
+      "id": "ok-cut",
+      "label": "Control: cut on target, sleeps 7.6 h, 2 g/kg protein",
+      "expect": [],
+      "found": 0,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {},
+      "example": {
+        "verdict": "On track: Losing 0.7 %/wk over 28 days (28 weigh-ins), lifts holding.",
+        "findings": []
+      }
+    },
+    {
+      "id": "ok-gain",
+      "label": "Control: lean gain on target, lifts rising",
+      "expect": [],
+      "found": 0,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {},
+      "example": {
+        "verdict": "Not clear yet: Losing 0.2 %/wk over 28 days (28 weigh-ins) against a +0.25 %/wk goal.",
+        "findings": []
+      }
+    },
+    {
+      "id": "ok-honest-low",
+      "label": "Control: eats 2,200, logs all, losing",
+      "expect": [],
+      "found": 0,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {},
+      "example": {
+        "verdict": "Not clear yet: Losing 0.8 %/wk over 28 days (28 weigh-ins) against a −0.5 %/wk goal.",
+        "findings": []
+      }
+    },
+    {
+      "id": "ok-small",
+      "label": "Control: 58 kg woman, eats 1,500, logs all, losing",
+      "expect": [],
+      "found": 0,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {},
+      "example": {
+        "verdict": "Not clear yet: Losing 0.9 %/wk over 28 days (28 weigh-ins) against a −0.5 %/wk goal.",
+        "findings": []
+      }
+    },
+    {
+      "id": "ok-short-progressing",
+      "label": "Control: lean gain, sleeps 6.1 h, lifts rising 6%",
+      "expect": [],
+      "found": 0,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {},
+      "example": {
+        "verdict": "Not clear yet: Losing 0.2 %/wk over 28 days (28 weigh-ins) against a +0.25 %/wk goal.",
+        "findings": []
+      }
+    },
+    {
+      "id": "ok-flat-sleeps",
+      "label": "Control: lean gain, sleeps 7.6 h, lifts flat",
+      "expect": [],
+      "found": 0,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {},
+      "example": {
+        "verdict": "Not gaining, lifts flat: Losing 0.0 %/wk over 42 days (42 weigh-ins) against a 0.25 goal, while eating to target.",
+        "findings": []
+      }
+    },
+    {
+      "id": "ok-light-underlog",
+      "label": "Eats maintenance, logs 85% (mild under-logging)",
+      "expect": [],
+      "found": 0,
+      "falseAlarms": 0,
+      "runs": 30,
+      "byId": {},
+      "example": {
+        "verdict": "Weight loss has stalled: +0.02 %/wk over 42 days (42 weigh-ins) against a −0.5 goal.",
+        "findings": []
+      }
+    }
+  ],
+  "sweep": [
+    {
+      "logShare": 0.5,
+      "flagged": 30,
+      "runs": 30
+    },
+    {
+      "logShare": 0.6,
+      "flagged": 30,
+      "runs": 30
+    },
+    {
+      "logShare": 0.65,
+      "flagged": 29,
+      "runs": 30
+    },
+    {
+      "logShare": 0.7,
+      "flagged": 19,
+      "runs": 30
+    },
+    {
+      "logShare": 0.75,
+      "flagged": 2,
+      "runs": 30
+    },
+    {
+      "logShare": 0.8,
+      "flagged": 0,
+      "runs": 30
+    },
+    {
+      "logShare": 0.85,
+      "flagged": 0,
+      "runs": 30
+    },
+    {
+      "logShare": 0.9,
+      "flagged": 0,
+      "runs": 30
+    },
+    {
+      "logShare": 1,
+      "flagged": 0,
+      "runs": 30
+    }
+  ],
+  "traces": {
+    "honest": [
+      {
+        "week": 2,
+        "maintenanceEst": 2941,
+        "targetKcal": 2464,
+        "loggedKcal": 2508,
+        "eatenKcal": 2508,
+        "trendKg": 84,
+        "verdict": "Calibrating"
+      },
+      {
+        "week": 4,
+        "maintenanceEst": 3006,
+        "targetKcal": 2564,
+        "loggedKcal": 2489,
+        "eatenKcal": 2489,
+        "trendKg": 83.3,
+        "verdict": "On track"
+      },
+      {
+        "week": 6,
+        "maintenanceEst": 2882,
+        "targetKcal": 2422,
+        "loggedKcal": 2504,
+        "eatenKcal": 2504,
+        "trendKg": 82.6,
+        "verdict": "On track"
+      },
+      {
+        "week": 8,
+        "maintenanceEst": 2919,
+        "targetKcal": 2466,
+        "loggedKcal": 2555,
+        "eatenKcal": 2555,
+        "trendKg": 81.8,
+        "verdict": "On track"
+      },
+      {
+        "week": 10,
+        "maintenanceEst": 2843,
+        "targetKcal": 2393,
+        "loggedKcal": 2303,
+        "eatenKcal": 2303,
+        "trendKg": 81.4,
+        "verdict": "Not clear yet"
+      },
+      {
+        "week": 12,
+        "maintenanceEst": 2758,
+        "targetKcal": 2327,
+        "loggedKcal": 2226,
+        "eatenKcal": 2226,
+        "trendKg": 80.7,
+        "verdict": "On track"
+      }
+    ],
+    "logs70": [
+      {
+        "week": 2,
+        "maintenanceEst": 2146,
+        "targetKcal": 1666,
+        "loggedKcal": 1700,
+        "eatenKcal": 2428,
+        "trendKg": 83.9,
+        "verdict": "Calibrating"
+      },
+      {
+        "week": 4,
+        "maintenanceEst": 2251,
+        "targetKcal": 1807,
+        "loggedKcal": 1715,
+        "eatenKcal": 2450,
+        "trendKg": 83.1,
+        "verdict": "On track"
+      },
+      {
+        "week": 6,
+        "maintenanceEst": 2154,
+        "targetKcal": 1696,
+        "loggedKcal": 1771,
+        "eatenKcal": 2530,
+        "trendKg": 82.4,
+        "verdict": "On track"
+      },
+      {
+        "week": 8,
+        "maintenanceEst": 2186,
+        "targetKcal": 1735,
+        "loggedKcal": 1828,
+        "eatenKcal": 2612,
+        "trendKg": 81.6,
+        "verdict": "On track"
+      },
+      {
+        "week": 10,
+        "maintenanceEst": 2096,
+        "targetKcal": 1648,
+        "loggedKcal": 1563,
+        "eatenKcal": 2233,
+        "trendKg": 81.2,
+        "verdict": "Not clear yet"
+      },
+      {
+        "week": 12,
+        "maintenanceEst": 2022,
+        "targetKcal": 1588,
+        "loggedKcal": 1482,
+        "eatenKcal": 2117,
+        "trendKg": 80.5,
+        "verdict": "On track"
+      }
+    ],
+    "logs55": [
+      {
+        "week": 2,
+        "maintenanceEst": 1770,
+        "targetKcal": 1500,
+        "loggedKcal": 1558,
+        "eatenKcal": 2832,
+        "trendKg": 84.3,
+        "verdict": "At the calorie floor"
+      },
+      {
+        "week": 4,
+        "maintenanceEst": 1824,
+        "targetKcal": 1500,
+        "loggedKcal": 1435,
+        "eatenKcal": 2610,
+        "trendKg": 84,
+        "verdict": "At the calorie floor"
+      },
+      {
+        "week": 6,
+        "maintenanceEst": 1671,
+        "targetKcal": 1500,
+        "loggedKcal": 1553,
+        "eatenKcal": 2824,
+        "trendKg": 83.7,
+        "verdict": "At the calorie floor"
+      },
+      {
+        "week": 8,
+        "maintenanceEst": 1715,
+        "targetKcal": 1500,
+        "loggedKcal": 1596,
+        "eatenKcal": 2902,
+        "trendKg": 83.4,
+        "verdict": "At the calorie floor"
+      },
+      {
+        "week": 10,
+        "maintenanceEst": 1607,
+        "targetKcal": 1500,
+        "loggedKcal": 1356,
+        "eatenKcal": 2466,
+        "trendKg": 83.4,
+        "verdict": "At the calorie floor"
+      },
+      {
+        "week": 12,
+        "maintenanceEst": 1544,
+        "targetKcal": 1500,
+        "loggedKcal": 1367,
+        "eatenKcal": 2486,
+        "trendKg": 83.3,
+        "verdict": "At the calorie floor"
+      }
+    ]
+  },
+  "overTarget": {
+    "title": "Weight came down slower than planned",
+    "causes": [
+      "Over the last 4 weeks you ate 2,783 kcal a day, 290 over the 2,493 target. Against maintenance of about 2,908, that is a 125 kcal deficit, about 0.1 kg of fat loss a week."
+    ],
+    "figures": [
+      {
+        "label": "Plan",
+        "value": "−0.4 kg",
+        "kgPerWeek": -0.429
+      },
+      {
+        "label": "From what you ate",
+        "value": "−0.1 kg",
+        "kgPerWeek": -0.1134007257646449
+      },
+      {
+        "label": "Trend",
+        "value": "−0.1 kg",
+        "kgPerWeek": -0.11153999999999999
+      }
+    ]
+  }
+}

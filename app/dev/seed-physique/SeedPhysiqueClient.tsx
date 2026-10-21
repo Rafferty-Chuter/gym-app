@@ -186,6 +186,16 @@ const PRESETS: Preset[] = [
     }),
     post: shortNightsCost,
   },
+  {
+    id: "underlog",
+    label: "UNDER-LOGGING · eats about 2,800 at maintenance, logs 60% of it, cut goal, weight flat (E1)",
+    spec: (today) => ({ seed: 23, days: 63, preDays: 21, startDate: startFor(today, 63), bodyweightKg: 85, trueTdeeKcal: 2800, intake: { meanKcal: 2800, sdKcal: 250 }, logShare: 0.6, goal: { ratePctPerWeek: -0.5, targetKg: 78 }, sleep: SLEEP_OK, lifts: FLAT_LIFTS }),
+  },
+  {
+    id: "sleep-protein",
+    label: "SHORT SLEEP + LOW PROTEIN · lean gain, 6.1 h a night, about 1.3 g/kg, lifts flat 8 weeks (E1)",
+    spec: (today) => ({ seed: 29, days: 77, preDays: 21, startDate: startFor(today, 77), bodyweightKg: 80, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: 0.25, confirmed: true, trainingStatus: "intermediate", targetKg: 85 }, sleep: { meanH: 6.1, sdH: 0.5, source: "manual", loggedShare: 0.95 }, lifts: FLAT_LIFTS, proteinShare: 0.15 }),
+  },
 ];
 
 /**

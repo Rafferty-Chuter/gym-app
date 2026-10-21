@@ -29,6 +29,9 @@ import { SummaryCard } from "@/components/report/InsightCards";
 import ReportSections from "@/components/report/ReportSections";
 import LinkedReasonsCard from "@/components/report/LinkedReasons";
 import ConnectionsCard from "@/components/report/Connections";
+import FindingsCard from "@/components/report/Findings";
+import { findings } from "@/lib/physique/findings";
+import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { connections } from "@/lib/physique/connections";
 import { linkedReasons } from "@/lib/physique/linkedReasons";
 import { coverageLine, scorecard } from "@/lib/physique/weekScorecard";
@@ -144,6 +147,17 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     [workouts, data, unit, report.through, now.tz]
   );
 
+  // E1: the last four weeks against what studies support, to the report's last day.
+  const found = useMemo(() => {
+    if (!report.hasData) return [];
+    const p = getPhysiqueProfileSync();
+    const sleepLink = conn.items.find((c) => c.id === "sleep" && c.state === "linked");
+    return findings(
+      { weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, goal: activeGoal, program: data.program, profile: { sex: p.sex, age: p.age, heightCm: p.heightCm }, workouts, unit, sleepConnectionPct: sleepLink?.diffPct ?? null },
+      report.through
+    );
+  }, [report, data, activeGoal, workouts, unit, conn]);
+
   // The strength engine's change since the phase began, per lift, for the training rows.
   const sincePhase = useMemo(() => new Map((analysis?.strength.lifts ?? []).map((l) => [l.name, l.changePct ?? null] as const)), [analysis]);
 
@@ -176,6 +190,8 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         </header>
 
         <SummaryCard verdict={report.verdict} heading={insight?.heading ?? null} />
+
+        <FindingsCard items={found} />
 
         <LinkedReasonsCard links={links} />
 

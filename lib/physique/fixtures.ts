@@ -112,6 +112,15 @@ export type ScenarioSpec = {
   lifts?: LiftSpec[];
   events?: Array<{ day: number; event: DayEvent }>;
   waist?: { startCm: number; changeCm: number } | null;
+  /**
+   * Share of what is eaten that gets logged (E1; default 1). Weight follows
+   * what is eaten. In "toTarget" mode, once the goal starts, the person logs
+   * about the target, so they eat target / logShare; otherwise they eat the
+   * mean (or maintenance) and log that × logShare.
+   */
+  logShare?: number;
+  /** Share of logged kcal from protein (E1; default 0.3). Fat stays 25%, carbs take the rest. */
+  proteinShare?: number;
   /** Mark a run of days as partial (user flagged) or fasting. */
   flags?: Array<{ day: number; status: "partial" | "fasting" }>;
   profile?: Partial<PhysiqueProfile>;
@@ -255,9 +264,15 @@ export function makeScenario(input: ScenarioSpec): Scenario {
       intakeKcal.push(Math.max(800, Math.round(target + (input.intakeOffsetKcal ?? 0) + gaussian(intakeRand) * intakeSd)));
     }
 
+    // E1: what is eaten against what is logged.
+    const share = input.logShare ?? 1;
+    // Before a goal there is no target to aim the log at, so the person eats and logs part of it.
+    const aimsLog = closedLoop && inPhase;
+    const eaten = aimsLog ? intakeKcal[d] / share : intakeKcal[d];
+    const logged = aimsLog ? intakeKcal[d] : Math.round(intakeKcal[d] * share);
     let delta = 0;
     if (input.trueTdeeKcal !== undefined) {
-      delta = (intakeKcal[d] - input.trueTdeeKcal) / ENERGY_DENSITY_KCAL_PER_KG;
+      delta = (eaten - input.trueTdeeKcal) / ENERGY_DENSITY_KCAL_PER_KG;
     } else if (goal && inPhase) {
       delta = ((goal.ratePctPerWeek / 100) * kg) / 7;
     }
@@ -286,7 +301,8 @@ export function makeScenario(input: ScenarioSpec): Scenario {
     // Food: one summary entry per day, split 30/45/25 P/C/F by kcal.
     const status = flagsByDay.get(d);
     if (status !== "fasting" && d >= (input.foodLogFromDay ?? 0)) {
-      const kcal = status === "partial" ? Math.round(intakeKcal[d] * 0.3) : intakeKcal[d];
+      const kcal = status === "partial" ? Math.round(logged * 0.3) : logged;
+      const pShare = input.proteinShare ?? 0.3;
       foodEntries.push({
         id: `seed-f-${seed}-${d}`,
         date,
@@ -295,8 +311,8 @@ export function makeScenario(input: ScenarioSpec): Scenario {
         schemaVersion: 1,
         label: "Day total",
         kcal,
-        proteinG: Math.round((kcal * 0.3) / 4),
-        carbsG: Math.round((kcal * 0.45) / 4),
+        proteinG: Math.round((kcal * pShare) / 4),
+        carbsG: Math.round((kcal * (0.75 - pShare)) / 4),
         fatG: Math.round((kcal * 0.25) / 9),
         method: "quick",
       });
