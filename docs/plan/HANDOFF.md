@@ -1,0 +1,39 @@
+# Handoff (2026-10-21)
+
+For a session picking up from the long cloud session that built PR1 to C7. Read `CLAUDE.md` first, then this, then the latest rows of `STATUS.md`.
+
+## Where things stand
+
+- Branch `claude/admiring-ptolemy-mz6jwu`. Everything below is committed and pushed.
+- Production (gym-app-eta-nine.vercel.app and gym-app-psi-wheat.vercel.app, one `vercel deploy --prod` updates both) is still at A2 (f7f7920). PR1, PR2, T1, O1 and C7 are built but not deployed.
+- Why: the Vercel account is on the free Hobby plan, whose limit (100 deployments in 24 hours) is shared by every project on the account. A client site there (mad-hatters-party-shop-website) rebuilds on every TinaCMS save and used it up. gym-app is not linked to Git on Vercel, so pushing never deploys; it deploys from the CLI only. Check the deploy log for "Aliased", not just the exit code.
+- A cloud session has a reminder to retry the deploy at 10:05 UTC on 22 Oct.
+
+## How the founder wants the app
+
+- **The final goal** is in `CLAUDE.md` (Working path). Every new build: earn its place against the other apps and the person's own effort, then copy what's proven (Mobbin) when guidance is thin.
+- **Facts, not advice.** Say what the data shows, never what to do. Safety notes are the exception. Evidence-backed findings are welcome, with the source named.
+- **Simple and organised.** No purposeless elements, no coaching plans, short copy. If something can't be understood at a glance, cut it.
+- **Analysis is the heart of the app**: Progress (all data on one timeline, Findings, Connections) and the weekly report.
+- **Insight a person can't get on their own**, from their own data. The engine finds the links (statistics, strict false-positive bar); AI is for explaining them later, never for finding them.
+- **Personal baselines over fixed numbers**: sleep is read against the person's usual, not 8 hours.
+- **Quality bar**: MacroFactor, WHOOP, Bevel. `DESIGN.md` is normative.
+- **Every chart answers a tap** on its points (T1).
+
+## Open work
+
+1. **X1: individual lift charts on Progress.** The founder asked for "somewhere where people can see progress in graphs of individual exercises". Per-lift charts exist at `/exercise?name=…` (Train → Exercises) but are buried. Put each main lift on Progress, on the same weeks as weight, calories and sleep, opening its exercise page.
+2. **Deploy** everything once the Vercel limit allows, then smoke-test both hosts.
+3. **Accounts** (S2 Auth, S3 sync in `04-tickets.md`) are unstarted. The setup (`/setup`) is where sign-in would go first.
+4. Earlier offers waiting on the founder: gate changes (MIN_LOGGED_SHARE 0.7, MIN_WEIGHIN_RATIO 0.25), a MacroFactor import, the AI coach as a premium feature. The assistant prompt in `app/api/assistant/route.ts` (a hotspot) still says "Body tab".
+
+## The founder's own to-dos
+
+- Rotate the secrets that were shared in the cloud session: the Vercel token, the Anthropic key, the Supabase service key, CRON_SECRET.
+- Set `NEXT_PUBLIC_SUPPORT_EMAIL` (and `NEXT_PUBLIC_TALLY_FEEDBACK_URL` if wanted) on Vercel, then redeploy.
+- Client websites on the Hobby plan break Vercel's non-commercial rule and share the deploy limit; move them to the clients' own accounts or a paid plan.
+
+## Testing
+
+- `/dev/seed-physique` loads made-up data. CONNECTIONS is the richest: 16 weeks, top sets 4% lighter after nights under 6.5 h and 3% heavier after higher-carb days.
+- Never commit `.env.local`, tokens or the founder's own backup files.

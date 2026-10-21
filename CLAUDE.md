@@ -6,6 +6,8 @@ Guide for any Claude Code session working in this repo. Read it in full before c
 
 A Next.js 16 (app router) + React 19 + Tailwind 4 web app. It started as an assistant-first gym training coach for intermediate-to-advanced natural lifters (see `PRODUCT.md`). It is now being expanded into a **physique coach**. The user sets a goal such as "90 kg lean", logs food, bodyweight, training and sleep, and a deterministic engine judges whether the plan is working. The Claude-powered assistant explains the verdicts.
 
+**Picking up from another session? Read `docs/plan/HANDOFF.md`** (where things stand, how the founder wants the app, open work).
+
 **The build plan lives in `docs/plan/`. Start at `docs/plan/README.md`.** Work is done one ticket at a time; tickets are in `docs/plan/04-tickets.md` and progress is tracked in `docs/plan/STATUS.md`.
 
 ## Working path for anything new
