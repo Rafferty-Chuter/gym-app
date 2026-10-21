@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Vendored agent skills are not project code.
     ".agents/**",
     ".claude/skills/**",
+    // Session worktrees are full copies of the repo, each linted in its own session.
+    ".claude/worktrees/**",
   ]),
 ]);
 
