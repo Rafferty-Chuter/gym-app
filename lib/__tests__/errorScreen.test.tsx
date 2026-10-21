@@ -81,12 +81,15 @@ describe("error screen (TR3)", () => {
     expect(sent).not.toContain("2026-10-19");
   });
 
-  it("offers Send feedback only when the feedback form is set", () => {
+  it("offers Send feedback only when the feedback form is set", async () => {
     act(() => root.render(<PageError error={new Error("boom")} />));
     expect(container.querySelector("a")).toBeNull();
 
+    // The form's address is read once at build time (lib/feedback.ts), so load the screen afresh with it set.
     vi.stubEnv("NEXT_PUBLIC_TALLY_FEEDBACK_URL", "https://tally.so/r/abc123");
-    act(() => root.render(<PageError error={new Error("boom again")} />));
+    vi.resetModules();
+    const { default: PageErrorWithForm } = await import("@/app/error");
+    act(() => root.render(<PageErrorWithForm error={new Error("boom again")} />));
     const link = container.querySelector("a");
     expect(link?.textContent).toBe("Send feedback");
     expect(link?.getAttribute("href")).toBe("https://tally.so/r/abc123");

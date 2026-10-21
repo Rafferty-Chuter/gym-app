@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { APP_VERSION } from "@/lib/appVersion";
+import { FEEDBACK_URL } from "@/lib/feedback";
 import type { ClientErrorSource } from "@/lib/errors/clientError";
 import { reportClientError } from "@/lib/errors/reportClientError";
 
@@ -18,7 +19,7 @@ export default function ErrorScreen({ error, source }: { error: Error; source: C
   useEffect(() => {
     reportClientError(error, source);
   }, [error, source]);
-  const feedbackUrl = process.env.NEXT_PUBLIC_TALLY_FEEDBACK_URL;
+  const feedbackUrl = FEEDBACK_URL;
   return (
     <main className="min-h-screen" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-md flex-col gap-6 px-5 pb-28" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 96px)" }}>
