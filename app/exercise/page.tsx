@@ -11,6 +11,12 @@ import { workoutHref, workoutTitle } from "@/components/training/WorkoutViews";
 import { SET_TYPE_MARK } from "@/lib/completedSets";
 import { getExerciseById, getExerciseByName } from "@/lib/exerciseLibrary";
 import { useWorkouts } from "@/lib/physique/io/workouts";
+import { useBodyData } from "@/lib/physique/io/bodyData";
+import { useExpenditure } from "@/lib/physique/io/expenditure";
+import { stuckLifts } from "@/lib/physique/liftPlateau";
+import { liftKey } from "@/lib/physique/strength";
+import { useNow } from "@/lib/ui/useToday";
+import { StalledLiftRow } from "@/components/progress/StalledLifts";
 import { CHART_METRIC_LABEL, chartMetricsFor, chartSeries, exerciseRecords, exerciseSessions, type ChartMetric, type ExerciseSession } from "@/lib/training/exerciseHistory";
 import { formatLoad, formatSet, formatVolume } from "@/lib/training/workoutSummary";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
@@ -62,6 +68,16 @@ function ExerciseDetail() {
   const sessions = useMemo(() => exerciseSessions(workouts, { name: title, ...(id ? { exerciseId: id } : {}) }), [workouts, title, id]);
   const records = useMemo(() => exerciseRecords(sessions), [sessions]);
   const metrics = useMemo(() => chartMetricsFor(sessions), [sessions]);
+  // IN4: when this is a main lift that is flat or dropping, the fact and what changed, above its chart.
+  const now = useNow();
+  const body = useBodyData();
+  const expenditure = useExpenditure(now);
+  const stalled = useMemo(() => {
+    if (!now) return null;
+    const key = liftKey(title, id);
+    const lifts = stuckLifts({ workouts, sleepNights: body.sleepNights, foodEntries: body.foodEntries, dayFlags: body.dayFlags, weighIns: body.weighIns, expenditure: expenditure?.series ?? null, goal: body.goal && !body.goal.completedAt ? body.goal : null, unit: unit === "lb" ? "lb" : "kg" }, now);
+    return lifts.find((l) => l.key === key) ?? null;
+  }, [now, title, id, workouts, body, expenditure, unit]);
   const [picked, setPicked] = useState<ChartMetric | null>(null);
   const metric = picked && metrics.includes(picked) ? picked : metrics[0];
   const series = useMemo(() => chartSeries(sessions, metric), [sessions, metric]);
@@ -94,6 +110,11 @@ function ExerciseDetail() {
           </p>
         ) : (
           <>
+            {stalled && (
+              <section className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }} aria-label="Stalled">
+                <StalledLiftRow lift={stalled} unit={unit === "lb" ? "lb" : "kg"} />
+              </section>
+            )}
             <section className="flex flex-col gap-3 rounded-[16px] px-4 pb-3 pt-4" style={{ background: "var(--surface)" }} aria-label="Progress chart">
               {metrics.length > 1 && (
                 <div className="grid gap-1 rounded-[10px] p-1" style={{ background: "var(--surface-raised)", gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))` }} role="tablist" aria-label="Chart measure">

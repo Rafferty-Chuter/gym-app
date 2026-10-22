@@ -123,7 +123,7 @@ M · new `lib/physique/liftPlateau.ts`
 - Per main lift: flat over its last 6 sessions or more (at least 3 weeks), or clearly down.
 - Then only what changed past a floor in that span against the 6 weeks before: weekly hard sets for its muscles, sessions a week of that lift, sleep against usual and short nights, calories against maintenance, protein, rep range, deloads, the cut's pace, and that lift's own Connections links.
 - Brings the hidden `liftsLink` and `plateauSignal` here and retires the duplicates.
-- Top of Progress when it fires, and on the exercise page.
+- Top of Progress when it fires, and on the exercise page. (Done; see the STATUS row, including why `liftsLink` and `plateauSignal` stay.)
 
 ### IN5 · Connections, rebuilt per lift
 L · after IN1 · `lib/physique/connections.ts`

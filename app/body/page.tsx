@@ -18,6 +18,8 @@ import { jumpShort } from "@/lib/physique/scaleJumpWords";
 import { weightGapFromRecords } from "@/lib/physique/weightGap";
 import { weightGapShort } from "@/lib/physique/weightGapWords";
 import { LINK_MIN_FOOD_SHARE, LINK_ON_PLAN_PCT } from "@/lib/physique/linkedReasons";
+import { stuckLifts } from "@/lib/physique/liftPlateau";
+import StalledLifts from "@/components/progress/StalledLifts";
 import AutoCheckIn from "@/components/physique/AutoCheckIn";
 import GoalCard from "@/components/progress/GoalCard";
 import FirstUse from "@/components/progress/FirstUse";
@@ -134,6 +136,11 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     return f ? { label: f.title, charts: FINDING_CHARTS[f.id], from: addDays(today, -(FIND_WINDOW_DAYS - 1)), onClear: () => setPicked(null) } : null;
   }, [picked, found, today]);
   const lift = useMemo(() => referenceLift(workouts, unit, now), [workouts, unit, now]);
+  // IN4: main lifts flat or dropping, and what changed since their best.
+  const stalled = useMemo(
+    () => stuckLifts({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, goal: data.goal && !data.goal.completedAt ? data.goal : null, unit }, now),
+    [workouts, data, expenditure, unit, now]
+  );
   const [showWeighIns, setShowWeighIns] = useState(false);
 
   // Home's tiles link to a chart (`/body#calories`): scroll to it once the timeline is drawn.
@@ -221,6 +228,8 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         {/* PR3: the goal first, then what lined up with the lifts, then every measure over time. PR5: before there's a goal or a weigh-in, the first-use list says what each part needs. */}
         {(example || hasGoalOrWeight) && <GoalCard analysis={analysis} goal={goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} example={!!example} why={why} />}
+
+        <StalledLifts lifts={stalled} unit={unit} linkable={!example} />
 
         {firstUse && <FirstUse unlocks={unlocks} onLogWeight={logWeight} onExample={() => void showExample()} />}
         {exampleLoading && (
