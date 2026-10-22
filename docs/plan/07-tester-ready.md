@@ -173,6 +173,24 @@ S · done 2026-10-22 (found on the first simulator run)
 
 The shell draws under the status bar, and pages didn't pad for it, so Home's title sat under the clock. `viewport-fit=cover`, a body padding and a strip behind the clock, sticky headers pinned below it. Web only: it reaches the app with a deploy. Checked in the simulator in light and dark; details in STATUS.
 
+### TR11 · Reminders in the iPhone app
+M · this session (22 Oct) · must be in the first TestFlight build (native change)
+Why: the app's web view has no web push, so the daily nudge and the Monday report never fire in the app; whether testers keep logging is the test's first question. Local notifications scheduled on the phone (`@capacitor/local-notifications`), no APNs and no server; rescheduled each time the app opens or something is logged, so a day already logged stays quiet. Owns `components/physique/RemindersSection.tsx` and the reminder code.
+
+### TR12 · Progress and the report say it plainly
+M · its own session (start: "Read `CLAUDE.md`, `docs/plan/HANDOFF.md`, then TR12 in `docs/plan/07-tester-ready.md` and do it") · web only, ships with a push to `main`
+Read first: `CLAUDE.md` ("The final goal", rules 2 and 3), `PRODUCT.md`, `DESIGN.md`, `lib/physique/connections.ts`, `components/report/Connections.tsx`, `lib/physique/linkedReasons.ts`, `lib/physique/weekScorecard.ts` (`rateVsPlan`), `lib/physique/copy.ts`, `app/profile/page.tsx`; the founder's preferences: short facts and numbers on the cards, the coach explains at length later; kg first, % second.
+
+Why: the founder, looking at Progress on 22 Oct: a Connections row reads "Carbs the day before · 312 vs 221 g · Moved with calories · +5 kg on squat", which doesn't say what it means. It should lead with one plain sentence a lifter gets at a glance, then the numbers. This is the "would they believe it, would they pay" part of the test.
+
+Do:
+1. **Connections lead with a plain sentence.** One line in the person's terms, then the data. Facts from their data, never causes or advice: not "You train better with more carbs" (a cause, and "better" is vague) but "Your squat is about 5 kg heavier the day after a higher-carb day" with "312 g vs 221 g of carbs · 46 sessions" under it. Keep the hedge the engine already has ("Moved with calories" becomes plain: "Calories rose too, so it could be either"). Rows with no link stay quiet ("No clear link"). Copy what's proven: WHOOP's and Bevel's insight lines ("On days after…, your … is …") on Mobbin; name the screens used in STATUS.
+2. **The verdicts agree.** Today one week can read "Not clear yet" (headline), "On plan" (weight tile) and "Weight moving as planned" (finding) at −0.2 kg a week against −0.4. The engine is right (not confidently off plan), the words overclaim: when the rate is inside the band only because of its margin, say "Not clear yet" (or similar), never "On plan". Same rule on Home's "Last 7 days".
+3. **kg first.** Home's verdict, Home's weight tile and the report's body-weight section lead with %/wk; Progress already leads with kg. kg a week first, % second, everywhere.
+4. **Copy from before accounts.** Profile: "Your log is stored on this phone. Move it across before switching phones" is wrong once signed in (say the account keeps it when signed in, keep the move-across line only when not); the Import row lists "sample data" and misses MacroFactor (TR7). Don't touch the Reminders section (TR11 owns it).
+
+Acceptance: a person who has never seen the app reads each Connections row and can say what it means in one sentence; no screen shows "On plan" next to "Not clear yet" for the same week; rates read in kg first; tests for the new wording; `npm run check`, `npm run build`, 390px light and dark with the CONNECTIONS seed; `/code-review medium`; a STATUS row.
+
 ### TR8 · Real-device check (after FT7)
 S · depends on: FT7 · a session with the founder holding the phone
 Checklist on the TestFlight build: first run and setup; email code autofills from Mail and signs in; consent shows before sync; Apple Health connect and the first read; weigh-in, food and a workout logged; Progress in light and dark, the example view; safe areas and the keyboard on every input; offline start; delete account; feedback link. Record pass or fail per line in STATUS; anything failing becomes its own ticket.
