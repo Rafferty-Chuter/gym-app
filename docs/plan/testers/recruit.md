@@ -1,7 +1,7 @@
 # Recruiting testers
 
 **Who:** strangers found online: lifters with an iPhone who train 3 or more times a week. Ideally some already log in Hevy, Strong or MacroFactor (to test imports) and a few wear an Apple Watch (sleep, HRV).
-**How many:** strangers drop off more than friends, so about 30 sign-ups, start 20, expect about 10 still logging at week 8. The sign-up form and how to pick are in `signup.md`.
+**How many:** 30 testers starting (the founder, 22 Oct), so about 50 sign-ups; strangers drop off, so expect about 15 still logging at week 8. The sign-up form and how to pick are in `signup.md`; the posting plan with every message ready to paste is in `outreach.md`.
 **When:** sign people up now. Submit the first build for Beta App Review as soon as Apple enrolment clears: it usually takes a day, but some waits in 2026 ran to two weeks. Send invites and `guide.md` only once the build is approved, so everyone's 8 weeks start with a working app.
 
 The research behind this page, with sources: `docs/plan/research/K-tester-channels.md`.

@@ -57,9 +57,9 @@ Vercel token, Anthropic key, Supabase service-role key, `CRON_SECRET`. Update th
 - Follow `docs/plan/B11-iphone-app.md` (signing, archive, upload). TR5 prepares the privacy manifest and the review text first.
 - Use **external testing, inviting each picked tester by email** (testers are strangers from online; on a public link they show up anonymous and the link can be passed on; see `testers/signup.md`). The first build gets a light Beta App Review, usually about a day but sometimes up to two weeks in 2026, so submit it as soon as enrolment clears; sign-in is optional so no demo account is needed. TestFlight asks for a feedback email and a test description (TR5 writes it).
 
-### FT8 · Recruit about 20 lifters (from about 30 sign-ups)
+### FT8 · Recruit about 30 lifters (from about 50 sign-ups)
 - Training 3+ times a week; ideally some already log in Hevy, Strong or MacroFactor (to test imports) and a few wear an Apple Watch (sleep, HRV).
-- Strangers from online (22 Oct: the founder can't count on people he knows). Where, ranked, with each place's rules: `testers/recruit.md`, from `research/K-tester-channels.md`. Sign-up form and picking: `testers/signup.md`.
+- Strangers from online (22 Oct: the founder can't count on people he knows). Where, ranked, with each place's rules: `testers/recruit.md`, from `research/K-tester-channels.md`. Sign-up form and picking: `testers/signup.md`. The posting plan, with every message ready to paste: `testers/outreach.md`.
 - Sign them up now; send TestFlight invites only when the build is approved, so their 8 weeks start with a working app.
 
 ### FT9 · Before or soon after testers start (legal basics, UK)

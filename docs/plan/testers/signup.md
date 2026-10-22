@@ -1,6 +1,6 @@
 # Sign-up form
 
-One Tally form, linked from every message in `recruit.md`. It picks about 20 testers out of about 30 sign-ups (all strangers found online) and keeps everyone else as the launch waitlist. Connect Tally's Google Sheets integration so the responses become the tester sheet.
+One Tally form, linked from every message in `recruit.md`. It picks about 30 testers out of about 50 sign-ups (all strangers found online) and keeps everyone else as the launch waitlist. Connect Tally's Google Sheets integration so the responses become the tester sheet.
 
 **Form title:** "Test the app for 8 weeks"
 **Form description:** "Two minutes. iPhone only for now. The test is free, and if you answer the three check-ins your first year is free at launch. We use your answers only to pick testers and to email you about the test; ask us to delete them any time at [support email]."
