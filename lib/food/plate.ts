@@ -136,9 +136,9 @@ export function plateTotals(items: readonly PlateItem[]): Macros {
   return { ...t, fibreG: knownFibre(rows) };
 }
 
-/** Where a row's numbers came from, for the line under it: a chain's published figures, a base-list row, or an estimate. */
-export function sourceLine(p: Pick<ResolvedItem, "matched" | "confidence" | "publishedBy">): { text: string; estimate: boolean } {
-  if (p.publishedBy) return { text: `Published figures, ${p.publishedBy}`, estimate: false };
+/** Where a row's numbers came from, for the line under it: a product's label or a chain's published figures, a base-list row, or an estimate. */
+export function sourceLine(p: Pick<ResolvedItem, "matched" | "confidence" | "publishedBy" | "fromLabel">): { text: string; estimate: boolean } {
+  if (p.publishedBy) return { text: `${p.fromLabel ? "Label" : "Published figures"}, ${p.publishedBy}`, estimate: false };
   if (p.matched) return { text: p.matched, estimate: false };
   return { text: p.confidence === "low" ? "Rough estimate" : "Estimate", estimate: true };
 }

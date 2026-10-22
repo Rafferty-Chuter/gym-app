@@ -1,10 +1,11 @@
 /**
- * The web search for a chain's published nutrition (F8). One request to
- * FOOD_LOOKUP_MODEL with the web search tool, one search per dish, and a
- * JSON reply checked against PublishedOutput. Any failure (timeout, an
- * error, a paused or cut-off reply, a reply off schema) returns no
- * figures, so Describe keeps its estimates and never fails because of it.
- * Only the dish names are sent, never anything else the user wrote.
+ * The web search for a chain's published nutrition (F8) and a packaged
+ * product's label (IN12). One request to FOOD_LOOKUP_MODEL per dish or
+ * product, in parallel, with the web search tool and a JSON reply checked
+ * against PublishedOutput. Any failure (timeout, an error, a paused or
+ * cut-off reply, a reply off schema) returns no figures for that line,
+ * so Describe keeps its estimate and never fails because of it. Only the
+ * dish and product names are sent, never anything else the user wrote.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -15,11 +16,25 @@ import { PublishedOutput, type PublishedOutputData } from "@/lib/food/published"
 /** Room for three dishes' figures and sources. OURS. */
 const MAX_OUTPUT_TOKENS = 2_000;
 
-const SYSTEM = `For each numbered dish, find the nutrition the chain or brand publishes for one serving of that dish as described, on its UK menu: the UK website, menu or nutrition PDF first; a nutrition site quoting the chain's UK figures only when the chain's own page cannot be found. Never use another country's menu. Search once per dish.
-Give kcal, protein, fat and carbs in grams, and fibre, salt, total sugars and saturated fat in grams or null when not published, for the serving as sold, and in "source" only the full web address (https://...) of the page you read them from.
-When you cannot find figures for that dish and size, set found to false, the numbers to 0 and source to "". Never estimate or work a figure out yourself.`;
+const SYSTEM = `Each numbered line is a dish from a chain, or a packaged product marked [label]. Search once per line.
+A dish: find the nutrition the chain or brand publishes for one serving of that dish as described, on its UK menu: the UK website, menu or nutrition PDF first; a nutrition site quoting the chain's UK figures only when the chain's own page cannot be found. Never use another country's menu. Give the figures for the serving as sold and set per100 to false.
+A [label] product: find the nutrition label of that exact product as sold in the UK (the brand and the variety named: whole, semi-skimmed, 0%, high protein, seeded): the brand's own page or a UK supermarket's product page (Tesco, Sainsbury's, Asda, Ocado, Waitrose, Morrisons) first, Open Food Facts only when neither can be found. Give the label's figures per 100 g, or per 100 ml for a drink or milk, never per serving or per pack, and set per100 to true.
+Give kcal, protein, fat and carbs in grams, and fibre, salt, total sugars and saturated fat in grams or null when not published, and in "source" only the full web address (https://...) of the page you read them from.
+When you cannot find figures for that dish and size, or that product and variety, set found to false, the numbers to 0 and source to "". Never estimate or work a figure out yourself.`;
 
 export type LookupResult = { out: PublishedOutputData | null; usage: Anthropic.Usage | undefined };
+
+/**
+ * Published figures for each line, one request per line in parallel, so a
+ * slow search costs only its own line (IN12). The answers come back
+ * numbered as the lines are, from 1; every request's usage is returned
+ * for cost logging.
+ */
+export async function lookupEach(client: Anthropic, lines: readonly string[], timeoutMs: number): Promise<{ out: PublishedOutputData; usages: Anthropic.Usage[] }> {
+  const results = await Promise.all(lines.map((line) => lookupPublished(client, `1. ${line}`, 1, timeoutMs)));
+  const dishes = results.flatMap((r, n) => (r.out?.dishes ?? []).filter((d) => Math.round(d.index) === 1).slice(0, 1).map((d) => ({ ...d, index: n + 1 })));
+  return { out: { dishes }, usages: results.flatMap((r) => (r.usage ? [r.usage] : [])) };
+}
 
 /** Published figures for the numbered dishes in `request`, or none within `timeoutMs`. */
 export async function lookupPublished(client: Anthropic, request: string, dishes: number, timeoutMs: number): Promise<LookupResult> {

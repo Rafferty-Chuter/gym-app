@@ -159,6 +159,7 @@ export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): Saniti
       confidence: i.confidence,
       portions: cleanPortions(i.portions),
       chain: i.chain === true,
+      packaged: i.packaged === true,
     }), MAX_ITEM_SODIUM_MG))
     .filter((i) => i.label.length > 0)
     .slice(0, MAX_ITEMS);

@@ -143,7 +143,7 @@ export function heading(i: InsightInputs): Heading {
   }
   if (goal.type === "maintain") {
     const trend = analysis.weight.trendKg;
-    if (trend != null) lines.push(`Trend ${fmt.kg(trend)} against a ${fmt.kg(goal.targetKg)} target.`);
+    if (trend != null) lines.push(`Average ${fmt.kg(trend)} against a ${fmt.kg(goal.targetKg)} target.`);
     if (liftsLine) lines.push(liftsLine);
     const onTrack = analysis.verdict.id === "ON-TRACK";
     return { state: onTrack ? "good" : trend == null ? "unknown" : "watch", title: onTrack ? "Holding steady" : "Maintaining", lines };

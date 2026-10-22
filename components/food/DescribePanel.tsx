@@ -284,7 +284,7 @@ function Reading({ recipe }: { recipe: boolean }) {
         ))}
       </ul>
       <p className="px-1 text-[12px]" style={{ color: "var(--text-tertiary)" }} aria-live="polite">
-        {recipe ? "Matching each ingredient to the UK food database. A long recipe takes up to half a minute." : "Matching each food to the UK food database. A chain's dish is checked against its published figures, which takes up to 20 seconds."}
+        {recipe ? "Matching each ingredient to the UK food database. A long recipe takes up to half a minute." : "Matching each food to the UK food database. A chain's dish or a branded product is checked against its published figures or label, which takes up to 20 seconds."}
       </p>
     </>
   );
@@ -293,7 +293,7 @@ function Reading({ recipe }: { recipe: boolean }) {
 function Result({ d, consumedKcal, targetKcal }: { d: DescribeState; consumedKcal: number; targetKcal: number | null }) {
   const isRecipe = d.kind === "recipe" && d.recipe;
   const estimates = isRecipe && d.recipe ? estimateCount(d.recipe.ingredients) : d.plate.filter((p) => !p.matched && !p.publishedBy).length;
-  const from = !isRecipe && d.plate.some((p) => p.publishedBy) ? "the UK food database or a chain's published figures" : "the UK food database";
+  const from = !isRecipe && d.plate.some((p) => p.publishedBy) ? "the UK food database or published figures" : "the UK food database";
   const note = isRecipe
     ? estimates === 0
       ? "Every ingredient matched the UK food database. Check the grams; logging it keeps one serving under Saved."

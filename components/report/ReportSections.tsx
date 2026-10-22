@@ -142,7 +142,7 @@ function WeightHeadline({ weekPct, weekKg, chart, dates, unit }: { weekPct: stri
         </span>
         <span className="mt-1 text-[12px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
           {day ? (
-            `Trend on ${longLocalDate(day.date)}`
+            `Average on ${longLocalDate(day.date)}`
           ) : weekKg ? (
             <>
               this week{weekPct && <> · <span className="whitespace-nowrap">{weekPct} of body weight</span></>}
@@ -208,8 +208,8 @@ export default function ReportSections({ report: r, prev: p, tiles, unit, goal, 
   };
   const planKg = goal && goal.type !== "maintain" && r.weight.endTrendKg != null ? fmtSignedKgWeek((goal.ratePctPerWeek * r.weight.endTrendKg) / 100, unit) : null;
   const weightRows: ReportRow[] = [
-    { label: "Trend weight", sub: "End of the week", now: w(r.weight.endTrendKg), prev: w(p?.weight.endTrendKg) },
-    { label: "Change", sub: "Trend, start to end of the week", now: kgDelta(r.weight.deltaKg), prev: kgDelta(p?.weight.deltaKg) },
+    { label: "Average weight", sub: "End of the week", now: w(r.weight.endTrendKg), prev: w(p?.weight.endTrendKg) },
+    { label: "Change", sub: "Average, start to end of the week", now: kgDelta(r.weight.deltaKg), prev: kgDelta(p?.weight.deltaKg) },
     { label: "Change, % of body weight", now: weekPct ?? dash, prev: pct(p?.weight) ?? dash },
     {
       label: r.weight.rateWindowDays ? `Rate over ${Math.round(r.weight.rateWindowDays / 7)} weeks` : "Rate",

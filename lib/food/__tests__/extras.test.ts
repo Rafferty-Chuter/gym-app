@@ -127,7 +127,7 @@ describe("Describe and recipes carry the extras (IN6)", () => {
 describe("the model's extras are cleaned (IN6)", () => {
   const NONE = { sodiumMg: null, sugarG: null, satFatG: null, alcoholG: null };
   const reply = (over: Partial<FoodParseOutputData>): FoodParseOutputData => ({ kind: "meal", items: [], recipe: { name: "", servings: 1, ingredients: [] }, ...over });
-  const item = { label: "Pint of bitter", serving: "1 pint", lookup: "beer bitter", grams: 568, kcal: 180, proteinG: 2, fatG: 0, carbsG: 13, fibreG: 0, confidence: "medium" as const, portions: [], chain: false };
+  const item = { label: "Pint of bitter", serving: "1 pint", lookup: "beer bitter", grams: 568, kcal: 180, proteinG: 2, fatG: 0, carbsG: 13, fibreG: 0, confidence: "medium" as const, portions: [], chain: false, packaged: false };
 
   it("keeps what fits, leaves out nulls and brings a slipped figure within the food's own numbers", () => {
     const [beer] = sanitiseParse(reply({ items: [{ ...item, ...NONE, alcoholG: 18.4, sugarG: 40, sodiumMg: 57 }] }), "meal").items;
@@ -145,7 +145,7 @@ describe("the model's extras are cleaned (IN6)", () => {
 
 describe("a chain's published salt, sugars and saturated fat (IN6)", () => {
   const dish: ItemDraft = { label: "Katsu curry, Wagamama", serving: "1 main", lookup: "", grams: 520, kcal: 880, proteinG: 35, fatG: 30, carbsG: 115, sodiumMg: 1500, sugarG: 20, satFatG: 8, alcoholG: 0, confidence: "medium", chain: true };
-  const found = { index: 1, found: true, kcal: 988, proteinG: 43.9, fatG: 41.8, carbsG: 110, fibreG: null, saltG: 4.2, sugarG: null, satFatG: 9.5, source: "https://www.wagamama.com/menu/curry" };
+  const found = { index: 1, found: true, kcal: 988, proteinG: 43.9, fatG: 41.8, carbsG: 110, fibreG: null, saltG: 4.2, sugarG: null, satFatG: 9.5, source: "https://www.wagamama.com/menu/curry", per100: false };
 
   it("replace the estimate's where published; the estimate's stand otherwise", () => {
     const [out] = applyPublished([dish], [0], { dishes: [found] });

@@ -36,6 +36,8 @@ export const FoodItemSchema = z.object({
   portions: z.array(z.object({ label: z.string(), factor: z.number() })),
   /** True for a dish from a named chain or brand that publishes per-dish nutrition, so its figures are checked (F8). */
   chain: z.boolean(),
+  /** True for a packaged product from a named brand or supermarket range, sold with a nutrition label, so its label is read (IN12). */
+  packaged: z.boolean(),
 });
 
 export const Per100Schema = z.object({

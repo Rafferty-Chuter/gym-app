@@ -91,7 +91,7 @@ export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, un
               {trendKg != null ? formatBodyWeight(trendKg, unit) : "—"}
             </span>
             <span className="mt-1 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
-              {trendKg != null ? "Trend weight" : "No weigh-ins yet"}
+              {trendKg != null ? "Average of your recent weigh-ins" : "No weigh-ins yet"}
             </span>
           </span>
           {coached && progress && !eta?.reached && (

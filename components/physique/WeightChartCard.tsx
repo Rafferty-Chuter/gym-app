@@ -105,7 +105,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
               </span>
             )}
             <span className="mt-0.5 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {model.latest ? `Trend ${formatBodyWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
+              {model.latest ? `Average ${formatBodyWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
             </span>
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
       </div>
       {/* Legend on its own line (polish): beside the range pills it ran off a 390px screen. */}
       <div className="mt-2 flex items-center justify-end gap-3 text-[11px]" style={{ color: "var(--text-tertiary)" }} aria-hidden>
-        <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 rounded" style={{ background: "var(--chart-trend)" }} />Trend</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 rounded" style={{ background: "var(--chart-trend)" }} />Average</span>
         <span className="flex items-center gap-1"><span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--chart-raw)" }} />Scale</span>
         {model.projection && <span className="flex items-center gap-1"><span className="inline-block w-3 border-t border-dashed" style={{ borderColor: "var(--text-tertiary)" }} />Goal</span>}
       </div>
@@ -149,7 +149,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
       </div>
       {!hero && (
         <p className="mt-2 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-          {model.latest ? `Trend ${formatBodyWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
+          {model.latest ? `Average ${formatBodyWeight(model.latest.trendKg, unit)} · ${rateLine}` : rateLine}
         </p>
       )}
     </section>

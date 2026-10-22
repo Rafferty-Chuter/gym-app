@@ -255,16 +255,18 @@ export type PortionOption = { label: string; factor: number };
 
 /**
  * A described food as the model returns it: its own estimate plus a lookup and grams for the base list.
- * `portions` are the other sizes it is commonly had in; `chain` marks a dish from a chain or brand that publishes its nutrition (F8).
+ * `portions` are the other sizes it is commonly had in; `chain` marks a dish from a chain or brand that publishes its nutrition (F8);
+ * `packaged` a branded product sold with a nutrition label, weighed on its own (IN12).
  */
-export type ItemDraft = { label: string; serving: string; lookup: string; grams: number; kcal: number; proteinG: number; fatG: number; carbsG: number; fibreG?: number; confidence: "high" | "medium" | "low"; portions?: PortionOption[]; chain?: boolean } & Extras;
+export type ItemDraft = { label: string; serving: string; lookup: string; grams: number; kcal: number; proteinG: number; fatG: number; carbsG: number; fibreG?: number; confidence: "high" | "medium" | "low"; portions?: PortionOption[]; chain?: boolean; packaged?: boolean } & Extras;
 
 /**
  * A described food after the base list has been asked: base-list numbers and the matched name when it fit, the estimate otherwise.
- * `publishedBy` is the site a chain's published figures were read from, when they replaced the estimate (F8).
+ * `publishedBy` is the site a chain's published figures or a product's label were read from, when they replaced the estimate (F8);
+ * `fromLabel` is set when it was a label, per 100 g scaled to the grams (IN12).
  * `sourceId` is the matched row's id (IN6).
  */
-export type ResolvedItem = ItemDraft & { matched?: string; sourceId?: string; publishedBy?: string };
+export type ResolvedItem = ItemDraft & { matched?: string; sourceId?: string; publishedBy?: string; fromLabel?: boolean };
 
 /**
  * A base-list row whose calories for the weight are more than this many
@@ -283,10 +285,12 @@ export const MATCH_AGREEMENT_RATIO = 1.75;
  * Otherwise the model's own estimate stands, with its confidence as given. Fibre follows
  * the same rule, with the model's estimate standing in where the matched
  * row has none (F7), and so does each extra (IN6).
+ * A packaged product never takes a generic row: a high-protein milk is
+ * not "Milk, whole", and its label is read instead (IN12).
  */
 export function resolveItem(items: readonly FoodItem[], draft: ItemDraft): ResolvedItem {
   const grams = Math.max(0, Math.round(draft.grams));
-  const found = grams > 0 ? matchIngredient(items, draft.lookup) : null;
+  const found = grams > 0 && !draft.packaged ? matchIngredient(items, draft.lookup) : null;
   const rowKcal = found ? (found.per100.kcal * grams) / 100 : 0;
   const agrees = draft.kcal <= 0 || (rowKcal <= draft.kcal * MATCH_AGREEMENT_RATIO && rowKcal >= draft.kcal / MATCH_AGREEMENT_RATIO);
   const hit = found && agrees ? found : null;

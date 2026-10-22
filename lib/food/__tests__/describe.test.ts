@@ -6,7 +6,7 @@ import { FOOD_PARSE_ERRORS, type FoodParseOutputData } from "@/lib/physique/food
 const NONE = { sodiumMg: null, sugarG: null, satFatG: null, alcoholG: null };
 const per100 = { kcal: 100, proteinG: 10, fatG: 5, carbsG: 10, fibreG: 2, ...NONE };
 const ing = (name: string, grams: number) => ({ name, lookup: name, grams, per100 });
-const item = (label: string, grams = 100) => ({ label, serving: "1 portion", lookup: label, grams, kcal: 200, proteinG: 10, fatG: 8, carbsG: 20, fibreG: 3, ...NONE, confidence: "medium" as const, portions: [] as { label: string; factor: number }[], chain: false });
+const item = (label: string, grams = 100) => ({ label, serving: "1 portion", lookup: label, grams, kcal: 200, proteinG: 10, fatG: 8, carbsG: 20, fibreG: 3, ...NONE, confidence: "medium" as const, portions: [] as { label: string; factor: number }[], chain: false, packaged: false });
 const reply = (over: Partial<FoodParseOutputData>): FoodParseOutputData => ({ kind: "meal", items: [], recipe: { name: "", servings: 1, ingredients: [] }, ...over });
 
 describe("reading the text", () => {
@@ -93,6 +93,11 @@ describe("making the reply safe", () => {
     expect(cleanPortions(many)).toHaveLength(MAX_PORTIONS);
     expect(cleanPortions(undefined)).toEqual([]);
     expect(sanitiseParse(reply({ kind: "restaurant", items: [{ ...item("Chicken katsu curry, Wagamama", 520), chain: true }] }), "auto").items[0].chain).toBe(true);
+  });
+
+  it("keeps a packaged product's flag for its label to be read (IN12)", () => {
+    const milk = { ...item("SuperNutrio high protein whole milk", 440), packaged: true };
+    expect(sanitiseParse(reply({ items: [milk, item("Espresso", 60)] }), "auto").items.map((i) => i.packaged)).toEqual([true, false]);
   });
 });
 

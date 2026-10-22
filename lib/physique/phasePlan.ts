@@ -55,7 +55,7 @@ export function phasePlan(goal: PhysiqueGoal | null, progress: GoalProgress | nu
   const end = eta?.reached ? today : (eta?.date ?? null);
   const rate = eta ? `${eta.ratePctPerWeek > 0 ? "+" : ""}${eta.ratePctPerWeek.toFixed(2)} %/wk` : null;
   let note: string;
-  if (eta?.reached) note = "Target reached on trend weight.";
+  if (eta?.reached) note = "Target reached on average weight.";
   else if (!eta) note = "Log weigh-ins and the ETA follows your trend.";
   else if (eta.reason === "away") note = `No end date at ${rate}: the trend is moving away.`;
   else if (eta.reason === "slow") note = `At ${rate} the target is over a year away.`;

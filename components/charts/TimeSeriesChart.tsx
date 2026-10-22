@@ -107,7 +107,7 @@ export default function TimeSeriesChart({
   height = 180,
   trendColor = COLOR_TREND,
   rawLabel = "Scale",
-  trendLabel = "Trend",
+  trendLabel = "Average",
   ariaLabel,
   emptyText = "Nothing logged yet.",
 }: Props) {
