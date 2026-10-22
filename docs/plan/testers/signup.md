@@ -1,9 +1,9 @@
 # Sign-up form
 
-One Tally form, linked from every message in `recruit.md`. It picks about 30 testers out of about 50 sign-ups (all strangers found online) and keeps everyone else as the launch waitlist. Connect Tally's Google Sheets integration so the responses become the tester sheet.
+One Tally form, linked from every message in `recruit.md`. **Live at https://tally.so/r/BEzj4R** (published 22 Oct; title, description and thank-you page below are as built there). It picks about 30 testers out of about 50 sign-ups (all strangers found online) and keeps everyone else as the launch waitlist. Connect Tally's Google Sheets integration so the responses become the tester sheet.
 
-**Form title:** "Test the app for 8 weeks"
-**Form description:** "Two minutes. iPhone only for now. The test is free, and if you answer the three check-ins your first year is free at launch. We use your answers only to pick testers and to email you about the test; ask us to delete them any time at [support email]."
+**Form title:** "Test Liftworks for 8 weeks"
+**Form description:** "Two minutes. iPhone only for now. The test is free, and if you answer the three check-ins your first year is free at launch. We use your answers only to pick testers and to email you about the test; reply to any of our emails and we'll delete them." (No address on the form until the support email exists.)
 
 ## Questions
 
@@ -24,7 +24,7 @@ One Tally form, linked from every message in `recruit.md`. It picks about 30 tes
 | 13 | If you're not picked this time, can we email you when it launches? | Multiple choice | Yes · No |
 | 14 | Anything else we should know? | Long answer | Optional |
 
-**Thank-you page:** "Thanks. We'll pick testers when the build is ready and email you either way." For "No" on 3: "Thanks. It's iPhone only for now; if you said yes, we'll email you at launch."
+**Thank-you page (one for everyone):** "Thanks, you're on the list." then "We'll pick testers when the build is ready and email you either way. It's iPhone only for now: if you don't have one and said yes to the launch email, we'll write when it launches." **Logic:** "No" on 3 hides 4 to 12. **Required:** all but 12 and 14.
 
 ## Picking
 

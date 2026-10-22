@@ -37,7 +37,7 @@ The research behind this page, with sources: `docs/plan/research/K-tester-channe
 - **Lead with one real finding from your own log, not a feature list.** Generic "I built an app, need testers" posts sat at 0 or 1 point all through 2025–26.
 - Post from your own account after a week or two of commenting in the sub. Many subs auto-remove posts from new or low-karma accounts.
 - Add screenshots of your own Progress if you're happy to share it. Otherwise use the showcase set in `showcase/`, with its captions (`showcase.md`), and say it's made-up data.
-- Put the sign-up form link where the messages below say [form]. Answer every comment in the first few hours.
+- Put the sign-up form link where the messages below say https://tally.so/r/BEzj4R. Answer every comment in the first few hours.
 - Never DM members cold.
 
 ## Reddit or Discord
@@ -51,19 +51,19 @@ The research behind this page, with sources: `docs/plan/research/K-tester-channe
 > **What you get:** the app free through TestFlight, the analysis on your own data, a direct line to me while it's being built, and the first year free at launch if you answer the three check-ins.
 > **Privacy:** your log stays on your phone unless you choose to sign in. No ads, no data sold.
 >
-> It's a beta, so expect rough edges. If you're in, the form takes two minutes: [form]
+> It's a beta, so expect rough edges. If you're in, the form takes two minutes: https://tally.so/r/BEzj4R
 
 ## Question post (r/naturalbodybuilding [Research], if the mods agree)
 
 > **[Research] How do you keep your training, food, weight and sleep in one place?**
 >
-> I log lifts in [app] and food in [app], and what I could never see was how they affect each other: whether short nights cost me on top sets, or what my maintenance really is mid-cut. I'm building an iPhone app for that. How do you track it now, and what would you want to see? If you'd like to test it for 8 weeks (free, first year free at launch), the form is here: [form]
+> I log lifts in [app] and food in [app], and what I could never see was how they affect each other: whether short nights cost me on top sets, or what my maintenance really is mid-cut. I'm building an iPhone app for that. How do you track it now, and what would you want to see? If you'd like to test it for 8 weeks (free, first year free at launch), the form is here: https://tally.so/r/BEzj4R
 
 ## Direct message (coaches, club committees)
 
 > Hi [name], I'm building an iPhone app for natural lifters that puts bodyweight trend, food, training and sleep in one place and finds how they affect each other from the person's own logs (for example, top sets lighter after short nights). I'm looking for testers for 8 weeks and thought [2 or 3 of your off-season clients / your members] might be a good fit, since they already track closely. Clients can show you what it finds.
 >
-> It's free, and anyone who answers three short check-ins gets the first year free at launch. Would you be happy to pass this on? Two-minute form: [form]. Happy to show you the app first.
+> It's free, and anyone who answers three short check-ins gets the first year free at launch. Would you be happy to pass this on? Two-minute form: https://tally.so/r/BEzj4R. Happy to show you the app first.
 
 ## Then
 
