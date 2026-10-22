@@ -4,7 +4,7 @@ import { gaussian, mulberry32 } from "@/lib/physique/fixtures";
 import { bannedPhrasesIn } from "@/lib/physique/copy";
 import { ALC_MIN_EACH, alcoholLinks, type AlcoholInputs, type AlcoholOutcome } from "@/lib/physique/alcohol";
 import { alcoholHeadline, alcoholRow, alcoholSameDaysNote, ALCOHOL_EVIDENCE } from "@/lib/physique/alcoholWords";
-import { bodyKgAt, DRINK_G_PER_KG, drinkingEvenings, drinkThresholdG, sodiumByDay } from "@/lib/physique/dayExtras";
+import { alcoholByEvening, bodyKgAt, DRINK_G_PER_KG, drinkingEvenings, drinkThresholdG, HEALTH_DRINK_G, sodiumByDay } from "@/lib/physique/dayExtras";
 import type { DailyVitals, FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
 
 const START = "2026-04-01";
@@ -32,6 +32,8 @@ type Opts = {
   lateDrinks?: boolean;
   /** HRV and resting HR as day vitals rather than on the night. */
   vitalsOnly?: boolean;
+  /** IN9b: drinks logged in Apple Health (this many a drinking evening) instead of as food. */
+  healthDrinks?: number;
   bodyKg?: number;
 };
 
@@ -75,7 +77,12 @@ function person(seed: number, o: Opts = {}): AlcoholInputs & { drinks: Set<Local
     foodEntries.push({ id: `f${k}`, ...stamp, label: "Day", kcal: 2300, proteinG: 160, carbsG: 250, fatG: 70, method: "quick", time: "13:00", sodiumMg: 2800 });
     const eveningDow = new Date(`${date}T12:00:00Z`).getUTCDay();
     const drink = o.drinkDays ? o.drinkDays.has(k) : o.weekendShare != null ? (eveningDow === 5 || eveningDow === 6) && r() < o.weekendShare : r() < (o.drinkShare ?? 0.15);
-    if (drink) {
+    if (drink && o.healthDrinks) {
+      drinks.add(date);
+      const v = vitals.find((x) => x.date === date);
+      if (v) v.alcoholDrinks = o.healthDrinks;
+      else vitals.push({ id: `hk-v-${date}`, ...stamp, source: "healthkit", alcoholDrinks: o.healthDrinks });
+    } else if (drink) {
       drinks.add(date);
       const late = o.lateDrinks ? addDays(date, 1) : date;
       foodEntries.push({ id: `d${k}`, ...stamp, date: late, label: "Lager, standard", kcal: 409, proteinG: 3, carbsG: 30, fatG: 0, method: "search", time: o.lateDrinks ? "00:30" : "21:00", alcoholG: o.drinkG ?? 54, sodiumMg: 60 });
@@ -107,6 +114,37 @@ describe("drinking evenings (IN9)", () => {
     expect(ev.has(day(1))).toBe(false);
     expect(ev.get(day(2))).toMatchObject({ kind: "dry" });
     // Day 3 has no food logged: no record that it was dry.
+    expect(ev.has(day(3))).toBe(false);
+  });
+
+  it("IN9b: Apple Health's drinks fill an evening with none logged as food, 14 g each, never counted twice", () => {
+    const v = (date: LocalDate, n: number): DailyVitals => ({ id: `hk-v-${date}`, date, loggedAt: `${date}T23:00:00.000Z`, source: "healthkit", schemaVersion: 1, alcoholDrinks: n });
+    const entries = [
+      food(day(0), "a", {}),
+      food(day(1), "b", {}),
+      food(day(1), "pints", { label: "Lager", kcal: 409, time: "21:00", alcoholG: 54.5 }),
+      food(day(2), "c", {}),
+      food(day(2), "sauce", { label: "Coq au vin", kcal: 600, time: "19:00", alcoholG: 0.5 }),
+      food(day(3), "d", {}),
+    ];
+    const vitals = [v(day(0), 2), v(day(1), 3), v(day(2), 3), v(day(3), 1), { ...v(day(3), 1), id: "hae-v" }];
+    const g = alcoholByEvening(entries, vitals);
+    // Health only: 2 × 14 g.
+    expect(g.get(day(0))).toBe(2 * HEALTH_DRINK_G);
+    // Logged as food too: the food log stands, Health's 3 aren't added.
+    expect(g.get(day(1))).toBe(54.5);
+    // A splash in the cooking is not a drink logged: Health's 3 count, with it.
+    expect(g.get(day(2))).toBeCloseTo(3 * HEALTH_DRINK_G + 0.5);
+    // The same day from two sources (the app and Health Auto Export) counts once.
+    expect(g.get(day(3))).toBe(HEALTH_DRINK_G);
+    // A drink at 00:30 logged both ways: the food log puts it on the evening before, and Health's count for that day is not added again.
+    const late = [food(day(5), "e", {}), food(day(6), "late", { label: "Wine", kcal: 266, time: "00:30", alcoholG: 37 })];
+    const lateG = alcoholByEvening(late, [v(day(6), 2)]);
+    expect(lateG.get(day(5))).toBe(37);
+    expect(lateG.has(day(6))).toBe(false);
+    const ev = drinkingEvenings(entries, {}, [], day(0), day(3), { vitals });
+    expect(ev.get(day(0))).toMatchObject({ kind: "drink", alcoholG: 28 });
+    // One drink (14 g) is under the 20 g line at 80 kg, and an evening with a drink is never dry.
     expect(ev.has(day(3))).toBe(false);
   });
 
@@ -182,6 +220,15 @@ describe("alcohol against that night and the next day (IN9)", () => {
   it("reads HRV and resting HR kept as day vitals when the night has none", () => {
     const p = person(31, { drinkShare: 0.15, rhrBpm: 8, vitalsOnly: true });
     expect(item(alcoholLinks(p, nowAt(149)), "rhr")?.state).toBe("linked");
+  });
+
+  it("IN9b: reads drinks logged only in Apple Health", () => {
+    const r = alcoholLinks(person(11, { rhrBpm: 7, hrvPct: -20, healthDrinks: 3 }), nowAt(149));
+    expect(r.drinkEvenings).toBeGreaterThan(10);
+    expect(item(r, "rhr")?.state).toBe("linked");
+    // Without the vitals, the same person's food log shows no drinking at all.
+    const noHealth = person(11, { rhrBpm: 7, hrvPct: -20, healthDrinks: 3 });
+    expect(alcoholLinks({ ...noHealth, vitals: [] }, nowAt(149)).drinkEvenings).toBe(0);
   });
 
   it("counts drinks logged after midnight to the night they were part of", () => {

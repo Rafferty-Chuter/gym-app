@@ -68,7 +68,7 @@ export default function TodayStrip() {
   }, [data, today, now, wDate]);
 
   // IN2: why today's weigh-in jumped, when it did.
-  const jumpInputs = useMemo<ScaleJumpInputs | null>(() => (now ? { weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz } : null), [data, workouts, now]);
+  const jumpInputs = useMemo<ScaleJumpInputs | null>(() => (now ? { weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz, vitals: data.vitals } : null), [data, workouts, now]);
   const jump = useMemo(() => (jumpInputs && today && day?.weighIn ? scaleJump(jumpInputs, today) : null), [jumpInputs, today, day]);
   const explain = (kg: number, d: LocalDate) => {
     const j = jumpInputs ? scaleJump(withWeighIn(jumpInputs, d, kg), d) : null;

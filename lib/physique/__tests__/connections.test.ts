@@ -158,6 +158,14 @@ describe("Connections: drinks the evening before (IN9)", () => {
     }
   });
 
+  it("IN9b: reads drinks logged only in Apple Health", () => {
+    const h = drinkHistory(41, 4);
+    const vitals = h.foodEntries.filter((e) => e.alcoholG).map((e) => ({ id: `hk-v-${e.date}`, date: e.date, loggedAt: e.loggedAt, source: "healthkit" as const, schemaVersion: 1 as const, alcoholDrinks: 4 }));
+    const fromHealth = { ...h, foodEntries: h.foodEntries.filter((e) => !e.alcoholG), vitals };
+    expect(connections(fromHealth, now).items.find((x) => x.id === "alcohol")?.state).toBe("linked");
+    expect(connections({ ...fromHealth, vitals: [] }, now).items.find((x) => x.id === "alcohol")).toBeUndefined();
+  });
+
   it("is not read without drinks logged, or from days whose food isn't logged", () => {
     const h = drinkHistory(45, 4);
     const dry = { ...h, foodEntries: h.foodEntries.filter((e) => !e.alcoholG) };

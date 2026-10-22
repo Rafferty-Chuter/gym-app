@@ -271,7 +271,7 @@ function readAt(i: AlcoholInputs, now: Now): AlcoholRead {
   const from = addDays(through, -(ALC_WINDOW_DAYS - 1));
   const threshold = drinkThresholdG(bodyKgAt(i.weighIns, through));
   const lead = ALC_USUAL_DAYS + 2;
-  const evenings = drinkingEvenings(i.foodEntries, i.dayFlags, i.weighIns, addDays(from, -lead), through, threshold);
+  const evenings = drinkingEvenings(i.foodEntries, i.dayFlags, i.weighIns, addDays(from, -lead), through, { thresholdG: threshold, vitals: i.vitals });
   const afterDrink = new Set([...evenings].filter(([, e]) => e.kind === "drink").map(([d]) => addDays(d, 1)));
   const nights = nightSeries(i);
   const scale = i.weighIns.length ? scaleDeviations(i.weighIns, addDays(from, 1), through) : new Map<LocalDate, number>();

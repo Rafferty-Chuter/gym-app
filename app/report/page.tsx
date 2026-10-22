@@ -148,7 +148,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
   // L1: how sleep, food and weight change line up with the lifts over the 16 weeks to the report's last day.
   const conn = useMemo(
-    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, unit }, { today: report.through, tz: now.tz }),
+    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, unit, vitals: data.vitals }, { today: report.through, tz: now.tz }),
     [workouts, data, expenditure, unit, report.through, now.tz]
   );
   const lifts = useMemo(() => mainLiftLevels(workouts, unit, { today: report.through, tz: now.tz }), [workouts, unit, report.through, now.tz]);

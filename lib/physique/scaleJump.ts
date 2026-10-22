@@ -36,7 +36,7 @@ import { SODIUM_PER_SALT } from "@/lib/food/extras";
 import { weighInsByDate } from "@/lib/physique/weight";
 import { countHardSets } from "@/lib/completedSets";
 import { getDetailedMuscleGroupsForLoggedExercise } from "@/lib/trainingMetrics";
-import type { DailyIntake, DayEventType, DayFlags, FoodEntry, WeighIn } from "@/lib/physique/types";
+import type { DailyIntake, DailyVitals, DayEventType, DayFlags, FoodEntry, WeighIn } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
 // ── Thresholds ──
@@ -147,6 +147,8 @@ export type ScaleJumpInputs = {
   dayFlags: Readonly<Record<string, DayFlags>>;
   workouts: readonly StoredWorkout[];
   tz: string;
+  /** IN9b: day vitals, for drinks logged in Apple Health. */
+  vitals?: readonly DailyVitals[];
 };
 
 // ── Reads ──
@@ -304,7 +306,7 @@ function context(inputs: ScaleJumpInputs, from: LocalDate, to: LocalDate): Conte
     dev,
     intake: new Map(series.map((x) => [x.date, x])),
     sodium: sodiumByDay(inputs.foodEntries, inputs.dayFlags, foodFrom, to),
-    evenings: drinkingEvenings(inputs.foodEntries, inputs.dayFlags, inputs.weighIns, foodFrom, to),
+    evenings: drinkingEvenings(inputs.foodEntries, inputs.dayFlags, inputs.weighIns, foodFrom, to, { vitals: inputs.vitals }),
     legs: legSetsByDate(inputs.workouts, inputs.tz),
     flags: inputs.dayFlags,
   };

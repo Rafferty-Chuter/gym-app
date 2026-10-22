@@ -39,14 +39,14 @@ export type SpottedPre = { connections?: ConnectionsResult; findings?: readonly 
 export function spottedFor(s: SpottedSources, at: Now, unit: WeightUnit, pre: SpottedPre = {}): SpottedItem[] {
   const goal = s.goal && !s.goal.completedAt && s.goal.startDate <= at.today ? s.goal : null;
   const expenditure = s.expenditure ? [...s.expenditure] : null;
-  const conn = pre.connections ?? connections({ workouts: s.workouts, sleepNights: s.sleepNights, foodEntries: s.foodEntries, dayFlags: s.dayFlags, weighIns: s.weighIns, expenditure, unit }, at);
+  const conn = pre.connections ?? connections({ workouts: s.workouts, sleepNights: s.sleepNights, foodEntries: s.foodEntries, dayFlags: s.dayFlags, weighIns: s.weighIns, expenditure, unit, vitals: s.vitals }, at);
   const sleepLink = conn.items.find((c) => c.id === "sleep" && c.state === "linked");
   const found =
     pre.findings ??
     findings({ weighIns: s.weighIns, foodEntries: s.foodEntries, dayFlags: s.dayFlags, sleepNights: s.sleepNights, goal, program: s.program, profile: s.profile, workouts: s.workouts, unit, sleepConnectionPct: sleepLink?.diffPct ?? null }, at.today);
   const lift = pre.lift !== undefined ? pre.lift : (mainLiftLevels(s.workouts, unit, at)[0] ?? null);
   const stuck = stuckLifts({ workouts: s.workouts, sleepNights: s.sleepNights, foodEntries: s.foodEntries, dayFlags: s.dayFlags, weighIns: s.weighIns, expenditure, goal, unit }, at);
-  const jump = latestJump({ weighIns: s.weighIns, foodEntries: s.foodEntries, dayFlags: s.dayFlags, workouts: s.workouts, tz: at.tz }, at.today);
+  const jump = latestJump({ weighIns: s.weighIns, foodEntries: s.foodEntries, dayFlags: s.dayFlags, workouts: s.workouts, tz: at.tz, vitals: s.vitals }, at.today);
   const alcohol = alcoholLinks({ foodEntries: s.foodEntries, dayFlags: s.dayFlags, sleepNights: s.sleepNights, vitals: s.vitals, weighIns: s.weighIns }, at);
   return spotted({ today: at.today, unit, jump, stuck, connections: conn, findings: [...found], lift, alcohol });
 }

@@ -233,6 +233,12 @@ describe("why the scale jumped (IN2)", () => {
     expect(reads.length).toBeGreaterThan(0);
     expect(jumpCauseLine(reads[0], true)).toMatch(/^Yesterday: 54 g of alcohol/);
     expect(jumpShort(reads[0], "kg", true)).toMatch(/^Up \d\.\d kg · 54 g of alcohol yesterday$/);
+    // IN9b: the same evenings logged as 4 drinks in Apple Health instead (4 × 14 g).
+    const vitals = holds.foodEntries.filter((e) => e.alcoholG).map((e) => ({ id: `hk-v-${e.date}`, date: e.date, loggedAt: e.loggedAt, source: "healthkit" as const, schemaVersion: 1 as const, alcoholDrinks: 4 }));
+    const fromHealth = { ...holds, foodEntries: holds.foodEntries.filter((e) => !e.alcoholG), vitals };
+    const healthReads = [...scaleJumps(fromHealth, day(90), day(119)).values()].filter((j) => j.personal && j.causes.some((c) => c.kind === "drinks"));
+    expect(healthReads.length).toBeGreaterThan(0);
+    expect(jumpCauseLine(healthReads[0], true)).toMatch(/^Yesterday: 56 g of alcohol/);
     for (const t of [jumpCauseLine(reads[0], true), jumpShort(reads[0], "kg", true)]) {
       expect(bannedPhrasesIn(t)).toEqual([]);
       expect(t).not.toMatch(/\bfat\b|because|should|too many|binge|limit|cut back/i);

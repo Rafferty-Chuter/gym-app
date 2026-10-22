@@ -6,6 +6,8 @@
  *   night after, the scale one and two mornings after;
  * - Connections' "drinks the evening before" (lib/physique/connections.ts);
  * - the scale-jump read's salt driver (lib/physique/scaleJump.ts).
+ * IN9b adds people who log their drinks in Apple Health (a count, 14 g a
+ * drink) instead of as food, and one who logs the same evenings both ways.
  *
  *   npx tsx scripts/study-alcohol.ts [seeds=30] [out=docs/plan/research/N-alcohol-salt-study.json]
  *
@@ -17,7 +19,7 @@ import { addDays, type LocalDate } from "@/lib/dates";
 import { ALCOHOL_OUTCOMES, alcoholLinks, type AlcoholOutcome } from "@/lib/physique/alcohol";
 import { connections } from "@/lib/physique/connections";
 import { scaleJumps } from "@/lib/physique/scaleJump";
-import type { FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
+import type { DailyVitals, FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
 const SEEDS = Number(process.argv[2] ?? 30);
@@ -47,6 +49,9 @@ type Pattern = {
   /** Friday and Saturday nights differ this much, drink or not (late nights out): minutes asleep, bpm. */
   weekendSleepMin?: number;
   weekendRhr?: number;
+  /** IN9b: where the drinks are logged: as food (default), as this many drinks in Apple Health, or both on the same evenings. */
+  log?: "food" | "health" | "both";
+  healthDrinks?: number;
 };
 
 /**
@@ -63,6 +68,7 @@ function person(seed: number, weeks: number, truth: Truth, pat: Pattern) {
   const foodEntries: FoodEntry[] = [];
   const sleepNights: SleepNight[] = [];
   const weighIns: WeighIn[] = [];
+  const vitals: DailyVitals[] = [];
   let rhrN = 0;
   let kgN = 0;
   let prev = false;
@@ -81,12 +87,14 @@ function person(seed: number, weeks: number, truth: Truth, pat: Pattern) {
     foodEntries.push({ ...stamp(date, `f${k}`), label: "Day", kcal: 2300, proteinG: 160, carbsG: 250, fatG: 70, method: "quick", time: "13:00" });
     const wk = dow(date) === 5 || dow(date) === 6;
     const drink = pat.weekend != null ? wk && r() < pat.weekend : r() < (pat.share ?? 0);
-    if (drink) foodEntries.push({ ...stamp(date, `d${k}`), label: "Lager, standard", kcal: Math.round(7.6 * pat.grams), proteinG: 2, carbsG: Math.round(0.55 * pat.grams), fatG: 0, method: "search", time: "21:00", alcoholG: pat.grams });
+    const log = pat.log ?? "food";
+    if (drink && log !== "health") foodEntries.push({ ...stamp(date, `d${k}`), label: "Lager, standard", kcal: Math.round(7.6 * pat.grams), proteinG: 2, carbsG: Math.round(0.55 * pat.grams), fatG: 0, method: "search", time: "21:00", alcoholG: pat.grams });
+    if (drink && log !== "food") vitals.push({ ...stamp(date, `hk-v-${date}`), source: "healthkit", alcoholDrinks: pat.healthDrinks ?? 4 });
     prev2 = prev;
     prev = drink;
     prevWeekend = wk;
   }
-  return { foodEntries, dayFlags: {}, sleepNights, weighIns };
+  return { foodEntries, dayFlags: {}, sleepNights, weighIns, vitals };
 }
 
 const NONE: Truth = { rhr: 0, hrvPct: 0, sleepMin: 0, scaleKg: [0, 0] };
@@ -97,6 +105,11 @@ const NIGHT_PERSONAS: Array<{ name: string; truth: Truth; pat: Pattern }> = [
   { name: "Scale +0.8 kg the morning after, +0.4 kg two mornings after; nights unchanged", truth: { ...NONE, scaleKg: [0.8, 0.4] }, pat: { share: 0.2, grams: 54 } },
   { name: "Control: drinks 1.4 evenings a week, nothing changes", truth: NONE, pat: { share: 0.2, grams: 54 } },
   { name: "Weekend control: drinks on Friday and Saturday, no effect of drink, but those nights are 40 min shorter and 2.5 bpm higher anyway", truth: NONE, pat: { weekend: 0.7, grams: 54, weekendSleepMin: -40, weekendRhr: 2.5 } },
+  // IN9b: the same people logging their drinks in Apple Health instead (a count, read as 14 g a drink).
+  { name: "IN9b · Heavy evenings logged in Apple Health only (4 drinks, read as 56 g), 1.4 a week: resting HR +8.7 bpm, HRV −20%, sleep −35 min", truth: { rhr: 8.7, hrvPct: -20, sleepMin: -35, scaleKg: [0, 0] }, pat: { share: 0.2, grams: 54, log: "health", healthDrinks: 4 } },
+  { name: "IN9b · Moderate evenings logged in Apple Health only (2 drinks, read as 28 g), 1.4 a week: resting HR +4 bpm, HRV −10%, sleep −15 min", truth: { rhr: 4, hrvPct: -10, sleepMin: -15, scaleKg: [0, 0] }, pat: { share: 0.2, grams: 36, log: "health", healthDrinks: 2 } },
+  { name: "IN9b · Heavy evenings logged both as food and in Apple Health (counted once): resting HR +8.7 bpm, HRV −20%, sleep −35 min", truth: { rhr: 8.7, hrvPct: -20, sleepMin: -35, scaleKg: [0, 0] }, pat: { share: 0.2, grams: 54, log: "both", healthDrinks: 4 } },
+  { name: "IN9b · Control: drinks in Apple Health 1.4 evenings a week, nothing changes", truth: NONE, pat: { share: 0.2, grams: 54, log: "health", healthDrinks: 4 } },
 ];
 const NIGHT_WEEKS = [6, 12, 26];
 

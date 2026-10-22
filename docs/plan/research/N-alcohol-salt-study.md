@@ -47,9 +47,25 @@ IN2's lifter with sodium logged on every food (about 3,000 mg a day) and a salty
 
 The prior of 0.2 kg per g of sodium starts the size. It becomes the person's own after 60 reads. On a person whose scale ignores salt, salt was named on 2 of 207 salty mornings, both when the scale happened to jump anyway.
 
+## Drinks logged in Apple Health (IN9b, 2026-10-22)
+
+Health records a count of drinks with no size, so a drink is read as 14 g, the US standard drink. A Health count fills an evening only when the food log holds no drink (1 g or less), so an evening logged both ways counts once, and the same day from two sources (the app and Health Auto Export) counts once. Health keeps day totals, so a drink after midnight stays on the next day.
+
+Same seeds, same truths, 30 runs each:
+
+| Person | 6 weeks (rhr / hrv / sleep found) | 12 weeks | 26 weeks |
+|---|---|---|---|
+| Heavy, logged as food (54 g) | 30 / 23 / 17 | 30 / 30 / 24 | 30 / 30 / 30 |
+| Heavy, Apple Health only (4 drinks, read as 56 g) | 30 / 23 / 17 | 30 / 30 / 24 | 30 / 30 / 30 |
+| Heavy, logged both ways | 30 / 23 / 17 | 30 / 30 / 24 | 30 / 30 / 30 |
+| Moderate, Apple Health only (2 drinks, read as 28 g) | 30 / 6 / 7 | 30 / 11 / 3 | 30 / 23 / 12 |
+| Control, Apple Health only | no link in 90 runs | | |
+
+The Health-only rows match the food-logged ones because only which evenings were drinking ones matters, and 2 or more drinks (28 g) is over the line at these people's weight (about 21 g at 85 kg). One drink logged in Health (14 g) is under it: that evening is neither drinking nor dry, as with a small drink logged as food. Connections' drinks condition and the scale jump read the same evenings (tests in `connections.test.ts` and `scaleJump.test.ts`).
+
 ## Limits
 
 - The made-up nights carry one effect each. Real drinking evenings also run later and come with more food, and the words say "after", not "because".
 - Apple Health's resting HR is a day value and its HRV is overnight in the iPhone app but a day mean through Health Auto Export. So the card says "next day", not "that night", for both.
-- An evening is read only when its drinks are logged. A day whose food isn't logged is neither drinking nor dry. A drink logged without its grams of alcohol, such as a quick-add "beer", is missed. Apple Health's logged alcohol arrives with IN8.
+- An evening is read only when its drinks are logged. A day whose food isn't logged is neither drinking nor dry. A drink logged without its grams of alcohol, such as a quick-add "beer", is missed. Drinks logged in Apple Health count from IN9b, at 14 g each.
 - A day's sodium is read only when foods carrying it make up 80% of the day's calories, scaled to the rest.

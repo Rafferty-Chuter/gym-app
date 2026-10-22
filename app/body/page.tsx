@@ -116,8 +116,8 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   // PR2: connections read the chosen range, never less than the 16 weeks their minimums need.
   const connDays = range === "6M" || range === "All" ? dayDiff(timeline.from, today) + 1 : 0;
   const conn = useMemo(
-    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, unit }, now, { days: connDays }),
-    [workouts, data, expenditure, unit, now, connDays]
+    () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, unit, vitals: ex ? [] : data.vitals }, now, { days: connDays }),
+    [workouts, data, expenditure, unit, now, connDays, ex]
   );
   const found = useMemo(() => {
     const p = ex ? ex.profile : getPhysiqueProfileSync();
@@ -147,7 +147,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   );
   const [showWeighIns, setShowWeighIns] = useState(false);
   // IN2 for Spotted: the latest weigh-in, while it is still news.
-  const jumpNow = useMemo(() => latestJump({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz }, today), [data, workouts, today, now.tz]);
+  const jumpNow = useMemo(() => latestJump({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz, vitals: ex ? [] : data.vitals }, today), [data, workouts, today, now.tz, ex]);
   // IN9 for Spotted: drinking evenings against the next day's recovery, the night and the scale (live vitals only with live data).
   const drinking = useMemo(
     () => alcoholLinks({ foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, vitals: ex ? [] : data.vitals, weighIns: data.weighIns }, now),
@@ -181,7 +181,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   }, [liveData, wDate]);
 
   // IN2: why a weigh-in jumped, on the person's own records (the list and the sheet are never the example's).
-  const jumpInputs = useMemo<ScaleJumpInputs>(() => ({ weighIns: liveData.weighIns, foodEntries: liveData.foodEntries, dayFlags: liveData.dayFlags, workouts: liveWorkouts, tz: now.tz }), [liveData, liveWorkouts, now.tz]);
+  const jumpInputs = useMemo<ScaleJumpInputs>(() => ({ weighIns: liveData.weighIns, foodEntries: liveData.foodEntries, dayFlags: liveData.dayFlags, workouts: liveWorkouts, tz: now.tz, vitals: liveData.vitals }), [liveData, liveWorkouts, now.tz]);
   const jumps = useMemo(() => (showWeighIns ? scaleJumps(jumpInputs, addDays(today, -(ENTRY_DAYS - 1)), today) : undefined), [showWeighIns, jumpInputs, today]);
   const explain = (kg: number, d: LocalDate) => {
     const j = scaleJump(withWeighIn(jumpInputs, d, kg), d);

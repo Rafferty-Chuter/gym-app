@@ -49,7 +49,7 @@ import { nightsByDate } from "@/lib/physique/sleep";
 import { deloadWeeks, isCompoundLift, liftSeries, MAIN_LIFT_WEEKS, pickMainLifts, workoutDate } from "@/lib/physique/strength";
 import { trendSeries } from "@/lib/physique/weight";
 import { countHardSets } from "@/lib/completedSets";
-import type { DayFlags, ExpenditurePoint, FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
+import type { DailyVitals, DayFlags, ExpenditurePoint, FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import { kgToDisplay, type WeightUnit } from "@/lib/units";
 import { workoutStartedAt } from "@/lib/workoutTime";
@@ -207,6 +207,8 @@ export type ConnectionInputs = {
   /** The maintenance estimate by day; without it calories against maintenance are not read. */
   expenditure?: readonly ExpenditurePoint[] | null;
   unit: WeightUnit;
+  /** IN9b: day vitals, for drinks logged in Apple Health. */
+  vitals?: readonly DailyVitals[];
 };
 
 // ── Conditions: words and expected direction ──
@@ -294,7 +296,7 @@ function readers(i: ConnectionInputs, from: LocalDate, now: Now, sameLiftGap: Re
   const intake = new Map(dailyIntakeSeries(i.foodEntries, i.dayFlags, addDays(from, -lead), now.today).map((d) => [d.date, d]));
   const maintenance = new Map((i.expenditure ?? []).map((p) => [p.date, p.tdee]));
   const trend = new Map(trendSeries(i.weighIns).map((p) => [p.date, p.trendKg]));
-  const evenings = drinkingEvenings(i.foodEntries, i.dayFlags, i.weighIns, addDays(from, -lead), now.today);
+  const evenings = drinkingEvenings(i.foodEntries, i.dayFlags, i.weighIns, addDays(from, -lead), now.today, { vitals: i.vitals });
   const workoutDays = [...new Set(i.workouts.map((w) => workoutDate(w, now.tz)).filter((d): d is LocalDate => d != null))].sort();
   const firstWorkout = workoutDays[0] ?? null;
   const rest = new Map<LocalDate, number>();

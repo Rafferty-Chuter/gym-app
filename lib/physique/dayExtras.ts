@@ -7,13 +7,14 @@
  *
  * Absent stays unknown (IN6): an evening is dry only when its day's food is
  * logged in full, and a day's sodium is read only when the foods carrying
- * it make up most of the day. Pure.
+ * it make up most of the day. IN9b: drinks logged in Apple Health (IN8's
+ * day count) fill an evening with none logged as food. Pure.
  */
 
 import { addDays, type LocalDate } from "@/lib/dates";
 import { median } from "@/lib/stats";
 import { countsAsLogged, dailyIntakeSeries } from "@/lib/physique/intake";
-import type { DayFlags, FoodEntry, WeighIn } from "@/lib/physique/types";
+import type { DailyVitals, DayFlags, FoodEntry, WeighIn } from "@/lib/physique/types";
 
 // ── Thresholds (tags as in 02-engine-spec) ──
 
@@ -27,6 +28,13 @@ export const DRINK_DEFAULT_KG = 80;
 export const BODY_KG_DAYS = 60;
 /** Most alcohol an evening can carry and still count as dry, g. OURS: a dash of wine in a sauce or a kombucha is not a drink. */
 export const DRY_MAX_G = 1;
+/**
+ * Alcohol in one drink logged in Apple Health, g. PUB: the US standard
+ * drink (NIAAA) is 14 g; Health records a count with no size, and the apps
+ * that write it count standard drinks. A UK pint (18 to 23 g) reads low,
+ * so a Health-only evening is never put over the line by the size guess.
+ */
+export const HEALTH_DRINK_G = 14;
 /** Share of a day's calories whose foods carry sodium before the day's sodium is read. OURS: with more than a fifth unknown, a missing salty food could hide the day's real total. */
 export const SODIUM_MIN_COVERAGE = 0.8;
 
@@ -38,14 +46,33 @@ export function eveningOf(e: Pick<FoodEntry, "date" | "time">): LocalDate {
   return h != null && h < EVENING_CUTOFF_HOUR ? addDays(e.date, -1) : e.date;
 }
 
-/** Grams of alcohol logged for each evening, where any was. */
-export function alcoholByEvening(entries: readonly FoodEntry[]): Map<LocalDate, number> {
+/**
+ * Grams of alcohol logged for each evening, where any was. IN9b: Apple
+ * Health's drinks (HEALTH_DRINK_G each) count for a day whose food log
+ * holds no drink (no more than DRY_MAX_G) on that evening or that calendar
+ * day, so nothing is counted twice, not even a drink after midnight logged
+ * both ways (the food log puts it on the evening before; Health keeps day
+ * totals, so its count stays on the next day). The same day from two
+ * sources counts once.
+ */
+export function alcoholByEvening(entries: readonly FoodEntry[], vitals: readonly DailyVitals[] = []): Map<LocalDate, number> {
   const out = new Map<LocalDate, number>();
+  const byDay = new Map<LocalDate, number>();
   for (const e of entries) {
     const g = e.alcoholG;
     if (typeof g !== "number" || !Number.isFinite(g) || g <= 0) continue;
     const d = eveningOf(e);
     out.set(d, (out.get(d) ?? 0) + g);
+    byDay.set(e.date, (byDay.get(e.date) ?? 0) + g);
+  }
+  const health = new Map<LocalDate, number>();
+  for (const v of vitals) {
+    const n = v.alcoholDrinks;
+    if (typeof n === "number" && Number.isFinite(n) && n > 0) health.set(v.date, Math.max(health.get(v.date) ?? 0, n));
+  }
+  for (const [d, n] of health) {
+    const food = out.get(d) ?? 0;
+    if (food <= DRY_MAX_G && (byDay.get(d) ?? 0) <= DRY_MAX_G) out.set(d, food + n * HEALTH_DRINK_G);
   }
   return out;
 }
@@ -70,11 +97,12 @@ export type Evening = { kind: "drink" | "dry"; alcoholG: number };
  * Each evening in [from, to] that was a drinking one (alcohol at or over the
  * person's line) or dry (food logged in full, no more than DRY_MAX_G).
  * Evenings with a little, or with the day's food not logged, are neither,
- * so they never water down either group. `thresholdG` overrides the line.
+ * so they never water down either group. `thresholdG` overrides the line;
+ * `vitals` brings Apple Health's drinks in (IN9b).
  */
-export function drinkingEvenings(entries: readonly FoodEntry[], dayFlags: Readonly<Record<string, DayFlags>>, weighIns: readonly WeighIn[], from: LocalDate, to: LocalDate, thresholdG?: number): Map<LocalDate, Evening> {
-  const line = thresholdG ?? drinkThresholdG(bodyKgAt(weighIns, to));
-  const alcohol = alcoholByEvening(entries);
+export function drinkingEvenings(entries: readonly FoodEntry[], dayFlags: Readonly<Record<string, DayFlags>>, weighIns: readonly WeighIn[], from: LocalDate, to: LocalDate, opts: { thresholdG?: number; vitals?: readonly DailyVitals[] } = {}): Map<LocalDate, Evening> {
+  const line = opts.thresholdG ?? drinkThresholdG(bodyKgAt(weighIns, to));
+  const alcohol = alcoholByEvening(entries, opts.vitals);
   const out = new Map<LocalDate, Evening>();
   for (const d of dailyIntakeSeries(entries, dayFlags, from, to)) {
     const g = alcohol.get(d.date) ?? 0;
