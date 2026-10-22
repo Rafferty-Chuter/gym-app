@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addDays } from "@/lib/dates";
 import { makeScenario } from "@/lib/physique/fixtures";
 import { buildPhysiqueAnalysis, isCheckInDue, rateFamilyInCooldown, waistChange, type JudgeInputs } from "@/lib/physique/judge";
+import { fmtDay } from "@/lib/physique/copy";
 import { CALORIE_FLOOR, GAIN_BANDS } from "@/lib/physique/targets";
 import type { FoodEntry, PhysiqueAnalysis, PhysiqueGoal, PhysiqueProgram, Recommendation, RuleId, WaistEntry } from "@/lib/physique/types";
 import { analyse, fixedBulk, fixedCut, FLAT_LIFTS, inputsOf, loss1Row, NOW, runRow, SCENARIO_TABLE, START, stepLifts } from "@/lib/physique/__tests__/judgeHelpers";
@@ -248,11 +249,13 @@ describe("data rules", () => {
     expect(ids(b)).not.toContain("DATA-PARTIAL");
   });
 
-  it("DATA-RATE: 10 days → N more weigh-ins; 21 daily days → a rate exists; outranked by DATA-HOLD", () => {
-    const ten = analyse(makeScenario({ seed: 2, days: 10, bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6 } }));
+  it("DATA-RATE: 10 days → the first read's date and the weigh-ins it needs; 21 daily days → a rate exists; outranked by DATA-HOLD", () => {
+    const tenSc = makeScenario({ seed: 2, days: 10, bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6 } });
+    const ten = analyse(tenSc);
     expect(ten.verdict.id).toBe("DATA-RATE");
-    expect(ten.weight.weighInsNeeded).toBe(11);
-    expect(ten.verdict.detail).toBe("11 more weigh-ins for a first read on your rate.");
+    // The goal's first week is left out: 3 daily weigh-ins in the window so far, 6 needed, two weeks from day 8 (IN12).
+    expect(ten.weight.weighInsNeeded).toBe(3);
+    expect(ten.verdict.detail).toBe(`First read on your rate around ${fmtDay(addDays(tenSc.today, 11))}. 3 more weigh-ins.`);
     expect(ten.weight.ratePctPerWeek).toBeNull();
     const three = analyse(makeScenario({ seed: 2, days: 21, bodyweightKg: 85, trueTdeeKcal: 2800, intake: "toTarget", goal: { ratePctPerWeek: -0.6 } }));
     expect(ids(three)).not.toContain("DATA-RATE");

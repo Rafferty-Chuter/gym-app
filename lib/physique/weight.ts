@@ -319,12 +319,46 @@ export function displayRate(
   });
 }
 
-/** How many more weigh-ins are needed for a first (14-day) rate read. */
-export function weighInsNeededForRate(weighIns: readonly WeighIn[], endDate: LocalDate): number {
-  const start = addDays(endDate, -(MIN_DAYS_FOR_RATE - 1));
-  const n = [...weighInsByDate(weighIns).keys()].filter((d) => d >= start && d <= endDate).length;
+// ── First rate read ──
+
+export type FirstRateRead = {
+  /** First day a weigh-in counts toward the rate. */
+  from: LocalDate;
+  /** Why earlier weigh-ins don't count: a goal's first week (mostly water), a logged water event, or neither (`from` is the first weigh-in). */
+  fromReason: "goal_start" | "water_event" | null;
+  /** The earliest day the first rate can show, if each weigh-in still needed lands on its own day from here. */
+  on: LocalDate;
+  /** Weigh-ins still needed inside the first window. */
+  weighInsNeeded: number;
+};
+
+/**
+ * When the first rate read can show and what it still needs: one answer
+ * for Home, Progress, the goal card and the chart, which had three
+ * (IN12: "14 more weigh-ins" that were days, and "about 5 days" that
+ * ignored the goal's first week). As displayRate asks, a read needs a
+ * window of MIN_DAYS_FOR_RATE days inside the segment (a goal's first
+ * PHASE_MASK_DAYS and logged water events are left out) holding at least
+ * max(MIN_WEIGHINS_FOR_RATE, ⌈days × MIN_WEIGHIN_RATIO⌉) weigh-ins.
+ */
+export function firstRateRead(input: SegmentInput & { weighIns: readonly WeighIn[] }): FirstRateRead {
+  const { today } = input;
+  const dates = [...weighInsByDate(input.weighIns).keys()].filter((d) => d <= today).sort();
+  const floor = dates[0] ?? today;
+  const segment = segmentStart(input);
+  const masked = segment != null && segment > floor;
+  const from = masked ? segment : floor;
+  // The segment without logged water events: when it is the same day, the goal's own start is why.
+  const goalOnly = masked ? segmentStart({ ...input, dayFlags: {} }) : null;
+  const fromReason = !masked ? null : goalOnly === segment ? "goal_start" : "water_event";
   const need = Math.max(MIN_WEIGHINS_FOR_RATE, Math.ceil(MIN_DAYS_FOR_RATE * MIN_WEIGHIN_RATIO));
-  return Math.max(0, need - n);
+  const windowStart = maxDate(from, addDays(today, -(MIN_DAYS_FOR_RATE - 1)));
+  const have = dates.filter((d) => d >= windowStart).length;
+  const weighInsNeeded = Math.max(0, need - have);
+  // Weigh-ins still to come land from tomorrow, or from `from` when it is still ahead.
+  const before = from > today ? addDays(from, -1) : today;
+  const on = maxDate(addDays(from, MIN_DAYS_FOR_RATE - 1), addDays(before, weighInsNeeded));
+  return { from, fromReason, on, weighInsNeeded };
 }
 
 export function isConfidentlyAbove(r: RateResult, x: number): boolean {

@@ -13,8 +13,8 @@ import { CONN_MIN_SESSIONS, type ConnectionsResult } from "@/lib/physique/connec
 import { INITIAL_HOLD_DAYS, SETTLING_UPDATING_DAYS, type ExpenditureResult } from "@/lib/physique/expenditure";
 import { nightsByDate, SLEEP_USUAL_MIN_NIGHTS } from "@/lib/physique/sleep";
 import { isCompoundLift, liftSeries, MAIN_LIFT_MIN_WEEKS_TRAINED, MAIN_LIFT_WEEKS, pickMainLifts } from "@/lib/physique/strength";
-import { MIN_DAYS_FOR_RATE, MIN_WEIGHIN_RATIO, MIN_WEIGHINS_FOR_RATE, weighInsNeededForRate } from "@/lib/physique/weight";
-import type { PhysiqueGoal, SleepNight, WeighIn } from "@/lib/physique/types";
+import { firstRateRead, type FirstRateRead } from "@/lib/physique/weight";
+import type { DayFlags, PhysiqueGoal, SleepNight, WeighIn } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import type { WeightUnit } from "@/lib/units";
 
@@ -32,11 +32,15 @@ export type Unlock = {
   needsAlongside?: boolean;
   /** Maintenance only: the day the estimate starts moving with the person's own food and weight, while it still holds its starting guess. */
   startsOn?: LocalDate;
+  /** Weight only: the first rate read, as Home and the goal card give it (IN12). */
+  firstRead?: FirstRateRead;
 };
 
 export type UnlockInputs = {
   goal: PhysiqueGoal | null;
   weighIns: readonly WeighIn[];
+  /** Logged water events move the first day a weigh-in counts toward the rate. */
+  dayFlags?: Readonly<Record<string, DayFlags>>;
   sleepNights: readonly SleepNight[];
   workouts: readonly StoredWorkout[];
   expenditure: ExpenditureResult | null;
@@ -54,15 +58,16 @@ export function progressUnlocks(i: UnlockInputs, now: Now): Unlock[] {
   // ── Goal ──
   const goal: Unlock = { id: "goal", done: !!i.goal && !i.goal.completedAt, have: i.goal ? 1 : 0, need: 1, unit: null, etaDays: null };
 
-  // ── Weight trend: the rate's own gate, enough weigh-ins over two weeks ──
-  const needCount = Math.max(MIN_WEIGHINS_FOR_RATE, Math.ceil(MIN_DAYS_FOR_RATE * MIN_WEIGHIN_RATIO));
-  const missing = weighInsNeededForRate(i.weighIns, today);
+  // ── Weight trend: the first rate read, the same date Home and the goal card give (IN12) ──
+  // Days run from the goal's start when its first week is left out (so the week shows as done), else from the first weigh-in.
   const first = i.weighIns.reduce<LocalDate | null>((m, w) => (w.date <= today && (!m || w.date < m) ? w.date : m), null);
-  const spanDays = first ? dayDiff(first, today) + 1 : 0;
-  const weight: Unlock =
-    missing > 0
-      ? { id: "weight", done: false, have: needCount - missing, need: needCount, unit: "weigh-ins", etaDays: needCount - missing > 0 ? Math.max(missing, MIN_DAYS_FOR_RATE - spanDays) : null }
-      : { id: "weight", done: spanDays >= MIN_DAYS_FOR_RATE, have: Math.min(spanDays, MIN_DAYS_FOR_RATE), need: MIN_DAYS_FOR_RATE, unit: "days", etaDays: Math.max(0, MIN_DAYS_FOR_RATE - spanDays) };
+  const read = firstRateRead({ goal: i.goal, dayFlags: i.dayFlags ?? {}, today, weighIns: i.weighIns });
+  const countFrom = read.fromReason === "goal_start" && i.goal ? i.goal.startDate : read.from;
+  const readyDays = dayDiff(countFrom, read.on) + 1;
+  const ready = !!first && read.weighInsNeeded === 0 && read.on <= today;
+  const weight: Unlock = first
+    ? { id: "weight", done: ready, have: ready ? readyDays : Math.max(0, Math.min(readyDays, dayDiff(countFrom, today) + 1)), need: readyDays, unit: "days", etaDays: ready ? 0 : dayDiff(today, read.on), firstRead: read }
+    : { id: "weight", done: false, have: 0, need: readyDays, unit: "days", etaDays: null };
 
   // ── Maintenance: the starting guess's hold, then the estimate's warm-up of updating days ──
   // Counted from the day the estimate started, so the first week shows as days done, not "0 of 21" with no reason (IN12).

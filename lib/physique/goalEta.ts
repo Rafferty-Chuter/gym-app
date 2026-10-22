@@ -8,7 +8,7 @@
 
 import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
 import type { DayFlags, PhysiqueGoal, WeighIn } from "@/lib/physique/types";
-import { displayRate, latestTrend, segmentStart, weighInsNeededForRate } from "@/lib/physique/weight";
+import { displayRate, firstRateRead, latestTrend, segmentStart, type FirstRateRead } from "@/lib/physique/weight";
 
 /** Beyond this the date is noise; the UI says "over a year away". OURS. */
 export const ETA_MAX_WEEKS = 52;
@@ -37,6 +37,8 @@ export type GoalEta = {
   reason: "early" | "away" | "slow" | null;
   /** Weigh-ins still needed for a first rate read (basis planned only). */
   weighInsNeeded: number;
+  /** When the first rate read can show and from which day weigh-ins count (basis planned only, IN12). */
+  firstRead?: FirstRateRead;
 };
 
 function weeksToDate(today: LocalDate, weeks: number): LocalDate {
@@ -69,6 +71,7 @@ export function goalEta(goal: PhysiqueGoal | null, weighIns: readonly WeighIn[],
   const weeksAt = (towardPct: number): number | null => (towardPct > 0 ? remainingKg / ((towardPct / 100) * current) : null);
 
   if (!pick) {
+    const first = firstRateRead({ goal, dayFlags, today, weighIns });
     const weeks = weeksAt(plannedPct);
     const date = weeks != null ? weeksToDate(today, weeks) : null;
     return {
@@ -82,7 +85,8 @@ export function goalEta(goal: PhysiqueGoal | null, weighIns: readonly WeighIn[],
       daysVsPlan: date && planDate ? dayDiff(planDate, date) : null,
       reached: false,
       reason: "early",
-      weighInsNeeded: weighInsNeededForRate(weighIns, today),
+      weighInsNeeded: first.weighInsNeeded,
+      firstRead: first,
     };
   }
 

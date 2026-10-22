@@ -12,7 +12,7 @@ import {
   sanityCheck,
   segmentStart,
   trendSeries,
-  weighInsNeededForRate,
+  firstRateRead,
 } from "@/lib/physique/weight";
 import type { WeighIn } from "@/lib/physique/types";
 import { addDays } from "@/lib/dates";
@@ -74,7 +74,7 @@ describe("gates and windows", () => {
     const few = [w("2026-10-01", 80), w("2026-10-02", 80), w("2026-10-03", 80), w("2026-10-04", 80)];
     expect(rateOverWindow(few, "2026-10-04", 14)).toBeNull();
     expect(displayRate(few, "2026-10-04", null)).toBeNull();
-    expect(weighInsNeededForRate(few, "2026-10-04")).toBe(2);
+    expect(firstRateRead({ goal: null, dayFlags: {}, today: "2026-10-04", weighIns: few })).toEqual({ from: "2026-10-01", fromReason: null, on: "2026-10-14", weighInsNeeded: 2 });
     const sc = makeScenario({ seed: 3, days: 10, bodyweightKg: 85, goal: null });
     expect(displayRate(sc.weighIns, sc.today, null)).toBeNull();
   });
@@ -121,5 +121,25 @@ describe("sanity check", () => {
     expect(sanityCheck(85, 82).ok).toBe(false);
     expect(sanityCheck(83, 82).ok).toBe(true);
     expect(sanityCheck(83, null).ok).toBe(true);
+  });
+});
+
+describe("the first rate read, one answer everywhere (IN12)", () => {
+  // The founder's weigh-ins and cut: goal set 17 Oct, today 22 Oct. Home said "14 more weigh-ins", Progress "about 5 days".
+  const mine = [w("2026-10-14", 79.4), w("2026-10-16", 78.5), w("2026-10-17", 78.5), w("2026-10-18", 78.9), w("2026-10-21", 77.8), w("2026-10-22", 77.3)];
+  const cut = { id: "g", createdAt: "2026-10-17T12:00:00Z", type: "lose" as const, startDate: "2026-10-17", startTrendKg: 79.3, targetKg: 75, ratePctPerWeek: -0.5, trainingStatusAtCreation: "intermediate" as const, schemaVersion: 1 as const };
+
+  it("leaves out the goal's first week and reads two weeks after it", () => {
+    expect(firstRateRead({ goal: cut, dayFlags: {}, today: "2026-10-22", weighIns: mine })).toEqual({ from: "2026-10-24", fromReason: "goal_start", on: "2026-11-06", weighInsNeeded: 6 });
+    // Halfway through the window with three weigh-ins in it: three more, same day.
+    const later = [...mine, w("2026-10-24", 77.1), w("2026-10-26", 77), w("2026-10-29", 76.8)];
+    expect(firstRateRead({ goal: cut, dayFlags: {}, today: "2026-10-30", weighIns: later })).toEqual({ from: "2026-10-24", fromReason: "goal_start", on: "2026-11-06", weighInsNeeded: 3 });
+  });
+
+  it("slides when weigh-ins are short at the end, and names a water event", () => {
+    const sparse = [w("2026-10-01", 80), w("2026-10-20", 79.5)];
+    expect(firstRateRead({ goal: null, dayFlags: {}, today: "2026-10-22", weighIns: sparse })).toEqual({ from: "2026-10-01", fromReason: null, on: "2026-10-27", weighInsNeeded: 5 });
+    const ill = { "2026-10-25": { date: "2026-10-25", events: [{ type: "illness" as const }] } };
+    expect(firstRateRead({ goal: cut, dayFlags: ill, today: "2026-10-26", weighIns: mine }).fromReason).toBe("water_event");
   });
 });

@@ -201,3 +201,13 @@ describe("formatting", () => {
     );
   });
 });
+
+describe("the first rate read in words (IN12)", () => {
+  it("gives Home the date Progress shows, and why the goal's first week doesn't count", () => {
+    const facts: VerdictFacts = { phase: "lose", weighInsNeeded: 6, rateReadOn: "2026-11-06", rateFrom: "2026-10-24", rateFromReason: "goal_start", today: "2026-10-22" };
+    expect(verdictCopy("DATA-RATE", facts).detail).toBe("First read on your rate around Fri 6 Nov. Weigh-ins count from Sat 24 Oct, as a goal's first week is mostly water.");
+    expect(verdictCopy("DATA-RATE", { ...facts, weighInsNeeded: 3, today: "2026-10-30" }).detail).toBe("First read on your rate around Fri 6 Nov. 3 more weigh-ins.");
+    expect(verdictCopy("DATA-RATE", { ...facts, weighInsNeeded: 0, today: "2026-11-01" }).detail).toBe("First read on your rate around Fri 6 Nov.");
+    expect(bannedPhrasesIn(verdictCopy("DATA-RATE", facts).detail)).toEqual([]);
+  });
+});

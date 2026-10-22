@@ -106,6 +106,25 @@ export function fmtWeekday(date: LocalDate): string {
   return DAY_NAMES[weekday(date)] ?? date;
 }
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/** "Fri 6 Nov". */
+export function fmtDay(date: LocalDate): string {
+  return `${fmtWeekday(date)} ${Number(date.slice(8, 10))} ${MONTH_NAMES[Number(date.slice(5, 7)) - 1] ?? ""}`;
+}
+
+/**
+ * The first rate read in words, one way everywhere (IN12): when it shows,
+ * and what it still needs. "Around Fri 6 Nov · weigh-ins count from
+ * Sat 24 Oct", "Around Fri 6 Nov · 3 more weigh-ins".
+ */
+export function firstReadParts(read: { on: LocalDate; from: LocalDate; weighInsNeeded: number }, today: LocalDate): { when: string; needs: string | null } {
+  const when = `around ${fmtDay(read.on)}`;
+  if (read.from > today) return { when, needs: `weigh-ins count from ${fmtDay(read.from)}` };
+  if (read.weighInsNeeded > 0) return { when, needs: `${read.weighInsNeeded} more weigh-in${read.weighInsNeeded === 1 ? "" : "s"}` };
+  return { when, needs: null };
+}
+
 /** "a", "a and b", "a, b and c". */
 export function joinNames(names: readonly string[]): string {
   if (names.length === 0) return "";
@@ -175,6 +194,11 @@ export type VerdictFacts = {
   waistDeltaCm?: number | null;
   waistWeeks?: number;
   weighInsNeeded?: number;
+  /** DATA-RATE (IN12): the day a first rate can show, the first day a weigh-in counts and why earlier ones don't, and today. */
+  rateReadOn?: LocalDate;
+  rateFrom?: LocalDate;
+  rateFromReason?: "goal_start" | "water_event" | null;
+  today?: LocalDate;
   updatingDays?: number;
   foodDaysNeeded?: number;
   weighInNeeded?: boolean;
@@ -235,8 +259,14 @@ const COPY: Record<RuleId, CopyFn> = {
   "NO-GOAL": () => ({ title: "No goal set", detail: "Add a target weight in Progress to read the trend against it." }),
 
   "DATA-RATE": (f) => {
-    const n = Math.max(1, f.weighInsNeeded ?? 1);
-    return { title: "Calibrating", detail: `${n} more weigh-in${n === 1 ? "" : "s"} for a first read on your rate.` };
+    if (!f.rateReadOn || !f.rateFrom || !f.today) {
+      const n = Math.max(1, f.weighInsNeeded ?? 1);
+      return { title: "Calibrating", detail: `${n} more weigh-in${n === 1 ? "" : "s"} for a first read on your rate.` };
+    }
+    // The same date and count as Progress and the goal card (IN12); why earlier weigh-ins don't count when that is the reason.
+    const { when, needs } = firstReadParts({ on: f.rateReadOn, from: f.rateFrom, weighInsNeeded: f.weighInsNeeded ?? 0 }, f.today);
+    const why = f.rateFrom > f.today && f.rateFromReason === "goal_start" ? ", as a goal's first week is mostly water" : "";
+    return { title: "Calibrating", detail: `First read on your rate ${when}.${needs ? ` ${needs.charAt(0).toUpperCase()}${needs.slice(1)}${why}.` : ""}` };
   },
 
   "DATA-EXP": (f) => ({ title: "Calibrating", detail: `Maintenance estimate: day ${Math.max(1, (f.updatingDays ?? 0) + 1)} of about 21.` }),

@@ -208,7 +208,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     return read ? weightGapShort(read) : null;
   }, [example, analysis, goal, liveData, liveExpenditure, today]);
   const unlocks = useMemo(
-    () => progressUnlocks({ goal: data.goal, weighIns: data.weighIns, sleepNights: data.sleepNights, workouts, expenditure, connections: conn, unit }, now),
+    () => progressUnlocks({ goal: data.goal, weighIns: data.weighIns, dayFlags: data.dayFlags, sleepNights: data.sleepNights, workouts, expenditure, connections: conn, unit }, now),
     [data, workouts, expenditure, conn, unit, now]
   );
   const firstUse = !example && unlocks.some((u) => !u.done);
@@ -246,7 +246,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         {/* PR3: the goal first, then what lined up with the lifts, then every measure over time. PR5: before there's a goal or a weigh-in, the first-use list says what each part needs. */}
         {(example || hasGoalOrWeight) && <GoalCard analysis={analysis} goal={goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} example={!!example} why={why} />}
 
-        {firstUse && <FirstUse unlocks={unlocks} onLogWeight={logWeight} onExample={() => void showExample()} />}
+        {firstUse && <FirstUse unlocks={unlocks} today={today} onLogWeight={logWeight} onExample={() => void showExample()} />}
         {exampleLoading && (
           <p className="text-center text-[12px]" style={{ color: "var(--text-tertiary)" }}>
             Loading the example…

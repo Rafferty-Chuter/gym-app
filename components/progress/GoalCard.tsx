@@ -39,7 +39,8 @@ function etaWords(eta: GoalEta, today: LocalDate): string {
   if (eta.reached) return "Target reached";
   if (eta.reason === "away") return "No date at this rate";
   if (eta.reason === "slow") return "Over a year away";
-  if (eta.basis === "planned") return eta.weighInsNeeded > 0 ? `${eta.weighInsNeeded} more weigh-in${eta.weighInsNeeded === 1 ? "" : "s"} for a date` : "A date after two weeks of weigh-ins";
+  // The date waits for the first rate read, the same day Home and Progress give (IN12).
+  if (eta.basis === "planned") return eta.firstRead ? `Your goal date shows around ${longLocalDate(eta.firstRead.on)}` : "A date after two weeks of weigh-ins";
   return aroundDate(eta.date as LocalDate, eta.weeksLeft, today);
 }
 

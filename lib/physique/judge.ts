@@ -49,11 +49,10 @@ import {
 } from "@/lib/physique/targets";
 import {
   displayRate,
+  firstRateRead,
   isConfidentlyAbove,
   isConfidentlyBelow,
   MIN_DAYS_FOR_RATE,
-  MIN_WEIGHIN_RATIO,
-  MIN_WEIGHINS_FOR_RATE,
   notConfidentlyOutside,
   periodAtWindowEdge,
   phaseMaskActive,
@@ -431,17 +430,9 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
   const rLong = rateAt(today, longCandidates, WINDOWS_LONG_MIN_WEIGHINS);
   const rRecomp = rateAt(today, WINDOWS_RECOMP, WINDOWS_RECOMP_MIN_WEIGHINS);
 
-  const weighInsNeeded = (() => {
-    if (!goal || display) return 0;
-    const first = [...byDate.keys()].sort()[0] ?? null;
-    const floor = segment && first ? (segment > first ? segment : first) : (segment ?? first ?? today);
-    const segDays = Math.max(0, dayDiff(floor, today) + 1);
-    const daysShort = Math.max(0, MIN_DAYS_FOR_RATE - segDays);
-    const from = addDays(today, -(MIN_DAYS_FOR_RATE - 1));
-    const have = weighInDates(weighIns, floor > from ? floor : from, today).length;
-    const need = Math.max(MIN_WEIGHINS_FOR_RATE, Math.ceil(MIN_DAYS_FOR_RATE * MIN_WEIGHIN_RATIO));
-    return Math.max(1, daysShort, need - have);
-  })();
+  // The first rate read: the same date and count Progress and the goal card show (IN12).
+  const firstRead = goal && !display ? firstRateRead({ goal, dayFlags, today, weighIns }) : null;
+  const weighInsNeeded = firstRead?.weighInsNeeded ?? 0;
 
   // ── Intake, adherence, macros ──
   const intakeFrom = addDays(today, -(INTAKE_LOOKBACK_DAYS - 1));
@@ -604,7 +595,7 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
     const rec: Recommendation = foodDaysNeeded > 0 ? { kind: "log_more", what: "food", needed: foodDaysNeeded } : { kind: "log_more", what: "weight", needed: 1 };
     fire("DATA-HOLD", 2, { foodDaysNeeded, weighInNeeded }, rec);
   }
-  if (goal && !display) fire("DATA-RATE", 2, { weighInsNeeded }, { kind: "log_more", what: "weight", needed: weighInsNeeded });
+  if (goal && !display && firstRead) fire("DATA-RATE", 2, { weighInsNeeded, rateReadOn: firstRead.on, rateFrom: firstRead.from, rateFromReason: firstRead.fromReason, today }, { kind: "log_more", what: "weight", needed: weighInsNeeded });
   if (goal && maturity.state === "calibrating") fire("DATA-EXP", 2, { updatingDays: maturity.updatingDays });
   // G-EXP-2: a logging gap, not a metabolism change (02 §8.2 C).
   if (goal && maturity.state !== "holding" && segment && dayDiff(segment, today) >= 2 * GEXP2_WINDOW_DAYS - 1) {

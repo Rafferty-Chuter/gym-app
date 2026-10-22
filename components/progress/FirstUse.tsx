@@ -3,6 +3,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
+import type { LocalDate } from "@/lib/dates";
+import { firstReadParts } from "@/lib/physique/copy";
 import type { Unlock, UnlockId } from "@/lib/physique/progressUnlocks";
 
 const META: Record<UnlockId, { label: string; color: string; icon: string[]; href?: string }> = {
@@ -19,6 +21,12 @@ function etaWords(days: number, pace: boolean): string {
   if (days <= 13) return `About ${days} ${days === 1 ? "day" : "days"}`;
   const w = Math.round(days / 7);
   return `About ${w} weeks${pace ? " at your pace" : ""}`;
+}
+
+/** "First read around Fri 6 Nov", with what it still needs once weigh-ins count: the date Home gives (IN12). */
+function firstReadSub(read: NonNullable<Unlock["firstRead"]>, today: LocalDate): string {
+  const { when, needs } = firstReadParts(read, today);
+  return `First read ${when}${needs && read.from <= today ? ` · ${needs}` : ""}`;
 }
 
 function countWords(u: Unlock): string {
@@ -46,7 +54,7 @@ function Glyph({ d, color }: { d: string[]; color: string }) {
  * as they open; the card goes when all have. "See an example" shows the
  * whole screen on made-up data, nothing saved.
  */
-export default function FirstUse({ unlocks, onLogWeight, onExample }: { unlocks: Unlock[]; onLogWeight: () => void; onExample: () => void }) {
+export default function FirstUse({ unlocks, today, onLogWeight, onExample }: { unlocks: Unlock[]; today: LocalDate; onLogWeight: () => void; onExample: () => void }) {
   const waiting = unlocks.filter((u) => !u.done);
   if (!waiting.length) return null;
   const fresh = unlocks.every((u) => !u.done || u.id === "goal") && unlocks.every((u) => u.id === "goal" || u.have === 0);
@@ -83,11 +91,13 @@ export default function FirstUse({ unlocks, onLogWeight, onExample }: { unlocks:
                 ? "Log a night, or connect Apple Health on Sleep"
                 : u.startsOn
                   ? `Starting guess; your log takes over ${longLocalDate(u.startsOn)}`
-                  : u.etaDays != null && u.etaDays > 0
-                  ? etaWords(u.etaDays, u.id === "connections")
-                  : locked
-                    ? "Sessions with sleep or food logged alongside"
-                    : null;
+                  : u.firstRead
+                    ? firstReadSub(u.firstRead, today)
+                    : u.etaDays != null && u.etaDays > 0
+                      ? etaWords(u.etaDays, u.id === "connections")
+                      : locked
+                        ? "Sessions with sleep or food logged alongside"
+                        : null;
         const body = (
           <>
             <Glyph d={m.icon} color={m.color} />

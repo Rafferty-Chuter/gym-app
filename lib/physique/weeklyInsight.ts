@@ -9,7 +9,7 @@
  */
 
 import { dayDiff, type LocalDate } from "@/lib/dates";
-import { fmtKcal, fmtSignedKgWeek, fmtSignedRate, joinNames } from "@/lib/physique/copy";
+import { fmtDay, fmtKcal, fmtSignedKgWeek, fmtSignedRate, joinNames } from "@/lib/physique/copy";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { SLEEP_ADULT_MIN_H } from "@/lib/physique/sleep";
 import { sleepAgainstUsual } from "@/lib/physique/weekScorecard";
@@ -167,7 +167,7 @@ export function heading(i: InsightInputs): Heading {
     return flat ? { state: "watch", title: "Weight is flat", lines } : { state: "attention", title: "Moving away from the target", lines };
   }
   if (eta.basis === "planned") {
-    lines.push(`${plural(eta.weighInsNeeded, "more weigh-in")} for a first rate.`);
+    lines.push(eta.firstRead ? `First rate around ${fmtDay(eta.firstRead.on)}.` : `${plural(eta.weighInsNeeded, "more weigh-in")} for a first rate.`);
     if (liftsLine) lines.push(liftsLine);
     return { state: "unknown", title: "Early read", lines };
   }

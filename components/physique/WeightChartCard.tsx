@@ -6,7 +6,7 @@ import { Caption } from "@/components/physique/ui";
 import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
 import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import type { PhysiqueGoal, WeighIn, DayFlags } from "@/lib/physique/types";
-import { displayRate, latestTrend, MIN_DAYS_FOR_RATE, segmentStart, trendSeries, weighInsByDate, weighInsNeededForRate } from "@/lib/physique/weight";
+import { displayRate, firstRateRead, latestTrend, segmentStart, trendSeries, weighInsByDate } from "@/lib/physique/weight";
 
 /** Range pills (MacroFactor's Weight Trend page). OURS. */
 export const RANGES = [
@@ -61,8 +61,7 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
     const latest = latestTrend(weighIns);
     const seg = segmentStart({ goal, dayFlags, today });
     const rate = displayRate(weighIns, today, seg, dayFlags);
-    const needed = weighInsNeededForRate(weighIns, today);
-    const maskDaysLeft = seg ? Math.max(0, dayDiff(today, addDays(seg, MIN_DAYS_FOR_RATE - 1))) : 0;
+    const firstRead = firstRateRead({ goal, dayFlags, today, weighIns });
     const inWindow = [...raw.keys()].filter((d) => d >= from && d <= today).length;
     const lastDate = [...raw.keys()].filter((d) => d <= today).sort().at(-1) ?? null;
     const lastWeighIn = lastDate ? { date: lastDate, kg: raw.get(lastDate) as number } : null;
@@ -80,15 +79,13 @@ export default function WeightChartCard({ weighIns, goal, dayFlags, today, unit,
             };
           })()
         : null;
-    return { points, latest, lastWeighIn, rate, needed, inWindow, projection, maskDaysLeft, spanDays: Math.max(1, dayDiff(from, today) + 1) };
+    return { points, latest, lastWeighIn, rate, firstRead, inWindow, projection, spanDays: Math.max(1, dayDiff(from, today) + 1) };
   }, [weighIns, goal, dayFlags, today, unit, range]);
 
   const rateLine = model.latest
     ? model.rate
       ? `${formatRate(model.rate.result.ratePctPerWeek)} over ${model.rate.windowDays} days`
-      : model.needed > 0
-        ? `Early read · ${model.needed} more weigh-in${model.needed === 1 ? "" : "s"} for a rate`
-        : `Early read · first rate read in ${model.maskDaysLeft} day${model.maskDaysLeft === 1 ? "" : "s"}`
+      : `Early read · first rate around ${longLocalDate(model.firstRead.on)}`
     : "Log a weigh-in to start the trend";
 
   return (

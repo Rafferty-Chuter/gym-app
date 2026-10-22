@@ -27,7 +27,7 @@ describe("What Progress needs before each part shows (PR5)", () => {
     const u = byId(progressUnlocks(empty, now));
     expect(Object.keys(u)).toEqual(["goal", "weight", "maintenance", "lifts", "sleep", "connections"]);
     for (const x of Object.values(u)) expect(x.done).toBe(false);
-    expect(u.weight).toMatchObject({ have: 0, need: 6, unit: "weigh-ins" });
+    expect(u.weight).toMatchObject({ have: 0, need: 14, unit: "days", etaDays: null });
     expect(u.maintenance).toMatchObject({ have: 0, need: INITIAL_HOLD_DAYS + SETTLING_UPDATING_DAYS, unit: "days", etaDays: null });
     expect(u.maintenance.startsOn).toBeUndefined();
     expect(u.lifts).toMatchObject({ have: 0, need: MAIN_LIFT_MIN_WEEKS_TRAINED, unit: "weeks" });
@@ -40,9 +40,9 @@ describe("What Progress needs before each part shows (PR5)", () => {
     const u = byId(progressUnlocks(inputsOf(sc), { today: sc.today, tz: "UTC" }));
     expect(u.goal.done).toBe(true);
     expect(u.sleep.done).toBe(true);
-    // 10 daily weigh-ins: the count is met, the two weeks are not.
-    expect(u.weight).toMatchObject({ done: false, unit: "days", need: 14 });
-    expect(u.weight.etaDays).toBe(4);
+    // 10 daily weigh-ins, but the goal's first week is left out: the first read is two weeks after day 7, as Home says (IN12).
+    expect(u.weight).toMatchObject({ done: false, unit: "days", have: 10, need: 21, etaDays: 11 });
+    expect(u.weight.firstRead).toMatchObject({ fromReason: "goal_start", weighInsNeeded: 3 });
     expect(u.maintenance.done).toBe(false);
     expect(u.lifts.have).toBeGreaterThanOrEqual(1);
     expect(u.lifts.have).toBeLessThan(MAIN_LIFT_MIN_WEEKS_TRAINED);
