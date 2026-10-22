@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { LocalDate } from "@/lib/dates";
+import { markSpottedShown } from "@/lib/physique/io/spottedNews";
 import Link from "next/link";
 import type { ConnectionId, ConnectionsResult } from "@/lib/physique/connections";
 import type { FindingId } from "@/lib/physique/findings";
@@ -117,8 +119,12 @@ function Working({ s, connections, lift, unit, onShow, shown, linkable }: { s: S
  * it on the charts. The weekly report shows the same rows. Nothing when
  * nothing was found: silence beats a filler line.
  */
-export default function Spotted({ items, connections, lift, unit, onShow, shownKey = null, linkable = true }: { items: readonly SpottedItem[]; /** For a link's "Ask the coach why". */ connections: ConnectionsResult | null; lift: ReferenceLift | null; unit: WeightUnit; /** Progress: mark a fact's days on the charts. */ onShow?: (s: SpottedItem) => void; shownKey?: string | null; /** False for the made-up example: no links to the person's own pages. */ linkable?: boolean }) {
+export default function Spotted({ items, connections, lift, unit, onShow, shownKey = null, linkable = true, seenOn }: { items: readonly SpottedItem[]; /** For a link's "Ask the coach why". */ connections: ConnectionsResult | null; lift: ReferenceLift | null; unit: WeightUnit; /** Progress: mark a fact's days on the charts. */ onShow?: (s: SpottedItem) => void; shownKey?: string | null; /** False for the made-up example: no links to the person's own pages. */ linkable?: boolean; /** IN11: today, for the person's own data; what is shown is then seen, and no notification tells it. Left out for the example. */ seenOn?: LocalDate }) {
   const [open, setOpen] = useState<string | null>(null);
+  const keys = items.map((s) => s.key).join("|");
+  useEffect(() => {
+    if (seenOn && keys) void markSpottedShown(keys.split("|"), seenOn);
+  }, [keys, seenOn]);
   if (!items.length) return null;
   return (
     <section aria-label="Spotted" className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>

@@ -166,7 +166,7 @@ L · after IN2 to IN5 · `app/body/page.tsx`, `components/progress/`, `component
 
 ### IN11 · Say it first
 S · last
-- The Monday report and its reminder lead with the biggest new fact; one local notification a week at most when a new link passes or a lift stalls (TR11's notifications).
+- The Monday report and its reminder lead with the biggest new fact; one local notification a week at most when a new link passes or a lift stalls (TR11's notifications). (Done in the iPhone app; drinking facts stay off the lock screen; see the STATUS row.)
 - "Ask the coach why" on each fact is already built behind `ASSISTANT_ENABLED`.
 
 ## Earns its place

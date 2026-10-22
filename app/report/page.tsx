@@ -35,9 +35,7 @@ import { findings } from "@/lib/physique/findings";
 import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { connections } from "@/lib/physique/connections";
 import { mainLiftLevels } from "@/lib/physique/liftEffect";
-import { stuckLifts } from "@/lib/physique/liftPlateau";
-import { alcoholLinks } from "@/lib/physique/alcohol";
-import { latestJump, spotted } from "@/lib/physique/spotted";
+import { spottedFor } from "@/lib/physique/spottedFor";
 import { linkedReasons } from "@/lib/physique/linkedReasons";
 import { coverageLine, scorecard } from "@/lib/physique/weekScorecard";
 import { rateBands } from "@/lib/physique/targets";
@@ -166,16 +164,16 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     );
   }, [report, data, activeGoal, workouts, unit, conn]);
 
-  // IN10: the same Spotted rows as Progress, read to the report's last day.
+  // IN10: the same Spotted rows as Progress, read to the report's last day (IN11: the same read Monday's notification leads with).
   const spots = useMemo(() => {
     if (!report.hasData) return [];
-    const through = report.through;
-    const at = { today: through, tz: now.tz };
-    const goal = activeGoal && activeGoal.startDate <= through ? activeGoal : null;
-    const stuck = stuckLifts({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, goal, unit }, at);
-    const jump = latestJump({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz }, through);
-    const alcohol = alcoholLinks({ foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, vitals: data.vitals, weighIns: data.weighIns }, at);
-    return spotted({ today: through, unit, jump, stuck, connections: conn, findings: found, lift: lifts[0] ?? null, alcohol });
+    const p = getPhysiqueProfileSync();
+    return spottedFor(
+      { ...data, workouts, goal: activeGoal, expenditure: expenditure?.series ?? null, profile: { sex: p.sex, age: p.age, heightCm: p.heightCm } },
+      { today: report.through, tz: now.tz },
+      unit,
+      { connections: conn, findings: found, lift: lifts[0] ?? null },
+    );
   }, [report, data, workouts, expenditure, activeGoal, unit, now.tz, conn, found, lifts]);
 
   // The strength engine's change since the phase began, per lift, for the training rows.
@@ -209,11 +207,12 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           </div>
         </header>
 
+        {/* IN11: the report leads with what was spotted, biggest and newest first; the summary leads when nothing was. */}
+        <Spotted items={spots} connections={conn} lift={lifts[0] ?? null} unit={unit} seenOn={now.today} />
+
         <SummaryCard verdict={report.verdict} heading={insight?.heading ?? null} />
 
         <AutoCheckIn />
-
-        <Spotted items={spots} connections={conn} lift={lifts[0] ?? null} unit={unit} />
 
         <LinkedReasonsCard links={links} />
 

@@ -254,7 +254,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         )}
 
         {/* IN10: what the engines found, at most three, then what moves each lift. The findings and the stalled lifts fold into Spotted. */}
-        <Spotted items={spots} connections={conn} lift={lift} unit={unit} onShow={showSpot} shownKey={shown?.key ?? null} linkable={!example} />
+        <Spotted items={spots} connections={conn} lift={lift} unit={unit} onShow={showSpot} shownKey={shown?.key ?? null} linkable={!example} seenOn={example ? undefined : today} />
 
         {(example || !firstUse || connectionsReady) && <LiftLinks result={conn} lifts={lifts} unit={unit} onShow={showLink} shownKey={shown?.key ?? null} />}
 

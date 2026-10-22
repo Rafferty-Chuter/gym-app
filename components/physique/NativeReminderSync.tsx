@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useNow } from "@/lib/ui/useToday";
+import { useUnit } from "@/lib/unit-preference";
 import { useBodyData } from "@/lib/physique/io/bodyData";
+import { useExpenditure } from "@/lib/physique/io/expenditure";
+import { useWorkouts } from "@/lib/physique/io/workouts";
+import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
+import { spottedNewsStore } from "@/lib/physique/io/spottedNews";
+import { useSingleton } from "@/lib/storage/useStored";
+import { spottedFor } from "@/lib/physique/spottedFor";
 import { buildGapSummary, summaryKey } from "@/lib/physique/reminder";
 import { cancelNativeReminders, deviceClock, listenForReminderTaps, rescheduleNativeReminders, useNativeReminders } from "@/lib/physique/io/nativeReminders";
 
@@ -14,7 +21,8 @@ const SETTLE_MS = 1000;
  * the log changes (a weigh-in drops today's), when the switch or time
  * changes, and on coming back to the app (a new day). Opens the right
  * screen when a reminder is tapped. Mounted by NativeShell in the app only;
- * renders nothing.
+ * renders nothing. IN11: it reads what Spotted would show today, so
+ * Monday's report leads with a fact and a new one gets told once.
  */
 export default function NativeReminderSync() {
   const now = useNow();
@@ -29,11 +37,28 @@ export default function NativeReminderSync() {
   const enabled = settings?.enabled === true;
   const hhmm = settings?.reminderHHMM;
 
-  // The latest summary for the visibility handler, without re-subscribing on every change.
-  const latest = useRef<{ summary: typeof summary; today: typeof today }>({ summary, today });
+  // IN11: the records Spotted reads; it runs only when a plan is made (after the settle, or on return), never during render, since the engines read up to a year.
+  const workouts = useWorkouts();
+  const expenditure = useExpenditure(now);
+  const { unit } = useUnit();
+  // A fact seen on Progress or the report since the last plan drops out of the planned news; only the set of keys matters (the sent days change with each plan).
+  const news = useSingleton(spottedNewsStore);
+  const seenKey = news ? Object.keys(news.shown).sort().join("|") : "";
+
+  // The latest records for the timers and the visibility handler, without re-subscribing on every change.
+  const latest = useRef({ summary, now, data, workouts, expenditure, unit });
   useEffect(() => {
-    latest.current = { summary, today };
-  }, [summary, today]);
+    latest.current = { summary, now, data, workouts, expenditure, unit };
+  }, [summary, now, data, workouts, expenditure, unit]);
+
+  /** Plan again from the latest records: what Spotted would show today, then the reminders. */
+  function planNow() {
+    const { summary: s, now: n, data: d, workouts: w, expenditure: e, unit: u } = latest.current;
+    if (!s || !n) return;
+    const p = getPhysiqueProfileSync();
+    const spots = spottedFor({ ...d, workouts: w, expenditure: e?.series ?? null, profile: { sex: p.sex, age: p.age, heightCm: p.heightCm } }, n, u === "lb" ? "lb" : "kg");
+    void rescheduleNativeReminders(s, deviceClock(n.today), spots);
+  }
 
   useEffect(() => {
     let off: (() => void) | null = null;
@@ -57,17 +82,16 @@ export default function NativeReminderSync() {
 
   useEffect(() => {
     if (!enabled || !summary || !today) return;
-    const t = window.setTimeout(() => void rescheduleNativeReminders(summary, deviceClock(today)), SETTLE_MS);
+    const t = window.setTimeout(planNow, SETTLE_MS);
     return () => window.clearTimeout(t);
-    // `key` stands for the summary's content; a new object with the same days needs no new plan.
+    // `key` stands for the summary's content and `seenKey` for what Spotted showed; the records themselves are read from `latest` when the plan is made.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, hhmm, key, today]);
+  }, [enabled, hhmm, key, today, seenKey, data, workouts, expenditure, unit]);
 
   useEffect(() => {
     if (!enabled) return;
     const onVisible = () => {
-      const { summary: s, today: d } = latest.current;
-      if (document.visibilityState === "visible" && s && d) void rescheduleNativeReminders(s, deviceClock(d));
+      if (document.visibilityState === "visible") planNow();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);

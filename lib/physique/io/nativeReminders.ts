@@ -17,7 +17,10 @@ import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
 import { isNativeApp } from "@/lib/nativeApp";
 import { DEFAULT_REMINDER_HHMM, type GapSummary } from "@/lib/physique/reminder";
-import { planLocalReminders } from "@/lib/physique/localReminders";
+import { LOCAL_REMINDER_DAYS, isOurNotification, planLocalReminders, type PlanNews } from "@/lib/physique/localReminders";
+import { leadFact, newsFact, newsLine, seenKeys, sentBefore } from "@/lib/physique/spottedNews";
+import { readNews, saveNewsSent } from "@/lib/physique/io/spottedNews";
+import type { SpottedItem } from "@/lib/physique/spotted";
 import type { LocalDate } from "@/lib/dates";
 
 export type NativeReminderError = "denied" | "failed";
@@ -43,9 +46,6 @@ export function deviceClock(today: LocalDate, at: Date = new Date()): ReminderCl
   return { today, minutes: at.getHours() * 60 + at.getMinutes() };
 }
 
-/** Our ids are yyyymmdd; anything else pending belongs to someone else and is left alone. */
-const isOurs = (id: number) => id >= 20000101 && id <= 29991231;
-
 /** The device-local moment for a day and HH:MM. */
 function localMoment(day: LocalDate, hhmm: string): Date {
   const [y, mo, d] = day.split("-").map(Number);
@@ -60,16 +60,26 @@ async function save(next: NativeReminderSettings): Promise<void> {
 async function cancelOurs(): Promise<void> {
   const { LocalNotifications } = await import("@capacitor/local-notifications");
   const { notifications } = await LocalNotifications.getPending();
-  const ours = notifications.filter((n) => isOurs(n.id)).map((n) => ({ id: n.id }));
+  const ours = notifications.filter((n) => isOurNotification(n.id)).map((n) => ({ id: n.id }));
   if (ours.length) await LocalNotifications.cancel({ notifications: ours });
+}
+
+/** IN11: Monday's lead and the week's fact from what Spotted found, leaving out what it has already shown. */
+function newsFor(spots: readonly SpottedItem[], clock: ReminderClock, reminderHHMM: string): PlanNews {
+  const state = readNews();
+  const seen = seenKeys(state, clock.today);
+  const lead = leadFact(spots, seen);
+  const fact = newsFact(spots, seen);
+  return { lead: lead?.title ?? null, fact: fact ? { key: fact.key, line: newsLine(fact) } : null, sent: sentBefore(state, clock.today, clock.minutes, reminderHHMM) };
 }
 
 /**
  * Replace the pending reminders with the plan for now. Does nothing in a
  * browser or when the switch is off; records "denied" when iOS has
- * notifications turned off for the app.
+ * notifications turned off for the app. With `spots` (IN11), Monday's
+ * report leads with a fact and a new one gets its notification.
  */
-export async function rescheduleNativeReminders(summary: GapSummary, clock: ReminderClock): Promise<void> {
+export async function rescheduleNativeReminders(summary: GapSummary, clock: ReminderClock, spots?: readonly SpottedItem[]): Promise<void> {
   if (!isNativeApp()) return;
   const settings = await nativeRemindersStore.get();
   if (!settings?.enabled) return;
@@ -81,12 +91,15 @@ export async function rescheduleNativeReminders(summary: GapSummary, clock: Remi
       return;
     }
     await cancelOurs();
-    const plan = planLocalReminders(summary, clock.today, clock.minutes, settings.reminderHHMM);
+    const news = spots ? newsFor(spots, clock, settings.reminderHHMM) : undefined;
+    const plan = planLocalReminders(summary, clock.today, clock.minutes, settings.reminderHHMM, LOCAL_REMINDER_DAYS, news);
     if (plan.length) {
       await LocalNotifications.schedule({
         notifications: plan.map((p) => ({ id: p.id, title: p.title, body: p.body, schedule: { at: localMoment(p.day, p.hhmm), allowWhileIdle: true }, extra: { url: p.url } })),
       });
     }
+    // The days news went off, and the one now planned: the next waits a week from it.
+    if (news) await saveNewsSent([...news.sent, ...plan.filter((p) => p.kind === "news").map((p) => p.day)]);
     if (settings.lastError) await save({ ...settings, lastError: null });
   } catch {
     await save({ ...settings, lastError: "failed" });

@@ -97,7 +97,7 @@ export default function RemindersSection() {
         />
         <Row
           label="Time"
-          sub="Monday's opens the week report."
+          sub={native ? "Monday's opens the week report with the biggest thing spotted. Something new gets one more, once a week at most." : "Monday's opens the week report."}
           value={
             <input
               type="time"

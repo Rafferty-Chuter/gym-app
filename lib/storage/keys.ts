@@ -65,6 +65,7 @@ export const STORAGE_KEYS = [
   { key: "physique.v1.healthLink", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/healthLink.ts" },
   { key: "physique.v1.pushLink", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/pushLink.ts" },
   { key: "physique.v1.nativeReminders", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/nativeReminders.ts" },
+  { key: "physique.v1.spottedNews", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/spottedNews.ts" },
   { key: "physique.v1.nativeHealth", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/nativeHealth.ts" },
   { key: "physique.v1.healthOptIn", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/healthOptIn.ts" },
   { key: "physique.v1.onboarding", scope: "local", version: 1, includeInBackup: false, owner: "lib/physique/io/onboarding.ts" },
