@@ -21,7 +21,8 @@ import {
   weighInsRepo,
 } from "@/lib/physique/io/repos";
 import type { DayFlags, FoodEntry, SavedFood, SleepNight, WaistEntry, WeighIn } from "@/lib/physique/types";
-import type { LocalDate } from "@/lib/dates";
+import { clientNow, type LocalDate } from "@/lib/dates";
+import { localStamp } from "@/lib/health/native";
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
@@ -66,7 +67,11 @@ function stamp(date: LocalDate, nowIso: string) {
 export async function saveWeighIn(date: LocalDate, kg: number, nowIso: string): Promise<SaveResult> {
   return attempt(async () => {
     const existing = weighInsRepo.snapshot().find((w) => w.date === date && w.source === "manual");
-    const record: WeighIn = existing ? { ...existing, kg, loggedAt: nowIso } : { ...stamp(date, nowIso), kg };
+    // IN1: typed for today, the clock is about when the scale was read; for an earlier day it is unknown. A correction keeps the first time.
+    const at = localStamp(nowIso, clientNow().tz);
+    const time = existing?.time ?? (at && at.day === date ? at.clock : undefined);
+    const base: WeighIn = existing ? { ...existing, kg, loggedAt: nowIso } : { ...stamp(date, nowIso), kg };
+    const record: WeighIn = time ? { ...base, time } : base;
     await weighInsRepo.upsert(record);
   });
 }

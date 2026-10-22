@@ -4,7 +4,7 @@
  * Apple Health on the iPhone app (B11): read straight from HealthKit on
  * the phone, so Health Auto Export, its subscription, its token and its
  * split nights (S12) are not needed. Each sync re-reads the last two
- * weeks (sixty days the first time) and merges through the same
+ * weeks (a year the first time, IN1) and merges through the same
  * `mergeSamples` as the Health Auto Export path, so nights, weigh-ins and
  * steps land as `source: "healthkit"` with the same ids either way.
  *
@@ -16,7 +16,7 @@ import { useEffect } from "react";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
 import { addDays, clientNow } from "@/lib/dates";
-import { nativeSamples, toMergeRows, type NativeRead } from "@/lib/health/native";
+import { nativeSamples, readChunks, toMergeRows, uniqueSamples, type NativeRead, type NativeSample } from "@/lib/health/native";
 import { mergeSamples } from "@/lib/physique/io/healthLink";
 import { isNativeApp } from "@/lib/nativeApp";
 
@@ -26,12 +26,14 @@ export type NativeHealth = {
   lastError?: string | null;
   /** What the last sync merged. */
   last?: { nights: number; weighIns: number };
+  /** IN1: days back the link has read in full. Absent on a link made before IN1, which read 60. */
+  backfillDays?: number;
 };
 
 export const nativeHealthStore = createSingleton<NativeHealth>("physique.v1.nativeHealth");
 
-/** Days read on the first sync. OURS: the same 60-day backfill the Health Auto Export steps ask for. */
-export const FIRST_SYNC_DAYS = 60;
+/** Days read on the first sync. OURS (IN1): a year, so imported lifts meet the sleep, weight and HRV behind them from day one (60 before IN1). */
+export const FIRST_SYNC_DAYS = 365;
 /** Days re-read on every later sync. OURS: late watch syncs and edits in Health land within two weeks. */
 export const SYNC_DAYS = 14;
 /** Sync at most this often on open or return to the app. OURS: HealthKit reads are local and quick. */
@@ -42,6 +44,16 @@ const MAX_SAMPLES = 20_000;
 const READ_TYPES = ["sleep", "weight", "bodyFat", "heartRateVariability", "restingHeartRate", "steps"] as const;
 
 export type SyncResult = { ok: true; nights: number; weighIns: number } | { ok: false; error: "not_app" | "unavailable" | "not_connected" | "read_failed" };
+
+/**
+ * Days to read on this sync: a year the first time, and once more for a
+ * link made before IN1 (it read 60 days) or whose year read failed; two
+ * weeks after that.
+ */
+export function syncWindowDays(state: Pick<NativeHealth, "lastSyncAt" | "backfillDays">): number {
+  if (!state.lastSyncAt) return FIRST_SYNC_DAYS;
+  return (state.backfillDays ?? 0) >= FIRST_SYNC_DAYS ? SYNC_DAYS : FIRST_SYNC_DAYS;
+}
 
 export function useNativeHealth(): NativeHealth | null {
   return useSingleton(nativeHealthStore);
@@ -88,19 +100,24 @@ export async function syncNativeHealth(nowIso: string, force = false): Promise<S
     const state = await nativeHealthStore.get();
     if (!state) return { ok: false, error: "not_connected" };
     if (!force && state.lastSyncAt && Date.parse(nowIso) - Date.parse(state.lastSyncAt) < SYNC_INTERVAL_MS) return { ok: true, nights: 0, weighIns: 0 };
-    const days = state.lastSyncAt ? SYNC_DAYS : FIRST_SYNC_DAYS;
+    const days = syncWindowDays(state);
     const now = clientNow();
-    // One extra day back, so the first kept night is read from its start.
-    const startDate = new Date(Date.parse(nowIso) - (days + 1) * 86_400_000).toISOString();
+    // One extra day back, so the first kept night is read from its start. A long window is read in chunks (IN1).
+    const chunks = readChunks(nowIso, days + 1);
+    const startDate = chunks[0].startDate;
     const endDate = nowIso;
     try {
       const { Health } = await pluginModule();
-      const read = async (dataType: (typeof READ_TYPES)[number]) => (await Health.readSamples({ dataType, startDate, endDate, limit: MAX_SAMPLES, ascending: true })).samples;
+      const read = async (dataType: (typeof READ_TYPES)[number]) => {
+        const all: NativeSample[] = [];
+        for (const c of chunks) all.push(...(await Health.readSamples({ dataType, ...c, limit: MAX_SAMPLES, ascending: true })).samples);
+        return uniqueSamples(all);
+      };
       const [sleep, weight, bodyFat, hrv, rhr] = await Promise.all([read("sleep"), read("weight"), read("bodyFat"), read("heartRateVariability"), read("restingHeartRate")]);
       const steps = (await Health.queryAggregated({ dataType: "steps", startDate, endDate, bucket: "day", aggregation: "sum" })).samples;
       const raw: NativeRead = { sleep, weight, bodyFat, hrv, rhr, steps };
       const merged = await mergeSamples(toMergeRows(nativeSamples(raw, now.tz, addDays(now.today, -days)), nowIso));
-      await nativeHealthStore.set({ ...state, lastSyncAt: nowIso, lastError: null, last: merged });
+      await nativeHealthStore.set({ ...state, lastSyncAt: nowIso, lastError: null, last: merged, backfillDays: Math.max(state.backfillDays ?? 0, days) });
       return { ok: true, ...merged };
     } catch {
       await nativeHealthStore.set({ ...state, lastSyncAt: nowIso, lastError: "read_failed" });

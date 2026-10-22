@@ -15,7 +15,7 @@ const STEPS: readonly string[] = [
   "Automations → + → REST API. Format JSON, data type Health Metrics.",
   "Metrics: Sleep Analysis, Heart Rate Variability, Resting Heart Rate, Body Mass, Body Fat Percentage, Step Count.",
   "Aggregation on, Batch Requests on, date range Since Last Sync.",
-  "Paste the URL and the header below, then run a Manual Export of the last 60 days as a backfill.",
+  "Paste the URL and the header below, then run a Manual Export of the last year as a backfill.",
 ];
 
 function errorCopy(e: NonNullable<Extract<PullResult, { ok: false }>["error"]> | string | null | undefined): string | null {

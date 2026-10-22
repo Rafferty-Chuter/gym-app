@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
 import { mergeSamples, receivedLabel } from "@/lib/physique/io/healthLink";
-import { sleepNightsRepo, stepsRepo, weighInsRepo } from "@/lib/physique/io/repos";
+import { sleepNightsRepo, stepsRepo, vitalsRepo, weighInsRepo } from "@/lib/physique/io/repos";
 import { nightsByDate } from "@/lib/physique/sleep";
 
 const at = "2026-10-15T08:00:00.000Z";
@@ -11,6 +11,23 @@ describe("mergeSamples", () => {
     await sleepNightsRepo.clear();
     await weighInsRepo.clear();
     await stepsRepo.clear();
+    await vitalsRepo.clear();
+  });
+
+  it("keeps HRV and resting HR on a day with no night, and hands them to the night when it arrives later (IN1)", async () => {
+    await mergeSamples([
+      { metric: "hrv", day: "2026-10-16", value: { value: 47.5, at: "2026-10-16T03:00:00" }, source: null, received_at: at },
+      { metric: "rhr", day: "2026-10-16", value: { value: 53, at: "2026-10-16T00:00:00" }, source: null, received_at: at },
+      { metric: "rhr", day: "2026-10-17", value: { value: 54, at: "2026-10-17T00:00:00" }, source: null, received_at: at },
+    ]);
+    expect(sleepNightsRepo.snapshot()).toEqual([]);
+    const vitals = [...vitalsRepo.snapshot()].sort((a, b) => (a.date < b.date ? -1 : 1));
+    expect(vitals).toMatchObject([
+      { id: "hk-v-2026-10-16", date: "2026-10-16", source: "healthkit", hrvMs: 47.5, hrvMethod: "sdnn", restingHr: 53 },
+      { id: "hk-v-2026-10-17", date: "2026-10-17", restingHr: 54 },
+    ]);
+    await mergeSamples([{ metric: "sleep", day: "2026-10-16", value: { asleepMin: 410, stages: {} }, source: "Apple Watch", received_at: at }]);
+    expect(sleepNightsRepo.snapshot()[0]).toMatchObject({ id: "hk-2026-10-16", asleepMin: 410, hrvMs: 47.5, hrvMethod: "sdnn", restingHr: 53 });
   });
 
   it("makes one healthkit night per wake date with HRV and RHR attached, and one weigh-in per day", async () => {
@@ -28,7 +45,7 @@ describe("mergeSamples", () => {
     expect(nights[0]).toMatchObject({ id: "hk-2026-10-15", date: "2026-10-15", source: "healthkit", asleepMin: 426, inBedMin: 456, bedtime: "23:10", wakeTime: "07:05", hrvMs: 48.3, hrvMethod: "sdnn", restingHr: 52, stages: { coreMin: 240, deepMin: 70, remMin: 95, awakeMin: 21 } });
     const w = weighInsRepo.snapshot();
     expect(w).toHaveLength(1);
-    expect(w[0]).toMatchObject({ id: "hk-w-2026-10-15", kg: 82.4, bodyFatPct: 15.2, source: "healthkit", loggedAt: "2026-10-15T07:02:00Z" });
+    expect(w[0]).toMatchObject({ id: "hk-w-2026-10-15", kg: 82.4, bodyFatPct: 15.2, source: "healthkit", loggedAt: at, time: "07:02" });
   });
 
   it("replays are idempotent and HealthKit outranks a manual night on the same date", async () => {

@@ -22,6 +22,8 @@ type Record_ = {
 
 export type WeighIn = Record_ & {
   kg: number;
+  /** IN1: HH:MM local when the scale read it (Apple Health), or when it was typed for today. Absent when unknown: older records, back-dated entries, day totals. */
+  time?: string;
   /** Optional body-fat reading logged with the weigh-in (R4). Display only; the engine ignores it. */
   bodyFatPct?: number;
 };
@@ -113,6 +115,13 @@ export type WaistEntry = Record_ & { cm: number };
 
 /** One day's step count from Apple Health (B3), id `hk-s-<date>`. Read only after the day is over. */
 export type DailySteps = Record_ & { steps: number };
+
+/**
+ * IN1: one wake day's HRV and resting heart rate from Apple Health, id
+ * `hk-v-<date>`, kept whether or not a night was recorded. The night of the
+ * same date carries the same values, which is what the engines read today.
+ */
+export type DailyVitals = Record_ & { hrvMs?: number; hrvMethod?: "sdnn" | "rmssd"; restingHr?: number };
 
 export type GoalType = "lose" | "maintain" | "gain";
 export type TrainingStatus = "novice" | "intermediate" | "advanced";

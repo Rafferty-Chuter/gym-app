@@ -164,7 +164,7 @@ function parseRepCount(rows: string[][], targetUnit: Unit, sourceUnit: Unit): { 
         const diff = (new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000;
         if (diff > 0 && diff < 24 * 3600) durationSec = Math.round(diff);
       }
-      group = { completedAt, name, durationSec, exercises: new Map() };
+      group = { completedAt, startedAt: startIso, name, durationSec, exercises: new Map() };
       groups.set(groupKey, group);
     }
     if (iBw >= 0) {
@@ -245,6 +245,8 @@ function indexer(headers: string[]): (key: string) => number {
 
 type RowGroup = {
   completedAt: string;
+  /** IN1: the session's start. Every import's stamp stays as it was, so re-importing a file still finds its duplicates. */
+  startedAt: string;
   name: string;
   durationSec?: number;
   exercises: Map<string, ImportableWorkout["exercises"][number]>;
@@ -271,6 +273,7 @@ function groupsToWorkouts(groups: Map<string, RowGroup>): ImportableWorkout[] {
     if (exercises.length === 0) continue;
     out.push({
       completedAt: g.completedAt,
+      startedAt: g.startedAt,
       name: g.name || undefined,
       durationSec: g.durationSec,
       exercises,
@@ -330,7 +333,7 @@ function parseHevy(rows: string[][], targetUnit: Unit): ImportableWorkout[] {
           if (diff > 0 && diff < 24 * 3600) durationSec = Math.round(diff);
         }
       }
-      group = { completedAt, name: title, durationSec, exercises: new Map() };
+      group = { completedAt, startedAt: completedAt, name: title, durationSec, exercises: new Map() };
       groups.set(groupKey, group);
     }
 
@@ -391,7 +394,7 @@ function parseStrong(rows: string[][], targetUnit: Unit): ImportableWorkout[] {
     let group = groups.get(groupKey);
     if (!group) {
       const durationSec = iDuration >= 0 ? parseDurationToSec(row[iDuration]) : undefined;
-      group = { completedAt, name, durationSec, exercises: new Map() };
+      group = { completedAt, startedAt: completedAt, name, durationSec, exercises: new Map() };
       groups.set(groupKey, group);
     }
     const exerciseName = iEx >= 0 ? row[iEx]?.trim() : "";
@@ -482,6 +485,7 @@ const WORKOUT_HISTORY_KEY = "workoutHistory";
 
 type StoredShape = {
   completedAt: string;
+  startedAt?: string;
   name?: string;
   durationSec?: number;
   exercises: ImportableWorkout["exercises"];
@@ -515,6 +519,7 @@ export function commitImportedWorkouts(
   if (typeof window === "undefined") return { written: 0, duplicatesSkipped: 0, total: 0 };
   const incoming: StoredShape[] = workouts.map((w) => ({
     completedAt: w.completedAt,
+    ...(w.startedAt ? { startedAt: w.startedAt } : {}),
     name: w.name,
     durationSec: w.durationSec,
     exercises: w.exercises,
@@ -526,11 +531,15 @@ export function commitImportedWorkouts(
     next = incoming;
   } else {
     const existing = readExistingHistory();
-    const seen = new Set(existing.map((w) => `${w.completedAt}::${w.name ?? ""}`));
+    const byKey = new Map<string, StoredShape>(existing.map((w) => [`${w.completedAt}::${w.name ?? ""}`, w]));
+    const seen = new Set(byKey.keys());
     const toAdd: StoredShape[] = [];
     for (const w of incoming) {
       const key = `${w.completedAt}::${w.name ?? ""}`;
       if (seen.has(key)) {
+        // IN1: a session imported before IN1 has no start; the same file again supplies it.
+        const old = byKey.get(key);
+        if (old && !old.startedAt && w.startedAt) old.startedAt = w.startedAt;
         duplicatesSkipped += 1;
         continue;
       }

@@ -12,9 +12,9 @@
 import { useEffect } from "react";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
-import { sleepNightsRepo, stepsRepo, weighInsRepo } from "@/lib/physique/io/repos";
+import { sleepNightsRepo, stepsRepo, vitalsRepo, weighInsRepo } from "@/lib/physique/io/repos";
 import { repairTwelveHourNight } from "@/lib/health/repair";
-import type { DailySteps, SleepNight, SleepSegment, SleepStage, WeighIn } from "@/lib/physique/types";
+import type { DailySteps, DailyVitals, SleepNight, SleepSegment, SleepStage, WeighIn } from "@/lib/physique/types";
 import { MAX_SEGMENTS } from "@/lib/health/hae";
 
 export type HealthLink = {
@@ -107,20 +107,31 @@ function cleanSegments(v: unknown): SleepSegment[] | null {
 }
 const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
+/** HH:MM of an export's local timestamp ("2026-10-15T07:02:00"). Midnight is a day total from an aggregated export, not a reading. */
+function readingClock(at: string | null): string | null {
+  const m = at ? /T(\d{2}:\d{2})/.exec(at) : null;
+  return m && m[1] !== "00:00" ? m[1] : null;
+}
+
 /**
  * Merge pulled samples into the repos. Sleep rows become one `healthkit`
- * night per wake date (id `hk-<date>`); HRV and resting HR attach to that
- * night; weight and body fat become one `healthkit` weigh-in per day;
- * steps become one day's count (B3).
+ * night per wake date (id `hk-<date>`); HRV and resting HR are kept as that
+ * day's vitals (id `hk-v-<date>`, IN1) and attach to the night, also when
+ * the night arrives in a later pull; weight and body fat become one
+ * `healthkit` weigh-in per day; steps become one day's count (B3).
  */
 export async function mergeSamples(samples: readonly PullSample[]): Promise<{ nights: number; weighIns: number }> {
   const nights = new Map<string, SleepNight>();
   const weights = new Map<string, WeighIn>();
   const steps = new Map<string, DailySteps>();
+  const vitals = new Map<string, DailyVitals>();
   const existingNights = sleepNightsRepo.snapshot();
   const existingWeights = weighInsRepo.snapshot();
+  const existingVitals = vitalsRepo.snapshot();
   const nightFor = (day: string, receivedAt: string): SleepNight =>
     nights.get(day) ?? existingNights.find((n) => n.id === `hk-${day}`) ?? { id: `hk-${day}`, date: day, loggedAt: receivedAt, source: "healthkit", schemaVersion: 1, asleepMin: 0 };
+  const vitalsFor = (day: string, receivedAt: string): DailyVitals =>
+    vitals.get(day) ?? existingVitals.find((v) => v.id === `hk-v-${day}`) ?? { id: `hk-v-${day}`, date: day, loggedAt: receivedAt, source: "healthkit", schemaVersion: 1 };
   const weightFor = (day: string, at: string): WeighIn =>
     weights.get(day) ?? existingWeights.find((w) => w.id === `hk-w-${day}`) ?? { id: `hk-w-${day}`, date: day, loggedAt: at, source: "healthkit", schemaVersion: 1, kg: 0 };
 
@@ -158,16 +169,19 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
     } else if (s.metric === "hrv") {
       const ms = num(v.value);
       if (ms == null) continue;
+      vitals.set(s.day, { ...vitalsFor(s.day, s.received_at), hrvMs: ms, hrvMethod: "sdnn" });
       nights.set(s.day, { ...nightFor(s.day, s.received_at), hrvMs: ms, hrvMethod: "sdnn" });
     } else if (s.metric === "rhr") {
       const bpm = num(v.value);
       if (bpm == null) continue;
+      vitals.set(s.day, { ...vitalsFor(s.day, s.received_at), restingHr: bpm });
       nights.set(s.day, { ...nightFor(s.day, s.received_at), restingHr: bpm });
     } else if (s.metric === "weight") {
       const kg = num(v.value);
       if (kg == null || kg <= 0) continue;
-      const at = str(v.at);
-      weights.set(s.day, { ...weightFor(s.day, at ? `${at}Z` : s.received_at), kg });
+      // IN1: the reading's local clock goes in `time`; `loggedAt` is when it arrived (it was the local time with a false "Z").
+      const time = readingClock(str(v.at));
+      weights.set(s.day, { ...weightFor(s.day, s.received_at), kg, ...(time ? { time } : {}) });
     } else if (s.metric === "steps") {
       const count = num(v.value);
       if (count == null || count < 0) continue;
@@ -178,12 +192,23 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
       weights.set(s.day, { ...weightFor(s.day, s.received_at), bodyFatPct: pct });
     }
   }
-  // A night that only has HRV or RHR is not a night: keep it only if it carries sleep.
+  // A night that arrives after its day's HRV or RHR picks them up from the vitals (IN1).
+  for (const [day, n] of nights) {
+    const v = vitals.get(day) ?? existingVitals.find((x) => x.id === `hk-v-${day}`);
+    if (!v) continue;
+    nights.set(day, {
+      ...n,
+      ...(n.hrvMs == null && v.hrvMs != null ? { hrvMs: v.hrvMs, hrvMethod: v.hrvMethod ?? "sdnn" } : {}),
+      ...(n.restingHr == null && v.restingHr != null ? { restingHr: v.restingHr } : {}),
+    });
+  }
+  // A night that only has HRV or RHR is not a night: keep it only if it carries sleep. The vitals keep the readings.
   const nightRows = [...nights.values()].filter((n) => n.asleepMin > 0);
   const weightRows = [...weights.values()].filter((w) => w.kg > 0);
   if (nightRows.length) await sleepNightsRepo.bulkUpsert(nightRows);
   if (weightRows.length) await weighInsRepo.bulkUpsert(weightRows);
   if (steps.size) await stepsRepo.bulkUpsert([...steps.values()]);
+  if (vitals.size) await vitalsRepo.bulkUpsert([...vitals.values()]);
   return { nights: nightRows.length, weighIns: weightRows.length };
 }
 

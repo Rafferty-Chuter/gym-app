@@ -15,6 +15,8 @@ const WORKOUT_HISTORY_KEY = "workoutHistory";
 export type CompletedWorkout = {
   id: number;
   completedAt: string; // ISO date string
+  /** ISO start of the session (IN1). */
+  startedAt?: string;
   name?: string;
   durationSec?: number;
   exercises: {
@@ -29,6 +31,7 @@ export type CompletedWorkout = {
 
 type StoredWorkout = {
   completedAt: string;
+  startedAt?: string;
   name?: string;
   durationSec?: number;
   exercises: {
@@ -58,6 +61,7 @@ function loadFromStorage(): CompletedWorkout[] {
     return parsed.map((w, i) => ({
       id: new Date(w.completedAt).getTime() + i,
       completedAt: w.completedAt,
+      ...(w.startedAt ? { startedAt: w.startedAt } : {}),
       name: w.name,
       durationSec: w.durationSec,
       exercises: w.exercises ?? [],
@@ -74,6 +78,7 @@ function saveToStorage(workouts: CompletedWorkout[]) {
   try {
     const toStore: StoredWorkout[] = workouts.map((w) => ({
       completedAt: w.completedAt,
+      ...(w.startedAt ? { startedAt: w.startedAt } : {}),
       name: w.name,
       durationSec: w.durationSec,
       exercises: w.exercises,

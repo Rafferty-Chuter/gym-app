@@ -41,6 +41,7 @@ import { trendSeries } from "@/lib/physique/weight";
 import type { DayFlags, ExpenditurePoint, FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 import { kgToDisplay, type WeightUnit } from "@/lib/units";
+import { workoutStartedAt } from "@/lib/workoutTime";
 
 // ── Thresholds (tags as in 02-engine-spec) ──
 
@@ -297,7 +298,7 @@ const WORDING: Record<ConnectionId, Wording> = {
   },
 };
 
-/** Hour of the day a session was saved, local, as hours with fractions (18.5 is 18:30). */
+/** Hour of the day of an instant, local, as hours with fractions (18.5 is 18:30). */
 function localHour(iso: string, tz: string): number | null {
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return null;
@@ -318,7 +319,9 @@ function conditionReaders(i: ConnectionInputs, from: LocalDate, now: Now): Recor
   const hours = new Map<LocalDate, number>();
   for (const w of i.workouts) {
     const d = workoutDate(w, now.tz);
-    const h = localHour(w.completedAt, now.tz);
+    // IN1: the hour the session started; logged sessions stamp `completedAt` at the end.
+    const start = workoutStartedAt(w);
+    const h = start ? localHour(start, now.tz) : null;
     if (d && h != null && !hours.has(d)) hours.set(d, h);
   }
   const complete = (d: LocalDate) => {

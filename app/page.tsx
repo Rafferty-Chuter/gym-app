@@ -12,6 +12,7 @@ import {
   hasActiveWorkout,
   type DraftWorkout,
 } from "@/lib/activeWorkout";
+import type { SetType } from "@/lib/completedSets";
 import { useWorkoutStore } from "@/lib/workout-store";
 import HowItsGoing from "@/components/physique/HowItsGoing";
 import TodayStrip from "@/components/physique/TodayStrip";
@@ -89,12 +90,14 @@ export default function Home() {
           .map((s) => {
             const reps = parseFloat(String(s.reps ?? "")) || 0;
             if (reps <= 0) return null;
-            const out: { weight: string; reps: string; notes?: string; rir?: number } = {
+            const out: { weight: string; reps: string; notes?: string; rir?: number; type?: SetType } = {
               weight: String(s.weight ?? ""),
               reps: String(s.reps ?? ""),
             };
             if (typeof s.notes === "string" && s.notes.trim()) out.notes = s.notes.trim();
             if (typeof s.rir === "number" && Number.isFinite(s.rir)) out.rir = s.rir;
+            // IN1: a warm-up kept its type in the logger but lost it here, and counted as a working set.
+            if (s.type && s.type !== "working") out.type = s.type;
             return out;
           })
           .filter((s): s is NonNullable<typeof s> => s !== null);
@@ -117,10 +120,13 @@ export default function Home() {
       draft.templateName?.trim() ||
       draft.exercises?.[0]?.name?.trim() ||
       "Workout";
+    // IN1: the session ended at its last saved change, not when it is finished from Home hours later.
+    const end = draft.lastSavedAt && draft.lastSavedAt >= draft.startedAt ? draft.lastSavedAt : Date.now();
     addWorkout({
-      completedAt: new Date().toISOString(),
+      completedAt: new Date(end).toISOString(),
+      startedAt: new Date(draft.startedAt).toISOString(),
       name: fallbackName,
-      durationSec: Math.max(0, Math.floor((Date.now() - draft.startedAt) / 1000)),
+      durationSec: Math.max(0, Math.floor((end - draft.startedAt) / 1000)),
       exercises: completedExercises,
       totalExercises: completedExercises.length,
       totalSets,

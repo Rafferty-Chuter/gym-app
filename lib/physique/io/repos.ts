@@ -8,6 +8,7 @@ import { createRecordStore, createRepo, createSingleton } from "@/lib/storage/re
 import type {
   CheckInRecord,
   DailySteps,
+  DailyVitals,
   DayFlags,
   FoodEntry,
   PhysiqueGoal,
@@ -25,6 +26,7 @@ export const savedFoodsRepo = createRepo<SavedFood>("physique.v1.savedFoods");
 export const sleepNightsRepo = createRepo<SleepNight>("physique.v1.sleepNights");
 export const waistRepo = createRepo<WaistEntry>("physique.v1.waist");
 export const stepsRepo = createRepo<DailySteps>("physique.v1.steps");
+export const vitalsRepo = createRepo<DailyVitals>("physique.v1.vitals");
 export const dayFlagsStore = createRecordStore<DayFlags>("physique.v1.dayFlags");
 export const goalStore = createSingleton<PhysiqueGoal>("physique.v1.goal");
 export const goalHistoryRepo = createRepo<PhysiqueGoal & { date: string }>("physique.v1.goalHistory");
@@ -49,6 +51,7 @@ export async function clearPhysiqueData(): Promise<void> {
     sleepNightsRepo.clear(),
     waistRepo.clear(),
     stepsRepo.clear(),
+    vitalsRepo.clear(),
     dayFlagsStore.clear(),
     goalStore.clear(),
     goalHistoryRepo.clear(),

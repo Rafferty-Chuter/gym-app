@@ -29,6 +29,7 @@ The `research/` folder holds six cited reports. The specs are built from them, a
 | [D](research/D-architecture-tooling.md) | Health data route, backend, food data, compliance, Claude Code tooling |
 | [E](research/E-codebase-audit.md) | Audit of this repo |
 | [F](research/F-evidence-rules.md) | Scientific evidence and the judge's rule table |
+| [L](research/L-insights-evidence.md) | What the engine could spot (scale jumps, stalls, stuck lifts, alcohol, sleep timing): evidence, statistics and other apps; backs [08 Insights](08-insights.md) |
 
 ---
 

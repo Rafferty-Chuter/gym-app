@@ -871,6 +871,7 @@ export default function WorkoutPage() {
     const finalName = getWorkoutDisplayName();
     const completed = {
       completedAt: new Date().toISOString(),
+      ...(startTime ? { startedAt: new Date(startTime).toISOString() } : {}),
       name: finalName,
       durationSec: elapsedSec,
       exercises: completedExercises,

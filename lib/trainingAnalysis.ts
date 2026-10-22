@@ -38,6 +38,8 @@ function isSBD(exerciseName: string): boolean {
 
 export type StoredWorkout = {
   completedAt: string;
+  /** ISO start of the session (IN1). Absent before IN1; read it through `workoutStartedAt` (lib/workoutTime.ts). */
+  startedAt?: string;
   name?: string;
   durationSec?: number;
   exercises: {

@@ -54,6 +54,7 @@ export const STORAGE_KEYS = [
   { key: "physique.v1.sleepNights", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/repos.ts" },
   { key: "physique.v1.waist", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/repos.ts" },
   { key: "physique.v1.steps", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/repos.ts" },
+  { key: "physique.v1.vitals", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/repos.ts" },
   { key: "physique.v1.importMeta", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/dailyLogImport.ts" },
   { key: "physique.v1.goal", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/repos.ts" },
   { key: "physique.v1.goalHistory", scope: "local", version: 1, includeInBackup: true, owner: "lib/physique/io/repos.ts" },

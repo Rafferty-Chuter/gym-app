@@ -162,6 +162,12 @@ describe("Connections (L1)", () => {
     expect(time?.state).toBe("linked");
     expect(time!.text).toMatch(/^In your latest sessions \(around \d{2}:\d{2}\), your lifts were \d+\.\d% stronger than in your earliest \(around \d{2}:\d{2}\)\.$/);
     for (const c of [carbs!, time!]) expect(`${c.text} ${c.evidence?.text ?? ""}`).not.toMatch(/should|try|aim|make sure|you need/i);
+    // IN1: the hour is when the session started. Logged sessions stamp the end, so an hour-long one reads an hour earlier.
+    const timed = richHistory(6, 0, 4);
+    const started = { ...timed, workouts: timed.workouts.map((w) => ({ ...w, durationSec: 3600 })) };
+    const t2 = connections(started, now).items.find((c) => c.id === "time");
+    expect(t2!.high.mean).toBeCloseTo(time!.high.mean - 1, 5);
+    expect(t2!.low.mean).toBeCloseTo(time!.low.mean - 1, 5);
   });
 
   it("rarely links anything by chance with eight conditions read at once", () => {

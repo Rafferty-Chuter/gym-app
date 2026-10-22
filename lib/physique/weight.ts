@@ -47,9 +47,14 @@ export const WATER_EVENT_EXCLUSION_DAYS = {
 
 export type DailyWeight = { date: LocalDate; kg: number; real: boolean };
 
-/** Earliest weigh-in per date, sorted ascending. */
+/**
+ * Earliest weigh-in per date, sorted ascending: by the reading's `time`
+ * (IN1), a reading with a known time before one without, then by when
+ * each was saved.
+ */
 export function weighInsByDate(weighIns: readonly WeighIn[]): Map<LocalDate, number> {
-  const sorted = [...weighIns].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.loggedAt < b.loggedAt ? -1 : 1));
+  const key = (w: WeighIn) => `${w.date}|${w.time ?? "~"}|${w.loggedAt}`;
+  const sorted = [...weighIns].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
   const out = new Map<LocalDate, number>();
   for (const w of sorted) {
     if (!Number.isFinite(w.kg) || w.kg <= 0) continue;
