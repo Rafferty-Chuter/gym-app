@@ -68,7 +68,7 @@ const GROUPS: Record<ConnectionId, [high: string, low: string]> = {
 const divider = { borderTop: "1px solid var(--border)" };
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%`;
 
-function Glyph({ id, color, small = false }: { id: ConnectionId; color: string; small?: boolean }) {
+export function Glyph({ id, color, small = false }: { id: ConnectionId; color: string; small?: boolean }) {
   return (
     <span className={`flex shrink-0 items-center justify-center ${small ? "h-6 w-6 rounded-[8px]" : "h-8 w-8 rounded-[10px]"}`} style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }} aria-hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className={small ? "h-[14px] w-[14px]" : "h-[18px] w-[18px]"}>
@@ -98,7 +98,7 @@ function swarm(points: readonly SessionPoint[], x: (pct: number) => number): Arr
  * between the averages. The founder: "an option to get a bit more
  * information ... where this came from, with graphs".
  */
-function SessionStrip({ c, lift, unit }: { c: Connection; lift: ReferenceLift | null; unit: WeightUnit }) {
+export function SessionStrip({ c, lift, unit }: { c: Connection; lift: ReferenceLift | null; unit: WeightUnit }) {
   const color = CONNECTION_COLOR[c.id];
   const all = [...c.points.high, ...c.points.low].map((p) => Math.abs(p.pct));
   const span = Math.max(4, ...all) * 1.08;
@@ -136,9 +136,9 @@ function SessionStrip({ c, lift, unit }: { c: Connection; lift: ReferenceLift | 
         )}
         {row(c.kind === "yesno" ? hiName : `${hiName} · ${c.high.value}`, c.points.high, c.high.pct, true, 144)}
         <span className="absolute inset-x-0 bottom-0 flex justify-between text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-          <span>Lighter</span>
+          <span>Weaker</span>
           <span>Your usual</span>
-          <span>Heavier</span>
+          <span>Stronger</span>
         </span>
       </div>
       <p className="mt-2 text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>

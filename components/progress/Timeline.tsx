@@ -24,11 +24,17 @@ const hm = (h: number) => formatHoursMin(Math.round(h * 60));
  * What the timeline is showing for a picked finding (PR2): the charts it
  * is about stay bright and the rest dim, and the weeks it covers are
  * marked. A chart's id or its group ("strength" for the lifts) counts.
+ * IN10: or the days behind it: a dot under the charts for each (Oura's
+ * tags under the day) and the weeks they fall in tinted, as the charts
+ * draw weeks, not days.
  */
 export type TimelineFocus = {
   label: string;
   charts: string[];
   from?: LocalDate;
+  days?: readonly LocalDate[];
+  /** What the marked days are: "two short nights", "bottom third, 221 g". */
+  daysLabel?: string;
   onClear: () => void;
 };
 
@@ -170,6 +176,15 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
   const mid = weeks[Math.floor((weeks.length - 1) / 2)];
   if (!shown.length) return null;
   const bright = (r: RowSpec) => !focus || focus.charts.includes(r.id) || (r.group != null && focus.charts.includes(r.group));
+  // IN10: the focus's days that fall in the range, as a share of its width, and the columns they fall in.
+  const totalDays = Math.max(1, weeks.length * 7 * t.periodWeeks);
+  const marks = (focus?.days ?? []).flatMap((d) => {
+    const k = dayDiff(t.from, d);
+    return k >= 0 && k < totalDays ? [{ d, x: ((k + 0.5) / totalDays) * 100, col: Math.floor(k / (7 * t.periodWeeks)) }] : [];
+  });
+  const markedCols = new Set(marks.map((m) => m.col));
+  // The days left unmarked all sit before the range (a past week's report can also end before them).
+  const marksBefore = (focus?.days ?? []).every((d) => d >= t.from ? dayDiff(t.from, d) < totalDays : true);
   return (
     <section id="timeline" aria-label="Over time" className="scroll-mt-20 overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
       <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-4">
@@ -199,10 +214,17 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
 
       {focus && (
         <div className="mx-4 mb-1 mt-1 flex items-center justify-between gap-3 rounded-[12px] px-3 py-2" style={{ background: "var(--surface-raised)" }} aria-live="polite">
-          <span className="min-w-0 text-[12px] leading-snug" style={{ color: "var(--text)" }}>
-            Showing: {focus.label}
+          <span className="flex min-w-0 flex-col text-[12px] leading-snug" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ color: "var(--text)" }}>Showing: {focus.label}</span>
+            {focus.days && (
+              <span style={{ color: "var(--text-secondary)" }}>
+                {marks.length}
+                {marks.length < focus.days.length ? ` of ${focus.days.length}` : ""} marked{focus.daysLabel ? `: ${focus.daysLabel}` : ""}
+                {marks.length < focus.days.length && marksBefore ? `, the rest before ${shortLocalDate(t.from)}` : ""}
+              </span>
+            )}
           </span>
-          <button type="button" onClick={focus.onClear} className="shrink-0 text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+          <button type="button" onClick={focus.onClear} className="-my-2 flex min-h-[44px] shrink-0 items-center px-1 text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }}>
             Clear
           </button>
         </div>
@@ -214,6 +236,10 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
           weeks.map((wk, k) =>
             wk.end >= focus.from! ? <span key={`f${k}`} className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${(k / n) * 100}%`, width: `${100 / n}%`, background: "color-mix(in srgb, var(--primary) 9%, transparent)" }} /> : null,
           )}
+        {/* IN10: the weeks holding the days behind a fact, tinted through every chart. */}
+        {[...markedCols].map((k) => (
+          <span key={`d${k}`} className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${(k / n) * 100}%`, width: `${100 / n}%`, background: "color-mix(in srgb, var(--primary) 9%, transparent)" }} />
+        ))}
         {/* The picked week, one column through every chart. */}
         {sel != null && <span className="pointer-events-none absolute inset-y-0 z-0" style={{ left: `${(sel / n) * 100}%`, width: `${100 / n}%`, background: "var(--surface-raised)", borderRadius: 4 }} />}
         {shown.map((r, i) => (
@@ -244,6 +270,14 @@ export default function Timeline({ t, range, onRange, unit, goalKg, focus, logIn
         ))}
       </div>
 
+      {/* ...and a dot under each day, where the dates are read. */}
+      {marks.length > 0 && (
+        <div className="relative mx-4 mt-1 h-[8px]" aria-hidden>
+          {marks.map((m) => (
+            <span key={`t${m.d}`} className="absolute top-0 h-[6px] w-[6px] -translate-x-1/2 rounded-full" style={{ left: `${m.x}%`, background: "var(--primary)" }} />
+          ))}
+        </div>
+      )}
       {waiting.length > 0 && (
         <p className="mx-4 border-t pt-2.5 text-[12px] leading-snug" style={{ borderColor: "var(--border)", color: "var(--text-tertiary)" }}>
           {waiting.length === 1 ? waiting[0].charAt(0).toUpperCase() + waiting[0].slice(1) : `${waiting.slice(0, -1).join(", ").replace(/^./, (c) => c.toUpperCase())} and ${waiting.at(-1)}`} {waiting.length === 1 ? "joins" : "join"} once there&apos;s a week of {waiting.length === 1 ? "it" : "them"}.

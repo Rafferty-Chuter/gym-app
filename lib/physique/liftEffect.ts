@@ -30,11 +30,11 @@ export type ReferenceLift = {
 };
 
 /**
- * The lift a difference is put on: the main lift trained most in the last
- * MAIN_LIFT_WEEKS weeks, and on a tie the heaviest, where the same share
- * is the most kilos and the easiest to feel. Null without main lifts.
+ * Each main lift with its level, the one trained most in the last
+ * MAIN_LIFT_WEEKS weeks first, and on a tie the heaviest (IN10: "What
+ * moves your lift" picks one of them).
  */
-export function referenceLift(workouts: readonly StoredWorkout[], unit: WeightUnit, now: Now): ReferenceLift | null {
+export function mainLiftLevels(workouts: readonly StoredWorkout[], unit: WeightUnit, now: Now): ReferenceLift[] {
   const from = addDays(now.today, -(MAIN_LIFT_WEEKS * 7 - 1));
   const lifts = pickMainLifts(workouts, unit, now)
     .map((l) => {
@@ -42,9 +42,17 @@ export function referenceLift(workouts: readonly StoredWorkout[], unit: WeightUn
       return { name: l.name, sessions: l.recentExposures, levelKg: recent.length ? median(recent) : 0 };
     })
     .filter((l) => l.levelKg > 0);
-  if (!lifts.length) return null;
   lifts.sort((a, b) => b.sessions - a.sessions || b.levelKg - a.levelKg);
-  return { name: lifts[0].name, levelKg: lifts[0].levelKg };
+  return lifts.map((l) => ({ name: l.name, levelKg: l.levelKg }));
+}
+
+/**
+ * The lift a difference is put on: the main lift trained most in the last
+ * MAIN_LIFT_WEEKS weeks, and on a tie the heaviest, where the same share
+ * is the most kilos and the easiest to feel. Null without main lifts.
+ */
+export function referenceLift(workouts: readonly StoredWorkout[], unit: WeightUnit, now: Now): ReferenceLift | null {
+  return mainLiftLevels(workouts, unit, now)[0] ?? null;
 }
 
 /** A difference in percent as kilos on a level, unrounded. */

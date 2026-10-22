@@ -8,8 +8,8 @@ import type { WeightUnit } from "@/lib/units";
 
 /**
  * One stuck lift (IN4): the fact in a lifter's terms, the level it sits at
- * (estimated 1RM), and what changed since its best as before → after. On
- * Progress it opens the lift's own page.
+ * (estimated 1RM), and what changed since its best as before → after, on
+ * the lift's own page. On Progress the same fact is a Spotted row (IN10).
  */
 export function StalledLiftRow({ lift, unit, href }: { lift: StuckLift; unit: WeightUnit; href?: string }) {
   const inner = (
@@ -37,29 +37,5 @@ export function StalledLiftRow({ lift, unit, href }: { lift: StuckLift; unit: We
     </Link>
   ) : (
     <div className={cls}>{inner}</div>
-  );
-}
-
-/** Progress's stuck lifts, under the goal; nothing when every main lift is moving (or holding on a cut). */
-export default function StalledLifts({ lifts, unit, linkable = true }: { lifts: readonly StuckLift[]; unit: WeightUnit; /** False for the made-up example: no links to the person's own pages. */ linkable?: boolean }) {
-  if (!lifts.length) return null;
-  return (
-    <section aria-label="Stalled lifts" className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
-      <div className="flex items-baseline justify-between gap-3 px-4 pb-1 pt-4">
-        <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
-          Stalled lifts
-        </span>
-        <span className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
-          Est. 1RM
-        </span>
-      </div>
-      <ul className="divide-y divide-[var(--border)]">
-        {lifts.map((l) => (
-          <li key={l.key}>
-            <StalledLiftRow lift={l} unit={unit} href={linkable ? `/exercise?name=${encodeURIComponent(l.name)}${l.exerciseId ? `&id=${encodeURIComponent(l.exerciseId)}` : ""}` : undefined} />
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
