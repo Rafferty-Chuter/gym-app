@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { makeScenario, type LiftSpec, type ScenarioSpec } from "@/lib/physique/fixtures";
 import { connectionsSpec, higherCarbsHelp, shortNightsCost } from "@/lib/physique/exampleData";
+import { showcaseScenario, showcaseSpec } from "@/lib/physique/showcaseData";
 import { addDays } from "@/lib/dates";
 import { useNow } from "@/lib/ui/useToday";
 import { downloadAppLocalStorageSnapshot } from "@/lib/devDataTransfer";
@@ -29,7 +30,15 @@ const WORKOUT_HISTORY_KEY = "workoutHistory";
 const SEED_TAG = "[seed]";
 
 type Scenario = ReturnType<typeof makeScenario>;
-type Preset = { id: string; label: string; spec: (today: string) => ScenarioSpec; /** A change to the generated data (dev only), e.g. an effect for the connections. */ post?: (sc: Scenario) => Scenario };
+type Preset = {
+  id: string;
+  label: string;
+  spec: (today: string) => ScenarioSpec;
+  /** A change to the generated data (dev only), e.g. an effect for the connections. */
+  post?: (sc: Scenario) => Scenario;
+  /** The whole history built by the preset itself, used instead of `spec` and `post` (the showcase moves its dates to today). */
+  build?: (today: string) => Scenario;
+};
 
 
 /**
@@ -163,6 +172,12 @@ const PRESETS: Preset[] = [
     post: (sc) => higherCarbsHelp(shortNightsCost(sc)),
   },
   {
+    id: "showcase",
+    label: "SHOWCASE · 16-week cut with an Apple Watch: about 6 kg off the squat after short nights, a short-sleep month at the end (screenshots for testers, captioned as example data)",
+    spec: () => showcaseSpec(),
+    build: (today) => showcaseScenario(today),
+  },
+  {
     id: "underlog",
     label: "UNDER-LOGGING · eats about 2,800 at maintenance, logs 60% of it, cut goal, weight flat (E1)",
     spec: (today) => ({ seed: 23, days: 63, preDays: 21, startDate: startFor(today, 63), bodyweightKg: 85, trueTdeeKcal: 2800, intake: { meanKcal: 2800, sdKcal: 250 }, logShare: 0.6, goal: { ratePctPerWeek: -0.5, targetKg: 78 }, sleep: SLEEP_OK, lifts: FLAT_LIFTS }),
@@ -239,7 +254,7 @@ export default function SeedPhysiqueClient() {
     setStatus("Backing up first…");
     try {
       downloadAppLocalStorageSnapshot();
-      const generated = makeScenario(preset.spec(now.today));
+      const generated = preset.build ? preset.build(now.today) : makeScenario(preset.spec(now.today));
       const sc = preset.post ? preset.post(generated) : generated;
       await clearPhysiqueData();
       await weighInsRepo.bulkUpsert(sc.weighIns);

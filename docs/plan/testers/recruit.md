@@ -36,7 +36,7 @@ The research behind this page, with sources: `docs/plan/research/K-tester-channe
 
 - **Lead with one real finding from your own log, not a feature list.** Generic "I built an app, need testers" posts sat at 0 or 1 point all through 2025–26.
 - Post from your own account after a week or two of commenting in the sub. Many subs auto-remove posts from new or low-karma accounts.
-- Add screenshots of your own Progress if you're happy to share it; otherwise use See an example, and say it's made-up data.
+- Add screenshots of your own Progress if you're happy to share it. Otherwise use the showcase set in `showcase/`, with its captions (`showcase.md`), and say it's made-up data.
 - Put the sign-up form link where the messages below say [form]. Answer every comment in the first few hours.
 - Never DM members cold.
 
