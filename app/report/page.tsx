@@ -28,13 +28,15 @@ import ReviewDecision from "@/components/report/ReviewDecision";
 import { SummaryCard } from "@/components/report/InsightCards";
 import ReportSections from "@/components/report/ReportSections";
 import LinkedReasonsCard from "@/components/report/LinkedReasons";
-import ConnectionsCard from "@/components/report/Connections";
-import FindingsCard from "@/components/report/Findings";
+import Spotted from "@/components/progress/Spotted";
+import LiftLinks from "@/components/progress/LiftLinks";
 import AutoCheckIn from "@/components/physique/AutoCheckIn";
 import { findings } from "@/lib/physique/findings";
 import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { connections } from "@/lib/physique/connections";
-import { referenceLift } from "@/lib/physique/liftEffect";
+import { mainLiftLevels } from "@/lib/physique/liftEffect";
+import { stuckLifts } from "@/lib/physique/liftPlateau";
+import { latestJump, spotted } from "@/lib/physique/spotted";
 import { linkedReasons } from "@/lib/physique/linkedReasons";
 import { coverageLine, scorecard } from "@/lib/physique/weekScorecard";
 import { rateBands } from "@/lib/physique/targets";
@@ -150,7 +152,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     () => connections({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, unit }, { today: report.through, tz: now.tz }),
     [workouts, data, expenditure, unit, report.through, now.tz]
   );
-  const lift = useMemo(() => referenceLift(workouts, unit, { today: report.through, tz: now.tz }), [workouts, unit, report.through, now.tz]);
+  const lifts = useMemo(() => mainLiftLevels(workouts, unit, { today: report.through, tz: now.tz }), [workouts, unit, report.through, now.tz]);
 
   // E1: the last four weeks against what studies support, to the report's last day.
   const found = useMemo(() => {
@@ -162,6 +164,17 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
       report.through
     );
   }, [report, data, activeGoal, workouts, unit, conn]);
+
+  // IN10: the same Spotted rows as Progress, read to the report's last day.
+  const spots = useMemo(() => {
+    if (!report.hasData) return [];
+    const through = report.through;
+    const at = { today: through, tz: now.tz };
+    const goal = activeGoal && activeGoal.startDate <= through ? activeGoal : null;
+    const stuck = stuckLifts({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, goal, unit }, at);
+    const jump = latestJump({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz }, through);
+    return spotted({ today: through, unit, jump, stuck, connections: conn, findings: found, lift: lifts[0] ?? null });
+  }, [report, data, workouts, expenditure, activeGoal, unit, now.tz, conn, found, lifts]);
 
   // The strength engine's change since the phase began, per lift, for the training rows.
   const sincePhase = useMemo(() => new Map((analysis?.strength.lifts ?? []).map((l) => [l.name, l.changePct ?? null] as const)), [analysis]);
@@ -198,11 +211,11 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
         <AutoCheckIn />
 
-        <FindingsCard items={found} />
+        <Spotted items={spots} connections={conn} lift={lifts[0] ?? null} unit={unit} />
 
         <LinkedReasonsCard links={links} />
 
-        <ConnectionsCard result={conn} lift={lift} unit={unit} />
+        <LiftLinks result={conn} lifts={lifts} unit={unit} />
 
         {report.hasData && <ReportSections report={report} prev={prevReport.hasData ? prevReport : null} tiles={tiles} unit={unit} goal={activeGoal} sincePhase={sincePhase} />}
 

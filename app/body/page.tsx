@@ -19,19 +19,20 @@ import { weightGapFromRecords } from "@/lib/physique/weightGap";
 import { weightGapShort } from "@/lib/physique/weightGapWords";
 import { LINK_MIN_FOOD_SHARE, LINK_ON_PLAN_PCT } from "@/lib/physique/linkedReasons";
 import { stuckLifts } from "@/lib/physique/liftPlateau";
-import StalledLifts from "@/components/progress/StalledLifts";
 import AutoCheckIn from "@/components/physique/AutoCheckIn";
 import GoalCard from "@/components/progress/GoalCard";
 import FirstUse from "@/components/progress/FirstUse";
 import { progressUnlocks } from "@/lib/physique/progressUnlocks";
 import type { ExampleBundle } from "@/lib/physique/exampleData";
 import Timeline, { type TimelineFocus } from "@/components/progress/Timeline";
-import FindingsCard from "@/components/report/Findings";
-import ConnectionsCard from "@/components/report/Connections";
-import { defaultRange, progressTimeline, type ProgressRange } from "@/lib/physique/progressTimeline";
-import { connections } from "@/lib/physique/connections";
-import { referenceLift } from "@/lib/physique/liftEffect";
-import { FIND_WINDOW_DAYS, findings, type FindingId } from "@/lib/physique/findings";
+import Spotted from "@/components/progress/Spotted";
+import LiftLinks from "@/components/progress/LiftLinks";
+import { defaultRange, progressTimeline, rangeStart, RANGE_WEEKS, type ProgressRange } from "@/lib/physique/progressTimeline";
+import { connections, type Connection } from "@/lib/physique/connections";
+import { mainLiftLevels, type ReferenceLift } from "@/lib/physique/liftEffect";
+import { findings } from "@/lib/physique/findings";
+import { linkCharts, linkOnLift, linkTitle, weakerDays, weakerLabel } from "@/lib/physique/liftLinks";
+import { latestJump, spotted, type SpottedItem } from "@/lib/physique/spotted";
 import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { useWorkouts } from "@/lib/physique/io/workouts";
 import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
@@ -40,14 +41,13 @@ import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 
 type SheetKind = "weight" | "waist" | null;
 
-/** The charts each finding is about (PR2). */
-const FINDING_CHARTS: Record<FindingId, string[]> = {
-  underlog: ["calories", "weight"],
-  "sleep-lifts": ["sleep", "strength"],
-  "protein-low": ["protein"],
-  "gain-fast": ["weight", "calories"],
-  "cut-fast-lifts": ["weight", "strength"],
-};
+/** What the charts are marking: a fact from Spotted or a link from the lift card (IN10). */
+type Shown = { key: string; label: string; charts: string[]; from?: LocalDate; days?: readonly LocalDate[]; daysLabel?: string };
+
+/** The narrowest range whose first week reaches back to `date`. */
+function rangeReaching(date: LocalDate, today: LocalDate): ProgressRange {
+  return (Object.keys(RANGE_WEEKS) as Array<keyof typeof RANGE_WEEKS>).find((r) => rangeStart(r, today, null) <= date) ?? "All";
+}
 
 export default function BodyPage() {
   const hydrated = useIsHydrated();
@@ -75,12 +75,13 @@ function dateFromQuery(): LocalDate | null {
 }
 
 /**
- * Progress (PR1, PR3): everything the app keeps, in one place. The goal
- * first (trend weight, what is left, when it lands, the rate in kilos),
- * then what lined up with the lifts and what the last four weeks show,
- * then every measure on one timeline (weight, calories against
- * maintenance, protein, training, each main lift, sleep) over a month to
- * the whole history, then the weigh-ins and the waist.
+ * Progress (PR1, PR3, IN10): everything the app keeps, in one place. The
+ * goal first (trend weight, what is left, when it lands, the rate in
+ * kilos), then what was spotted (at most three facts, biggest and newest
+ * first), then what moves each main lift, then every measure on one
+ * timeline (weight, calories against maintenance, protein, training, each
+ * main lift, sleep) over a month to the whole history, with the days
+ * behind a tapped fact marked, then the weigh-ins and the waist.
  */
 function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const today = now.today;
@@ -124,24 +125,34 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     return findings({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, goal, program: data.program, profile: { sex: p.sex, age: p.age, heightCm: p.heightCm }, workouts, unit, sleepConnectionPct: sleepLink?.diffPct ?? null }, today);
   }, [data, workouts, unit, conn, today, ex]);
 
-  // A tapped finding shows on the timeline; tapping it again clears it. A connection opens its own sessions in place (PR3).
-  const [picked, setPicked] = useState<FindingId | null>(null);
-  function pick(id: FindingId) {
-    const same = picked === id;
-    setPicked(same ? null : id);
-    if (!same) window.setTimeout(() => document.getElementById("timeline")?.scrollIntoView({ block: "start", behavior: "smooth" }), 30);
+  // IN10: a fact or a link marks its days (or its weeks) on the timeline; tapping it again clears it. The range widens to reach them.
+  const [shown, setShown] = useState<Shown | null>(null);
+  function show(next: Shown) {
+    const same = shown?.key === next.key;
+    setShown(same ? null : next);
+    if (same) return;
+    const reach = next.from ?? next.days?.at(-1);
+    if (reach && reach < timeline.from) setRange(rangeReaching(reach, today));
+    window.setTimeout(() => document.getElementById("timeline")?.scrollIntoView({ block: "start", behavior: "smooth" }), 30);
   }
-  const focus = useMemo<TimelineFocus | null>(() => {
-    const f = picked ? found.find((x) => x.id === picked) : null;
-    return f ? { label: f.title, charts: FINDING_CHARTS[f.id], from: addDays(today, -(FIND_WINDOW_DAYS - 1)), onClear: () => setPicked(null) } : null;
-  }, [picked, found, today]);
-  const lift = useMemo(() => referenceLift(workouts, unit, now), [workouts, unit, now]);
+  const focus = useMemo<TimelineFocus | null>(() => (shown ? { label: shown.label, charts: shown.charts, from: shown.from, days: shown.days, daysLabel: shown.daysLabel, onClear: () => setShown(null) } : null), [shown]);
+  // Kilos are put on a main lift: the one trained most leads, the lift card can pick another.
+  const lifts = useMemo(() => mainLiftLevels(workouts, unit, now), [workouts, unit, now]);
+  const lift = lifts[0] ?? null;
   // IN4: main lifts flat or dropping, and what changed since their best.
   const stalled = useMemo(
     () => stuckLifts({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, goal: data.goal && !data.goal.completedAt ? data.goal : null, unit }, now),
     [workouts, data, expenditure, unit, now]
   );
   const [showWeighIns, setShowWeighIns] = useState(false);
+  // IN2 for Spotted: the latest weigh-in, while it is still news.
+  const jumpNow = useMemo(() => latestJump({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz }, today), [data, workouts, today, now.tz]);
+  const spots = useMemo(() => spotted({ today, unit, jump: jumpNow, stuck: stalled, connections: conn, findings: found, lift }), [today, unit, jumpNow, stalled, conn, found, lift]);
+  const showSpot = (s: SpottedItem) => show({ key: s.key, label: s.title, charts: s.charts, from: s.from ?? undefined, days: s.days.length ? s.days : undefined, daysLabel: s.daysLabel ?? undefined });
+  const showLink = (c: Connection, on: ReferenceLift | null) => {
+    const pct = linkOnLift(c, on).pct;
+    show({ key: `lift:${on?.name ?? ""}:${c.id}`, label: linkTitle(c, pct), charts: linkCharts(c.id), days: weakerDays(c, pct), daysLabel: weakerLabel(c, pct) });
+  };
 
   // Home's tiles link to a chart (`/body#calories`): scroll to it once the timeline is drawn.
   useEffect(() => {
@@ -229,8 +240,6 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         {/* PR3: the goal first, then what lined up with the lifts, then every measure over time. PR5: before there's a goal or a weigh-in, the first-use list says what each part needs. */}
         {(example || hasGoalOrWeight) && <GoalCard analysis={analysis} goal={goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} example={!!example} why={why} />}
 
-        <StalledLifts lifts={stalled} unit={unit} linkable={!example} />
-
         {firstUse && <FirstUse unlocks={unlocks} onLogWeight={logWeight} onExample={() => void showExample()} />}
         {exampleLoading && (
           <p className="text-center text-[12px]" style={{ color: "var(--text-tertiary)" }}>
@@ -238,9 +247,10 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
           </p>
         )}
 
-        {(example || !firstUse || connectionsReady) && <ConnectionsCard result={conn} lift={lift} unit={unit} />}
+        {/* IN10: what the engines found, at most three, then what moves each lift. The findings and the stalled lifts fold into Spotted. */}
+        <Spotted items={spots} connections={conn} lift={lift} unit={unit} onShow={showSpot} shownKey={shown?.key ?? null} linkable={!example} />
 
-        <FindingsCard items={found} onSelect={(f) => pick(f.id)} selectedId={picked} />
+        {(example || !firstUse || connectionsReady) && <LiftLinks result={conn} lifts={lifts} unit={unit} onShow={showLink} shownKey={shown?.key ?? null} />}
 
         <Timeline t={timeline} range={range} onRange={setRange} unit={unit} goalKg={goal && !goal.completedAt && goal.type !== "maintain" ? goal.targetKg : null} focus={focus} logIncomplete={found.some((f) => f.id === "underlog")} readOnly={!!example} />
 
