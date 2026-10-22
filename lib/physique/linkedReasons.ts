@@ -33,7 +33,7 @@ import { REVIEW_MIN_FOOD_DAYS, REVIEW_MIN_NIGHTS, REVIEW_SHORT_NIGHTS, REVIEW_SL
 import { CUT_GREEN_MAX, rateBands } from "@/lib/physique/targets";
 import { CORROBORATE_MIN_FOOD_SHARE, planMargin, RATE_UNCLEAR, rateVsPlan } from "@/lib/physique/weekScorecard";
 import type { WeekReport } from "@/lib/physique/weekReport";
-import type { DailySteps, DayFlags, ExpenditurePoint, FoodEntry, PhysiqueAnalysis, PhysiqueGoal } from "@/lib/physique/types";
+import type { DailySteps, DailyVitals, DayFlags, ExpenditurePoint, FoodEntry, PhysiqueAnalysis, PhysiqueGoal } from "@/lib/physique/types";
 import { GAP_LOGGING_DAYS, NET_KCAL_PER_KG_PER_STEP, weightGap } from "@/lib/physique/weightGap";
 import { weightGapLines } from "@/lib/physique/weightGapWords";
 import type { LocalDate } from "@/lib/dates";
@@ -103,7 +103,7 @@ export type LinkInputs = {
    * logging) and how maintenance has moved since the goal began. Without
    * them the link falls back to last week's steps and the window's logging.
    */
-  records?: { foodEntries: readonly FoodEntry[]; dayFlags: Readonly<Record<string, DayFlags>>; steps: readonly DailySteps[]; expenditure: readonly ExpenditurePoint[] | null; today: LocalDate };
+  records?: { foodEntries: readonly FoodEntry[]; dayFlags: Readonly<Record<string, DayFlags>>; steps: readonly DailySteps[]; vitals?: readonly DailyVitals[]; expenditure: readonly ExpenditurePoint[] | null; today: LocalDate };
 };
 
 // ── Helpers ──

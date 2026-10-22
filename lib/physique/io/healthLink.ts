@@ -13,9 +13,11 @@ import { useEffect } from "react";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
 import { sleepNightsRepo, stepsRepo, vitalsRepo, weighInsRepo } from "@/lib/physique/io/repos";
+import { healthOptInStore } from "@/lib/physique/io/healthOptIn";
 import { repairTwelveHourNight } from "@/lib/health/repair";
 import type { DailySteps, DailyVitals, SleepNight, SleepSegment, SleepStage, WeighIn } from "@/lib/physique/types";
 import { MAX_SEGMENTS } from "@/lib/health/hae";
+import { menstrualFlow, workoutsFromValue } from "@/lib/health/extras";
 
 export type HealthLink = {
   token: string;
@@ -77,6 +79,19 @@ export async function disconnectHealthLink(): Promise<{ ok: true } | { ok: false
   return { ok: true };
 }
 
+/**
+ * IN8: read again from the start of what the server holds on the next
+ * pull, so readings of a kind just opted in to (dropped while it was off)
+ * are merged. Merging is idempotent, so the rest lands as it was.
+ */
+export async function repullFromStart(): Promise<void> {
+  const link = await healthLinkStore.get();
+  if (!link?.cursor) return;
+  const next = { ...link };
+  delete next.cursor;
+  await healthLinkStore.set(next);
+}
+
 /** The URL Health Auto Export posts to, for the settings screen. */
 export function ingestUrl(): string {
   if (typeof window === "undefined") return "/api/ingest/hae";
@@ -113,14 +128,32 @@ function readingClock(at: string | null): string | null {
   return m && m[1] !== "00:00" ? m[1] : null;
 }
 
+/** IN8: the day's record field each day-total metric is stored in, in its canonical unit. */
+const DAY_FIELD = {
+  activeEnergy: "activeKcal",
+  water: "waterMl",
+  caffeine: "caffeineMg",
+  sodium: "sodiumMg",
+  alcohol: "alcoholDrinks",
+  wristTemp: "wristTempC",
+} as const satisfies Record<string, keyof DailyVitals>;
+
+const isDayMetric = (m: string): m is keyof typeof DAY_FIELD => Object.prototype.hasOwnProperty.call(DAY_FIELD, m);
+
 /**
  * Merge pulled samples into the repos. Sleep rows become one `healthkit`
  * night per wake date (id `hk-<date>`); HRV and resting HR are kept as that
  * day's vitals (id `hk-v-<date>`, IN1) and attach to the night, also when
  * the night arrives in a later pull; weight and body fat become one
  * `healthkit` weigh-in per day; steps become one day's count (B3).
+ *
+ * IN8: the day's totals, its workouts and (only when opted in) wrist
+ * temperature and cycle go on the same day record. A row of `{clear: true}`
+ * (or an empty workout list) from the iPhone's read removes the value from
+ * a day already held, as nothing was found for it in Health.
  */
 export async function mergeSamples(samples: readonly PullSample[]): Promise<{ nights: number; weighIns: number }> {
+  const optIn = healthOptInStore.snapshot() ?? {};
   const nights = new Map<string, SleepNight>();
   const weights = new Map<string, WeighIn>();
   const steps = new Map<string, DailySteps>();
@@ -128,12 +161,21 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
   const existingNights = sleepNightsRepo.snapshot();
   const existingWeights = weighInsRepo.snapshot();
   const existingVitals = vitalsRepo.snapshot();
+  const storedVitals = new Map(existingVitals.map((v) => [v.id, v] as const));
   const nightFor = (day: string, receivedAt: string): SleepNight =>
     nights.get(day) ?? existingNights.find((n) => n.id === `hk-${day}`) ?? { id: `hk-${day}`, date: day, loggedAt: receivedAt, source: "healthkit", schemaVersion: 1, asleepMin: 0 };
   const vitalsFor = (day: string, receivedAt: string): DailyVitals =>
-    vitals.get(day) ?? existingVitals.find((v) => v.id === `hk-v-${day}`) ?? { id: `hk-v-${day}`, date: day, loggedAt: receivedAt, source: "healthkit", schemaVersion: 1 };
+    vitals.get(day) ?? storedVitals.get(`hk-v-${day}`) ?? { id: `hk-v-${day}`, date: day, loggedAt: receivedAt, source: "healthkit", schemaVersion: 1 };
   const weightFor = (day: string, at: string): WeighIn =>
     weights.get(day) ?? existingWeights.find((w) => w.id === `hk-w-${day}`) ?? { id: `hk-w-${day}`, date: day, loggedAt: at, source: "healthkit", schemaVersion: 1, kg: 0 };
+  /** A day already held, without `fields`; nothing when it isn't held or has none of them. */
+  const clearDay = (day: string, fields: ReadonlyArray<keyof DailyVitals>) => {
+    const cur = vitals.get(day) ?? storedVitals.get(`hk-v-${day}`);
+    if (!cur || !fields.some((f) => cur[f] !== undefined)) return;
+    const copy: DailyVitals = { ...cur };
+    for (const f of fields) delete copy[f];
+    vitals.set(day, copy);
+  };
 
   for (const s of samples) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s.day)) continue;
@@ -190,11 +232,36 @@ export async function mergeSamples(samples: readonly PullSample[]): Promise<{ ni
       const pct = num(v.value);
       if (pct == null) continue;
       weights.set(s.day, { ...weightFor(s.day, s.received_at), bodyFatPct: pct });
+    } else if (isDayMetric(s.metric)) {
+      if (s.metric === "wristTemp" && !optIn.wristTemp) continue;
+      const field = DAY_FIELD[s.metric];
+      if (v.clear === true) {
+        clearDay(s.day, [field]);
+        continue;
+      }
+      const x = num(v.value);
+      if (x == null || x <= 0) continue;
+      vitals.set(s.day, { ...vitalsFor(s.day, s.received_at), [field]: x });
+    } else if (s.metric === "workouts") {
+      const list = workoutsFromValue(v);
+      if (list == null) continue;
+      if (list.length === 0) clearDay(s.day, ["workouts"]);
+      else vitals.set(s.day, { ...vitalsFor(s.day, s.received_at), workouts: list });
+    } else if (s.metric === "cycle") {
+      if (!optIn.cycle) continue;
+      const flow = menstrualFlow(v.flow);
+      if (v.clear === true || !flow) {
+        if (v.clear === true) clearDay(s.day, ["menstrualFlow", "cycleStart"]);
+        continue;
+      }
+      const day: DailyVitals = { ...vitalsFor(s.day, s.received_at), menstrualFlow: flow, cycleStart: v.cycleStart === true };
+      if (!day.cycleStart) delete day.cycleStart;
+      vitals.set(s.day, day);
     }
   }
   // A night that arrives after its day's HRV or RHR picks them up from the vitals (IN1).
   for (const [day, n] of nights) {
-    const v = vitals.get(day) ?? existingVitals.find((x) => x.id === `hk-v-${day}`);
+    const v = vitals.get(day) ?? storedVitals.get(`hk-v-${day}`);
     if (!v) continue;
     nights.set(day, {
       ...n,

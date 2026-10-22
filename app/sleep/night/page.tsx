@@ -16,6 +16,7 @@ import { recoveryRead, stageSplit, stageTypical } from "@/lib/physique/recovery"
 import { nightsByDate } from "@/lib/physique/sleep";
 import { nightScore } from "@/lib/physique/sleepScore";
 import { bedTime } from "@/lib/physique/sleepView";
+import { wristTempRead } from "@/lib/physique/healthDays";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { useNow } from "@/lib/ui/useToday";
 
@@ -23,7 +24,8 @@ import { useNow } from "@/lib/ui/useToday";
  * One night in full (S8, after Bevel's "Primary sleep" and WHOOP's sleep
  * detail): the score with why, the clock times, the stages across the
  * night and as tiles, what the score is made of, and that morning's HRV
- * and resting heart rate against usual.
+ * and resting heart rate against usual (IN8: and wrist temperature, when
+ * the person opted in to it).
  */
 function NightDetail() {
   const params = useSearchParams();
@@ -48,8 +50,9 @@ function NightDetail() {
       bed: night ? bedTime(night) : null,
       hrvUsual: rec.hrv?.baseline ?? null,
       rhrUsual: rec.rhr?.baseline ?? null,
+      wrist: wristTempRead(data.vitals, date),
     };
-  }, [data.sleepNights, date]);
+  }, [data.sleepNights, data.vitals, date]);
 
   if (!hydrated || !today || !date || !model) return <main className="theme-sleep min-h-screen" />;
 
@@ -103,10 +106,11 @@ function NightDetail() {
               <ScoreLine label="Score" points={score.score} total />
             </SCard>
 
-            {(night.hrvMs || night.restingHr) && (
+            {(night.hrvMs || night.restingHr || model.wrist) && (
               <SCard title="That morning" label="Recovery that morning" className="divide-y divide-[var(--sl-border)]">
                 {night.hrvMs ? <SRow label="HRV" sub={model.hrvUsual ? `Usually ${model.hrvUsual} ms` : "No baseline yet"} value={`${Math.round(night.hrvMs)} ms`} /> : null}
                 {night.restingHr ? <SRow label="Resting heart rate" sub={model.rhrUsual ? `Usually ${model.rhrUsual} bpm` : "No baseline yet"} value={`${Math.round(night.restingHr)} bpm`} /> : null}
+                {model.wrist ? <SRow label="Wrist temperature" sub={model.wrist.usualC != null ? `Usually ${model.wrist.usualC.toFixed(1)} °C` : "No baseline yet"} value={`${model.wrist.c.toFixed(1)} °C`} /> : null}
               </SCard>
             )}
 

@@ -170,6 +170,9 @@ describe("Info.plist", () => {
   it("names each kind the app reads from Apple Health", () => {
     const share = String(info.NSHealthShareUsageDescription).toLowerCase();
     for (const kind of ["sleep", "hrv", "resting heart rate", "weight", "body fat", "steps"]) expect(share).toContain(kind);
+    // IN8, and the two read only when the person turns them on.
+    for (const kind of ["active energy", "workouts", "water", "caffeine", "sodium", "drinks", "wrist temperature", "cycle"]) expect(share).toContain(kind);
+    expect(share).toMatch(/only if you turn them on/);
   });
 
   it("keeps a truthful update string: the HealthKit framework references write APIs, so the upload check (ITMS-90683) asks for it", () => {
@@ -201,5 +204,13 @@ describe("Apple Health is read only", () => {
     const calls = sources.flatMap((p) => [...read(p).matchAll(/Health\.requestAuthorization\(([^)]*)\)/g)].map((m) => m[1]));
     expect(calls.length).toBeGreaterThan(0);
     for (const args of calls) expect(args).toMatch(/write:\s*\[\]/);
+  });
+
+  it("the app's own Swift (IN8's HealthExtras) asks to share nothing, never saves, and uses no required-reason API", () => {
+    const swift = readdirSync(join(ROOT, "ios/App/App")).filter((n) => n.endsWith(".swift")).map((n) => read(`ios/App/App/${n}`)).join("\n");
+    const asks = [...swift.matchAll(/requestAuthorization\(toShare:\s*([^,]+),/g)].map((m) => m[1].trim());
+    expect(asks).toEqual(["nil"]);
+    expect(swift).not.toMatch(/\.save\(|\.delete\(/);
+    expect(swift).not.toMatch(/UserDefaults|attributesOfItem|creationDate|modificationDate|systemUptime|mach_absolute_time|volumeAvailableCapacity|activeInputModes/);
   });
 });

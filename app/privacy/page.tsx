@@ -69,9 +69,9 @@ export default function PrivacyPage() {
         <>
           {/* TR1: the consent screen before the first sign-in; runSync refuses without it. Today lib/sync/run.ts doSync runs only when signed in */}
           <p>Signing in is optional and asks your permission first, on its own screen.</p>
-          {/* src: lib/sync/run.ts syncedKeys (every backup key less DEVICE_ONLY_KEYS) over lib/storage/keys.ts: weighIns, waist, foodEntries, sleepNights (with HRV and resting HR), steps, workoutHistory, workoutTemplates, goal, profile, settings, assistantThreadsV1 */}
+          {/* src: lib/sync/run.ts syncedKeys (every backup key less DEVICE_ONLY_KEYS) over lib/storage/keys.ts: weighIns, waist, foodEntries, sleepNights (with HRV and resting HR), steps, vitals (Apple Health's day records, IN1 and IN8), workoutHistory, workoutTemplates, goal, profile, settings, assistantThreadsV1 */}
           {/* src: supabase/migrations/0003_sync.sql (sync_records, each user reads their own rows only); app/account/page.tsx (signInWithOtp, email code). Region: not code; the project's database is in eu-central-1 (Frankfurt), checked 22 Oct 2026 (docs/plan/03-architecture.md A3) */}
-          <p>Your log (weight, waist, food, sleep and heart readings, workouts, routines, goal, profile, settings, coach chats) is then copied to your account, stored by Supabase in Frankfurt, Germany, with your email address. The UK treats data protection in the EU as equal to its own.</p>
+          <p>Your log (weight, waist, food, sleep, heart and other Apple Health readings, workouts, routines, goal, profile, settings, coach chats) is then copied to your account, stored by Supabase in Frankfurt, Germany, with your email address. The UK treats data protection in the EU as equal to its own.</p>
           {/* TR1: Profile → Account → Stop syncing. Today Sign out (app/account/page.tsx) stops sync and keeps the data. What never syncs (DEVICE_ONLY_KEYS, includeInBackup false) is listed in the DPIA, step 2 */}
           <p>Profile → Account → Stop syncing ends it.</p>
         </>
@@ -81,8 +81,10 @@ export default function PrivacyPage() {
       title: "Apple Health",
       body: (
         <>
-          {/* src: lib/physique/io/nativeHealth.ts READ_TYPES, requestAuthorization({ write: [] }); lib/physique/io/healthLink.ts mergeSamples (into the local log, then synced like the rest). Advertising and sale: no ad or analytics SDK in package.json, no such code */}
-          <p>The iPhone app reads the types you allow (weight, body fat, sleep, steps, resting heart rate, heart rate variability) on the phone and keeps them with your log. It never writes to Apple Health. Health data is never used for advertising or sold.</p>
+          {/* src: lib/physique/io/nativeHealth.ts BASE_TYPES, MORE_TYPES, EXTRAS_TYPES, wantedTypes, requestAuthorization({ write: [] }); ios/App/App/HealthExtrasPlugin.swift (toShare: nil); lib/physique/io/healthLink.ts mergeSamples (into the local log, then synced like the rest). Advertising and sale: no ad or analytics SDK in package.json, no such code */}
+          <p>The iPhone app reads the types you allow (weight, body fat, sleep, steps, resting heart rate, heart rate variability, active energy, workouts, and the water, caffeine, sodium and drinks other apps log) on the phone and keeps them with your log. It never writes to Apple Health. Health data is never used for advertising or sold.</p>
+          {/* src: lib/physique/io/healthOptIn.ts (off by default; setHealthOptIn off → withoutKind removes the stored values, and sync carries the change); lib/physique/io/nativeHealth.ts wantedTypes (asked for only when on); healthLink.ts mergeSamples (dropped unless on); lib/physique/healthDays.ts (what they feed) */}
+          <p>Wrist temperature and cycle are read only if you turn them on in Profile → Apple Health: period days are noted beside your weight, and each night&apos;s temperature is shown beside your usual. Turning one off deletes what was read for it.</p>
           {/* src: app/api/ingest/hae/route.ts (preferredRegion lhr1, hashToken, values never logged); supabase/migrations/0001_health.sql */}
           <p>Health Auto Export instead sends the readings you choose to our server, which keeps them in Frankfurt under a token we store only hashed.</p>
         </>

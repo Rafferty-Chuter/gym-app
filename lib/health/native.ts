@@ -11,7 +11,10 @@
  * record the same night are never added together.
  */
 
-import { cleanScalar, localMinute, sampleValue, sleepFromSegments, type HealthSample, type ScalarSample, type SleepSample, type StageSeg } from "@/lib/health/hae";
+import { cleanScalar, localMinute, sampleValue, sleepFromSegments, type CycleSample, type DayTotalKind, type HealthSample, type ScalarSample, type SleepSample, type StageSeg, type WorkoutsSample } from "@/lib/health/hae";
+import { cleanWorkout, entryDays, menstrualFlow, sortWorkouts } from "@/lib/health/extras";
+import { dateRange } from "@/lib/dates";
+import type { HealthWorkout, MenstrualFlow } from "@/lib/physique/types";
 
 /** The fields of a `@capgo/capacitor-health` sample this reads. */
 export type NativeSample = {
@@ -26,7 +29,17 @@ export type NativeSample = {
 /** One day bucket of the plugin's `queryAggregated` (steps summed per day). */
 export type NativeDayTotal = { startDate: string; value: number };
 
-/** What one sync read, by kind. */
+/** IN8: the fields of a `@capgo/capacitor-health` workout this reads. */
+export type NativeWorkout = { workoutType: string; duration: number; totalEnergyBurned?: number; totalDistance?: number; startDate: string; endDate: string; sourceId?: string };
+
+/** IN8: a menstrual-flow sample from the app's own HealthExtras plugin (ios/App/App/HealthExtrasPlugin.swift): HealthKit's category value and the cycle-start flag. */
+export type NativeFlowSample = { startDate: string; endDate: string; value: number; cycleStart?: boolean };
+
+/**
+ * What one sync read, by kind. IN8's kinds are optional: one left out was
+ * not read this time (an app build without the HealthExtras plugin, or an
+ * opt-in that is off), so what is stored for it stays as it is.
+ */
 export type NativeRead = {
   sleep: readonly NativeSample[];
   weight: readonly NativeSample[];
@@ -34,6 +47,16 @@ export type NativeRead = {
   hrv: readonly NativeSample[];
   rhr: readonly NativeSample[];
   steps: readonly NativeDayTotal[];
+  /** Day sums: kcal, litres (as the plugin gives water), mg, mg, drinks. */
+  activeEnergy?: readonly NativeDayTotal[];
+  water?: readonly NativeDayTotal[];
+  caffeine?: readonly NativeDayTotal[];
+  sodium?: readonly NativeDayTotal[];
+  alcohol?: readonly NativeDayTotal[];
+  workouts?: readonly NativeWorkout[];
+  /** Opt-in. */
+  wristTemp?: readonly NativeSample[];
+  menstrual?: readonly NativeFlowSample[];
 };
 
 /** A row as `mergeSamples` (lib/physique/io/healthLink.ts) takes it: the shape the server stores. */
@@ -171,16 +194,70 @@ function overnightHrv(samples: readonly NativeSample[], nights: readonly SleepSa
   return out;
 }
 
-/** Steps per local day from the plugin's day buckets. */
-function stepsPerDay(totals: readonly NativeDayTotal[], tz: string): ScalarSample[] {
+/** A day total per local day from the plugin's day buckets (steps; IN8 the day sums), times `scale` into the stored unit. */
+function perDayTotal(kind: "steps" | DayTotalKind, totals: readonly NativeDayTotal[], tz: string, scale = 1): ScalarSample[] {
   const out: ScalarSample[] = [];
   for (const t of totals) {
     const at = localStamp(t.startDate, tz);
-    const value = cleanScalar("steps", t.value);
+    const value = cleanScalar(kind, t.value * scale);
     if (!at || value == null) continue;
-    out.push({ kind: "steps", day: at.day, value, at: `${at.day}T00:00:00`, source: "Apple Health" });
+    out.push({ kind, day: at.day, value, at: `${at.day}T00:00:00`, source: "Apple Health" });
   }
   return out;
+}
+
+// ── More from Apple Health (IN8) ──
+
+/** Apple's own sources (the watch, the Fitness app) carry the device's name; only another app's bundle id is kept. */
+const appOf = (sourceId: string | undefined) => (sourceId && !sourceId.startsWith("com.apple") ? sourceId : null);
+
+/** Workouts per local start day. */
+function workoutsPerDay(list: readonly NativeWorkout[], tz: string): WorkoutsSample[] {
+  const days = new Map<string, HealthWorkout[]>();
+  for (const w of list) {
+    const a = localStamp(w.startDate, tz);
+    const b = localStamp(w.endDate, tz);
+    if (!a) continue;
+    const durationMin = Number.isFinite(w.duration) && w.duration > 0 ? w.duration / 60 : b ? localMinute(b) - localMinute(a) : NaN;
+    const clean = cleanWorkout({ name: w.workoutType, start: a.clock, durationMin, activeKcal: w.totalEnergyBurned, distanceM: w.totalDistance, app: appOf(w.sourceId) });
+    if (clean) days.set(a.day, [...(days.get(a.day) ?? []), clean]);
+  }
+  return [...days.entries()].map(([day, ws]) => ({ kind: "workouts", day, workouts: sortWorkouts(ws), source: null }));
+}
+
+/** Wrist temperature per wake day: the reading spans the night, so it lands on the day it ends; the longest night's reading when there are two. */
+function wristTempPerDay(samples: readonly NativeSample[], tz: string): ScalarSample[] {
+  const best = new Map<string, { sample: ScalarSample; minutes: number }>();
+  for (const s of samples) {
+    const a = localStamp(s.startDate, tz);
+    const b = localStamp(s.endDate, tz);
+    const value = cleanScalar("wristTemp", s.value);
+    if (!a || !b || value == null) continue;
+    const minutes = localMinute(b) - localMinute(a);
+    const cur = best.get(b.day);
+    if (!cur || minutes > cur.minutes) best.set(b.day, { sample: { kind: "wristTemp", day: b.day, value, at: `${a.day}T${a.clock}:00`, source: s.sourceName ?? null }, minutes });
+  }
+  return [...best.values()].map((x) => x.sample);
+}
+
+const FLOW_RANK: Readonly<Record<MenstrualFlow, number>> = { none: 0, unspecified: 1, light: 2, medium: 3, heavy: 4 };
+
+/** Days of a recorded period: each sample over the local days it covers; where two sources disagree, the heavier flow. */
+function cyclePerDay(samples: readonly NativeFlowSample[], tz: string): CycleSample[] {
+  const out = new Map<string, CycleSample>();
+  for (const s of samples) {
+    const flow = menstrualFlow(s.value);
+    const a = localStamp(s.startDate, tz);
+    if (!flow || !a) continue;
+    const days = entryDays(a, localStamp(s.endDate, tz));
+    if (!days) continue;
+    days.forEach((day, i) => {
+      const cur = out.get(day);
+      const cycleStart = (i === 0 && s.cycleStart === true) || (cur?.cycleStart ?? false);
+      out.set(day, { kind: "cycle", day, flow: cur && FLOW_RANK[cur.flow] > FLOW_RANK[flow] ? cur.flow : flow, cycleStart, source: null });
+    });
+  }
+  return [...out.values()];
 }
 
 /**
@@ -197,9 +274,39 @@ export function nativeSamples(read: NativeRead, tz: string, fromDay?: string): H
     ...perDay("bodyFat", read.bodyFat, tz, "first"),
     ...overnightHrv(read.hrv, nights, tz),
     ...perDay("rhr", read.rhr, tz, "last"),
-    ...stepsPerDay(read.steps, tz),
+    ...perDayTotal("steps", read.steps, tz),
+    ...perDayTotal("activeEnergy", read.activeEnergy ?? [], tz),
+    ...perDayTotal("water", read.water ?? [], tz, 1000),
+    ...perDayTotal("caffeine", read.caffeine ?? [], tz),
+    ...perDayTotal("sodium", read.sodium ?? [], tz),
+    ...perDayTotal("alcohol", read.alcohol ?? [], tz),
+    ...workoutsPerDay(read.workouts ?? [], tz),
+    ...wristTempPerDay(read.wristTemp ?? [], tz),
+    ...cyclePerDay(read.menstrual ?? [], tz),
   ];
   return fromDay ? all.filter((s) => s.day >= fromDay) : all;
+}
+
+const CLEARABLE = ["activeEnergy", "water", "caffeine", "sodium", "alcohol", "workouts", "wristTemp", "menstrual"] as const;
+
+/**
+ * IN8: rows that clear what is stored for a day the read covered and found
+ * nothing for (an entry deleted in Health, a day total gone to nothing), for
+ * each IN8 kind this read included. A kind left out of the read clears
+ * nothing. The merge only edits days it already holds.
+ */
+export function clearRows(read: NativeRead, samples: readonly HealthSample[], fromDay: string, throughDay: string, readAt: string): MergeRow[] {
+  const have = new Set(samples.map((s) => `${s.kind}|${s.day}`));
+  const out: MergeRow[] = [];
+  for (const kind of CLEARABLE) {
+    if (!read[kind]) continue;
+    const metric = kind === "menstrual" ? "cycle" : kind;
+    for (const day of dateRange(fromDay, throughDay)) {
+      if (have.has(`${metric}|${day}`)) continue;
+      out.push({ metric, day, value: metric === "workouts" ? { workouts: [] } : { clear: true }, source: null, received_at: readAt });
+    }
+  }
+  return out;
 }
 
 // ── Long reads (IN1) ──

@@ -3,8 +3,10 @@
 import { useState } from "react";
 import Sheet from "@/components/ui/Sheet";
 import { PrimaryButton, SecondaryButton } from "@/components/physique/ui";
-import { disconnectHealthLink, ensureHealthLink, ingestUrl, pullHealth, receivedLabel, useHealthLink, type PullResult } from "@/lib/physique/io/healthLink";
-import { connectNativeHealth, disconnectNativeHealth, syncNativeHealth, useNativeHealth, type SyncResult } from "@/lib/physique/io/nativeHealth";
+import HealthOptInRows from "@/components/health/HealthOptInRows";
+import { disconnectHealthLink, ensureHealthLink, ingestUrl, pullHealth, receivedLabel, repullFromStart, useHealthLink, type PullResult } from "@/lib/physique/io/healthLink";
+import { connectNativeHealth, disconnectNativeHealth, hasHealthExtras, syncNativeHealth, unaskedTypes, useNativeHealth, wantedTypes, type SyncResult } from "@/lib/physique/io/nativeHealth";
+import { useHealthOptIn } from "@/lib/physique/io/healthOptIn";
 import { isNativeApp } from "@/lib/nativeApp";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 
@@ -13,9 +15,10 @@ type Props = { open: boolean; onClose: () => void };
 const STEPS: readonly string[] = [
   "Install Health Auto Export from the App Store and buy Premium (automations need it).",
   "Automations → + → REST API. Format JSON, data type Health Metrics.",
-  "Metrics: Sleep Analysis, Heart Rate Variability, Resting Heart Rate, Body Mass, Body Fat Percentage, Step Count.",
+  "Metrics: Sleep Analysis, Heart Rate Variability, Resting Heart Rate, Body Mass, Body Fat Percentage, Step Count, Active Energy, Water, Caffeine, Sodium, Alcoholic Beverages. Add Sleeping Wrist Temperature only if you turned it on below.",
   "Aggregation on, Batch Requests on, date range Since Last Sync.",
   "Paste the URL and the header below, then run a Manual Export of the last year as a backfill.",
+  "For workouts, a second automation set up the same way with data type Workouts. For cycle, only if you turned it on below, a third with Cycle Tracking.",
 ];
 
 function errorCopy(e: NonNullable<Extract<PullResult, { ok: false }>["error"]> | string | null | undefined): string | null {
@@ -52,6 +55,9 @@ function nativeErrorCopy(e: Extract<SyncResult, { ok: false }>["error"] | string
 function NativeAppleHealthSheet({ open, onClose }: Props) {
   const state = useNativeHealth();
   const haeLink = useHealthLink();
+  const optIn = useHealthOptIn();
+  const extras = hasHealthExtras();
+  const unasked = state ? unaskedTypes(state, wantedTypes(optIn ?? {}, extras)) : [];
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<SyncResult | null>(null);
   const nowIso = () => new Date().toISOString();
@@ -99,12 +105,17 @@ function NativeAppleHealthSheet({ open, onClose }: Props) {
     >
       <div className="flex flex-col gap-3">
         <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-          Sleep, HRV, resting heart rate, weight, body fat and steps are read straight from Apple Health on this iPhone, each time the app opens. Manual logging stays as the fallback.
+          Read from Apple Health on this iPhone each time the app opens: sleep, HRV, resting heart rate, weight, body fat, steps, active energy and workouts, and the water, caffeine, sodium and drinks other apps log. Manual logging stays as the fallback.
         </p>
         <p className="text-[13px]" style={{ color: "var(--text)" }}>
           {status}
           {last?.ok ? ` Read ${last.nights} ${last.nights === 1 ? "night" : "nights"}, ${last.weighIns} ${last.weighIns === 1 ? "weigh-in" : "weigh-ins"}.` : ""}
         </p>
+        {unasked.length > 0 && (
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+            Read now asks Apple Health for the kinds added since you connected.
+          </p>
+        )}
         {err && (
           <p className="text-[13px]" style={{ color: "var(--status-watch)" }}>
             {err}
@@ -115,6 +126,14 @@ function NativeAppleHealthSheet({ open, onClose }: Props) {
             Health Auto Export isn&apos;t needed in the app. You can turn its automation off.
           </p>
         )}
+        <HealthOptInRows
+          cycleAvailable={extras}
+          disabled={busy}
+          onChange={async (_kind, on) => {
+            // On: ask Apple Health for it and read now (before connecting, Connect asks for it). Off: what was read is already gone.
+            if (on && state) await run(() => syncNativeHealth(nowIso(), true));
+          }}
+        />
         <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
           Liftworks only reads. To change which data it can read, use Settings → Health → Data Access & Devices.
         </p>
@@ -223,7 +242,7 @@ function HealthAutoExportSheet({ open, onClose }: Props) {
     >
       <div className="flex flex-col gap-3">
         <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-          Sleep, HRV, resting heart rate, weight and steps arrive on their own through the Health Auto Export app. Manual logging stays as the fallback. Data lands within hours of unlocking the phone, not minutes.
+          Sleep, HRV, resting heart rate, weight, steps, active energy, workouts, and the water, caffeine, sodium and drinks other apps log arrive on their own through the Health Auto Export app. Manual logging stays as the fallback. Data lands within hours of unlocking the phone, not minutes.
         </p>
         <p className="text-[13px]" style={{ color: "var(--text)" }}>
           {status}
@@ -246,6 +265,15 @@ function HealthAutoExportSheet({ open, onClose }: Props) {
             <li key={s}>{s}</li>
           ))}
         </ol>
+        <HealthOptInRows
+          disabled={busy}
+          onChange={async (_kind, on) => {
+            // On: pull again from the start, so readings the server already holds for it are merged.
+            if (!on || !link) return;
+            await repullFromStart();
+            await pull();
+          }}
+        />
         {disconnectFailed && (
           <p className="text-[13px]" style={{ color: "var(--status-watch)" }}>
             Couldn&apos;t reach the server to delete your samples. Nothing was removed; try again when you&apos;re online.

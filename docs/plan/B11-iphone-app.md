@@ -2,7 +2,7 @@
 
 The iPhone app is a native shell (Capacitor 8) around the live site, so every web deploy reaches the app at once. It adds what the home-screen web app can't have:
 
-- **Apple Health read directly on the phone.** Sleep with stages, HRV, resting heart rate, weight, body fat and steps. This replaces Health Auto Export, its subscription and its split nights.
+- **Apple Health read directly on the phone.** Sleep with stages, HRV, resting heart rate, weight, body fat and steps; since IN8 also active energy, workouts, and the water, caffeine, sodium and drinks other apps log, and wrist temperature and cycle when the person turns them on. This replaces Health Auto Export, its subscription and its split nights.
 - **A durable copy of your data** in the app's own folder. It is restored if iOS clears the page's storage.
 
 Everything else is the web app as it is.
@@ -58,7 +58,7 @@ The app does not share storage with the home-screen web app.
 
 1. In the **home-screen web app**: Profile → Move to another phone → copy.
 2. In the **iPhone app**: Profile → Import → paste.
-3. In the iPhone app: Profile → Apple Health → **Connect Apple Health** → allow every type. The first read covers 60 days. Later reads re-read the last 14 days each time the app opens.
+3. In the iPhone app: Profile → Apple Health → **Connect Apple Health** → allow every type. The first read covers a year (IN1). Later reads re-read the last 14 days each time the app opens. A link made before IN8 is asked for the new kinds the next time **Read now** is tapped.
 4. When the nights look right, turn off the Health Auto Export automation. The app no longer needs it.
 
 ## TestFlight
@@ -97,8 +97,11 @@ Every upload needs a higher build number than the last (App target → General �
 | `ios/` | The Xcode project. Info.plist has the Health usage text, the export-compliance answer and portrait only; `App.entitlements` has HealthKit; `PrivacyInfo.xcprivacy` is the privacy manifest (testflight.md §1) |
 | `native/www/` | The offline page, shown when the live site can't load |
 | `lib/nativeApp.ts` | `isNativeApp()`: true only inside the app |
-| `lib/health/native.ts` | Pure: HealthKit samples → the samples the Health Auto Export path already merges (one sleep source a night, the morning weigh-in, the day's mean HRV) |
+| `lib/health/native.ts` | Pure: HealthKit samples → the samples the Health Auto Export path already merges (one sleep source a night, the morning weigh-in, the night's HRV; IN8 the day sums, workouts, wrist temperature and cycle) |
+| `lib/health/extras.ts` | Pure (IN8): workout kinds, units, cycle days, shared by both Apple Health paths |
 | `lib/physique/io/nativeHealth.ts` | Connect, sync on open and on return, and the Apple Health sheet's state |
+| `ios/App/App/HealthExtrasPlugin.swift` | IN8: the app's own HealthKit reads the plugin lacks (caffeine, sodium, drinks as day sums; menstrual flow), and one permission sheet for every kind. Registered by `AppViewController` in the same file, which `SceneDelegate` uses as the root view controller |
+| `lib/physique/io/healthOptIn.ts` | IN8: the wrist temperature and cycle switches; off deletes what was read |
 | `lib/storage/nativeMirror.ts`, `components/NativeShell.tsx` | The data copy in the app's Library folder: written in the background, restored when storage comes back empty |
 
 Plugins (pinned):

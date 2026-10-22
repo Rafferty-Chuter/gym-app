@@ -10,7 +10,7 @@ Related: the privacy notice (`/privacy`), `docs/plan/07-tester-ready.md` (TR1 co
 
 ## Step 1: Identify the need for a DPIA
 
-**What the project aims to achieve.** Liftworks is a training and physique app for natural lifters. A person sets a goal (for example "90 kg lean"), logs food, bodyweight, waist, training and sleep, and can read weight, body fat, sleep, steps, resting heart rate and HRV from Apple Health. A deterministic engine on the phone judges whether the plan is working and finds links between habits and lifts. The tester phase is 5 to 20 lifters for 6 to 8 weeks through TestFlight (`07-tester-ready.md`, "The aim of the test").
+**What the project aims to achieve.** Liftworks is a training and physique app for natural lifters. A person sets a goal (for example "90 kg lean"), logs food, bodyweight, waist, training and sleep, and can read weight, body fat, sleep, steps, resting heart rate, HRV, active energy, workouts, and the water, caffeine, sodium and alcoholic drinks logged in other apps from Apple Health; wrist temperature and menstrual cycle only if the person turns them on (IN8). A deterministic engine on the phone judges whether the plan is working and finds links between habits and lifts. The tester phase is 5 to 20 lifters for 6 to 8 weeks through TestFlight (`07-tester-ready.md`, "The aim of the test").
 
 **Type of processing.** Mostly on the device. Data reaches our servers when the person (a) signs in and syncs (Supabase), (b) sends Apple Health data through Health Auto Export, (c) turns reminders on, (d) uses Describe a meal (Anthropic), (e) searches food or scans a barcode (Open Food Facts via our server). The AI coach chat exists but is switched off (`lib/features.ts` `ASSISTANT_ENABLED = false`).
 
@@ -26,8 +26,9 @@ Related: the privacy notice (`/privacy`), `docs/plan/07-tester-ready.md` (TR1 co
 
 **Collection (sources).**
 - Typed by the person: weigh-ins, waist, food entries, sleep, workouts, routines, goal, profile (sex, age, height, body fat category), settings (`lib/storage/keys.ts`).
-- Apple Health, read on the iPhone: sleep, weight, body fat, HRV, resting heart rate, steps; read-only (`lib/physique/io/nativeHealth.ts` `READ_TYPES`, `requestAuthorization({ write: [] })`; purpose strings in `ios/App/App/Info.plist`).
-- Health Auto Export (a third-party iPhone app the person sets up): posts Apple Health samples to `POST /api/ingest/hae` with a bearer token (`app/api/ingest/hae/route.ts`).
+- Apple Health, read on the iPhone: sleep, weight, body fat, HRV, resting heart rate, steps; since IN8 also active energy, workouts (kind, start, length, energy, distance) and the day's water, caffeine, sodium and number of alcoholic drinks that other apps log; read-only (`lib/physique/io/nativeHealth.ts` `wantedTypes`, `requestAuthorization({ write: [] })`; the app's own `ios/App/App/HealthExtrasPlugin.swift` asks with `toShare: nil` and never saves; purpose strings in `ios/App/App/Info.plist`).
+- Opt-in Apple Health kinds (IN8): sleeping wrist temperature and menstrual flow (with the cycle-start flag) are asked for and kept only after the person turns each on in the Apple Health sheet (`lib/physique/io/healthOptIn.ts`; `mergeSamples` drops them otherwise). Off by default; turning one off deletes every stored value for it on the phone, and the next sync carries that to the account.
+- Health Auto Export (a third-party iPhone app the person sets up): posts Apple Health samples to `POST /api/ingest/hae` with a bearer token (`app/api/ingest/hae/route.ts`). Since IN8 that can include the metrics above, workouts and cycle tracking, but only what the person adds to their automations; the sheet says to add wrist temperature and cycle only after turning them on. The server stores what it is sent; the app ignores the opt-in kinds while their switch is off.
 - Imports from Hevy, Strong, Rep Count CSVs and daily-log files, parsed on the phone (`lib/csvImport.ts`, `lib/physique/io/dailyLogImport.ts`).
 - Free text the person types into Describe a meal (`app/api/food/parse/route.ts`).
 
@@ -48,7 +49,7 @@ Related: the privacy notice (`/privacy`), `docs/plan/07-tester-ready.md` (TR1 co
 | Vercel logs: crash reports (TR3) | Error message, stack, route, app version; numbers, quoted text, emails and URL queries scrubbed on the phone and again on the server; IP used only as a rate-limit key | `app/api/client-error/route.ts`, `lib/errors/clientError.ts` |
 | GitHub Actions artifacts (TR6) | Nightly `pg_dump` of the `public` and `auth` schemas (no sessions, tokens or audit log), encrypted with a passphrase (GnuPG AES-256), kept 30 days. The repo is public: anyone can download the encrypted file, so the passphrase is the only protection | `.github/workflows/db-backup.yml`, `docs/plan/backups.md` |
 
-Synced keys (`syncedKeys()` = every key with `includeInBackup` less `DEVICE_ONLY_KEYS`): `workoutHistory`, `workoutTemplates`, `userExerciseLibrary`, `onboardingProfile`, `userCoachingProfile`, unit and appearance settings, `trainingFocus`, `experienceLevel`, `priorityGoal`, `assistantThreadsV1`, `assistantSelectiveMemoryV1`, `assistantMemory`, and every `physique.v1.*` log key (`weighIns`, `foodEntries`, `savedFoods`, `dayFlags`, `sleepNights` (with HRV and resting HR), `waist`, `steps`, `importMeta`, `goal`, `goalHistory`, `profile`, `program`, `checkIns`, `foodPrefs`, `musclePriorities`, `deload`). Stay on the device: `activeWorkout`, `restTimerNotifySettings`, the assistant ids, `physique.v1.healthLink`, `pushLink`, `nativeHealth`, `onboarding`, `sync.v1.*`.
+Synced keys (`syncedKeys()` = every key with `includeInBackup` less `DEVICE_ONLY_KEYS`): `workoutHistory`, `workoutTemplates`, `userExerciseLibrary`, `onboardingProfile`, `userCoachingProfile`, unit and appearance settings, `trainingFocus`, `experienceLevel`, `priorityGoal`, `assistantThreadsV1`, `assistantSelectiveMemoryV1`, `assistantMemory`, and every `physique.v1.*` log key (`weighIns`, `foodEntries`, `savedFoods`, `dayFlags`, `sleepNights` (with HRV and resting HR), `waist`, `steps`, `vitals` (Apple Health's day records: HRV and resting HR since IN1; active energy, workouts, water, caffeine, sodium, drinks and the opt-in wrist temperature and cycle since IN8), `importMeta`, `goal`, `goalHistory`, `profile`, `program`, `checkIns`, `foodPrefs`, `musclePriorities`, `deload`). Stay on the device: `activeWorkout`, `restTimerNotifySettings`, the assistant ids, `physique.v1.healthLink`, `pushLink`, `nativeHealth`, `healthOptIn` (IN8: the wrist temperature and cycle switches), `onboarding`, `sync.v1.*`.
 
 **Deletion.**
 - Phone: weigh-ins, food entries and workouts can be deleted one by one (`lib/physique/io/bodyData.ts`, `app/history/workout`); sleep nights and waist can be edited but not deleted one by one (risk R8). Deleting the app removes localStorage and the Library copy.
@@ -88,7 +89,7 @@ Apple Health ──read on the phone──► phone
 
 ### Scope of the processing
 
-- **Nature of the data.** Special category (health): weight, waist, body fat, sleep (times, stages), HRV, resting heart rate, steps, food intake, training. Also: email address, age, sex, height, goal, push endpoint, time zone, IP address in request logs. No criminal offence data. No precise location (time zone only).
+- **Nature of the data.** Special category (health): weight, waist, body fat, sleep (times, stages), HRV, resting heart rate, steps, food intake, training; from Apple Health also active energy, workouts, water, caffeine, sodium and alcoholic drinks (IN8). With the person's opt-in only: sleeping wrist temperature and menstrual flow, which touch on reproductive health and are the most sensitive data the app holds (risk R15). Also: email address, age, sex, height, goal, push endpoint, time zone, IP address in request logs. No criminal offence data. No precise location (time zone only).
 - **How much and how often.** Daily entries per person. PR4's end-to-end test with 16 weeks of made-up data synced 694 rows across 10 keys (`STATUS.md` PR4). Health Auto Export sends one row per metric per day. Describe: one request per use.
 - **How long.** Account: until deletion (TR1); a deleted account stays in the encrypted backups until they age out (30 days, TR6). Health Auto Export: until disconnect. Reminders: until off or 5 failed sends. Vercel logs: Vercel's retention for the plan. Anthropic: its retention for API inputs. `[FOUNDER]` decide what happens to an account, or a Health Auto Export device, that has not been used for a long time (for example delete after 12 months without a sign-in, with an email first); nothing in the code does this today.
 - **How many people.** 5 to 20 testers for 6 to 8 weeks (FT8). `[FOUNDER]` expected numbers after the test.
@@ -158,6 +159,7 @@ Apple Health ──read on the phone──► phone
 | R12 | **Secrets shared in an old cloud session** (service-role key, CRON_SECRET, Vercel token, Anthropic key) could give access to every user's server rows. | Possible | Severe | High |
 | R13 | **No breach procedure.** A breach must be reported to the ICO within 72 hours where it risks people's rights. | Remote | Significant | Medium |
 | R14 | **Database loss** (Supabase Free has no backups): synced data lost if the project fails. TR6 adds backups, which are themselves a copy of everyone's health data in a public repo's artifacts, protected only by the passphrase. | Possible | Significant | Medium |
+| R15 | **Cycle and wrist temperature (IN8).** Menstrual flow and nightly temperature touch on reproductive health; exposure (a breach, a shared phone, a synced account) would harm more than most health data. Health Auto Export's server copy follows the person's automations, not the app's switch. | Remote | Significant | Medium |
 
 ---
 
@@ -179,6 +181,7 @@ Apple Health ──read on the phone──► phone
 | R12 | FT5: rotate every shared secret, update Vercel and `.env.local`, redeploy. | Eliminated | Low | `[FOUNDER]` |
 | R13 | A one-page breach plan: who decides, how to assess, ICO report within 72 hours, tell affected people when high risk; keep a breach log. | Reduced | Low | `[FOUNDER]` |
 | R14 | TR6 nightly encrypted `pg_dump`, kept 30 days, restore tested; a long random passphrase kept only in a password manager; consider making the repo private. | Reduced | Low | `[FOUNDER]` |
+| R15 | Off by default, one switch each; HealthKit is asked for them only when on; the merge drops them while off; off deletes what was read (`lib/physique/io/healthOptIn.ts`). Used only for the person's own reads: period days noted beside the weight, never sized in kg (02 §10 rule 12); the night's temperature beside their usual. Never sent to Anthropic (not in the coach payload, `lib/physique/io/payload.ts`). The Health Auto Export steps say to add them only after turning them on. | Reduced | Low | `[FOUNDER]` |
 
 ---
 
