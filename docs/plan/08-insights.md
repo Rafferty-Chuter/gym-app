@@ -109,7 +109,7 @@ M · after IN1 · new `lib/physique/scaleJump.ts`
 - Scale minus trend. Speak only when the gap is at least 0.5 kg and 1.5 times the person's usual day-to-day spread, with 21 weigh-ins or more.
 - The day before against the person's 14-day usual: carbs, calories, weekend, hard leg sets, creatine, period and travel days. Sizes start from the evidence (L §3) and become the person's own after about 60 weigh-ins.
 - "Usually gone in N days" from the person's own past jumps, shown only when it beat the plain guess on their history.
-- Shows on the weigh-in sheet after saving, Home's weight tile, and a tap on a scale dot on Progress.
+- Shows on the weigh-in sheet after saving, Home's weight tile, and a tap on a scale dot on Progress. (Done: a card on Home, a live line in the sheet, a line per jump day in Progress's weigh-in list; see the STATUS row for what changed from this brief.)
 - Acceptance: simulated carb-spike days explained 80% or more; noise-only days given a cause 5% or fewer.
 
 ### IN3 · Why the weight isn't moving

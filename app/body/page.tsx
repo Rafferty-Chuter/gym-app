@@ -12,7 +12,9 @@ import { usePhysiqueAnalysis } from "@/lib/physique/io/analysis";
 import PageHeader from "@/components/ui/PageHeader";
 import WeightSheet from "@/components/physique/WeightSheet";
 import WaistSheet from "@/components/physique/WaistSheet";
-import WeightEntries from "@/components/physique/WeightEntries";
+import WeightEntries, { ENTRY_DAYS } from "@/components/physique/WeightEntries";
+import { scaleJump, scaleJumps, withWeighIn, type ScaleJumpInputs } from "@/lib/physique/scaleJump";
+import { jumpShort } from "@/lib/physique/scaleJumpWords";
 import AutoCheckIn from "@/components/physique/AutoCheckIn";
 import GoalCard from "@/components/progress/GoalCard";
 import FirstUse from "@/components/progress/FirstUse";
@@ -151,6 +153,14 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     return { onDate, lastWeighIn, lastWaist, trend };
   }, [liveData, wDate]);
 
+  // IN2: why a weigh-in jumped, on the person's own records (the list and the sheet are never the example's).
+  const jumpInputs = useMemo<ScaleJumpInputs>(() => ({ weighIns: liveData.weighIns, foodEntries: liveData.foodEntries, dayFlags: liveData.dayFlags, workouts: liveWorkouts, tz: now.tz }), [liveData, liveWorkouts, now.tz]);
+  const jumps = useMemo(() => (showWeighIns ? scaleJumps(jumpInputs, addDays(today, -(ENTRY_DAYS - 1)), today) : undefined), [showWeighIns, jumpInputs, today]);
+  const explain = (kg: number, d: LocalDate) => {
+    const j = scaleJump(withWeighIn(jumpInputs, d, kg), d);
+    return j ? jumpShort(j, unit, d === today) : null;
+  };
+
   const nowIso = () => new Date().toISOString();
   const goal = analysis?.goal ?? data.goal;
   const unlocks = useMemo(
@@ -233,6 +243,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
             weighIns={data.weighIns}
             today={today}
             unit={unit}
+            jumps={jumps}
             onOpen={(d) => {
               setWeightDate(d);
               setSheet("weight");
@@ -253,6 +264,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         hasEntry={model.onDate != null}
         onSave={(kg, d) => saveWeighIn(d, kg, nowIso())}
         onDelete={async () => (model.onDate ? deleteWeighIn(model.onDate.id) : { ok: true as const })}
+        explain={explain}
       />
       <WaistSheet open={sheet === "waist"} onClose={() => setSheet(null)} lastCm={model.lastWaist?.cm ?? null} dateLabel="Today" onSave={(cm) => saveWaist(today, cm, nowIso())} />
     </main>

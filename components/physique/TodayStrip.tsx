@@ -11,12 +11,16 @@ import { deleteWeighIn, saveSleepNight, saveWeighIn, useBodyData, type SleepInpu
 import { logFood, removeSavedFood, saveRecipe, setFoodPrefs, toggleFavourite, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
 import { dayTotals, formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { latestTrend } from "@/lib/physique/weight";
+import { scaleJump, withWeighIn, type ScaleJumpInputs } from "@/lib/physique/scaleJump";
+import { jumpShort } from "@/lib/physique/scaleJumpWords";
+import { useWorkouts } from "@/lib/physique/io/workouts";
 import { nightsByDate } from "@/lib/physique/sleep";
 import { targetInEffect } from "@/lib/physique/intake";
 import { formatBodyWeight } from "@/lib/units";
 import { splitValue } from "@/components/physique/PulseTile";
 import { MacroBars, NutritionRing } from "@/components/food/NutritionRing";
 import WeightSheet from "@/components/physique/WeightSheet";
+import ScaleJumpCard from "@/components/physique/ScaleJumpCard";
 import LoggerSheet from "@/components/food/LoggerSheet";
 import SleepSheet from "@/components/physique/SleepSheet";
 import type { LocalDate } from "@/lib/dates";
@@ -39,6 +43,7 @@ export default function TodayStrip() {
   const unit = rawUnit === "lb" ? "lb" : "kg";
   const data = useBodyData();
   const prefs = useFoodPrefs();
+  const workouts = useWorkouts();
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [weightDate, setWeightDate] = useState<LocalDate | null>(null);
   const today = now?.today ?? null;
@@ -61,6 +66,14 @@ export default function TodayStrip() {
     const onDate = data.weighIns.find((w) => w.date === wDate) ?? null;
     return { weighIn, lastWeighIn, totals, target, night, trend, onDate };
   }, [data, today, now, wDate]);
+
+  // IN2: why today's weigh-in jumped, when it did.
+  const jumpInputs = useMemo<ScaleJumpInputs | null>(() => (now ? { weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz } : null), [data, workouts, now]);
+  const jump = useMemo(() => (jumpInputs && today && day?.weighIn ? scaleJump(jumpInputs, today) : null), [jumpInputs, today, day]);
+  const explain = (kg: number, d: LocalDate) => {
+    const j = jumpInputs ? scaleJump(withWeighIn(jumpInputs, d, kg), d) : null;
+    return j ? jumpShort(j, unit, d === today) : null;
+  };
 
   const ready = hydrated && now && day;
   const nowIso = () => new Date().toISOString();
@@ -110,6 +123,8 @@ export default function TodayStrip() {
         </button>
       </div>
 
+      {ready && jump && <ScaleJumpCard jump={jump} unit={unit} />}
+
       {ready && today && (
         <>
           <WeightSheet
@@ -124,6 +139,7 @@ export default function TodayStrip() {
             hasEntry={day.onDate != null}
             onSave={(kg, d) => saveWeighIn(d, kg, nowIso())}
             onDelete={async () => (day.onDate ? deleteWeighIn(day.onDate.id) : { ok: true as const })}
+            explain={explain}
           />
           <LoggerSheet
             state={sheet === "food" ? {} : null}

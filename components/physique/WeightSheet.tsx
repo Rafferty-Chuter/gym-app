@@ -27,6 +27,8 @@ type Props = {
   hasEntry?: boolean;
   onSave: (kg: number, date: LocalDate) => Promise<Result>;
   onDelete?: (date: LocalDate) => Promise<Result>;
+  /** IN2: one line when the number typed is a jump on the person's recent weigh-ins ("Up 0.9 kg · 160 g more carbs yesterday"), else null. */
+  explain?: (kg: number, date: LocalDate) => string | null;
 };
 
 /** The date dropdown lists this many days back (backfill beyond it goes through the arrows). OURS. */
@@ -46,7 +48,7 @@ export default function WeightSheet(props: Props) {
   return <Inner key={`${initial}-${props.date}`} {...props} initial={initial} />;
 }
 
-function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, hasEntry, onSave, onDelete }: Props & { initial: string }) {
+function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, hasEntry, onSave, onDelete, explain }: Props & { initial: string }) {
   const [value, setValue] = useState(initial);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,7 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
   const n = parsePadValue(value);
   const kg = n != null && n > 0 ? displayToKg(n, unit) : null;
   const isToday = date === today;
+  const why = kg != null && explain ? explain(kg, date) : null;
   const dateLabel = (d: LocalDate) => (d === today ? "Today" : d === addDays(today, -1) ? "Yesterday" : longLocalDate(d));
 
   async function save(force: boolean) {
@@ -146,6 +149,11 @@ function Inner({ initial, onClose, unit, date, today, onDateChange, trendKg, has
       </div>
 
       <NumberPadValue value={value} unit={unit} hint={hasEntry ? "Editing this day's entry" : "This morning, after the bathroom"} />
+      {why && (
+        <p className="-mt-1 mb-2 text-center text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }} aria-live="polite">
+          {why}
+        </p>
+      )}
       <NumberPad
         value={value}
         onChange={(v) => {

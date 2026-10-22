@@ -5,6 +5,8 @@ import { Caption } from "@/components/physique/ui";
 import type { WeighIn } from "@/lib/physique/types";
 import { dailyTrendRows } from "@/lib/physique/weight";
 import { formatBodyWeight, type WeightUnit } from "@/lib/units";
+import type { ScaleJump } from "@/lib/physique/scaleJump";
+import { jumpShort } from "@/lib/physique/scaleJumpWords";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 
@@ -18,10 +20,11 @@ export const ENTRY_DAYS = 30;
 /**
  * The last 30 days by month, newest first (MacroFactor's weight list): each
  * day's scale weight, or "No weigh-in", and its trend weight, missed days
- * included (C11). Tapping a day opens the weight sheet on that date, to
- * edit its entry or add a missed one.
+ * included (C11). A day that jumped says why in one line (IN2). Tapping a
+ * day opens the weight sheet on that date, to edit its entry or add a
+ * missed one.
  */
-export default function WeightEntries({ weighIns, today, unit, onOpen }: { weighIns: readonly WeighIn[]; today: LocalDate; unit: WeightUnit; onOpen: (date: LocalDate) => void }) {
+export default function WeightEntries({ weighIns, today, unit, onOpen, jumps }: { weighIns: readonly WeighIn[]; today: LocalDate; unit: WeightUnit; onOpen: (date: LocalDate) => void; jumps?: ReadonlyMap<LocalDate, ScaleJump> }) {
   const [expanded, setExpanded] = useState(false);
   const rows = useMemo(() => {
     const all = dailyTrendRows(weighIns, addDays(today, -(ENTRY_DAYS - 1)), today);
@@ -59,6 +62,7 @@ export default function WeightEntries({ weighIns, today, unit, onOpen }: { weigh
             {g.items.map((r) => {
               const w = byDate.get(r.date);
               const meta = [typeof w?.bodyFatPct === "number" ? `${w.bodyFatPct.toFixed(1)} % fat` : null, w && w.source !== "manual" ? w.source : null].filter(Boolean).join(" · ");
+              const jump = r.scaleKg != null ? jumps?.get(r.date) : undefined;
               return (
                 <li key={r.date}>
                   <button
@@ -79,6 +83,11 @@ export default function WeightEntries({ weighIns, today, unit, onOpen }: { weigh
                       ) : (
                         <span className="text-[15px]" style={{ color: "var(--text-tertiary)" }}>
                           No weigh-in
+                        </span>
+                      )}
+                      {jump && (
+                        <span className="mt-0.5 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                          {jumpShort(jump, unit, r.date === today)}
                         </span>
                       )}
                     </span>
