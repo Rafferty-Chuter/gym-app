@@ -36,6 +36,7 @@ import { getPhysiqueProfileSync } from "@/lib/physique/io/profile";
 import { connections } from "@/lib/physique/connections";
 import { mainLiftLevels } from "@/lib/physique/liftEffect";
 import { stuckLifts } from "@/lib/physique/liftPlateau";
+import { alcoholLinks } from "@/lib/physique/alcohol";
 import { latestJump, spotted } from "@/lib/physique/spotted";
 import { linkedReasons } from "@/lib/physique/linkedReasons";
 import { coverageLine, scorecard } from "@/lib/physique/weekScorecard";
@@ -173,7 +174,8 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     const goal = activeGoal && activeGoal.startDate <= through ? activeGoal : null;
     const stuck = stuckLifts({ workouts, sleepNights: data.sleepNights, foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, expenditure: expenditure?.series ?? null, goal, unit }, at);
     const jump = latestJump({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz }, through);
-    return spotted({ today: through, unit, jump, stuck, connections: conn, findings: found, lift: lifts[0] ?? null });
+    const alcohol = alcoholLinks({ foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, vitals: data.vitals, weighIns: data.weighIns }, at);
+    return spotted({ today: through, unit, jump, stuck, connections: conn, findings: found, lift: lifts[0] ?? null, alcohol });
   }, [report, data, workouts, expenditure, activeGoal, unit, now.tz, conn, found, lifts]);
 
   // The strength engine's change since the phase began, per lift, for the training rows.

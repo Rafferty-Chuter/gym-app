@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { bannedPhrasesIn } from "@/lib/physique/copy";
+import type { AlcoholLink, AlcoholRead } from "@/lib/physique/alcohol";
 import type { Connection, ConnectionId, ConnectionsResult } from "@/lib/physique/connections";
 import type { Finding } from "@/lib/physique/findings";
 import type { StuckLift } from "@/lib/physique/liftPlateau";
@@ -178,11 +179,47 @@ describe("Spotted: what the engines found, biggest and newest first (IN10)", () 
     expect(l.title).toBe("Weaker: drinks the night before");
     expect(l.detail).toBe("Squat est. 1RM about 4 kg lower · 1 session with drinks the night before in the last 7 days");
     expect(l.charts).toEqual(["strength"]);
-    expect(l.topic).toBe("link:alcohol");
+    // One topic with IN9's night facts, so drinking never takes two of the three places.
+    expect(l.topic).toBe("alcohol");
+  });
+
+  // ── IN9's night facts (merged after IN10) ──
+
+  const alc = (over: Partial<AlcoholLink> = {}): AlcoholLink => ({ id: "rhr", state: "linked", drink: 25, dry: 113, diff: 7, usual: 55, t: 5, q: 0.001, sameDays: "held", days: { drink: [addDays(TODAY, -15), addDays(TODAY, -8), addDays(TODAY, -1)], dry: [addDays(TODAY, -3)] }, ...over });
+  const read = (items: AlcoholLink[]): AlcoholRead => ({ from: addDays(TODAY, -179), through: TODAY, thresholdG: 20, drinkEvenings: 25, dryEvenings: 113, meanDrinkG: 48, weekendShare: 0.5, items });
+
+  it("drinking facts are news for a week after a drinking evening, in IN9's words", () => {
+    const [a] = spotted({ ...base, alcohol: read([alc(), alc({ id: "hrv", diff: -11, usual: 50 }), alc({ id: "sleep", state: "none", diff: -6, usual: 420 })]) });
+    expect(a.kind).toBe("alcohol");
+    expect(a.title).toBe("Recovery lower after drinking");
+    expect(a.detail).toBe("Resting HR 7 bpm higher, HRV 11 ms lower · 25 vs 113 nights · 1 drinking evening in the last 7 days");
+    expect(a.working.map((w) => `${w.label}: ${w.value ?? ""}`)).toEqual(["Resting heart rate: +7 bpm", "HRV: −11 ms", "Sleep: No clear link", "Next day · 25 vs 113 nights: "]);
+    expect(a.days).toEqual([addDays(TODAY, -15), addDays(TODAY, -8), addDays(TODAY, -1)]);
+    expect(a.charts).toEqual(["sleep"]);
+    // A week on with no drinking evening, the Sleep page holds it.
+    expect(spotted({ ...base, alcohol: read([alc({ days: { drink: [addDays(TODAY, -SPOTTED_LINK_DAYS - 1)], dry: [] } })]) })).toEqual([]);
+  });
+
+  it("says the scale on its own when no night is linked, and marks the weight chart", () => {
+    const [a] = spotted({ ...base, alcohol: read([alc({ state: "none" }), alc({ id: "scale1", diff: 0.7, usual: null })]) });
+    expect(a.title).toBe("Heavier the morning after drinking");
+    expect(a.detail).toBe("The scale 0.7 kg above your line the next morning · 25 vs 113 mornings · 1 drinking evening in the last 7 days");
+    expect(a.charts).toEqual(["weight"]);
+  });
+
+  it("nothing linked, nothing spotted; one place for drinking with the lift link", () => {
+    expect(spotted({ ...base, alcohol: read([alc({ state: "building", diff: null })]) })).toEqual([]);
+    const both = spotted({ ...base, alcohol: read([alc()]), connections: result([link("alcohol" as ConnectionId, { label: "Drinks the evening before" })]) });
+    expect(both.filter((s) => s.topic === "alcohol")).toHaveLength(1);
   });
 
   it("never uses a banned phrase", () => {
-    const out = spotted({ ...base, jump: jump(), stuck: [stuck({ state: "dropping", changeKg: -6, changePct: -4, sessions: 8 })], connections: result([link("shortRun")]) });
-    for (const s of out) expect(bannedPhrasesIn([s.title, s.detail, ...s.working.map((w) => `${w.label} ${w.value ?? ""}`)].join(" "))).toEqual([]);
+    const out = spotted({ ...base, jump: jump(), stuck: [stuck({ state: "dropping", changeKg: -6, changePct: -4, sessions: 8 })], connections: result([link("shortRun")]), alcohol: read([alc()]) });
+    expect(out.some((s) => s.kind === "alcohol")).toBe(true);
+    for (const s of out) {
+      const text = [s.title, s.detail, ...s.working.map((w) => `${w.label} ${w.value ?? ""}`)].join(" ");
+      expect(bannedPhrasesIn(text)).toEqual([]);
+      expect(text).not.toMatch(/too much|cut back|binge|careful|healthy|treat|guilt/i);
+    }
   });
 });

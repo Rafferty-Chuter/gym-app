@@ -1,12 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { CONN_MIN_SESSIONS, type Connection, type ConnectionId, type ConnectionsResult, type SessionPoint } from "@/lib/physique/connections";
+import type { Connection, ConnectionId, SessionPoint } from "@/lib/physique/connections";
 import { effectKg, formatEffect, type ReferenceLift } from "@/lib/physique/liftEffect";
-import { CONNECTION_NOUN, connectionWords } from "@/lib/physique/connectionWords";
 import type { WeightUnit } from "@/lib/units";
-import { connectionSubject } from "@/lib/physique/askAbout";
-import AskWhy from "@/components/progress/AskWhy";
 
 /** Each condition in its measure's colour (DESIGN.md rev 4.2). */
 export const CONNECTION_COLOR: Record<ConnectionId, string> = {
@@ -65,7 +61,6 @@ const GROUPS: Record<ConnectionId, [high: string, low: string]> = {
   load: ["Heaviest weeks", "Lightest weeks"],
 };
 
-const divider = { borderTop: "1px solid var(--border)" };
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%`;
 
 export function Glyph({ id, color, small = false }: { id: ConnectionId; color: string; small?: boolean }) {
@@ -150,159 +145,5 @@ export function SessionStrip({ c, lift, unit }: { c: Connection; lift: Reference
         </p>
       )}
     </div>
-  );
-}
-
-/**
- * One thing checked (TR12). A clear link leads with one plain sentence
- * ("Your squat is about 5 kg heavier the day after a higher-carb day"),
- * the difference in bold, then both groups' numbers and, when another
- * condition moved on the same days, that it could be either. A row with
- * no clear difference stays quiet: its name and "No clear link".
- */
-function ConnectionRow({ c, result, lift, unit, open, onToggle, mergedWith }: { c: Connection; result: ConnectionsResult; lift: ReferenceLift | null; unit: WeightUnit; open: boolean; onToggle: () => void; /** A clear difference that rose and fell with this one, which carries it (C7). */ mergedWith: ConnectionId | null }) {
-  const linked = c.state === "linked";
-  const color = linked ? CONNECTION_COLOR[c.id] : "var(--text-tertiary)";
-  const words = connectionWords(c, lift, unit);
-  const values = words.values.charAt(0).toUpperCase() + words.values.slice(1);
-  const quiet = mergedWith ? `Counted with ${CONNECTION_NOUN[mergedWith]}` : "No clear link";
-  return (
-    <div style={divider}>
-      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`${linked ? `${words.headline}. ${words.numbers}.${words.overlap ? ` ${words.overlap}` : ""}` : `${c.label}: ${quiet.toLowerCase()}.`} ${open ? "Hide" : "Show"} the sessions`}>
-        <Glyph id={c.id} color={color} />
-        {linked ? (
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="text-[15px] leading-snug" style={{ color: "var(--text)" }}>
-              {words.parts.before}
-              <span className="font-semibold" style={{ fontVariantNumeric: "tabular-nums" }}>
-                {words.parts.effect}
-              </span>
-              {words.parts.after}
-            </span>
-            <span className="text-[12px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {words.numbers}
-            </span>
-            {words.overlap && (
-              <span className="text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
-                {words.overlap}
-              </span>
-            )}
-          </span>
-        ) : (
-          <>
-            <span className="min-w-0 flex-1 text-[15px]" style={{ color: "var(--text-secondary)" }}>
-              {c.label}
-            </span>
-            <span className="shrink-0 text-right text-[12px]" style={{ color: "var(--text-tertiary)" }}>
-              {quiet}
-            </span>
-          </>
-        )}
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 transition-transform" style={{ color: "var(--text-tertiary)", transform: open ? "rotate(180deg)" : undefined }} aria-hidden>
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
-      {open && (
-        <div className="px-4 pb-4">
-          {!linked && (
-            <p className="mb-1 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {mergedWith ? `${values}. Rose and fell with ${CONNECTION_NOUN[mergedWith]}, so the two can't be told apart.` : `${values}: the two groups overlap.`}
-            </p>
-          )}
-          <SessionStrip c={c} lift={lift} unit={unit} />
-          <div className="mt-3">
-            <AskWhy subject={connectionSubject(c, result, lift, unit, mergedWith ? CONNECTION_NOUN[mergedWith] : null, c.movedWith ? CONNECTION_NOUN[c.movedWith] : null)} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** The conditions a first read covers, shown greyed while the sessions build up. */
-const PREVIEW: ConnectionId[] = ["sleep", "balance", "carbs", "protein", "rest", "time"];
-
-/**
- * Before the first read (PR3d): how many sessions so far against the
- * CONN_MIN_SESSIONS the comparisons need, roughly how many weeks that is at
- * the person's own recent pace, and what will be checked. The bar is not
- * lowered to show something sooner: a third of 24 sessions is already the
- * smallest group a difference can be read from.
- */
-function Building({ sessions, perWeek }: { sessions: number; perWeek: number }) {
-  const left = Math.max(0, CONN_MIN_SESSIONS - sessions);
-  const weeks = perWeek > 0 ? Math.ceil(left / perWeek) : null;
-  return (
-    <div className="mt-2 flex flex-col gap-2.5">
-      <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-raised)" }} role="progressbar" aria-valuemin={0} aria-valuemax={CONN_MIN_SESSIONS} aria-valuenow={sessions} aria-label="Sessions towards the first read">
-        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (sessions / CONN_MIN_SESSIONS) * 100)}%`, background: "var(--primary)" }} />
-      </div>
-      <div className="flex items-baseline justify-between gap-3 text-[12px]" style={{ fontVariantNumeric: "tabular-nums" }}>
-        <span style={{ color: "var(--text)" }}>
-          {sessions} of {CONN_MIN_SESSIONS} sessions
-        </span>
-        <span style={{ color: "var(--text-tertiary)" }}>{weeks != null ? `About ${weeks} ${weeks === 1 ? "week" : "weeks"} at your pace` : "Log sessions to start"}</span>
-      </div>
-      <span className="text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
-        Then sleep, food, rest and timing are each checked against your lifts.
-      </span>
-      <span className="flex gap-1.5" aria-hidden>
-        {PREVIEW.map((id) => (
-          <Glyph key={id} id={id} color="var(--text-tertiary)" small />
-        ))}
-      </span>
-    </div>
-  );
-}
-
-/**
- * Connections (L1, C7, PR3): what lined up with the person's strongest and
- * weakest sessions, from `lib/physique/connections.ts`. One row for each
- * thing checked, clear links first and largest first: a plain sentence
- * with the difference in kilos on the lift trained most, then the two
- * groups' values (TR12); the rest say "No clear link", so the search shows. A row opens the
- * sessions behind it. Facts, not advice; the explaining is left to the
- * assistant.
- */
-export default function ConnectionsCard({ result, lift, unit }: { result: ConnectionsResult; /** The lift a difference is put in kilos on; percent without one. */ lift: ReferenceLift | null; unit: WeightUnit }) {
-  const [open, setOpen] = useState<ConnectionId | null>(null);
-  if (result.sessions === 0) return null;
-  const sources = [...new Set(result.items.filter((c) => c.state === "linked").flatMap((c) => (c.evidence ? [c.evidence.source] : [])))];
-  return (
-    <section aria-label="Connections" className="overflow-hidden rounded-[16px]" style={{ background: "var(--surface)" }}>
-      <div className="flex flex-col gap-0.5 px-4 pb-3 pt-4">
-        <span className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
-          What lined up with your lifts
-        </span>
-        {result.checked > 0 ? (
-          <span className="text-[12px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-            {result.checked} {result.checked === 1 ? "thing" : "things"} checked · {result.sessions} sessions · {result.weeks} weeks
-          </span>
-        ) : result.sessions < CONN_MIN_SESSIONS ? (
-          <Building sessions={result.sessions} perWeek={result.recentPerWeek} />
-        ) : (
-          <span className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
-            Once sleep, food or weigh-ins are logged alongside your sessions.
-          </span>
-        )}
-      </div>
-
-      {result.items.map((c) => (
-        <ConnectionRow key={c.id} c={c} result={result} lift={lift} unit={unit} open={open === c.id} onToggle={() => setOpen(open === c.id ? null : c.id)} mergedWith={result.items.find((x) => x.movedWith === c.id)?.id ?? null} />
-      ))}
-
-      {sources.length > 0 && (
-        <details className="px-4 pb-3.5 pt-2.5" style={divider}>
-          <summary className="cursor-pointer text-[12px] font-medium" style={{ color: "var(--text-tertiary)" }}>
-            Sources
-          </summary>
-          <ul className="mt-1.5 flex flex-col gap-1 text-[11px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
-            {sources.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </section>
   );
 }

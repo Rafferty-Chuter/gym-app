@@ -46,6 +46,9 @@ function ItemIcon({ s }: { s: SpottedItem }) {
       return <Icon paths={BARBELL} color="var(--chart-lift)" />;
     case "link":
       return <Glyph id={s.connection.id} color={(CONNECTION_COLOR as Partial<Record<ConnectionId, string>>)[s.connection.id] ?? "var(--text-secondary)"} />;
+    case "alcohol":
+      // IN9's glass, as on the lift link for drinks.
+      return <Glyph id="alcohol" color={(CONNECTION_COLOR as Partial<Record<ConnectionId, string>>).alcohol ?? "var(--text-secondary)"} />;
     case "finding":
       return <Icon paths={FINDING_ICON[s.finding.id]} color="var(--status-watch)" />;
   }

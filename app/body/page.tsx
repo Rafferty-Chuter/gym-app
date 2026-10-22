@@ -32,6 +32,7 @@ import { connections, type Connection } from "@/lib/physique/connections";
 import { mainLiftLevels, type ReferenceLift } from "@/lib/physique/liftEffect";
 import { findings } from "@/lib/physique/findings";
 import { linkCharts, linkOnLift, linkTitle, weakerDays, weakerLabel } from "@/lib/physique/liftLinks";
+import { alcoholLinks } from "@/lib/physique/alcohol";
 import { latestJump, spotted, type SpottedItem } from "@/lib/physique/spotted";
 import { useExpenditure } from "@/lib/physique/io/expenditure";
 import { useWorkouts } from "@/lib/physique/io/workouts";
@@ -147,7 +148,12 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   const [showWeighIns, setShowWeighIns] = useState(false);
   // IN2 for Spotted: the latest weigh-in, while it is still news.
   const jumpNow = useMemo(() => latestJump({ weighIns: data.weighIns, foodEntries: data.foodEntries, dayFlags: data.dayFlags, workouts, tz: now.tz }, today), [data, workouts, today, now.tz]);
-  const spots = useMemo(() => spotted({ today, unit, jump: jumpNow, stuck: stalled, connections: conn, findings: found, lift }), [today, unit, jumpNow, stalled, conn, found, lift]);
+  // IN9 for Spotted: drinking evenings against the next day's recovery, the night and the scale (live vitals only with live data).
+  const drinking = useMemo(
+    () => alcoholLinks({ foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, vitals: ex ? [] : data.vitals, weighIns: data.weighIns }, now),
+    [data, ex, now]
+  );
+  const spots = useMemo(() => spotted({ today, unit, jump: jumpNow, stuck: stalled, connections: conn, findings: found, lift, alcohol: drinking }), [today, unit, jumpNow, stalled, conn, found, lift, drinking]);
   const showSpot = (s: SpottedItem) => show({ key: s.key, label: s.title, charts: s.charts, from: s.from ?? undefined, days: s.days.length ? s.days : undefined, daysLabel: s.daysLabel ?? undefined });
   const showLink = (c: Connection, on: ReferenceLift | null) => {
     const pct = linkOnLift(c, on).pct;

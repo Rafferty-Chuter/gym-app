@@ -10,7 +10,10 @@
  * - one clear link between a condition and the lifts (IN5,
  *   `connections.ts`), only while it is news: a session on its weaker side
  *   in the last week (the lift card under Spotted lists every link),
- * - the four-week findings (E1, `findings.ts`), which fold in here.
+ * - the four-week findings (E1, `findings.ts`), which fold in here,
+ * - drinking against the next day's recovery, that night's sleep and the
+ *   scale (IN9, `alcohol.ts`), while news: a drinking evening in the last
+ *   week (the Sleep page holds the standing read).
  *
  * Each fact is sized against its own floor (how far past the gate that let
  * it speak) and halves in weight each week it gets older; the top three
@@ -23,6 +26,8 @@
  */
 
 import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
+import { ALC_MIN_HRV_PCT, ALC_MIN_RHR_BPM, ALC_MIN_SCALE_KG, ALC_MIN_SLEEP_MIN, type AlcoholLink, type AlcoholRead } from "@/lib/physique/alcohol";
+import { alcoholHeadline, alcoholRow, alcoholSameDaysNote } from "@/lib/physique/alcoholWords";
 import { CONN_MIN_EFFECT_PCT, type Connection, type ConnectionId, type ConnectionsResult } from "@/lib/physique/connections";
 import { FIND_WINDOW_DAYS, type Finding, type FindingId } from "@/lib/physique/findings";
 import { formatEffect, type ReferenceLift } from "@/lib/physique/liftEffect";
@@ -52,13 +57,13 @@ export const SPOTTED_LINK_DAYS = 7;
 
 // ── Types ──
 
-export type SpottedKind = "jump" | "stuck" | "link" | "finding";
+export type SpottedKind = "jump" | "stuck" | "link" | "alcohol" | "finding";
 
 /** One line of the working: a label and its number (Garmin's detail sheet), or a sentence alone. */
 export type WorkingRow = { label: string; value?: string };
 
 type Base = {
-  /** Stable across renders: "jump", "stuck:<lift key>", "link:<condition>", "finding:<id>". */
+  /** Stable across renders: "jump", "stuck:<lift key>", "link:<condition>", "alcohol", "finding:<id>". */
   key: string;
   /** Facts on the same topic are one fact: the stronger stays. */
   topic: string;
@@ -83,7 +88,7 @@ type Base = {
   charts: string[];
 };
 
-export type SpottedItem = Base & ({ kind: "jump"; jump: ScaleJump } | { kind: "stuck"; stuck: StuckLift } | { kind: "link"; connection: Connection } | { kind: "finding"; finding: Finding });
+export type SpottedItem = Base & ({ kind: "jump"; jump: ScaleJump } | { kind: "stuck"; stuck: StuckLift } | { kind: "link"; connection: Connection } | { kind: "alcohol"; alcohol: AlcoholRead } | { kind: "finding"; finding: Finding });
 
 export type SpottedInputs = {
   today: LocalDate;
@@ -95,6 +100,8 @@ export type SpottedInputs = {
   findings: readonly Finding[];
   /** The lift a link's kilos are put on. */
   lift: ReferenceLift | null;
+  /** IN9's drinking-evening read, when there is one. */
+  alcohol?: AlcoholRead | null;
 };
 
 // ── Charts each fact is about ──
@@ -200,7 +207,8 @@ function linkItem(c: Connection, today: LocalDate, lift: ReferenceLift | null, u
     kind: "link",
     connection: c,
     key: `link:${c.id}`,
-    topic: SLEEP_IDS.has(c.id) ? "sleep" : `link:${c.id}`,
+    // Drinking is one topic with IN9's night facts, so it never takes two of the three places.
+    topic: SLEEP_IDS.has(c.id) ? "sleep" : c.id === "alcohol" ? "alcohol" : `link:${c.id}`,
     date,
     size,
     score: score(size, date, today),
@@ -212,6 +220,58 @@ function linkItem(c: Connection, today: LocalDate, lift: ReferenceLift | null, u
     daysLabel: weakerLabel(c, on.pct),
     from: null,
     charts: linkCharts(c.id),
+  };
+}
+
+/** Each outcome's floor in its own unit, as IN9 gates it: bpm, ms (a share of the usual), minutes, kg. */
+function alcoholFloor(l: AlcoholLink): number {
+  if (l.id === "rhr") return ALC_MIN_RHR_BPM;
+  if (l.id === "hrv") return Math.max(1, ((l.usual ?? 0) * ALC_MIN_HRV_PCT) / 100);
+  if (l.id === "sleep") return ALC_MIN_SLEEP_MIN;
+  return ALC_MIN_SCALE_KG;
+}
+
+const isScaleOutcome = (l: AlcoholLink) => l.id === "scale1" || l.id === "scale2";
+
+/** The plain finding for the outcome that leads: recovery (resting HR, HRV), then sleep, then the scale. */
+function alcoholTitle(lead: AlcoholLink): string {
+  if (lead.id === "rhr" || lead.id === "hrv") return "Recovery lower after drinking";
+  if (lead.id === "sleep") return "Shorter sleep after drinking";
+  const way = (lead.diff ?? 0) > 0 ? "Heavier" : "Lighter";
+  return `${way} ${lead.id === "scale1" ? "the morning" : "two mornings"} after drinking`;
+}
+
+function alcoholItem(r: AlcoholRead, today: LocalDate, unit: WeightUnit): SpottedItem | null {
+  const linked = r.items.filter((x) => x.state === "linked" && x.diff != null);
+  if (!linked.length) return null;
+  // Night outcomes lead, as in IN9's headline; the scale speaks alone only when no night is linked.
+  const nights = linked.filter((x) => !isScaleOutcome(x));
+  const lead = (nights.length ? nights : linked)[0];
+  const headline = alcoholHeadline(r, unit);
+  if (!headline) return null;
+  const since = addDays(today, -(SPOTTED_LINK_DAYS - 1));
+  const recent = new Set(lead.days.drink.filter((d) => d >= since && d <= today));
+  const date = [...recent].sort().at(-1);
+  if (!date) return null;
+  const size = Math.max(...linked.map((x) => Math.abs(x.diff as number) / alcoholFloor(x)));
+  const rows = r.items.filter((x) => x.state !== "building").map((x) => alcoholRow(x, unit));
+  const note = alcoholSameDaysNote(r);
+  const body = headline.replace(/^After drinking: /, "");
+  return {
+    kind: "alcohol",
+    alcohol: r,
+    key: "alcohol",
+    topic: "alcohol",
+    date,
+    size,
+    score: score(size, date, today),
+    title: alcoholTitle(lead),
+    detail: `${body.charAt(0).toUpperCase()}${body.slice(1)} · ${recent.size} drinking ${recent.size === 1 ? "evening" : "evenings"} in the last 7 days`,
+    working: [...rows.map((x) => ({ label: x.label, value: x.value })), { label: alcoholRow(lead, unit).sub }, ...(note ? [{ label: note }] : [])],
+    days: [...new Set(linked.flatMap((x) => x.days.drink))].sort(),
+    daysLabel: "the days after drinking",
+    from: null,
+    charts: [...(nights.length ? ["sleep"] : []), ...(linked.some(isScaleOutcome) ? ["weight"] : [])],
   };
 }
 
@@ -245,7 +305,7 @@ export function latestJump(i: ScaleJumpInputs, today: LocalDate): ScaleJump | nu
 
 // ── Ranking ──
 
-const KIND_ORDER: Record<SpottedKind, number> = { jump: 0, stuck: 1, link: 2, finding: 3 };
+const KIND_ORDER: Record<SpottedKind, number> = { jump: 0, stuck: 1, link: 2, alcohol: 3, finding: 4 };
 
 /**
  * Every fact the engines found, ranked: the highest score first (on a tie,
@@ -262,6 +322,8 @@ export function spotted(i: SpottedInputs): SpottedItem[] {
     const l = c.state === "linked" ? linkItem(c, i.today, i.lift, i.unit) : null;
     if (l) all.push(l);
   }
+  const a = i.alcohol ? alcoholItem(i.alcohol, i.today, i.unit) : null;
+  if (a) all.push(a);
   for (const f of i.findings) all.push(findingItem(f, i.today));
   all.sort((a, b) => b.score - a.score || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
   const out: SpottedItem[] = [];
