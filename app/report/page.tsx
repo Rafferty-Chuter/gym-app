@@ -140,8 +140,10 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
       plannedSessions,
       kg: (x: number) => formatWeight(x, unit, 1),
       current: dayDiff(report.end, today) <= 7,
+      // IN3: why the scale sits away from what the calories predict, and maintenance since the goal began.
+      records: { foodEntries: data.foodEntries, dayFlags: data.dayFlags, steps: data.steps, expenditure: expenditure?.series ?? null, today },
     }).filter((l) => l.id === "weight");
-  }, [analysis, report, prevReport, data.sleepNights, today, activeGoal, plannedSessions, unit]);
+  }, [analysis, report, prevReport, data, expenditure, today, activeGoal, plannedSessions, unit]);
 
   // L1: how sleep, food and weight change line up with the lifts over the 16 weeks to the report's last day.
   const conn = useMemo(

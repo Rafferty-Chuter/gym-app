@@ -15,6 +15,9 @@ import WaistSheet from "@/components/physique/WaistSheet";
 import WeightEntries, { ENTRY_DAYS } from "@/components/physique/WeightEntries";
 import { scaleJump, scaleJumps, withWeighIn, type ScaleJumpInputs } from "@/lib/physique/scaleJump";
 import { jumpShort } from "@/lib/physique/scaleJumpWords";
+import { weightGapFromRecords } from "@/lib/physique/weightGap";
+import { weightGapShort } from "@/lib/physique/weightGapWords";
+import { LINK_MIN_FOOD_SHARE, LINK_ON_PLAN_PCT } from "@/lib/physique/linkedReasons";
 import AutoCheckIn from "@/components/physique/AutoCheckIn";
 import GoalCard from "@/components/progress/GoalCard";
 import FirstUse from "@/components/progress/FirstUse";
@@ -163,6 +166,23 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
 
   const nowIso = () => new Date().toISOString();
   const goal = analysis?.goal ?? data.goal;
+  // IN3: when the rate is off the plan, the one fact behind it under the goal (the weekly report has the rest). The person's own records only.
+  const why = useMemo(() => {
+    const w = analysis?.weight;
+    const g = goal && !goal.completedAt ? goal : null;
+    if (example || !g || !w || w.trendKg == null || w.ratePctPerWeek == null || w.rateWindowDays == null) return null;
+    const planned = g.type === "maintain" ? 0 : (g.ratePctPerWeek / 100) * w.trendKg;
+    const actual = (w.ratePctPerWeek / 100) * w.trendKg;
+    if (Math.abs(actual - planned) < (LINK_ON_PLAN_PCT / 100) * w.trendKg) return null;
+    // The rate's window ends at the last weigh-in; read the food and steps over the same days.
+    const through = liveData.weighIns.reduce<LocalDate>((m, x) => (x.date <= today && x.date > m ? x.date : m), "");
+    if (!through) return null;
+    const read = weightGapFromRecords(
+      { foodEntries: liveData.foodEntries, dayFlags: liveData.dayFlags, steps: liveData.steps, expenditure: liveExpenditure?.series ?? null, goalStart: g.startDate, through, today, bodyKg: w.trendKg, windowDays: w.rateWindowDays, ratePctPerWeek: w.ratePctPerWeek },
+      LINK_MIN_FOOD_SHARE
+    );
+    return read ? weightGapShort(read) : null;
+  }, [example, analysis, goal, liveData, liveExpenditure, today]);
   const unlocks = useMemo(
     () => progressUnlocks({ goal: data.goal, weighIns: data.weighIns, sleepNights: data.sleepNights, workouts, expenditure, connections: conn, unit }, now),
     [data, workouts, expenditure, conn, unit, now]
@@ -200,7 +220,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
         <AutoCheckIn />
 
         {/* PR3: the goal first, then what lined up with the lifts, then every measure over time. PR5: before there's a goal or a weigh-in, the first-use list says what each part needs. */}
-        {(example || hasGoalOrWeight) && <GoalCard analysis={analysis} goal={goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} example={!!example} />}
+        {(example || hasGoalOrWeight) && <GoalCard analysis={analysis} goal={goal} weighIns={data.weighIns} dayFlags={data.dayFlags} today={today} unit={unit} example={!!example} why={why} />}
 
         {firstUse && <FirstUse unlocks={unlocks} onLogWeight={logWeight} onExample={() => void showExample()} />}
         {exampleLoading && (

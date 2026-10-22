@@ -9,7 +9,7 @@ import { planMargin, rateVsPlan } from "@/lib/physique/weekScorecard";
 import type { JudgeInputs } from "@/lib/physique/judge";
 import type { RecoveryRead } from "@/lib/physique/recovery";
 import type { WeekReport } from "@/lib/physique/weekReport";
-import type { PhysiqueAnalysis } from "@/lib/physique/types";
+import type { DailySteps, DayFlags, ExpenditurePoint, FoodEntry, PhysiqueAnalysis } from "@/lib/physique/types";
 import { analyse, inputsOf, NOW } from "@/lib/physique/__tests__/judgeHelpers";
 
 const FLAT = [
@@ -76,6 +76,86 @@ function week(p: Patch, over: Partial<Parameters<typeof makeScenario>[0]> = {}, 
   const analysis: PhysiqueAnalysis = { ...i.analysis, strength: { ...i.analysis.strength, ...p.strength }, weight: { ...i.analysis.weight, ratePctPerWeek: p.rate ?? -0.6 } };
   return { ...i, report, analysis };
 }
+
+type Records = NonNullable<LinkInputs["records"]>;
+
+/**
+ * IN3: made-up records behind a week from `week()`: steps and carbs that
+ * step halfway through the 4-week window, unlogged days, maintenance
+ * moving from the goal's start. The report's own numbers stay as `week()`
+ * set them; these only feed the reasons.
+ */
+function records(i: LinkInputs, p: { stepsAtStart?: number; steps?: [number, number]; carbs?: [number, number]; unlogged?: number; maint?: [number, number]; flags?: Record<string, DayFlags> } = {}): Records {
+  const through = i.report.through;
+  const from = addDays(through, -27);
+  const start = i.goal!.startDate;
+  const steps: DailySteps[] = [];
+  const foodEntries: FoodEntry[] = [];
+  const expenditure: ExpenditurePoint[] = [];
+  const total = 1 + Math.round((Date.parse(through) - Date.parse(start)) / 86_400_000);
+  for (let k = 0; k < total; k++) {
+    const date = addDays(start, k);
+    const di = Math.round((Date.parse(date) - Date.parse(from)) / 86_400_000);
+    const late = di >= 14;
+    const st = di >= 0 ? (p.steps ? p.steps[late ? 1 : 0] : 9000) : (p.stepsAtStart ?? p.steps?.[0] ?? 9000);
+    steps.push({ id: `s${k}`, date, loggedAt: `${date}T23:00:00.000Z`, source: "healthkit", schemaVersion: 1, steps: st });
+    const carbs = di >= 0 && p.carbs ? p.carbs[late ? 1 : 0] : 220;
+    if (!(di >= 0 && di % 5 === 2 && Math.floor(di / 5) < (p.unlogged ?? 0))) foodEntries.push({ id: `f${k}`, date, loggedAt: `${date}T20:00:00.000Z`, source: "manual", schemaVersion: 1, label: "Day", kcal: 2140, proteinG: 170, carbsG: carbs, fatG: 70, method: "quick" });
+    const [m0, m1] = p.maint ?? [2700, 2700];
+    expenditure.push({ date, tdee: Math.round(m0 + (k / Math.max(1, total - 1)) * (m1 - m0)), state: "updating", trendKg: null } as ExpenditurePoint);
+  }
+  const settled = Array.from({ length: 35 }, (_, k) => ({ date: addDays(start, k - 35), tdee: (p.maint ?? [2700, 2700])[0], state: "updating", trendKg: null }) as ExpenditurePoint);
+  return { foodEntries, dayFlags: p.flags ?? {}, steps, expenditure: [...settled, ...expenditure], today: addDays(through, 3) };
+}
+
+describe("why the weight isn't moving (IN3)", () => {
+  it("steps down 5,000 a day: named with their share, and the rest said as such", () => {
+    const base = week({ ratePct: -0.1 });
+    const l = weightLink({ ...base, records: records(base, { steps: [11000, 6000] }) })!;
+    expect(l.title).toBe("Weight came down slower than planned");
+    expect(l.causes).toContain("The scale trend is 0.4 kg a week above what your calories predict.");
+    expect(l.causes.some((c) => /^Steps fell from 11,000 to 6,000 a day over the 4 weeks: about 170 kcal a day less burned, about 0\.1 kg a week of it\.$/.test(c))).toBe(true);
+    expect(l.causes.some((c) => /^That leaves about 0\.\d kg a week nothing logged accounts for/.test(c))).toBe(true);
+    // The generic water note gives way to the numbers.
+    expect(l.note).toBeNull();
+  });
+
+  it("carbs rising: the water they hold, sized", () => {
+    const base = week({ ratePct: -0.1 });
+    const l = weightLink({ ...base, records: records(base, { carbs: [150, 320] }) })!;
+    expect(l.causes.some((c) => /^Carbs rose from 150 to 320 g a day over the 4 weeks; the water they hold adds about 0\.1 kg a week to the trend\.$/.test(c))).toBe(true);
+  });
+
+  it("under-logging: days not logged are named", () => {
+    const base = week({ ratePct: -0.1 });
+    const l = weightLink({ ...base, records: records(base, { unlogged: 4 }) })!;
+    expect(l.causes).toContain("4 days not logged in the last 4 weeks, so the intake above may read low.");
+  });
+
+  it("maintenance falling since the goal began, with the steps behind it, when the target has drifted from the plan", () => {
+    const base = week({ ratePct: -0.2, win: { meanKcal: 2500, meanTargetKcal: 2500, meanMaintenanceKcal: 2700 } });
+    const l = weightLink({ ...base, records: records(base, { stepsAtStart: 11200, steps: [11200, 6900], maint: [2950, 2700] }) })!;
+    expect(l.title).toBe("Weight came down slower than planned");
+    expect(l.causes.some((c) => /^The 2,500 target now sits 200 kcal under maintenance/.test(c))).toBe(true);
+    expect(l.causes.some((c) => /^Maintenance has gone from about 2,950 to 2,700 kcal since \d+\u00a0[A-Z][a-z]{2}; steps fell from 11,200 to 6,900 a day in that time, about 150 kcal of it\.$/.test(c))).toBe(true);
+  });
+
+  it("not clear yet still says what the scale and calories disagree by, and why", () => {
+    const base = week({ ratePct: -0.2, marginPct: 0.5 });
+    const l = weightLink({ ...base, records: records(base, { steps: [11000, 6000] }) })!;
+    expect(l.title).toBe("Weight against the plan: not clear yet");
+    expect(l.causes.some((c) => c.startsWith("Steps fell from 11,000"))).toBe(true);
+  });
+
+  it("controls: on plan, or records with nothing in them, add nothing new", () => {
+    const on = week({});
+    expect(weightLink({ ...on, records: records(on, { steps: [11000, 6000], carbs: [150, 320] }) })!.causes).toEqual(weightLink(on)!.causes);
+    const plain = week({ ratePct: -0.1 });
+    const l = weightLink({ ...plain, records: records(plain) })!;
+    expect(l.causes.filter((c) => /^(Steps|Carbs|Maintenance|\d+ days not logged)/.test(c))).toEqual([]);
+    for (const c of l.causes) expect(bannedPhrasesIn(c)).toEqual([]);
+  });
+});
 
 describe("linked reasons (W5)", () => {
   it("energy balance: 7,716 kcal a kg, so a 500 kcal daily deficit is about 0.45 kg a week", () => {

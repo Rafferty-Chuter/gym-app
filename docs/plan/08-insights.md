@@ -115,7 +115,7 @@ M · after IN1 · new `lib/physique/scaleJump.ts`
 ### IN3 · Why the weight isn't moving
 M · `lib/physique/linkedReasons.ts`
 - Steps against the start of the goal, not only last week, in kcal and kg a week; maintenance moving since the start; water hiding a loss (carbs or salt rising, creatine started); unlogged days and intake (already there). Each with its share of the gap in kg a week, and what is left unexplained.
-- One line under the goal card when off plan or "Not clear yet", and on the report's Food and weight card (today it shows "Calories predict −0.4 kg, scale −0.1" with no why).
+- One line under the goal card when off plan or "Not clear yet", and on the report's Food and weight card (today it shows "Calories predict −0.4 kg, scale −0.1" with no why). (Done; see the STATUS row.)
 - Acceptance: personas for steps falling by 5,000, carbs rising, under-logging and a falling maintenance each name their cause; on-plan controls say nothing.
 
 ### IN4 · The stuck lift, and what changed

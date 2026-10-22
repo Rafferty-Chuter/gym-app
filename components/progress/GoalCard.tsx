@@ -53,7 +53,7 @@ const NOT_COACHED = new Set(["SAFE-0", "SAFE-3", "SAFE-4", "SAFE-5"]);
  * weekly report. Facts first; the long reasoning lives in the report and,
  * later, the assistant.
  */
-export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, unit, example = false }: { analysis: PhysiqueAnalysis | null; goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit; /** Drawn from the made-up example (PR5): no links into the person's own goal or report. */ example?: boolean }) {
+export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, unit, example = false, why = null }: { analysis: PhysiqueAnalysis | null; goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit; /** Drawn from the made-up example (PR5): no links into the person's own goal or report. */ example?: boolean; /** IN3: one fact behind a rate off the plan ("Steps 11,200 → 6,900 a day since 2 Jul"); the weekly report has the rest. */ why?: string | null }) {
   const active = goal && !goal.completedAt ? goal : null;
   const trend = useMemo(() => latestTrend(weighIns.filter((w) => w.date <= today)), [weighIns, today]);
   const progress = useMemo(() => goalProgress(active, weighIns, today), [active, weighIns, today]);
@@ -132,6 +132,11 @@ export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, un
             {(dateLine ? rateLine || planLine : rateLine && planLine) && (
               <span className="text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                 {dateLine ? [rateLine, planLine].filter(Boolean).join(" · ") : planLine}
+              </span>
+            )}
+            {coached && why && (
+              <span className="text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                {why}
               </span>
             )}
           </span>

@@ -33,7 +33,10 @@ import { REVIEW_MIN_FOOD_DAYS, REVIEW_MIN_NIGHTS, REVIEW_SHORT_NIGHTS, REVIEW_SL
 import { CUT_GREEN_MAX, rateBands } from "@/lib/physique/targets";
 import { CORROBORATE_MIN_FOOD_SHARE, planMargin, RATE_UNCLEAR, rateVsPlan } from "@/lib/physique/weekScorecard";
 import type { WeekReport } from "@/lib/physique/weekReport";
-import type { PhysiqueAnalysis, PhysiqueGoal } from "@/lib/physique/types";
+import type { DailySteps, DayFlags, ExpenditurePoint, FoodEntry, PhysiqueAnalysis, PhysiqueGoal } from "@/lib/physique/types";
+import { GAP_LOGGING_DAYS, NET_KCAL_PER_KG_PER_STEP, weightGap } from "@/lib/physique/weightGap";
+import { weightGapLines } from "@/lib/physique/weightGapWords";
+import type { LocalDate } from "@/lib/dates";
 import { bandLabel } from "@/lib/training/volumeTargets";
 
 // ── Constants (tags as in 02-engine-spec) ──
@@ -46,10 +49,10 @@ export const LINK_MIN_FOOD_SHARE = CORROBORATE_MIN_FOOD_SHARE;
 export const LINK_ON_PLAN_PCT = ON_TRACK_TOLERANCE;
 /** Fewer steps a day than last week before steps count as a cause. OURS: about 70 to 100 kcal a day for most people. */
 export const LINK_STEPS_DROP = 2000;
-/** Net energy of one step per kg of body weight, kcal. EVID: walking's net cost is about 0.5 kcal/kg/km (ACSM) at about 1,300 steps a km. */
-export const NET_KCAL_PER_KG_PER_STEP = 0.0004;
-/** Unlogged or partial days in the rate's window before logging counts as a cause. OURS: three days hide enough to move a month's mean by about 100 kcal a day. */
-export const LINK_LOGGING_DAYS = 3;
+/** Net energy of one step per kg of body weight (kept in weightGap.ts since IN3). */
+export { NET_KCAL_PER_KG_PER_STEP };
+/** Unlogged or partial days in the rate's window before logging counts as a cause (weightGap.ts since IN3). */
+export const LINK_LOGGING_DAYS = GAP_LOGGING_DAYS;
 /** The week's intake against target this far from the window's before the card says the week too. OURS: the adherence tolerance, so a gap the tiles would show is never hidden. */
 export const WEEK_DIFFERS_KCAL = ADHERENCE_TOLERANCE_KCAL;
 /** Intake this close to target reads "on" it rather than "close to" it. OURS: inside a day's logging rounding. */
@@ -94,6 +97,13 @@ export type LinkInputs = {
   kg: (kg: number) => string;
   /** False for weeks before last week: the lifts and recovery reads are as of today, so only the weight link applies. */
   current?: boolean;
+  /**
+   * IN3: the raw records behind the week, so the weight link can say why the
+   * scale trend sits away from what the calories predict (steps, water,
+   * logging) and how maintenance has moved since the goal began. Without
+   * them the link falls back to last week's steps and the window's logging.
+   */
+  records?: { foodEntries: readonly FoodEntry[]; dayFlags: Readonly<Record<string, DayFlags>>; steps: readonly DailySteps[]; expenditure: readonly ExpenditurePoint[] | null; today: LocalDate };
 };
 
 // ── Helpers ──
@@ -211,6 +221,14 @@ export function weightLink(i: LinkInputs): Link | null {
       ? `This week alone averaged ${fmtKcal(wk.meanKcal)} kcal a day, ${Math.abs(wk.deltaKcal) <= ADHERENCE_TOLERANCE_KCAL ? "close to target" : `${fmtKcal(Math.abs(wk.deltaKcal))} ${wk.deltaKcal > 0 ? "over" : "under"} target`}.`
       : null;
   const intakeCauses = weekLine ? [intakeLine, weekLine] : [intakeLine];
+  // IN3: why the scale sits away from what the calories predict, and maintenance since the goal began, read on the same numbers as the figures.
+  const gapLines = i.records
+    ? weightGapLines(
+        weightGap({ ...i.records, goalStart: goal.startDate, from: w.from, through: r.through, bodyKg, expectedKgWk: expected, actualKgWk: actual }),
+        kg,
+        span
+      )
+    : [];
 
   if (unclear) {
     return {
@@ -218,7 +236,7 @@ export function weightLink(i: LinkInputs): Link | null {
       state: "watch",
       title: "Weight against the plan: not clear yet",
       detail: "The gap is inside the trend's margin of error.",
-      causes: intakeCauses,
+      causes: [...intakeCauses, ...gapLines],
       figures,
       figuresCaption,
       note: null,
@@ -256,7 +274,10 @@ export function weightLink(i: LinkInputs): Link | null {
     const logging = tooMuch && goal.type === "lose" ? loggingCause(r) : null;
     if (targetExplains) {
       causes.push(`The ${fmtKcal(target)} target now sits ${fmtKcal(Math.abs(target - maint))} kcal ${target < maint ? "under" : "over"} maintenance, a ${signedKg(targetPace)} a week pace against the plan's ${signedKg(planned)}.`);
+      causes.push(...gapLines);
       note = "Eating to the target was right; the target is what needs moving, and the Monday review moves it.";
+    } else if (gapLines.length) {
+      causes.push(...gapLines);
     } else if (steps || logging) {
       if (steps) causes.push(steps.text);
       if (logging) causes.push(logging);
