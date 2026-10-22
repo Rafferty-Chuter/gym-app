@@ -1,5 +1,5 @@
 ---
-name: Gym AI
+name: Liftworks
 description: A calm, precise physique and training coach for serious natural lifters. Mist: soft green and misty sky, light or dark with the phone.
 colors:
   # Mist (rev 4.2). Light values; the dark mode set is under colors-dark. Both live in app/globals.css.
@@ -196,7 +196,7 @@ components:
 
 ## Overview
 
-Gym AI is a product-register interface (the design serves a task, it is not the product). The user is a serious lifter: stepping off the scale in a dim room first thing in the morning, or between sets under gym lights. The tool should disappear into the task: log in a few taps, read one line, move on.
+Liftworks is a product-register interface (the design serves a task, it is not the product). The user is a serious lifter: stepping off the scale in a dim room first thing in the morning, or between sets under gym lights. The tool should disappear into the task: log in a few taps, read one line, move on.
 
 **Rev 4, decided 2026-10-18 with the founder: Mist.** Soft green and misty sky across the whole app, replacing the black and white of rev 1 to 2 and the per-tab hues of rev 3 (Sleep's indigo did not suit the rest). The page is a misty sky that fades into a pale green-grey (light) or a deep green-slate (dark); cards sit on it as near-white or slate layers; the one action colour is a soft green; Sleep leans on the sky side. History: rev 1 (2026-10-16) was MacroFactor-style near-black with white actions and mint for good; rev 3 (earlier on 2026-10-18) gave each tab its own hue.
 

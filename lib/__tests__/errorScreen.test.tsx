@@ -66,7 +66,7 @@ describe("error screen (TR3)", () => {
     expect(container.textContent).toContain("Your log is still saved on this phone");
     const reload = [...container.querySelectorAll("button")].find((b) => b.textContent === "Reload");
     expect(reload).toBeDefined();
-    expect(container.textContent).toMatch(/Gym AI 1\.0 beta \(.+\)/);
+    expect(container.textContent).toMatch(/Liftworks 1\.0 beta \(.+\)/);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];

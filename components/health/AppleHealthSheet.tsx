@@ -38,7 +38,7 @@ function nativeErrorCopy(e: Extract<SyncResult, { ok: false }>["error"] | string
     case "unavailable":
       return "Apple Health isn't available on this device.";
     case "read_failed":
-      return "Apple Health could not be read. Check Settings → Health → Data Access & Devices → Gym AI.";
+      return "Apple Health could not be read. Check Settings → Health → Data Access & Devices → Liftworks.";
     default:
       return null;
   }
@@ -116,7 +116,7 @@ function NativeAppleHealthSheet({ open, onClose }: Props) {
           </p>
         )}
         <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-          Gym AI only reads. To change which data it can read, use Settings → Health → Data Access & Devices.
+          Liftworks only reads. To change which data it can read, use Settings → Health → Data Access & Devices.
         </p>
       </div>
     </Sheet>

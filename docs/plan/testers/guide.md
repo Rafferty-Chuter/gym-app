@@ -1,4 +1,4 @@
-# Gym AI: tester guide
+# Liftworks: tester guide
 
 Thanks for testing. This takes about five minutes to set up, then a minute or two a day.
 
@@ -8,15 +8,15 @@ Thanks for testing. This takes about five minutes to set up, then a minute or tw
 3. In TestFlight, turn on **Automatic Updates** so fixes arrive on their own.
 
 ## 2. Set up
-Open Gym AI and tap **Set up**: sex, age, height, today's weight, how long you've lifted, your goal, target weight and pace. You'll see your starting calories and macros. To change the goal later: **Progress → Change**.
+Open Liftworks and tap **Set up**: sex, age, height, today's weight, how long you've lifted, your goal, target weight and pace. You'll see your starting calories and macros. To change the goal later: **Progress → Change**.
 
 ## 3. Connect Apple Health (if you use it)
-**Profile** (top right of Today) **→ Apple Health → Connect Apple Health**, then allow what you're happy to share. The app reads weight, body fat, sleep, steps, resting heart rate and HRV, going back 60 days the first time, and never writes to Health. To change this later: iPhone **Settings → Health → Data Access & Devices → Gym AI**.
+**Profile** (top right of Today) **→ Apple Health → Connect Apple Health**, then allow what you're happy to share. The app reads weight, body fat, sleep, steps, resting heart rate and HRV, going back 60 days the first time, and never writes to Health. To change this later: iPhone **Settings → Health → Data Access & Devices → Liftworks**.
 
 ## 4. Bring your training history (if you have one)
 - **Hevy:** Profile → Settings → Export & Import Data → Export Data → Export Workouts. Save the file to Files.
-- **Strong:** Settings → Export Strong Data. Save the file to Files. Strong files don't always say kg or lb, so first set Gym AI's **Profile → Units → Weight** to the unit you used in Strong.
-- Then in Gym AI: **Profile → Import → Choose file → Preview → Import**. Importing the same file twice adds nothing.
+- **Strong:** Settings → Export Strong Data. Save the file to Files. Strong files don't always say kg or lb, so first set **Profile → Units → Weight** in Liftworks to the unit you used in Strong.
+- Then in Liftworks: **Profile → Import → Choose file → Preview → Import**. Importing the same file twice adds nothing.
 
 History plus Apple Health means some of Progress fills in sooner.
 

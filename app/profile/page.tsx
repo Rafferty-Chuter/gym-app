@@ -266,7 +266,7 @@ export default function ProfilePage() {
             General information, not medical advice. Food data: McCance and Widdowson&apos;s Composition of Foods (UK, Open Government Licence v3.0) and Open Food Facts (Open Database Licence).
           </p>
           <p className="pb-2 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-            Gym AI {APP_VERSION}
+            Liftworks {APP_VERSION}
           </p>
         </section>
       </div>

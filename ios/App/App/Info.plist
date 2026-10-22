@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Gym AI</string>
+        <string>Liftworks</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,9 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Gym AI reads your sleep, HRV, resting heart rate, weight, body fat and steps to show them beside your training and food, and to work out your weight trend and maintenance calories.</string>
+	<string>Liftworks reads your sleep, HRV, resting heart rate, weight, body fat and steps to show them beside your training and food, and to work out your weight trend and maintenance calories.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>Gym AI only reads from Apple Health. It does not write anything.</string>
+	<string>Liftworks only reads from Apple Health. It does not write anything.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

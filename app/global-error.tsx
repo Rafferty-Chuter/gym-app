@@ -18,7 +18,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
   return (
     <html lang="en">
       <body className="antialiased">
-        <title>Something went wrong · Gym AI</title>
+        <title>Something went wrong · Liftworks</title>
         <ErrorScreen error={error} source="global" />
       </body>
     </html>

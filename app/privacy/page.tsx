@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import DocPage, { type DocSection } from "@/components/ui/DocPage";
 
-export const metadata: Metadata = { title: "Privacy · Gym AI", description: "What Gym AI keeps on your phone, what it sends and where, how long it is kept, and how to delete it or complain." };
+export const metadata: Metadata = { title: "Privacy · Liftworks", description: "What Liftworks keeps on your phone, what it sends and where, how long it is kept, and how to delete it or complain." };
 
 const linkStyle = { color: "var(--text)" };
 
@@ -197,7 +197,7 @@ export default function PrivacyPage() {
       title: "Age",
       body: (
         /* src: lib/physique/setupFlow.ts and lib/physique/judge.ts SAFE0_MIN_AGE (no deficit under 18). "Not meant for under 16" is policy, not enforced in code. The not-medical-advice note is on app/support/page.tsx */
-        <p>Gym AI isn&apos;t meant for anyone under 16 and sets no calorie deficit under 18.</p>
+        <p>Liftworks isn&apos;t meant for anyone under 16 and sets no calorie deficit under 18.</p>
       ),
     },
   ];
@@ -208,7 +208,7 @@ export default function PrivacyPage() {
       intro={
         <p>
           {/* not code: the controller; the founder adds a legal or trading name for the reviewer (DPIA step 1) */}
-          Gym AI is made in the UK by its founder, who is responsible for your data (the data controller). To reach us, <Reach />.
+          Liftworks is made in the UK by its founder, who is responsible for your data (the data controller). To reach us, <Reach />.
         </p>
       }
       sections={sections}

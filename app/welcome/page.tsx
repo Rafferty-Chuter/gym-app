@@ -27,7 +27,7 @@ export default function WelcomePage() {
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-between px-5 pb-10 pt-20 sm:px-6">
         <div className="flex flex-col gap-6">
           <p className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
-            Gym AI
+            Liftworks
           </p>
           <h1 className="text-[34px] font-semibold leading-[1.1] tracking-[-0.02em]">One place for the plan</h1>
           <ul className="flex flex-col gap-3 text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>

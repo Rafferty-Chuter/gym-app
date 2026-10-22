@@ -12,7 +12,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  */
 const config: CapacitorConfig = {
   appId: "app.gymai.coach",
-  appName: "Gym AI",
+  appName: "Liftworks",
   // Shown only when the live site can't load (offline on first open).
   webDir: "native/www",
   server: {

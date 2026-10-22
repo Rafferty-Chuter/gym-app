@@ -3,7 +3,7 @@ import Link from "next/link";
 import DocPage, { type DocSection } from "@/components/ui/DocPage";
 import { FEEDBACK_URL } from "@/lib/feedback";
 
-export const metadata: Metadata = { title: "Support · Gym AI", description: "Help with Gym AI and how to get in touch." };
+export const metadata: Metadata = { title: "Support · Liftworks", description: "Help with Liftworks and how to get in touch." };
 
 const linkStyle = { color: "var(--text)" };
 
@@ -60,7 +60,7 @@ export default function SupportPage() {
     },
     {
       title: "Not medical advice",
-      body: <p>Gym AI gives general information about food, training and sleep, worked out from what you log. It is not medical advice. If you have a medical condition, are pregnant or have a history of disordered eating, talk to a doctor or registered dietitian before changing how you eat.</p>,
+      body: <p>Liftworks gives general information about food, training and sleep, worked out from what you log. It is not medical advice. If you have a medical condition, are pregnant or have a history of disordered eating, talk to a doctor or registered dietitian before changing how you eat.</p>,
     },
   ];
   return <DocPage title="Support" updated="21 October 2026" sections={sections} />;

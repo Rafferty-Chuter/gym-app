@@ -34,7 +34,7 @@ function errorCopy(e: PushError | null | undefined): string | null {
 }
 
 function nativeErrorCopy(e: NativeReminderError | null | undefined): string | null {
-  if (e === "denied") return "Notifications are off for Gym AI. Turn them on in Settings → Notifications → Gym AI, then try again.";
+  if (e === "denied") return "Notifications are off for Liftworks. Turn them on in Settings → Notifications → Liftworks, then try again.";
   if (e === "failed") return "Couldn't set the reminder on this phone.";
   return null;
 }

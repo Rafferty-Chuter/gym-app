@@ -20,7 +20,7 @@ export default function DocPage({ title, updated, intro, sections }: { title: st
         </Link>
         <header className="flex flex-col gap-1">
           <span className="text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>
-            Gym AI · Updated {updated}
+            Liftworks · Updated {updated}
           </span>
           <h1 className="text-[34px] font-semibold leading-[1.05] tracking-[-0.02em]">{title}</h1>
         </header>

@@ -1,4 +1,4 @@
-# DPIA draft: Gym AI, tester phase
+# DPIA draft: Liftworks, tester phase
 
 Data protection impact assessment, drafted 21 October 2026 (TR2) from what the code on `claude/admiring-ptolemy-mz6jwu` does. It follows the headings of the ICO's sample DPIA template (steps 1 to 7). Facts carry the file they come from. `[FOUNDER]` marks what only the founder can answer or decide.
 
@@ -10,7 +10,7 @@ Related: the privacy notice (`/privacy`), `docs/plan/07-tester-ready.md` (TR1 co
 
 ## Step 1: Identify the need for a DPIA
 
-**What the project aims to achieve.** Gym AI is a training and physique app for natural lifters. A person sets a goal (for example "90 kg lean"), logs food, bodyweight, waist, training and sleep, and can read weight, body fat, sleep, steps, resting heart rate and HRV from Apple Health. A deterministic engine on the phone judges whether the plan is working and finds links between habits and lifts. The tester phase is 5 to 20 lifters for 6 to 8 weeks through TestFlight (`07-tester-ready.md`, "The aim of the test").
+**What the project aims to achieve.** Liftworks is a training and physique app for natural lifters. A person sets a goal (for example "90 kg lean"), logs food, bodyweight, waist, training and sleep, and can read weight, body fat, sleep, steps, resting heart rate and HRV from Apple Health. A deterministic engine on the phone judges whether the plan is working and finds links between habits and lifts. The tester phase is 5 to 20 lifters for 6 to 8 weeks through TestFlight (`07-tester-ready.md`, "The aim of the test").
 
 **Type of processing.** Mostly on the device. Data reaches our servers when the person (a) signs in and syncs (Supabase), (b) sends Apple Health data through Health Auto Export, (c) turns reminders on, (d) uses Describe a meal (Anthropic), (e) searches food or scans a barcode (Open Food Facts via our server). The AI coach chat exists but is switched off (`lib/features.ts` `ASSISTANT_ENABLED = false`).
 

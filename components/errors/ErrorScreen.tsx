@@ -51,7 +51,7 @@ export default function ErrorScreen({ error, source }: { error: Error; source: C
           )}
         </div>
         <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-          Gym AI {APP_VERSION}
+          Liftworks {APP_VERSION}
         </p>
       </div>
     </main>

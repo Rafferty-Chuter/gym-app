@@ -25,7 +25,7 @@ For FT7 (`07-tester-ready.md`). Written 2026-10-21 (TR5). Sections 3 to 5 are re
 **Collected data.** This is the same list as section 5. Health, Fitness, Email Address and User ID are linked to the user. Device ID, Search History and Crash Data are not. None is used for tracking, and every one is for App Functionality only.
 
 **Info.plist.**
-- The Health read text now names every type and why: "Gym AI reads your sleep, HRV, resting heart rate, weight, body fat and steps to show them beside your training and food, and to work out your weight trend and maintenance calories."
+- The Health read text now names every type and why: "Liftworks reads your sleep, HRV, resting heart rate, weight, body fat and steps to show them beside your training and food, and to work out your weight trend and maintenance calories."
 - The write text stays ("only reads… does not write anything"). The HealthKit framework references write APIs, and App Store Connect rejects an upload without it (ITMS-90683). iOS never shows it, because the app never asks to write.
 - `ITSAppUsesNonExemptEncryption = NO` is added: the app only uses HTTPS through the system. TestFlight then stops asking the export-compliance question on every build.
 
@@ -42,7 +42,7 @@ For FT7 (`07-tester-ready.md`). Written 2026-10-21 (TR5). Sections 3 to 5 are re
 7. **Privacy report.** In the Organizer, Control-click the archive → **Generate Privacy Report**. It should list Health, Fitness, Email Address, User ID (linked), Device ID, Search History, Crash Data (not linked), and File Timestamp with C617.1. Check it against section 5 before answering App Privacy.
 8. **Validate App** before **Distribute App**. It catches missing purpose strings and manifest errors before the upload does.
 9. After the upload, watch for Apple's email. If it says "ITMS-91053: Missing API declaration", add the category it names to the manifest, add the package to the test, and upload a new build.
-10. **App Store Connect app record:** bundle id `app.gymai.coach` (permanent), primary category Health & Fitness. The store name must be unique. If "Gym AI" is taken, the name on the home screen (`CFBundleDisplayName`) can stay "Gym AI" while the store name differs (for example "Gym AI: Training Log").
+10. **App Store Connect app record:** bundle id `app.gymai.coach` (permanent), primary category Health & Fitness. The store name must be unique. If "Liftworks" is taken, the name on the home screen (`CFBundleDisplayName`) can stay "Liftworks" while the store name differs (for example "Liftworks: Training Log").
 
 ## 3. TestFlight → Test Information
 
@@ -55,7 +55,7 @@ For FT7 (`07-tester-ready.md`). Written 2026-10-21 (TR5). Sections 3 to 5 are re
 **Beta App Description** (testers see this before they install; limit 4,000 characters):
 
 ```
-Gym AI is a training and physique log for lifters who train three or more times a week. You log workouts, food, bodyweight and sleep in one place. The app works out your weight trend, your maintenance calories and how each main lift is moving. With enough history it shows which habits line up with better or worse sessions, in kilograms (for example, top sets after short nights).
+Liftworks is a training and physique log for lifters who train three or more times a week. You log workouts, food, bodyweight and sleep in one place. The app works out your weight trend, your maintenance calories and how each main lift is moving. With enough history it shows which habits line up with better or worse sessions, in kilograms (for example, top sets after short nights).
 
 On iPhone it reads sleep, HRV, resting heart rate, weight, body fat and steps from Apple Health, so you don't log them by hand. It only reads. It never writes to Apple Health.
 
@@ -85,9 +85,9 @@ To send feedback, use Profile → Send feedback, or take a screenshot and share 
 - **Review notes** (limit 4,000 characters):
 
 ```
-Gym AI is a training and physique log for lifters. It is built with Capacitor: most screens are web content, and the parts below need the native app. A website in Safari can't do them.
+Liftworks is a training and physique log for lifters. It is built with Capacitor: most screens are web content, and the parts below need the native app. A website in Safari can't do them.
 
-1. Apple Health, read on the phone (HealthKit). Profile → Apple Health → Connect Apple Health opens the system sheet for six read types: sleep, HRV, resting heart rate, weight, body fat and steps. The app reads the last 60 days on connect, then re-reads the last 14 days each time it opens. Progress shows them beside training and food: sleep against lift performance, the weight trend and maintenance calories. The app never writes to Health. NSHealthUpdateUsageDescription is present only because the HealthKit framework references write APIs; the app never requests write access. If the review device has no Health data, add a weight in the Health app (Browse → Body Measurements → Weight → Add Data), return to Gym AI and tap Read now in the Apple Health sheet.
+1. Apple Health, read on the phone (HealthKit). Profile → Apple Health → Connect Apple Health opens the system sheet for six read types: sleep, HRV, resting heart rate, weight, body fat and steps. The app reads the last 60 days on connect, then re-reads the last 14 days each time it opens. Progress shows them beside training and food: sleep against lift performance, the weight trend and maintenance calories. The app never writes to Health. NSHealthUpdateUsageDescription is present only because the HealthKit framework references write APIs; the app never requests write access. If the review device has no Health data, add a weight in the Health app (Browse → Body Measurements → Weight → Add Data), return to Liftworks and tap Read now in the Apple Health sheet.
 
 2. A copy of the log on the device. Months of weigh-ins, food and workouts are copied to a file in the app's own container and restored if the web view's storage is cleared. A home-screen web app can't do this.
 
@@ -110,7 +110,7 @@ Food → Describe sends the text the user types (for example "2 eggs on toast") 
 
 "Do you or your third-party partners collect data from this app?" → **Yes.** Then tick the seven types below. For each one, answer: **Purpose:** App Functionality only. **Linked to the user's identity:** as shown. **Used for tracking:** No.
 
-| Data type (as App Store Connect names it) | What it is in Gym AI | Why it counts as collected | Linked? |
+| Data type (as App Store Connect names it) | What it is in Liftworks | Why it counts as collected | Linked? |
 |---|---|---|---|
 | Health & Fitness → **Health** | Weight, body fat, waist, food and nutrition, sleep, HRV, resting heart rate; sex, age and height from setup. Read from Apple Health or entered | Copied to the account (Supabase, Frankfurt) when signed in; Health Auto Export samples are held on our server; food Describe text goes to our server and Anthropic | Yes |
 | Health & Fitness → **Fitness** | Workouts (exercises, sets, reps, loads), steps, training programme | Copied to the account when signed in | Yes |

@@ -7,8 +7,8 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Gym AI",
-    short_name: "Gym AI",
+    name: "Liftworks",
+    short_name: "Liftworks",
     description: "Food, weight, sleep and training in one place, with a plain read on whether the plan is working.",
     start_url: "/",
     display: "standalone",
