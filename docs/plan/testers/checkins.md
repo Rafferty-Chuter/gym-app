@@ -2,7 +2,9 @@
 
 Three Tally forms, sent 14, 28 and 56 days after each tester's start date. Build the week 2 form, then duplicate it for weeks 4 and 8 and add their extra questions. They answer the test's four questions: do people keep logging, do they open Progress, do they believe Connections, and would they pay, how much.
 
-**Form description (all three):** "Two minutes. Honest answers help most, including 'I stopped'."
+**Form description (all three):** "Two minutes. Honest answers help most, including 'I stopped'. Answer all three check-ins and your first year is free at launch."
+
+When one arrives, tick that week in the sign-up sheet (`signup.md`, matched on question 1's email); all three ticked earns the founding-tester year (`recruit.md`).
 
 ## Every check-in
 

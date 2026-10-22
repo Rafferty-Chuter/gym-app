@@ -29,7 +29,7 @@ History plus Apple Health means some of Progress fills in sooner.
 There are no reminders in the iPhone app yet, so the same moment each day helps. **Progress** shows what's ready and roughly how long the rest will take: the weight trend after about a week, maintenance after about three, Connections after about 24 sessions. **See an example** shows the full screen with made-up data.
 
 ## 6. Feedback
-**Profile → Send feedback** (top of Profile). Say what happened and what you expected; a screenshot helps. Anything confusing counts, and so does stopping: if you stop logging, tell us why. We'll also send three short check-ins, at weeks 2, 4 and 8.
+**Profile → Send feedback** (top of Profile). Say what happened and what you expected; a screenshot helps. Anything confusing counts, and so does stopping: if you stop logging, tell us why. We'll also send three short check-ins, at weeks 2, 4 and 8; answer all three and your first year is free when the app launches.
 
 ## 7. Your data
 - Your log lives on your phone. Edit or delete any entry from the day it was logged.
