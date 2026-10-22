@@ -28,12 +28,15 @@ import {
 import ExercisePickerSheet, { type PickedExercise } from "@/components/training/ExercisePickerSheet";
 import { sameExercise } from "@/lib/exerciseLibrary";
 import { SortableList, DragHandle } from "@/components/SortableList";
-import { getCompletedLoggedSets, nextSetType, SET_TYPE_LABEL, SET_TYPE_MARK, setTypeOf, type SetType } from "@/lib/completedSets";
+import { getCompletedLoggedSets, SET_TYPE_LABEL, SET_TYPE_MARK, setTypeOf, type SetType } from "@/lib/completedSets";
 import { getTemplateById } from "@/lib/templateStorage";
 import RestBar from "@/components/workout/RestBar";
 import PlateCalculator from "@/components/workout/PlateCalculator";
 import RestPicker from "@/components/workout/RestPicker";
 import SwipeToDelete from "@/components/workout/SwipeToDelete";
+import ActionSheet, { SetMark } from "@/components/workout/ActionSheet";
+import SetNoteSheet from "@/components/workout/SetNoteSheet";
+import { CheckIcon, HistoryIcon, MoreIcon, NoteIcon, PlatesIcon, PlusIcon, ReorderIcon, ReplaceIcon, TimerIcon, TrashIcon } from "@/components/workout/icons";
 import WorkoutComplete from "@/components/training/WorkoutComplete";
 import { exerciseHref } from "@/components/training/WorkoutViews";
 import { getWorkoutHistory, type StoredWorkout as HistoryWorkout } from "@/lib/trainingAnalysis";
@@ -69,6 +72,25 @@ type StoredWorkout = {
 };
 
 type ExerciseRef = { exerciseId?: string; name: string };
+/** One set row on the page: the exercise's row id and the set's index. */
+type SetRef = { exerciseId: number; index: number };
+
+/** The set sheet's type choices, in Hevy's order. */
+const SET_TYPE_CHOICES: readonly SetType[] = ["warmup", "working", "drop", "failure"];
+
+/**
+ * Set row columns: set, previous, weight, reps, RIR, tick. The previous
+ * column gets about 80px on a 375px phone, enough for "112.5 × 10" without
+ * cutting it off; the unit moved to the KG header, as in Strong and Hevy.
+ */
+const SET_ROW_GRID = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.75rem_3rem_2.25rem_2.5rem] gap-x-1.5 items-center";
+
+/** Last session's set as the Previous column shows it: "112.5 × 8", or "8 reps" with no weight. */
+function previousLabel(weight: string | null, reps: string | null): string {
+  if (!weight && !reps) return "—";
+  if (!weight) return `${reps} reps`;
+  return `${weight} × ${reps ?? "—"}`;
+}
 type RestTimerState = {
   timerRunning: boolean;
   restDurationSec: number;
@@ -199,9 +221,10 @@ export default function WorkoutPage() {
       rir?: number;
     }[]
   >([]);
-  const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
-  // Long-press to reveal per-row edit/delete actions — replaces always-on trailing icons.
-  const [setActionMenuKey, setSetActionMenuKey] = useState<string | null>(null);
+  /** The set whose note sheet is open. */
+  const [noteTarget, setNoteTarget] = useState<SetRef | null>(null);
+  /** The set whose options sheet is open: tap its number, long-press or right-click the row (Hevy's set sheet). */
+  const [setMenu, setSetMenu] = useState<SetRef | null>(null);
   /** R5: the plate calculator sheet, opened from a set's long-press menu with that set's weight. */
   const [plateCalcWeight, setPlateCalcWeight] = useState<number | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
@@ -341,7 +364,14 @@ export default function WorkoutPage() {
     setPendingFocus(null);
   }, [pendingFocus]);
 
-  const totalSetsLogged = exercises.reduce((total, ex) => total + ex.sets.length, 0);
+  /** The header's numbers (Hevy, Strong): ticked sets and their volume, weight × reps with warm-ups left out as the volume engines do. */
+  const doneSets = exercises.flatMap((ex) => ex.sets.filter((s) => s.done));
+  const sessionVolume = doneSets.reduce((sum, s) => {
+    if (setTypeOf(s) === "warmup") return sum;
+    const w = Number.parseFloat(s.weight ?? "");
+    const r = Number.parseInt(s.reps ?? "", 10);
+    return Number.isFinite(w) && Number.isFinite(r) ? sum + w * r : sum;
+  }, 0);
 
   const showWorkoutStats = exercises.length > 0;
 
@@ -1014,15 +1044,14 @@ export default function WorkoutPage() {
     );
   }
 
-  /** T1: tap the set number to cycle working → warm-up → drop → failure. */
-  function cycleSetType(exerciseId: number, setIndex: number) {
+  /** T1: the set type picked in the set sheet (working, warm-up, drop, failure). */
+  function setSetType(exerciseId: number, setIndex: number, next: SetType) {
     setExercises((prev) =>
       prev.map((exercise) => {
         if (exercise.id !== exerciseId) return exercise;
         const sets = [...exercise.sets];
         const current = sets[setIndex];
         if (!current) return exercise;
-        const next = nextSetType(setTypeOf(current));
         const updated = { ...current };
         if (next === "working") delete updated.type;
         else updated.type = next;
@@ -1180,19 +1209,19 @@ export default function WorkoutPage() {
             )}
           </div>
           {showWorkoutStats && (
-            <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
-              <span className="tabular-nums px-2 py-1 rounded-full bg-[var(--surface-raised)] border border-[var(--border)] shadow-sm shadow-black/20">
-                {formatElapsed(elapsedSec)}
-              </span>
-              <span className="px-2 py-1 rounded-full bg-[var(--surface-raised)] border border-[var(--border)] shadow-sm shadow-black/20">
-                <span className="text-[var(--text-secondary)] mr-1">Exercises</span>
-                <span className="tabular-nums text-[var(--text)]">{exercises.length}</span>
-              </span>
-              <span className="px-2 py-1 rounded-full bg-[var(--surface-raised)] border border-[var(--border)] shadow-sm shadow-black/20">
-                <span className="text-[var(--text-secondary)] mr-1">Sets</span>
-                <span className="tabular-nums text-[var(--text)]">{totalSetsLogged}</span>
-              </span>
-            </div>
+            // Hevy's header: labelled numbers, not pills.
+            <dl className="grid grid-cols-3 gap-3 px-1">
+              {[
+                ["Duration", formatElapsed(elapsedSec)],
+                ["Volume", `${Math.round(sessionVolume).toLocaleString("en-GB")} ${unit}`],
+                ["Sets", String(doneSets.length)],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)]">{label}</dt>
+                  <dd className="mt-0.5 truncate text-[17px] font-semibold tabular-nums text-[var(--text)]">{value}</dd>
+                </div>
+              ))}
+            </dl>
           )}
         </header>
 
@@ -1250,612 +1279,393 @@ export default function WorkoutPage() {
           </>
         ) : (
           <>
-            <section className="space-y-2 sm:space-y-2.5">
+            <section className="space-y-3">
               {exercises.map((exercise) => {
                 // C11: no target, last-set or deload line under the name; the Previous column says what was done.
+                const lastSets = previousByKind(exercise.sets, getLastSetsForExercise({
+                  exerciseId: exercise.exerciseId,
+                  name: exercise.name,
+                }));
+                const numbers = rowNumbers(exercise.sets);
+                const rest = exercise.restSec ?? 90;
+                const timer = restByExercise[exercise.id];
+                const restLeft = timer?.timerRunning ? timer.remainingSec : 0;
+                // Entered values are bold in the text colour; last session's ghost values stay lighter (Hevy, Strong).
+                const fieldBase =
+                  "h-10 w-full min-w-0 rounded-[10px] text-center text-[16px] font-semibold tabular-nums text-[var(--text)] outline-none transition-colors placeholder:font-medium placeholder:text-[var(--text-tertiary)] focus:bg-[var(--surface-pressed)] focus:ring-1 focus:ring-[var(--border-strong)] disabled:opacity-55 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
                 return (
                   <div
                     key={exercise.id}
-                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 sm:px-3.5 sm:py-3"
+                    className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] px-3 pb-3 pt-3"
                   >
-                    <div className="flex items-start gap-2 min-w-0">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-[15px] font-semibold tracking-tight text-[var(--text)] truncate leading-snug">
+                    <div className="flex items-start gap-2 pl-1">
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <h3 className="truncate text-[17px] font-semibold leading-snug tracking-[-0.01em] text-[var(--text)]">
                           {exercise.name}
                         </h3>
                         {exercise.notes && (
-                          <p className="text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: "var(--text-tertiary)" }}>
-                            {exercise.notes}
+                          <p className="mt-1 flex items-start gap-1.5 text-[13px] leading-snug text-[var(--text-secondary)]">
+                            <NoteIcon className="mt-px h-4 w-4 shrink-0 text-[var(--text-tertiary)]" />
+                            <span className="line-clamp-3 min-w-0">{exercise.notes}</span>
                           </p>
                         )}
-                      </div>
-                      <div className="relative shrink-0" data-exercise-menu-root>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExerciseMenuOpenId((id) => (id === exercise.id ? null : exercise.id))
-                          }
-                          className="h-8 w-8 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--border)] transition flex items-center justify-center"
-                          aria-label="Exercise options"
-                          aria-expanded={exerciseMenuOpenId === exercise.id}
-                        >
-                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                          </svg>
-                        </button>
-                        {exerciseMenuOpenId === exercise.id && (
-                          <div
-                            className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] py-0.5"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              type="button"
-                              className="w-full px-3 py-2 text-left text-[11px] text-[var(--text)] hover:bg-[var(--border)] transition"
-                              onClick={() => {
-                                setReplaceExerciseTargetId(exercise.id);
-                                setExerciseMenuOpenId(null);
-                              }}
-                            >
-                              Replace exercise
-                            </button>
-                            <Link
-                              href={exerciseHref(exercise)}
-                              className="block w-full px-3 py-2 text-left text-[11px] text-[var(--text)] hover:bg-[var(--border)] transition"
-                              onClick={() => setExerciseMenuOpenId(null)}
-                            >
-                              History and records
-                            </Link>
-                            <button
-                              type="button"
-                              className="w-full px-3 py-2 text-left text-[11px] text-[var(--text)] hover:bg-[var(--border)] transition"
-                              onClick={() => {
-                                setReorderMode(true);
-                                setExerciseMenuOpenId(null);
-                              }}
-                            >
-                              Reorder exercises
-                            </button>
-                            <button
-                              type="button"
-                              className="w-full px-3 py-2 text-left text-[11px] text-[var(--text)] hover:bg-[var(--border)] transition"
-                              onClick={() => {
-                                setRestAdjustExerciseId(exercise.id);
-                                setExerciseMenuOpenId(null);
-                              }}
-                            >
-                              Rest time
-                            </button>
-                            <button
-                              type="button"
-                              className="w-full px-3 py-2 text-left text-[11px] text-[var(--status-attention)] hover:bg-transparent transition"
-                              onClick={() => {
-                                deleteExercise(exercise.id);
-                              }}
-                            >
-                              Delete exercise
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-2 pt-2 border-t border-[var(--border)]">
-                      {(() => {
-                        const lastSets = previousByKind(exercise.sets, getLastSetsForExercise({
-                          exerciseId: exercise.exerciseId,
-                          name: exercise.name,
-                        }));
-                        const numbers = rowNumbers(exercise.sets);
-                        const nextIdx = exercise.sets.findIndex((s) => !s?.done);
-                        const effectiveNextIdx = nextIdx === -1 ? exercise.sets.length : nextIdx;
-                        const logInputShell =
-                          "relative min-w-0 h-9 rounded-xl bg-[var(--surface-raised)] border border-[var(--border)] flex items-center transition-colors duration-150 focus-within:ring-2 focus-within:ring-[var(--border)] focus-within:border-[var(--text-secondary)] shadow-[inset_0_1px_0_0_color-mix(in srgb, var(--text) 4%, transparent)]";
-                        const rowIconBtn =
-                          "min-h-[44px] min-w-[44px] sm:min-h-8 sm:min-w-8 shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] flex items-center justify-center touch-manipulation select-none transition active:scale-[0.96] active:opacity-90";
-                        const logInputInner =
-                          "min-w-0 flex-1 h-full bg-transparent border-0 rounded-xl px-2 text-xs tabular-nums text-[var(--text)] focus:outline-none focus:ring-0 disabled:opacity-55 disabled:cursor-not-allowed placeholder:text-[var(--text-tertiary)]";
-
-                        return (
-                          <div className="overflow-x-auto -mx-0.5 px-0.5">
-                            <div className="min-w-[min(100%,20rem)]">
-                            <div className="mb-1 grid grid-cols-[1.125rem_minmax(3.25rem,0.8fr)_minmax(4.25rem,1.3fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center px-0.5">
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] text-center">
-                                #
-                              </span>
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] pl-0.5">
-                                Previous
-                              </span>
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] pl-0.5">
-                                Weight
-                              </span>
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] pl-0.5">
-                                Reps
-                              </span>
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--text-tertiary)] text-center">
-                                RIR
-                              </span>
-                              <span className="sr-only">Done</span>
-                            </div>
-
-                            <ul className="space-y-1 text-[var(--text)]">
-                              {exercise.sets.map((set, index) => {
-                                const lastSet = lastSets[index];
-                                const prevWeightStr =
-                                  lastSet &&
-                                  lastSet.weight !== undefined &&
-                                  String(lastSet.weight).trim() !== ""
-                                    ? String(lastSet.weight).trim()
-                                    : null;
-                                const prevRepsStr =
-                                  lastSet &&
-                                  lastSet.reps !== undefined &&
-                                  String(lastSet.reps).trim() !== ""
-                                    ? String(lastSet.reps).trim()
-                                    : null;
-                                const noteKey = `${exercise.id}-${index}`;
-                                const isNoteExpanded = expandedNoteKey === noteKey;
-                                const isDone = Boolean(set.done);
-                                const isNext = !isDone && index === effectiveNextIdx;
-                                // Draft = user typed values but hasn't tapped the green check yet.
-                                // P1.9: visually flag it so users know nothing is committed.
-                                const hasUserTypedValues =
-                                  (set.weight ?? "").trim() !== "" ||
-                                  (set.reps ?? "").trim() !== "";
-                                const isDraft = !isDone && hasUserTypedValues;
-                                const note = (set.notes ?? "").trim();
-                                const hasNote = note.length > 0;
-
-                                return (
-                                  <li key={`${exercise.id}-set-${index}`} className="rounded-lg">
-                                    {(() => {
-                                      const timer = restByExercise[exercise.id] ?? {
-                                        timerRunning: false,
-                                        restDurationSec: exercise.restSec ?? 90,
-                                        remainingSec: 0,
-                                      };
-                                      const isActive = timer.timerRunning && timer.remainingSec > 0;
-                                      return (
-                                        <>
-                                          {isNext && isActive && (
-                                            <div className="mb-0.5 text-[10px] tabular-nums text-[var(--text-secondary)]">
-                                              <span className="text-[var(--text-tertiary)]">Rest </span>
-                                              <span className="text-[color:var(--color-accent)] font-semibold">
-                                                {formatRest(timer.remainingSec)}
-                                              </span>
-                                            </div>
-                                          )}
-                                          <SwipeToDelete
-                                            label={`Delete set ${index + 1}`}
-                                            onDelete={() => deleteSet(exercise.id, index)}
-                                            onSwipeStart={() => {
-                                              if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
-                                              longPressTimerRef.current = null;
-                                            }}
-                                          >
-                                          <div
-                                            className={`grid grid-cols-[1.125rem_minmax(3.25rem,0.8fr)_minmax(4.25rem,1.3fr)_minmax(2.75rem,0.9fr)_2rem_2.75rem] gap-x-2 items-center rounded-lg py-0.5 ${
-                                              isNext
-                                                ? "ring-1 ring-[color:var(--color-accent)]/55 bg-[var(--surface-raised)] shadow-[inset_3px_0_0_0_color-mix(in srgb, var(--green) 55%, transparent),inset_0_0_0_1px_color-mix(in srgb, var(--green) 14%, transparent)]"
-                                                : isDraft
-                                                  ? "border border-dashed border-[var(--border)] bg-[var(--surface-raised)]"
-                                                  : ""
-                                            } ${isDraft && !isDone ? "[&_input]:text-[var(--text-secondary)]" : ""} ${isDone ? "bg-[color-mix(in srgb, var(--status-good) 8%, transparent)]" : ""}`}
-                                            role="button"
-                                            tabIndex={0}
-                                            onClick={(e) => {
-                                              if (longPressFiredRef.current) {
-                                                longPressFiredRef.current = false;
-                                                e.preventDefault();
-                                                return;
-                                              }
-                                              if (
-                                                e.target instanceof HTMLInputElement ||
-                                                e.target instanceof HTMLButtonElement
-                                              )
-                                                return;
-                                              setInputRefs.current[
-                                                `${exercise.id}-${index}-weight`
-                                              ]?.focus();
-                                            }}
-                                            onPointerDown={(e) => {
-                                              if (
-                                                e.target instanceof HTMLInputElement ||
-                                                e.target instanceof HTMLButtonElement
-                                              )
-                                                return;
-                                              longPressFiredRef.current = false;
-                                              if (longPressTimerRef.current) {
-                                                window.clearTimeout(longPressTimerRef.current);
-                                              }
-                                              longPressTimerRef.current = window.setTimeout(() => {
-                                                longPressFiredRef.current = true;
-                                                setSetActionMenuKey(noteKey);
-                                                try {
-                                                  navigator.vibrate?.(15);
-                                                } catch {
-                                                  /* ignore */
-                                                }
-                                              }, 500);
-                                            }}
-                                            onPointerUp={() => {
-                                              if (longPressTimerRef.current) {
-                                                window.clearTimeout(longPressTimerRef.current);
-                                                longPressTimerRef.current = null;
-                                              }
-                                            }}
-                                            onPointerLeave={() => {
-                                              if (longPressTimerRef.current) {
-                                                window.clearTimeout(longPressTimerRef.current);
-                                                longPressTimerRef.current = null;
-                                              }
-                                            }}
-                                            onPointerCancel={() => {
-                                              if (longPressTimerRef.current) {
-                                                window.clearTimeout(longPressTimerRef.current);
-                                                longPressTimerRef.current = null;
-                                              }
-                                            }}
-                                            onContextMenu={(e) => {
-                                              // Mirror long-press for desktop right-click.
-                                              e.preventDefault();
-                                              setSetActionMenuKey(noteKey);
-                                            }}
-                                            onKeyDown={(e) => {
-                                              if (e.target instanceof HTMLInputElement) return;
-                                              if (e.key === "Enter" || e.key === " ") {
-                                                e.preventDefault();
-                                                setInputRefs.current[
-                                                  `${exercise.id}-${index}-weight`
-                                                ]?.focus();
-                                              }
-                                            }}
-                                          >
-                                            {(() => {
-                                              const t = setTypeOf(set);
-                                              const mark = SET_TYPE_MARK[t];
-                                              return (
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    cycleSetType(exercise.id, index);
-                                                  }}
-                                                  className="h-9 w-full rounded-md text-center text-[11px] tabular-nums font-semibold touch-manipulation"
-                                                  style={{ color: t === "working" ? undefined : t === "warmup" ? "var(--text-tertiary)" : t === "drop" ? "var(--text-secondary)" : "var(--text)" }}
-                                                  aria-label={`Set ${mark || numbers[index]}, ${SET_TYPE_LABEL[t].toLowerCase()}. Change set type`}
-                                                  title={SET_TYPE_LABEL[t]}
-                                                >
-                                                  <span className={t === "working" ? "text-[var(--text-secondary)]" : ""}>{mark || numbers[index]}</span>
-                                                </button>
-                                              );
-                                            })()}
-                                            {/* R5 (Hevy): last session's set; tapping it fills an empty row. */}
-                                            <button
-                                              type="button"
-                                              disabled={!prevWeightStr && !prevRepsStr}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (prevWeightStr && (set.weight ?? "").trim() === "") updateSetValue(exercise.id, index, "weight", prevWeightStr);
-                                                if (prevRepsStr && (set.reps ?? "").trim() === "") updateSetValue(exercise.id, index, "reps", prevRepsStr);
-                                              }}
-                                              className="h-9 min-w-0 truncate rounded-lg px-1 text-left text-[11px] tabular-nums text-[var(--text-tertiary)] disabled:cursor-default"
-                                              aria-label={prevWeightStr || prevRepsStr ? `Previous set ${prevWeightStr ?? "—"} ${unit} × ${prevRepsStr ?? "—"}. Use it` : "No previous set"}
-                                            >
-                                              {prevWeightStr || prevRepsStr ? `${prevWeightStr ?? "—"} × ${prevRepsStr ?? "—"}` : "—"}
-                                            </button>
-                                            <div className={logInputShell}>
-                                              <input
-                                                ref={(el) => {
-                                                  setInputRefs.current[`${exercise.id}-${index}-weight`] =
-                                                    el;
-                                                }}
-                                                type="text"
-                                                inputMode="decimal"
-                                                enterKeyHint="next"
-                                                autoComplete="off"
-                                                autoCorrect="off"
-                                                autoCapitalize="off"
-                                                spellCheck={false}
-                                                placeholder={prevWeightStr ?? "—"}
-                                                value={set.weight ?? ""}
-                                                onChange={(e) =>
-                                                  updateSetValue(
-                                                    exercise.id,
-                                                    index,
-                                                    "weight",
-                                                    sanitizeWeightInput(e.target.value)
-                                                  )
-                                                }
-                                                onKeyDown={(e) => {
-                                                  if (e.key === "Enter") {
-                                                    e.preventDefault();
-                                                    const repsKey = `${exercise.id}-${index}-reps`;
-                                                    const next = setInputRefs.current[repsKey];
-                                                    next?.focus();
-                                                    next?.select?.();
-                                                  }
-                                                }}
-                                                aria-label={`Set ${index + 1} weight (${unit}), numbers and decimal only`}
-                                                className={`${logInputInner} pl-2 pr-1`}
-                                              />
-                                              <span
-                                                className="shrink-0 ml-1 pr-2 text-[9px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)] tabular-nums select-none"
-                                                aria-hidden
-                                              >
-                                                {unit}
-                                              </span>
-                                            </div>
-                                            <div className={logInputShell}>
-                                              <input
-                                                ref={(el) => {
-                                                  setInputRefs.current[`${exercise.id}-${index}-reps`] = el;
-                                                }}
-                                                type="text"
-                                                inputMode="numeric"
-                                                enterKeyHint="next"
-                                                autoComplete="off"
-                                                autoCorrect="off"
-                                                autoCapitalize="off"
-                                                spellCheck={false}
-                                                pattern="[0-9]*"
-                                                placeholder={prevRepsStr ?? "—"}
-                                                value={set.reps ?? ""}
-                                                onChange={(e) =>
-                                                  updateSetValue(
-                                                    exercise.id,
-                                                    index,
-                                                    "reps",
-                                                    sanitizeRepsInput(e.target.value)
-                                                  )
-                                                }
-                                                onKeyDown={(e) => {
-                                                  if (e.key === "Enter") {
-                                                    e.preventDefault();
-                                                    const rirKey = `${exercise.id}-${index}-rir`;
-                                                    const next = setInputRefs.current[rirKey];
-                                                    next?.focus();
-                                                    next?.select?.();
-                                                  }
-                                                }}
-                                                aria-label={`Set ${index + 1} reps, whole numbers only`}
-                                                className={`${logInputInner} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                                              />
-                                            </div>
-                                            <input
-                                              ref={(el) => {
-                                                setInputRefs.current[`${exercise.id}-${index}-rir`] = el;
-                                              }}
-                                              type="text"
-                                              inputMode="numeric"
-                                              enterKeyHint={
-                                                set.rir === undefined ? "done" : index === exercise.sets.length - 1 ? "done" : "next"
-                                              }
-                                              autoComplete="off"
-                                              autoCorrect="off"
-                                              autoCapitalize="off"
-                                              spellCheck={false}
-                                              pattern="[0-5]*"
-                                              maxLength={1}
-                                              placeholder="—"
-                                              value={set.rir === undefined ? "" : String(set.rir)}
-                                              onChange={(e) =>
-                                                updateSetRir(
-                                                  exercise.id,
-                                                  index,
-                                                  sanitizeRirInput(e.target.value)
-                                                )
-                                              }
-                                              onKeyDown={(e) => {
-                                                if (e.key === "Enter") {
-                                                  e.preventDefault();
-                                                  const rirUnset = set.rir === undefined;
-                                                  if (rirUnset) {
-                                                    const doneKey = `${exercise.id}-${index}`;
-                                                    setDoneButtonRefs.current[doneKey]?.focus();
-                                                    return;
-                                                  }
-                                                  if (index === exercise.sets.length - 1) {
-                                                    addSetRow(exercise.id);
-                                                    return;
-                                                  }
-                                                  const nextWeightKey = `${exercise.id}-${index + 1}-weight`;
-                                                  const nw = setInputRefs.current[nextWeightKey];
-                                                  nw?.focus();
-                                                  nw?.select?.();
-                                                }
-                                              }}
-                                              aria-label={`Set ${index + 1} RIR 0–5, optional`}
-                                              className="h-8 sm:h-9 min-h-0 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-1 text-center text-[11px] tabular-nums text-[var(--text)] placeholder:text-[var(--text-tertiary)] shadow-[inset_0_1px_0_0_color-mix(in srgb, var(--text) 4%, transparent)] focus:outline-none focus:ring-1 focus:ring-[var(--border)] focus:border-[var(--text-secondary)] disabled:opacity-55 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                            />
-                                            <div className="flex justify-center">
-                                              <button
-                                                type="button"
-                                                ref={(el) => {
-                                                  setDoneButtonRefs.current[`${exercise.id}-${index}`] = el;
-                                                }}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  toggleSetDone(exercise.id, index, prevWeightStr, prevRepsStr);
-                                                }}
-                                                className={`${rowIconBtn} rounded-full ${
-                                                  isDone
-                                                    ? "border border-[color:var(--color-accent)]/70 bg-[color:var(--color-accent)]/12 text-[color:var(--color-accent)] shadow-sm shadow-[color:var(--color-accent)]/10"
-                                                    : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:border-[var(--border)] hover:text-[var(--text)]"
-                                                }`}
-                                                aria-label={`Mark set ${index + 1} complete`}
-                                              >
-                                                <span className="text-sm sm:text-xs font-semibold leading-none">
-                                                  ✓
-                                                </span>
-                                              </button>
-                                            </div>
-                                          </div>
-                                          </SwipeToDelete>
-
-                                          {setActionMenuKey === noteKey && (
-                                            <div
-                                              className="mt-1 flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 shadow-md shadow-black/30"
-                                              onClick={(e) => e.stopPropagation()}
-                                            >
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setSetActionMenuKey(null);
-                                                  setExpandedNoteKey(noteKey);
-                                                }}
-                                                className="flex-1 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-2 text-[12px] font-semibold text-[var(--text)] transition hover:bg-[var(--surface-raised)] active:scale-[0.98]"
-                                              >
-                                                {hasNote ? "Edit note" : "Add note"}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setSetActionMenuKey(null);
-                                                  const w = parseFloat((set.weight ?? "").trim() || (prevWeightStr ?? ""));
-                                                  setPlateCalcWeight(Number.isFinite(w) ? w : 0);
-                                                }}
-                                                className="flex-1 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-2 text-[12px] font-semibold text-[var(--text)] transition hover:bg-[var(--surface-raised)] active:scale-[0.98]"
-                                              >
-                                                Plates
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setSetActionMenuKey(null);
-                                                  deleteSet(exercise.id, index);
-                                                }}
-                                                className="flex-1 rounded-md border border-[var(--border)] bg-transparent px-2 py-2 text-[12px] font-semibold text-[var(--status-attention)] transition hover:bg-transparent active:scale-[0.98]"
-                                              >
-                                                Delete set
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => setSetActionMenuKey(null)}
-                                                className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-2 text-[12px] font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--surface-raised)]"
-                                                aria-label="Close actions"
-                                              >
-                                                Close
-                                              </button>
-                                            </div>
-                                          )}
-
-                                          {isNoteExpanded &&
-                                            (() => {
-                                              const lastSetInner = lastSets[index];
-                                              const lastNoteInner = (lastSetInner?.notes ?? "").trim();
-                                              const notePlaceholderInner =
-                                                !(set.notes ?? "").trim() && lastNoteInner
-                                                  ? lastNoteInner.length > 96
-                                                    ? `${lastNoteInner.slice(0, 96)}…`
-                                                    : lastNoteInner
-                                                  : "Note…";
-                                              return (
-                                                <div
-                                                  className="mt-1 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-1.5 shadow-sm shadow-black/20"
-                                                  onClick={(e) => e.stopPropagation()}
-                                                >
-                                                  <input
-                                                    type="text"
-                                                    placeholder={notePlaceholderInner}
-                                                    value={set.notes ?? ""}
-                                                    onChange={(e) =>
-                                                      updateSetNotes(exercise.id, index, e.target.value)
-                                                    }
-                                                    className="input-app w-full h-8 min-h-0 px-2 py-1 text-xs"
-                                                    autoFocus
-                                                  />
-                                                  <div className="mt-1 flex justify-end">
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => setExpandedNoteKey(null)}
-                                                      className="text-[10px] px-2 py-1 rounded-md text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--border)] transition"
-                                                    >
-                                                      Done
-                                                    </button>
-                                                  </div>
-                                                </div>
-                                              );
-                                            })()}
-                                        </>
-                                      );
-                                    })()}
-                                  </li>
-                                );
-                              })}
-                            </ul>
-
-                            </div>
-
-                            {(() => {
-                              const rest = exercise.restSec ?? 90;
-                              const timer = restByExercise[exercise.id] ?? {
-                                timerRunning: false,
-                                restDurationSec: rest,
-                                remainingSec: 0,
-                              };
-                              const isActive = timer.timerRunning && timer.remainingSec > 0;
-
-                              return (
-                                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                                  <div
-                                    className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs shadow-sm shadow-black/15 ${
-                                      isActive
-                                        ? "border-[color:var(--color-accent)]/30 bg-[color:var(--color-accent)]/8 text-[var(--text)]"
-                                        : "border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]"
-                                    }`}
-                                  >
-                                    {isActive ? (
-                                      <span className="tabular-nums font-semibold text-[color:var(--color-accent)]">
-                                        {formatRest(timer.remainingSec)}
-                                      </span>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => setRestAdjustExerciseId(exercise.id)}
-                                        className="-my-1.5 -ml-1 flex min-h-[32px] items-center gap-2 rounded-md px-1 touch-manipulation"
-                                        aria-label={`Rest ${rest === 0 ? "off" : formatRest(rest)}. Change rest time`}
-                                      >
-                                        <span className="text-[var(--text-tertiary)]">Rest</span>
-                                        <span className="tabular-nums font-medium text-[var(--text)] underline decoration-dotted decoration-[var(--text-tertiary)] underline-offset-4">
-                                          {rest === 0 ? "Off" : formatRest(rest)}
-                                        </span>
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        isActive
-                                          ? resetExerciseRest(exercise.id)
-                                          : startExerciseRest(exercise.id, rest)
-                                      }
-                                      className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text)] hover:bg-[var(--border)] hover:border-[var(--text-secondary)] transition touch-manipulation"
-                                    >
-                                      {isActive ? "Stop" : "Start"}
-                                    </button>
-                                  </div>
-
+                        {/* Hevy: the rest time sits under the name; tap it to change it. */}
+                        <div className="mt-1 flex items-center gap-1.5 text-[13px] tabular-nums">
+                          <TimerIcon className={`h-4 w-4 shrink-0 ${restLeft > 0 ? "text-[var(--green-strong)]" : "text-[var(--text-tertiary)]"}`} />
+                          {restLeft > 0 ? (
+                            <>
+                              <span className="font-semibold text-[var(--green-strong)]">{formatRest(restLeft)}</span>
+                              <button
+                                type="button"
+                                onClick={() => resetExerciseRest(exercise.id)}
+                                className="-my-2 px-1 py-2 font-medium text-[var(--text-secondary)] touch-manipulation"
+                              >
+                                Skip
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setRestAdjustExerciseId(exercise.id)}
+                                className="-my-2 py-2 font-medium text-[var(--text-secondary)] touch-manipulation"
+                                aria-label={`Rest ${rest === 0 ? "off" : formatRest(rest)}. Change rest time`}
+                              >
+                                {rest === 0 ? "Rest off" : `Rest ${formatRest(rest)}`}
+                              </button>
+                              {rest > 0 && (
+                                <>
+                                  <span className="text-[var(--text-tertiary)]" aria-hidden>
+                                    ·
+                                  </span>
                                   <button
                                     type="button"
-                                    onClick={() => addSetRow(exercise.id)}
-                                    className="text-[10px] px-2.5 py-1.5 rounded-lg btn-primary font-semibold ml-auto sm:ml-0 touch-manipulation"
+                                    onClick={() => startExerciseRest(exercise.id, rest)}
+                                    className="-my-2 py-2 font-medium text-[var(--text-tertiary)] touch-manipulation"
+                                    aria-label="Start the rest timer now"
                                   >
-                                    + Set
+                                    Start
                                   </button>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        );
-                      })()}
+                                </>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {/* Strong's "…" pill: opens the exercise's options as a sheet. */}
+                      <button
+                        type="button"
+                        onClick={() => setExerciseMenuOpenId(exercise.id)}
+                        className="-mr-1.5 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full outline-none touch-manipulation focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
+                        aria-label={`Options for ${exercise.name}`}
+                        aria-haspopup="dialog"
+                      >
+                        <span className="flex h-7 w-9 items-center justify-center rounded-full bg-[var(--surface-raised)] text-[var(--text-secondary)] transition-colors active:bg-[var(--surface-pressed)]">
+                          <MoreIcon className="h-[18px] w-[18px]" />
+                        </span>
+                      </button>
                     </div>
+
+                    <div className="mt-3 overflow-x-auto">
+                      <div className="min-w-[19rem]">
+                        <div className={`${SET_ROW_GRID} mb-1 px-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-tertiary)]`}>
+                          <span className="text-center">Set</span>
+                          <span className="pl-1">Previous</span>
+                          <span className="text-center">{unit}</span>
+                          <span className="text-center">Reps</span>
+                          <span className="text-center">RIR</span>
+                          <span className="flex justify-center">
+                            <CheckIcon className="h-4 w-4" strokeWidth={2.25} />
+                            <span className="sr-only">Done</span>
+                          </span>
+                        </div>
+
+                        <ul className="space-y-1">
+                          {exercise.sets.map((set, index) => {
+                            const lastSet = lastSets[index];
+                            const prevWeightStr =
+                              lastSet &&
+                              lastSet.weight !== undefined &&
+                              String(lastSet.weight).trim() !== ""
+                                ? String(lastSet.weight).trim()
+                                : null;
+                            const prevRepsStr =
+                              lastSet &&
+                              lastSet.reps !== undefined &&
+                              String(lastSet.reps).trim() !== ""
+                                ? String(lastSet.reps).trim()
+                                : null;
+                            const ref: SetRef = { exerciseId: exercise.id, index };
+                            const isDone = Boolean(set.done);
+                            // Draft = values typed but the tick not tapped yet (P1.9): the tick is ringed so nothing looks saved.
+                            const isDraft =
+                              !isDone &&
+                              ((set.weight ?? "").trim() !== "" || (set.reps ?? "").trim() !== "");
+                            const note = (set.notes ?? "").trim();
+                            const t = setTypeOf(set);
+                            const mark = SET_TYPE_MARK[t];
+                            const field = `${fieldBase} ${isDone ? "bg-transparent" : "bg-[var(--surface-raised)]"}`;
+                            const clearLongPress = () => {
+                              if (longPressTimerRef.current) {
+                                window.clearTimeout(longPressTimerRef.current);
+                                longPressTimerRef.current = null;
+                              }
+                            };
+
+                            return (
+                              <li key={`${exercise.id}-set-${index}`}>
+                                <SwipeToDelete
+                                  label={`Delete set ${index + 1}`}
+                                  onDelete={() => deleteSet(exercise.id, index)}
+                                  onSwipeStart={clearLongPress}
+                                >
+                                  <div
+                                    className={`${SET_ROW_GRID} rounded-[12px] px-1 py-1 transition-colors ${isDone ? "bg-[var(--green-dim)]" : ""}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => {
+                                      if (longPressFiredRef.current) {
+                                        longPressFiredRef.current = false;
+                                        e.preventDefault();
+                                        return;
+                                      }
+                                      if (
+                                        e.target instanceof HTMLInputElement ||
+                                        e.target instanceof HTMLButtonElement
+                                      )
+                                        return;
+                                      setInputRefs.current[`${exercise.id}-${index}-weight`]?.focus();
+                                    }}
+                                    onPointerDown={(e) => {
+                                      if (
+                                        e.target instanceof HTMLInputElement ||
+                                        e.target instanceof HTMLButtonElement
+                                      )
+                                        return;
+                                      longPressFiredRef.current = false;
+                                      clearLongPress();
+                                      longPressTimerRef.current = window.setTimeout(() => {
+                                        longPressFiredRef.current = true;
+                                        setSetMenu(ref);
+                                        try {
+                                          navigator.vibrate?.(15);
+                                        } catch {
+                                          /* ignore */
+                                        }
+                                      }, 500);
+                                    }}
+                                    onPointerUp={clearLongPress}
+                                    onPointerLeave={clearLongPress}
+                                    onPointerCancel={clearLongPress}
+                                    onContextMenu={(e) => {
+                                      // Mirror long-press for desktop right-click.
+                                      e.preventDefault();
+                                      setSetMenu(ref);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.target instanceof HTMLInputElement) return;
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        setInputRefs.current[`${exercise.id}-${index}-weight`]?.focus();
+                                      }
+                                    }}
+                                  >
+                                    {/* Hevy: tap the set number for its type, note, plates and remove. */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSetMenu(ref);
+                                      }}
+                                      className="h-10 w-full rounded-[8px] text-center text-[15px] font-semibold tabular-nums touch-manipulation transition-colors active:bg-[var(--surface-pressed)]"
+                                      style={{ color: t === "working" ? "var(--text)" : "var(--text-secondary)" }}
+                                      aria-label={`Set ${mark || numbers[index]}, ${SET_TYPE_LABEL[t].toLowerCase()}. Set options`}
+                                      aria-haspopup="dialog"
+                                    >
+                                      {mark || numbers[index]}
+                                    </button>
+                                    {/* R5 (Hevy): last session's set; tapping it fills an empty row. */}
+                                    <button
+                                      type="button"
+                                      disabled={!prevWeightStr && !prevRepsStr}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (prevWeightStr && (set.weight ?? "").trim() === "") updateSetValue(exercise.id, index, "weight", prevWeightStr);
+                                        if (prevRepsStr && (set.reps ?? "").trim() === "") updateSetValue(exercise.id, index, "reps", prevRepsStr);
+                                      }}
+                                      className="h-10 min-w-0 truncate rounded-[8px] pl-1 text-left text-[14px] font-medium tabular-nums text-[var(--text-secondary)] touch-manipulation disabled:cursor-default disabled:text-[var(--text-tertiary)]"
+                                      aria-label={prevWeightStr || prevRepsStr ? `Previous set ${prevWeightStr ?? "—"} ${unit} × ${prevRepsStr ?? "—"}. Use it` : "No previous set"}
+                                    >
+                                      {previousLabel(prevWeightStr, prevRepsStr)}
+                                    </button>
+                                    <input
+                                      ref={(el) => {
+                                        setInputRefs.current[`${exercise.id}-${index}-weight`] = el;
+                                      }}
+                                      type="text"
+                                      inputMode="decimal"
+                                      enterKeyHint="next"
+                                      autoComplete="off"
+                                      autoCorrect="off"
+                                      autoCapitalize="off"
+                                      spellCheck={false}
+                                      placeholder={prevWeightStr ?? "—"}
+                                      value={set.weight ?? ""}
+                                      onChange={(e) =>
+                                        updateSetValue(
+                                          exercise.id,
+                                          index,
+                                          "weight",
+                                          sanitizeWeightInput(e.target.value)
+                                        )
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          const next = setInputRefs.current[`${exercise.id}-${index}-reps`];
+                                          next?.focus();
+                                          next?.select?.();
+                                        }
+                                      }}
+                                      aria-label={`Set ${index + 1} weight (${unit}), numbers and decimal only`}
+                                      className={field}
+                                    />
+                                    <input
+                                      ref={(el) => {
+                                        setInputRefs.current[`${exercise.id}-${index}-reps`] = el;
+                                      }}
+                                      type="text"
+                                      inputMode="numeric"
+                                      enterKeyHint="next"
+                                      autoComplete="off"
+                                      autoCorrect="off"
+                                      autoCapitalize="off"
+                                      spellCheck={false}
+                                      pattern="[0-9]*"
+                                      placeholder={prevRepsStr ?? "—"}
+                                      value={set.reps ?? ""}
+                                      onChange={(e) =>
+                                        updateSetValue(
+                                          exercise.id,
+                                          index,
+                                          "reps",
+                                          sanitizeRepsInput(e.target.value)
+                                        )
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          const next = setInputRefs.current[`${exercise.id}-${index}-rir`];
+                                          next?.focus();
+                                          next?.select?.();
+                                        }
+                                      }}
+                                      aria-label={`Set ${index + 1} reps, whole numbers only`}
+                                      className={field}
+                                    />
+                                    <input
+                                      ref={(el) => {
+                                        setInputRefs.current[`${exercise.id}-${index}-rir`] = el;
+                                      }}
+                                      type="text"
+                                      inputMode="numeric"
+                                      enterKeyHint={
+                                        set.rir === undefined ? "done" : index === exercise.sets.length - 1 ? "done" : "next"
+                                      }
+                                      autoComplete="off"
+                                      autoCorrect="off"
+                                      autoCapitalize="off"
+                                      spellCheck={false}
+                                      pattern="[0-5]*"
+                                      maxLength={1}
+                                      placeholder="—"
+                                      value={set.rir === undefined ? "" : String(set.rir)}
+                                      onChange={(e) =>
+                                        updateSetRir(
+                                          exercise.id,
+                                          index,
+                                          sanitizeRirInput(e.target.value)
+                                        )
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          if (set.rir === undefined) {
+                                            setDoneButtonRefs.current[`${exercise.id}-${index}`]?.focus();
+                                            return;
+                                          }
+                                          if (index === exercise.sets.length - 1) {
+                                            addSetRow(exercise.id);
+                                            return;
+                                          }
+                                          const nw = setInputRefs.current[`${exercise.id}-${index + 1}-weight`];
+                                          nw?.focus();
+                                          nw?.select?.();
+                                        }
+                                      }}
+                                      aria-label={`Set ${index + 1} RIR 0–5, optional`}
+                                      className={field}
+                                    />
+                                    <div className="flex justify-center">
+                                      <button
+                                        type="button"
+                                        ref={(el) => {
+                                          setDoneButtonRefs.current[`${exercise.id}-${index}`] = el;
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleSetDone(exercise.id, index, prevWeightStr, prevRepsStr);
+                                        }}
+                                        className={`flex h-10 w-10 items-center justify-center rounded-[10px] touch-manipulation select-none transition-colors active:scale-[0.96] ${
+                                          isDone
+                                            ? "bg-[var(--primary)] text-[var(--text-on-primary)]"
+                                            : isDraft
+                                              ? "bg-[var(--surface-raised)] text-[var(--primary)] ring-[1.5px] ring-inset ring-[var(--primary)]"
+                                              : "bg-[var(--surface-raised)] text-[var(--text-tertiary)]"
+                                        }`}
+                                        aria-label={`Mark set ${index + 1} complete`}
+                                        aria-pressed={isDone}
+                                      >
+                                        <CheckIcon className="h-5 w-5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </SwipeToDelete>
+                                {note && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setNoteTarget(ref)}
+                                    className="flex w-full items-start gap-1.5 rounded-[8px] pb-1 pl-[2.125rem] pr-2 pt-0.5 text-left text-[13px] leading-snug text-[var(--text-secondary)] touch-manipulation"
+                                    aria-label={`Note on set ${index + 1}: ${note}. Edit note`}
+                                  >
+                                    <NoteIcon className="mt-px h-4 w-4 shrink-0 text-[var(--text-tertiary)]" />
+                                    <span className="line-clamp-2 min-w-0">{note}</span>
+                                  </button>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => addSetRow(exercise.id)}
+                      className="mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-[12px] bg-[var(--surface-raised)] text-[15px] font-semibold text-[var(--text)] transition-colors touch-manipulation active:bg-[var(--surface-pressed)]"
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Add set
+                    </button>
                   </div>
                 );
               })}
             </section>
 
             <div className="mt-4 mb-3">
-              <button type="button" onClick={() => setAddPickerOpen(true)} className="h-[48px] w-full rounded-[12px] text-[15px] font-semibold" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
-                + Add exercises
+              <button type="button" onClick={() => setAddPickerOpen(true)} className="flex h-[48px] w-full items-center justify-center gap-1.5 rounded-[12px] text-[15px] font-semibold transition-colors active:bg-[var(--surface-pressed)]" style={{ background: "var(--surface-raised)", color: "var(--text)" }}>
+                <PlusIcon className="h-4 w-4" />
+                Add exercises
               </button>
             </div>
           </>
@@ -1969,6 +1779,85 @@ export default function WorkoutPage() {
         );
       })()}
       <PlateCalculator weight={plateCalcWeight} unit={unit === "lb" ? "lb" : "kg"} onClose={() => setPlateCalcWeight(null)} />
+
+      {/* The exercise's "…" options (Hevy's sheet, Strong's menu). */}
+      {(() => {
+        const ex = exerciseMenuOpenId !== null ? exercises.find((e) => e.id === exerciseMenuOpenId) : undefined;
+        const close = () => setExerciseMenuOpenId(null);
+        const rest = ex?.restSec ?? 90;
+        return (
+          <ActionSheet
+            open={Boolean(ex)}
+            onClose={close}
+            title={ex?.name ?? ""}
+            groups={
+              ex
+                ? [
+                    [
+                      { label: "Replace exercise", icon: <ReplaceIcon />, onSelect: () => (close(), setReplaceExerciseTargetId(ex.id)) },
+                      { label: "Rest timer", icon: <TimerIcon />, value: rest === 0 ? "Off" : formatRest(rest), onSelect: () => (close(), setRestAdjustExerciseId(ex.id)) },
+                      ...(exercises.length > 1 ? [{ label: "Reorder exercises", icon: <ReorderIcon />, onSelect: () => (close(), setReorderMode(true)) }] : []),
+                      { label: "History and records", icon: <HistoryIcon />, onSelect: () => (close(), router.push(exerciseHref(ex))) },
+                    ],
+                    [{ label: "Remove exercise", icon: <TrashIcon />, destructive: true, onSelect: () => deleteExercise(ex.id) }],
+                  ]
+                : []
+            }
+          />
+        );
+      })()}
+
+      {/* One set's options: its type, a note, plates, remove. */}
+      {(() => {
+        const ex = setMenu ? exercises.find((e) => e.id === setMenu.exerciseId) : undefined;
+        const set = ex && setMenu ? ex.sets[setMenu.index] : undefined;
+        const close = () => setSetMenu(null);
+        if (!ex || !set || !setMenu) return <ActionSheet open={false} onClose={close} title="" groups={[]} />;
+        const { index } = setMenu;
+        const type = setTypeOf(set);
+        const n = rowNumbers(ex.sets)[index];
+        const hasNote = (set.notes ?? "").trim() !== "";
+        const prevWeight = previousByKind(ex.sets, getLastSetsForExercise(ex))[index]?.weight ?? "";
+        const weight = parseFloat((set.weight ?? "").trim() || prevWeight);
+        return (
+          <ActionSheet
+            open
+            onClose={close}
+            title={type === "warmup" ? "Warm-up set" : `Set ${n}`}
+            subtitle={ex.name}
+            groups={[
+              SET_TYPE_CHOICES.map((choice) => ({
+                label: SET_TYPE_LABEL[choice],
+                icon: <SetMark mark={SET_TYPE_MARK[choice] || String(n || 1)} />,
+                selected: choice === type,
+                onSelect: () => (setSetType(ex.id, index, choice), close()),
+              })),
+              [
+                { label: hasNote ? "Edit note" : "Add note", icon: <NoteIcon />, onSelect: () => (close(), setNoteTarget({ exerciseId: ex.id, index })) },
+                { label: "Plate calculator", icon: <PlatesIcon />, onSelect: () => (close(), setPlateCalcWeight(Number.isFinite(weight) ? weight : 0)) },
+              ],
+              [{ label: "Remove set", icon: <TrashIcon />, destructive: true, onSelect: () => (close(), deleteSet(ex.id, index)) }],
+            ]}
+          />
+        );
+      })()}
+
+      {(() => {
+        const ex = noteTarget ? exercises.find((e) => e.id === noteTarget.exerciseId) : undefined;
+        const set = ex && noteTarget ? ex.sets[noteTarget.index] : undefined;
+        const n = ex && noteTarget ? rowNumbers(ex.sets)[noteTarget.index] : 0;
+        const lastNote = ex && noteTarget ? (previousByKind(ex.sets, getLastSetsForExercise(ex))[noteTarget.index]?.notes ?? "").trim() : "";
+        return (
+          <SetNoteSheet
+            open={Boolean(set)}
+            context={ex ? `${ex.name} · ${n ? `Set ${n}` : "Warm-up"}` : ""}
+            value={set?.notes ?? ""}
+            lastNote={lastNote || undefined}
+            onChange={(v) => noteTarget && updateSetNotes(noteTarget.exerciseId, noteTarget.index, v)}
+            onClose={() => setNoteTarget(null)}
+          />
+        );
+      })()}
     </main>
   );
 }
