@@ -13,8 +13,9 @@ import { hourLabel, localClock, macroKcal } from "@/lib/physique/food/timeline";
 import { filterSaved } from "@/lib/physique/food/goTos";
 import FoodSearch from "@/components/food/FoodSearch";
 import SavedFoodRow, { PlusButton } from "@/components/food/SavedFoodRow";
-import type { FoodInput } from "@/lib/physique/io/foodData";
+import { savedFoodInput, type FoodInput } from "@/lib/physique/io/foodData";
 import { formatAmount, scaleServings } from "@/lib/food/servings";
+import { pickExtras } from "@/lib/food/extras";
 import type { SaveResult } from "@/lib/physique/io/bodyData";
 import type { FoodEntry, SavedFood } from "@/lib/physique/types";
 import type { LocalDate } from "@/lib/dates";
@@ -120,7 +121,7 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   }
 
   function logSaved(s: SavedFood) {
-    void log({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id);
+    void log(savedFoodInput(s), s.id);
   }
 
   function openRecipe(draft: RecipeDraft, from: RecipeView["from"], eatingServings = 1) {
@@ -169,6 +170,10 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
         fatG: quick.fatG,
         carbsG: quick.carbsG,
         ...(untouched && scaled?.fibreG != null ? { fibreG: scaled.fibreG } : {}),
+        // IN6: the extras, weight and database food, likewise only while the numbers are the saved food's.
+        ...(untouched && scaled ? pickExtras(scaled) : {}),
+        ...(untouched && base?.grams ? { grams: base.grams * servings } : {}),
+        ...(untouched && base?.sourceId ? { sourceId: base.sourceId } : {}),
         serving: serving.trim() || undefined,
         method: prefillId ? "saved" : "quick",
         ...(base && servings !== 1 ? { keepSavedServing: true } : {}),

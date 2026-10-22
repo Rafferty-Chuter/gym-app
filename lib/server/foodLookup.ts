@@ -16,7 +16,7 @@ import { PublishedOutput, type PublishedOutputData } from "@/lib/food/published"
 const MAX_OUTPUT_TOKENS = 2_000;
 
 const SYSTEM = `For each numbered dish, find the nutrition the chain or brand publishes for one serving of that dish as described, on its UK menu: the UK website, menu or nutrition PDF first; a nutrition site quoting the chain's UK figures only when the chain's own page cannot be found. Never use another country's menu. Search once per dish.
-Give kcal, protein, fat and carbs in grams, fibre in grams or null when it is not published, for the serving as sold, and in "source" only the full web address (https://...) of the page you read them from.
+Give kcal, protein, fat and carbs in grams, and fibre, salt, total sugars and saturated fat in grams or null when not published, for the serving as sold, and in "source" only the full web address (https://...) of the page you read them from.
 When you cannot find figures for that dish and size, set found to false, the numbers to 0 and source to "". Never estimate or work a figure out yourself.`;
 
 export type LookupResult = { out: PublishedOutputData | null; usage: Anthropic.Usage | undefined };

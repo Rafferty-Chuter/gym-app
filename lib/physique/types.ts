@@ -45,6 +45,15 @@ export type FoodEntry = Record_ & {
   serving?: string;
   /** Dietary fibre (AOAC) in g, when the food's source had it (B3). Absent means unknown, not zero. */
   fibreG?: number;
+  /** IN6: sodium (mg), total sugars, saturated fat and alcohol (g), when the source had them. Absent means unknown. */
+  sodiumMg?: number;
+  sugarG?: number;
+  satFatG?: number;
+  alcoholG?: number;
+  /** IN6: grams eaten, when the amount was a weight. */
+  grams?: number;
+  /** IN6: the database food it came from (`cofid:<code>`, `off:<barcode>`), so nutrients can be filled in later. */
+  sourceId?: string;
 };
 
 export type SavedFood = {
@@ -58,6 +67,14 @@ export type SavedFood = {
   serving?: string;
   /** Fibre in g for the same amount, when known (B3). */
   fibreG?: number;
+  /** IN6: the extras for the same amount, when known. */
+  sodiumMg?: number;
+  sugarG?: number;
+  satFatG?: number;
+  alcoholG?: number;
+  /** IN6: grams in the serving and the database food, when known. */
+  grams?: number;
+  sourceId?: string;
   /** Starred in the logger's Saved tab (R2). */
   favourite?: boolean;
   /** When the food is a recipe (M4b): what it makes and what went in, so a serving can be re-logged or edited. The macros above are one serving. */

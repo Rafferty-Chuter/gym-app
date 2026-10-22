@@ -138,7 +138,7 @@ L · after IN1 · `lib/physique/connections.ts`
 M · `lib/food/`, `scripts/build-cofid.ts`, `lib/physique/types.ts`
 - Optional `sodiumMg`, `sugarG`, `satFatG`, `alcoholG`, `grams` and the source id on `FoodEntry` and `SavedFood`.
 - The CoFID rebuild reads sodium (Inorganics) and sugars and alcohol (Proximates); Open Food Facts maps salt, sugars, saturated fat and alcohol; the AI parse and the chain figures add them where known; the MacroFactor import reads its micronutrient sheet.
-- Shown only in a food's detail; no new targets.
+- Shown only in a food's detail; no new targets. (Done: the search food page and the entry sheet; see the STATUS row.)
 - Schema impact: optional fields.
 
 ### IN7 · Drinks in one tap

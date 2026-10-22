@@ -18,6 +18,7 @@
 
 import { isLocalDate, type LocalDate } from "@/lib/dates";
 import { parseCsv } from "@/lib/csvImport";
+import { pickExtras, type Extras } from "@/lib/food/extras";
 import { ASLEEP_OFFSET_MIN, minutesInBed, parseClock } from "@/lib/physique/dayTotals";
 import type { DailySteps, FoodEntry, SleepNight, TrainingStatus, WeighIn } from "@/lib/physique/types";
 
@@ -29,6 +30,9 @@ export const LIMITS = {
   kcal: [0, 10000],
   macroG: [0, 1000],
   fibreG: [0, 150],
+  /** IN6, a day's totals: sodium past 30 g or alcohol past 500 g (about 22 pints) is a slip. */
+  sodiumMg: [0, 30000],
+  alcoholG: [0, 500],
   asleepMin: [0, 18 * 60],
   steps: [0, 100000],
   targetKg: [30, 300],
@@ -43,7 +47,7 @@ export const DAY_TOTAL_LABEL = "Day total (imported)";
 
 // ── Types ──
 
-export type DailyRow = {
+type DailyFields = {
   date: LocalDate;
   weightKg?: number;
   kcal?: number;
@@ -57,6 +61,9 @@ export type DailyRow = {
   steps?: number;
 };
 
+/** A day's row; the extras (IN6) come only from MacroFactor's micronutrient sheet, not from this CSV. */
+export type DailyRow = DailyFields & Extras;
+
 export type GoalLine = { start: LocalDate; targetKg: number; ratePctPerWeek: number; training: TrainingStatus };
 
 export type DailyLogParse = {
@@ -66,7 +73,7 @@ export type DailyLogParse = {
   issues: string[];
 };
 
-const COLUMNS: Record<keyof Omit<DailyRow, "date"> | "date", readonly string[]> = {
+const COLUMNS: Record<keyof DailyFields, readonly string[]> = {
   date: ["date", "day"],
   weightKg: ["weight_kg", "weight", "weight (kg)", "bodyweight_kg"],
   kcal: ["calories", "kcal", "energy_kcal", "energy"],
@@ -257,6 +264,7 @@ export function dailyLogRecords(rows: readonly DailyRow[], existing: Existing, n
           carbsG: Math.round(r.carbsG ?? 0),
           fatG: Math.round(r.fatG ?? 0),
           ...(r.fibreG != null ? { fibreG: Math.round(r.fibreG * 10) / 10 } : {}),
+          ...pickExtras(r),
           method: "quick",
           time: DAY_TOTAL_TIME,
         });

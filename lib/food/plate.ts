@@ -8,6 +8,7 @@
 
 import type { Macros } from "@/lib/food/types";
 import { knownFibre } from "@/lib/food/fibre";
+import { EXTRA_KEYS, scaleExtras, type Extras } from "@/lib/food/extras";
 import type { PortionOption, ResolvedItem } from "@/lib/food/recipe";
 
 /** A described food and how much of it is being logged: `amount` times what was described; `portion` names the size when it was picked from the food's portions (F8). */
@@ -27,9 +28,9 @@ export function toPlate(items: readonly ResolvedItem[]): PlateItem[] {
   return items.map((i) => ({ ...i, amount: 1 }));
 }
 
-/** Macros at the item's amount, rounded once; fibre (to 0.1 g) only when the item has it. */
+/** Macros at the item's amount, rounded once; fibre (to 0.1 g) and the extras (IN6) only when the item has them. */
 export function plateItemMacros(p: PlateItem): Macros {
-  return { kcal: Math.round(p.kcal * p.amount), proteinG: Math.round(p.proteinG * p.amount), fatG: Math.round(p.fatG * p.amount), carbsG: Math.round(p.carbsG * p.amount), ...(p.fibreG != null ? { fibreG: Math.round(p.fibreG * p.amount * 10) / 10 } : {}) };
+  return { kcal: Math.round(p.kcal * p.amount), proteinG: Math.round(p.proteinG * p.amount), fatG: Math.round(p.fatG * p.amount), carbsG: Math.round(p.carbsG * p.amount), ...(p.fibreG != null ? { fibreG: Math.round(p.fibreG * p.amount * 10) / 10 } : {}), ...scaleExtras(p, p.amount) };
 }
 
 /** Grams at the item's amount, or null when the weight was never known. */
@@ -81,13 +82,16 @@ export function isPortion(p: PlateItem, choice: PortionOption): boolean {
  * for amount 1 at the current weight, and the base-list match is dropped
  * because the numbers are the user's now. Fibre is kept at the current
  * amount while energy and carbs are unchanged, and dropped (unknown) once
- * either is edited, as on a logged entry.
+ * either is edited, as on a logged entry; the extras (IN6) likewise, but
+ * dropped once any of the four numbers is edited.
  */
 export function withMacros(p: PlateItem, m: Macros & { label?: string; serving?: string }): PlateItem {
   const grams = plateItemGrams(p) ?? 0;
   const now = plateItemMacros(p);
   const fibreG = now.fibreG != null && m.kcal === now.kcal && m.carbsG === now.carbsG ? now.fibreG : undefined;
-  return { ...p, label: m.label ?? p.label, serving: m.serving ?? p.serving, kcal: m.kcal, proteinG: m.proteinG, fatG: m.fatG, carbsG: m.carbsG, fibreG, grams, amount: 1, matched: undefined, confidence: "high" };
+  const same = m.kcal === now.kcal && m.proteinG === now.proteinG && m.fatG === now.fatG && m.carbsG === now.carbsG;
+  const extras: Extras = Object.fromEntries(EXTRA_KEYS.map((k) => [k, same ? now[k] : undefined]));
+  return { ...p, label: m.label ?? p.label, serving: m.serving ?? p.serving, kcal: m.kcal, proteinG: m.proteinG, fatG: m.fatG, carbsG: m.carbsG, fibreG, ...extras, grams, amount: 1, matched: undefined, sourceId: undefined, confidence: "high" };
 }
 
 /** The pill on the right of a row: grams when known ("120" over "g"), otherwise portions of what was described ("1.5" over "2 slices"), or "1" over a picked size. */

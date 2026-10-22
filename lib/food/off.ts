@@ -7,6 +7,7 @@
 
 import { gramsFromQuantity } from "@/lib/food/portions";
 import type { FoodItem, Portion } from "@/lib/food/types";
+import { ALCOHOL_G_PER_VOL_PCT, per100Extras, SODIUM_PER_SALT } from "@/lib/food/extras";
 
 export type OffProduct = {
   code?: string;
@@ -57,6 +58,15 @@ export function offToFoodItem(p: OffProduct): FoodItem | null {
   if (kcal < 0 || kcal > 950 || proteinG < 0 || carbsG < 0 || fatG < 0) return null;
   const fibreG = num(n["fiber_100g"]);
   const r1 = (x: number) => Math.round(x * 10) / 10;
+  // IN6: sodium in g (or salt, as UK labels give it), sugars, saturated fat, and alcohol as % by volume.
+  const sodiumG = num(n["sodium_100g"]) ?? (num(n["salt_100g"]) != null ? (num(n["salt_100g"]) as number) * SODIUM_PER_SALT : null);
+  const alcoholVol = num(n["alcohol_100g"]);
+  const extras = per100Extras({
+    sodiumMg: sodiumG != null ? sodiumG * 1000 : undefined,
+    sugarG: num(n["sugars_100g"]) ?? undefined,
+    satFatG: num(n["saturated-fat_100g"]) ?? undefined,
+    alcoholG: alcoholVol != null ? alcoholVol * ALCOHOL_G_PER_VOL_PCT : undefined,
+  });
 
   const portions: Portion[] = [];
   const servingQ = num(p.serving_quantity);
@@ -78,7 +88,7 @@ export function offToFoodItem(p: OffProduct): FoodItem | null {
     name,
     ...(brand ? { brand } : {}),
     barcode: code,
-    per100: { kcal: Math.round(kcal), proteinG: r1(proteinG), carbsG: r1(carbsG), fatG: r1(fatG), ...(fibreG != null && fibreG >= 0 ? { fibreG: r1(fibreG) } : {}) },
+    per100: { kcal: Math.round(kcal), proteinG: r1(proteinG), carbsG: r1(carbsG), fatG: r1(fatG), ...(fibreG != null && fibreG >= 0 ? { fibreG: r1(fibreG) } : {}), ...extras },
     portions,
   };
 }

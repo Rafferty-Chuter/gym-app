@@ -12,7 +12,7 @@
  *     "Calories & Macros"  Date, Calories (kcal), Protein (g), Carbs (g), Fat (g)
  *     "Scale Weight"       Date, Weight (kg), Fat Percent
  *     "Steps"              Date, Steps
- *     "Micronutrients"     Date, … (fibre, when there is a column for it)
+ *     "Micronutrients"     Date, … (fibre, sodium, sugars, saturated fat and alcohol, each when there is a column for it)
  *   food log (.csv)        Date, Time, Food Name, …, Calories (kcal), Fat (g), Carbs (g), Protein (g)
  *   workout log (.csv)     recognised and declined (training comes in from Hevy, Strong or Rep Count)
  *
@@ -26,6 +26,7 @@ import { isLocalDate, type LocalDate } from "@/lib/dates";
 import { parseCsv } from "@/lib/csvImport";
 import { LIMITS, MAX_ROWS, type DailyLogParse, type DailyRow } from "@/lib/import/dailyLog";
 import { serialToDate, type Cell, type XlsxWorkbook } from "@/lib/import/xlsx";
+import type { ExtraKey } from "@/lib/food/extras";
 
 // ── Constants ──
 
@@ -87,6 +88,8 @@ const toKg: Factor = (h) => ({ "": 1, kg: 1, lb: KG_PER_LB, lbs: KG_PER_LB })[un
 const toKcal: Factor = (h) => ({ "": 1, kcal: 1, cal: 1, kj: KCAL_PER_KJ })[unitOf(h)] ?? null;
 /** Grams only: a macro in another unit is left out rather than guessed. */
 const toG: Factor = (h) => ({ "": 1, g: 1 })[unitOf(h)] ?? null;
+/** To mg, for sodium: MacroFactor writes mg, so a bare name is mg; a gram column is converted. */
+const toMg: Factor = (h) => ({ "": 1, mg: 1, g: 1000 })[unitOf(h)] ?? null;
 const plain: Factor = () => 1;
 
 function within(v: number | null, [lo, hi]: readonly [number, number]): number | null {
@@ -176,13 +179,27 @@ const COL = {
   carbs: /^carb/,
   fat: /^fat\s*(\(|$)/,
   fibre: /^fib(er|re)\b/,
+  sodium: /^sodium\b/,
+  sugars: /^(total\s+)?sugars?\s*(\(|$)/,
+  satFat: /^saturated(\s+fat)?\b/,
+  alcohol: /^alcohol\b/,
   weight: /^weight\b/,
   steps: /^steps\b/,
 };
 
-type FoodKey = "kcal" | "proteinG" | "carbsG" | "fatG" | "fibreG";
+type MacroKey = "kcal" | "proteinG" | "carbsG" | "fatG" | "fibreG";
+type FoodKey = MacroKey | ExtraKey;
+const MACRO_KEYS: readonly MacroKey[] = ["kcal", "proteinG", "carbsG", "fatG", "fibreG"];
 
-function readFood(read: (name: RegExp, factor: Factor) => number | null): Record<FoodKey, number | null> {
+/** IN6: the extras on the micronutrient sheet, each with its column and unit. */
+const MICROS: ReadonlyArray<readonly [ExtraKey, RegExp, Factor]> = [
+  ["sodiumMg", COL.sodium, toMg],
+  ["sugarG", COL.sugars, toG],
+  ["satFatG", COL.satFat, toG],
+  ["alcoholG", COL.alcohol, toG],
+];
+
+function readFood(read: (name: RegExp, factor: Factor) => number | null): Record<MacroKey, number | null> {
   return { kcal: read(COL.kcal, toKcal), proteinG: read(COL.protein, toG), carbsG: read(COL.carbs, toG), fatG: read(COL.fat, toG), fibreG: read(COL.fibre, toG) };
 }
 
@@ -192,6 +209,10 @@ const FOOD_LIMITS: ReadonlyArray<readonly [FoodKey, readonly [number, number]]> 
   ["carbsG", LIMITS.macroG],
   ["fatG", LIMITS.macroG],
   ["fibreG", LIMITS.fibreG],
+  ["sodiumMg", LIMITS.sodiumMg],
+  ["sugarG", LIMITS.macroG],
+  ["satFatG", LIMITS.macroG],
+  ["alcoholG", LIMITS.alcoholG],
 ];
 
 /**
@@ -249,14 +270,19 @@ export function macroFactorDays(t: MacroFactorTables, opts: { today: LocalDate; 
     const food = readFood(read);
     if (food.kcal == null || food.kcal <= 0) return;
     const r = day(date);
-    for (const [k] of FOOD_LIMITS) if (food[k] != null) r[k] = food[k]!;
+    for (const k of MACRO_KEYS) if (food[k] != null) r[k] = food[k]!;
   });
 
-  // Fibre sits with the micronutrients; it joins a day that has food.
+  // Fibre and the extras (IN6) sit with the micronutrients; they join a day that has food.
   eachDay(t.micros, date1904, newTally(), (date, read) => {
     const r = days.get(date);
+    if (r?.kcal == null) return;
     const fibre = read(COL.fibre, toG);
-    if (r?.kcal != null && r.fibreG == null && fibre != null) r.fibreG = fibre;
+    if (r.fibreG == null && fibre != null) r.fibreG = fibre;
+    for (const [k, name, factor] of MICROS) {
+      const v = read(name, factor);
+      if (r[k] == null && v != null) r[k] = v;
+    }
   });
 
   eachDay(t.weight, date1904, tally, (date, read) => {
@@ -300,7 +326,7 @@ export function macroFactorFoodLogDays(text: string, today: LocalDate): DailyLog
     const food = readFood(read);
     if (food.kcal == null) return;
     const r = days.get(date) ?? days.set(date, { date }).get(date)!;
-    for (const [k] of FOOD_LIMITS) if (food[k] != null) r[k] = (r[k] ?? 0) + food[k]!;
+    for (const k of MACRO_KEYS) if (food[k] != null) r[k] = (r[k] ?? 0) + food[k]!;
   });
   const p = finish(days, tally);
   return p.rows.length ? p : { ...p, issues: [...p.issues, "No logged days found in that MacroFactor food log."] };

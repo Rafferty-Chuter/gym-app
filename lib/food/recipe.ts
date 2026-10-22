@@ -8,6 +8,7 @@
 
 import { normalise, searchFoods } from "@/lib/food/cofid";
 import { knownFibre } from "@/lib/food/fibre";
+import { EXTRA_KEYS, pickExtras, scaleExtras, sumExtras, type Extras } from "@/lib/food/extras";
 import type { FoodItem, Macros, Per100 } from "@/lib/food/types";
 
 export type IngredientSource = "cofid" | "estimate";
@@ -176,25 +177,29 @@ function bestMatch(items: readonly FoodItem[], q: string): { item: FoodItem; ran
 /**
  * Base-list numbers when the lookup matches, otherwise the model's
  * estimate, marked as such. A matched row without a fibre value takes the
- * model's fibre estimate for that one number (F7).
+ * model's fibre estimate for that one number (F7), and the same for each
+ * extra (IN6).
  */
 export function resolveIngredient(items: readonly FoodItem[], draft: IngredientDraft): RecipeIngredient {
   const hit = matchIngredient(items, draft.lookup || draft.name, { preferRaw: true });
   const grams = Math.max(0, Math.round(draft.grams));
-  if (hit) return { name: draft.name, grams, per100: withFibre(hit.per100, draft.per100.fibreG), source: "cofid", matched: hit.name };
+  if (hit) return { name: draft.name, grams, per100: withFallbacks(hit.per100, draft.per100), source: "cofid", matched: hit.name };
   return { name: draft.name, grams, per100: draft.per100, source: "estimate" };
 }
 
-function withFibre(per100: Per100, fallback: number | undefined): Per100 {
-  return per100.fibreG == null && fallback != null ? { ...per100, fibreG: fallback } : per100;
+/** The row's numbers, with the estimate's fibre and extras where the row has none. */
+function withFallbacks(per100: Per100, estimate: Per100): Per100 {
+  const out: Per100 = per100.fibreG == null && estimate.fibreG != null ? { ...per100, fibreG: estimate.fibreG } : { ...per100 };
+  for (const k of EXTRA_KEYS) if (out[k] == null && estimate[k] != null) out[k] = estimate[k];
+  return out;
 }
 
 const round = (m: Macros): Macros => ({ kcal: Math.round(m.kcal), proteinG: Math.round(m.proteinG), carbsG: Math.round(m.carbsG), fatG: Math.round(m.fatG), fibreG: m.fibreG == null ? undefined : Math.round(m.fibreG * 10) / 10 });
 
-/** Unrounded macros for one ingredient at its grams; fibre only when the row has it. */
+/** Unrounded macros for one ingredient at its grams; fibre only when the row has it; the extras (IN6) when it has them, rounded. */
 export function ingredientMacros(ing: RecipeIngredient): Macros {
   const f = ing.grams / 100;
-  return { kcal: ing.per100.kcal * f, proteinG: ing.per100.proteinG * f, carbsG: ing.per100.carbsG * f, fatG: ing.per100.fatG * f, ...(ing.per100.fibreG != null ? { fibreG: ing.per100.fibreG * f } : {}) };
+  return { kcal: ing.per100.kcal * f, proteinG: ing.per100.proteinG * f, carbsG: ing.per100.carbsG * f, fatG: ing.per100.fatG * f, ...(ing.per100.fibreG != null ? { fibreG: ing.per100.fibreG * f } : {}), ...scaleExtras(ing.per100, f) };
 }
 
 /**
@@ -202,6 +207,7 @@ export function ingredientMacros(ing: RecipeIngredient): Macros {
  * once at the end. Fibre is the known-fibre total (lib/food/fibre.ts)
  * scaled the same way, and undefined (present as a key, so it replaces an
  * earlier value when spread) when too little of the recipe has a value.
+ * Each extra (IN6) is the same, known only when every ingredient has it.
  */
 export function eatenMacros(ingredients: readonly RecipeIngredient[], servings: number, eaten: number): Macros {
   const s = Math.max(1, servings);
@@ -215,7 +221,9 @@ export function eatenMacros(ingredients: readonly RecipeIngredient[], servings: 
   }
   const fibre = knownFibre(parts);
   const f = eaten / s;
-  return round({ kcal: t.kcal * f, proteinG: t.proteinG * f, carbsG: t.carbsG * f, fatG: t.fatG * f, fibreG: fibre == null ? undefined : fibre * f });
+  const extras = scaleExtras(sumExtras(parts), f);
+  const known: Extras = Object.fromEntries(EXTRA_KEYS.map((k) => [k, extras[k]]));
+  return { ...round({ kcal: t.kcal * f, proteinG: t.proteinG * f, carbsG: t.carbsG * f, fatG: t.fatG * f, fibreG: fibre == null ? undefined : fibre * f }), ...known };
 }
 
 /** The whole recipe. */
@@ -249,13 +257,14 @@ export type PortionOption = { label: string; factor: number };
  * A described food as the model returns it: its own estimate plus a lookup and grams for the base list.
  * `portions` are the other sizes it is commonly had in; `chain` marks a dish from a chain or brand that publishes its nutrition (F8).
  */
-export type ItemDraft = { label: string; serving: string; lookup: string; grams: number; kcal: number; proteinG: number; fatG: number; carbsG: number; fibreG?: number; confidence: "high" | "medium" | "low"; portions?: PortionOption[]; chain?: boolean };
+export type ItemDraft = { label: string; serving: string; lookup: string; grams: number; kcal: number; proteinG: number; fatG: number; carbsG: number; fibreG?: number; confidence: "high" | "medium" | "low"; portions?: PortionOption[]; chain?: boolean } & Extras;
 
 /**
  * A described food after the base list has been asked: base-list numbers and the matched name when it fit, the estimate otherwise.
  * `publishedBy` is the site a chain's published figures were read from, when they replaced the estimate (F8).
+ * `sourceId` is the matched row's id (IN6).
  */
-export type ResolvedItem = ItemDraft & { matched?: string; publishedBy?: string };
+export type ResolvedItem = ItemDraft & { matched?: string; sourceId?: string; publishedBy?: string };
 
 /**
  * A base-list row whose calories for the weight are more than this many
@@ -273,7 +282,7 @@ export const MATCH_AGREEMENT_RATIO = 1.75;
  * "Eggs, chicken, fried" at CoFID's values with high confidence.
  * Otherwise the model's own estimate stands, with its confidence as given. Fibre follows
  * the same rule, with the model's estimate standing in where the matched
- * row has none (F7).
+ * row has none (F7), and so does each extra (IN6).
  */
 export function resolveItem(items: readonly FoodItem[], draft: ItemDraft): ResolvedItem {
   const grams = Math.max(0, Math.round(draft.grams));
@@ -282,10 +291,12 @@ export function resolveItem(items: readonly FoodItem[], draft: ItemDraft): Resol
   const agrees = draft.kcal <= 0 || (rowKcal <= draft.kcal * MATCH_AGREEMENT_RATIO && rowKcal >= draft.kcal / MATCH_AGREEMENT_RATIO);
   const hit = found && agrees ? found : null;
   const fibre = (g: number | undefined) => (g == null ? {} : { fibreG: Math.round(g * 10) / 10 });
-  if (!hit) return { ...draft, grams, kcal: Math.round(draft.kcal), proteinG: Math.round(draft.proteinG), fatG: Math.round(draft.fatG), carbsG: Math.round(draft.carbsG), ...fibre(draft.fibreG) };
+  if (!hit) return { ...draft, grams, kcal: Math.round(draft.kcal), proteinG: Math.round(draft.proteinG), fatG: Math.round(draft.fatG), carbsG: Math.round(draft.carbsG), ...fibre(draft.fibreG), ...pickExtras(draft) };
   const f = grams / 100;
+  const extras = pickExtras(Object.fromEntries(EXTRA_KEYS.map((k) => [k, hit.per100[k] != null ? (hit.per100[k] as number) * f : draft[k]])));
   return {
     ...draft,
+    ...extras,
     grams,
     kcal: Math.round(hit.per100.kcal * f),
     proteinG: Math.round(hit.per100.proteinG * f),
@@ -294,6 +305,7 @@ export function resolveItem(items: readonly FoodItem[], draft: ItemDraft): Resol
     ...fibre(hit.per100.fibreG != null ? hit.per100.fibreG * f : draft.fibreG),
     confidence: "high",
     matched: hit.name,
+    sourceId: hit.id,
   };
 }
 

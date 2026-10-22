@@ -7,7 +7,8 @@
  */
 
 import { z } from "zod";
-import { reconcileEnergy, MAX_ITEM_FIBRE_G, MAX_ITEM_KCAL, MAX_ITEM_MACRO_G } from "@/lib/food/describe";
+import { reconcileEnergy, MAX_ITEM_FIBRE_G, MAX_ITEM_KCAL, MAX_ITEM_MACRO_G, MAX_ITEM_SODIUM_MG } from "@/lib/food/describe";
+import { SODIUM_PER_SALT, fittedExtras } from "@/lib/food/extras";
 import type { ResolvedItem } from "@/lib/food/recipe";
 
 /** Dishes checked per description: a meal out is rarely more than a main, a side and a drink. Bounds the searches, and the cost, of one request. OURS. */
@@ -29,6 +30,10 @@ export const PublishedDish = z.object({
   carbsG: z.number(),
   /** Null when the chain does not publish fibre. */
   fibreG: z.number().nullable(),
+  /** Salt, total sugars and saturated fat in g, each null when not published (IN6). UK menus give salt, not sodium. */
+  saltG: z.number().nullable(),
+  sugarG: z.number().nullable(),
+  satFatG: z.number().nullable(),
   /** The page the figures were read from. */
   source: z.string(),
 });
@@ -70,7 +75,8 @@ const finite = (v: number | null | undefined, max: number): number | null => (ty
  * PUBLISHED_MAX_RATIO from the estimate leave the estimate standing.
  * Macros are reconciled with the calories as estimates are, the grams and
  * portions stay (the figures are for the serving described), fibre is
- * the chain's when it publishes one and the estimate's otherwise.
+ * the chain's when it publishes one and the estimate's otherwise, and so
+ * is each extra (IN6), fitted to the published figures.
  */
 export function applyPublished(items: readonly ResolvedItem[], indexes: readonly number[], out: PublishedOutputData | null): ResolvedItem[] {
   if (!out) return [...items];
@@ -87,6 +93,9 @@ export function applyPublished(items: readonly ResolvedItem[], indexes: readonly
     if (item.kcal > 0 && (kcal > item.kcal * PUBLISHED_MAX_RATIO || kcal < item.kcal / PUBLISHED_MAX_RATIO)) continue;
     const m = reconcileEnergy({ kcal, proteinG: finite(dish.proteinG, MAX_ITEM_MACRO_G) ?? 0, fatG: finite(dish.fatG, MAX_ITEM_MACRO_G) ?? 0, carbsG: finite(dish.carbsG, MAX_ITEM_MACRO_G) ?? 0 });
     const fibre = finite(dish.fibreG, MAX_ITEM_FIBRE_G);
+    const salt = finite(dish.saltG, MAX_ITEM_SODIUM_MG / 1000 / SODIUM_PER_SALT);
+    const published = { sodiumMg: salt != null ? salt * SODIUM_PER_SALT * 1000 : null, sugarG: finite(dish.sugarG, MAX_ITEM_MACRO_G), satFatG: finite(dish.satFatG, MAX_ITEM_MACRO_G) };
+    const extras = fittedExtras({ sodiumMg: published.sodiumMg ?? item.sodiumMg, sugarG: published.sugarG ?? item.sugarG, satFatG: published.satFatG ?? item.satFatG, alcoholG: item.alcoholG }, m, MAX_ITEM_SODIUM_MG);
     next[at] = {
       ...item,
       kcal: Math.round(m.kcal),
@@ -94,8 +103,14 @@ export function applyPublished(items: readonly ResolvedItem[], indexes: readonly
       fatG: Math.round(m.fatG),
       carbsG: Math.round(m.carbsG),
       ...(fibre != null ? { fibreG: Math.round(fibre * 10) / 10 } : {}),
+      sodiumMg: undefined,
+      sugarG: undefined,
+      satFatG: undefined,
+      alcoholG: undefined,
+      ...extras,
       confidence: "high",
       matched: undefined,
+      sourceId: undefined,
       publishedBy: site,
     };
   }

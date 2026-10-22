@@ -4,6 +4,7 @@ import { useState } from "react";
 import Sheet from "@/components/ui/Sheet";
 import MacroPad, { macroNumbers, macrosToValues, type MacroField } from "@/components/food/MacroPad";
 import TimeChip from "@/components/food/TimeChip";
+import NutrientList from "@/components/food/NutrientList";
 import { ErrorLine, PrimaryButton, SecondaryButton } from "@/components/physique/ui";
 import { entryClock } from "@/lib/physique/food/timeline";
 import type { FoodInput } from "@/lib/physique/io/foodData";
@@ -35,6 +36,7 @@ function Inner({ entry, tz, onClose, onSave, onRemove }: Props & { entry: FoodEn
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const edited = JSON.stringify(macroNumbers(values)) !== JSON.stringify(macroNumbers(macrosToValues(entry)));
 
   async function save() {
     setBusy(true);
@@ -78,7 +80,9 @@ function Inner({ entry, tz, onClose, onSave, onRemove }: Props & { entry: FoodEn
           <TimeChip value={time} onChange={setTime} />
           <input type="text" value={serving} onChange={(e) => setServing(e.target.value)} placeholder="Serving (1 bowl, 150 g)" className={`${inputClass} flex-1`} style={inputStyle} aria-label="Serving" autoComplete="off" />
         </div>
-        <MacroPad values={values} field={field} onField={setField} onChange={setValues} />
+        <MacroPad values={values} field={field} onField={setField} onChange={setValues} alcoholG={entry.alcoholG} />
+        {/* IN6: what else the entry carries, until a macro is edited (saving an edit leaves them unknown). */}
+        {!edited && <NutrientList food={entry} />}
       </div>
     </Sheet>
   );

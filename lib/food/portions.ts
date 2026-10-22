@@ -8,12 +8,13 @@
  */
 
 import type { FoodItem, Macros, Portion } from "@/lib/food/types";
+import { scaleExtras } from "@/lib/food/extras";
 
 export function scaleMacros(item: FoodItem, grams: number): Macros {
   const f = Math.max(0, grams) / 100;
   const r = (n: number) => Math.round(n * f * 10) / 10;
   const fibre = item.per100.fibreG;
-  return { kcal: Math.round(item.per100.kcal * f), proteinG: r(item.per100.proteinG), carbsG: r(item.per100.carbsG), fatG: r(item.per100.fatG), ...(fibre != null ? { fibreG: r(fibre) } : {}) };
+  return { kcal: Math.round(item.per100.kcal * f), proteinG: r(item.per100.proteinG), carbsG: r(item.per100.carbsG), fatG: r(item.per100.fatG), ...(fibre != null ? { fibreG: r(fibre) } : {}), ...scaleExtras(item.per100, f) };
 }
 
 /** Regex on the CoFID name (lowercase) → household portions. CAL. */

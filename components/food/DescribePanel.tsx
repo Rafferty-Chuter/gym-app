@@ -136,7 +136,7 @@ export function useDescribe(loggers: DescribeLoggers) {
       return;
     }
     if (plate.length === 0) return;
-    const ok = await loggers.many(plate.map((p) => ({ label: p.label.trim() || "Food", ...plateItemMacros(p), serving: plateServing(p), method: "ai_text", confidence: p.confidence })));
+    const ok = await loggers.many(plate.map((p) => ({ label: p.label.trim() || "Food", ...plateItemMacros(p), grams: plateItemGrams(p) ?? undefined, sourceId: p.sourceId, serving: plateServing(p), method: "ai_text", confidence: p.confidence })));
     if (ok) reset();
   }
 
@@ -432,7 +432,7 @@ function ItemEditor({ item, onChange }: { item: PlateItem; onChange: (next: Plat
         <input type="text" value={item.label} onChange={(e) => onChange({ ...item, label: e.target.value })} className="h-10 min-w-0 flex-1 rounded-[10px] px-3 text-[15px] outline-none focus:ring-1" style={fieldStyle} aria-label="Name" autoComplete="off" />
         <input type="text" value={item.serving} onChange={(e) => onChange({ ...item, serving: e.target.value })} placeholder="Serving" className="h-10 w-[112px] shrink-0 rounded-[10px] px-3 text-[15px] outline-none focus:ring-1" style={fieldStyle} aria-label="Serving" autoComplete="off" />
       </div>
-      <MacroPad values={macrosToValues(now)} field={field} onField={setField} onChange={(v) => onChange(withMacros(item, macroNumbers(v)))} />
+      <MacroPad values={macrosToValues(now)} field={field} onField={setField} onChange={(v) => onChange(withMacros(item, macroNumbers(v)))} alcoholG={now.alcoholG} />
     </div>
   );
 }

@@ -3,9 +3,10 @@ import { cleanPortions, compactDescription, reconcileEnergy, describeErrorText, 
 import { bannedPhrasesIn } from "@/lib/physique/copy";
 import { FOOD_PARSE_ERRORS, type FoodParseOutputData } from "@/lib/physique/food/parseSchema";
 
-const per100 = { kcal: 100, proteinG: 10, fatG: 5, carbsG: 10, fibreG: 2 };
+const NONE = { sodiumMg: null, sugarG: null, satFatG: null, alcoholG: null };
+const per100 = { kcal: 100, proteinG: 10, fatG: 5, carbsG: 10, fibreG: 2, ...NONE };
 const ing = (name: string, grams: number) => ({ name, lookup: name, grams, per100 });
-const item = (label: string, grams = 100) => ({ label, serving: "1 portion", lookup: label, grams, kcal: 200, proteinG: 10, fatG: 8, carbsG: 20, fibreG: 3, confidence: "medium" as const, portions: [] as { label: string; factor: number }[], chain: false });
+const item = (label: string, grams = 100) => ({ label, serving: "1 portion", lookup: label, grams, kcal: 200, proteinG: 10, fatG: 8, carbsG: 20, fibreG: 3, ...NONE, confidence: "medium" as const, portions: [] as { label: string; factor: number }[], chain: false });
 const reply = (over: Partial<FoodParseOutputData>): FoodParseOutputData => ({ kind: "meal", items: [], recipe: { name: "", servings: 1, ingredients: [] }, ...over });
 
 describe("reading the text", () => {
@@ -60,10 +61,10 @@ describe("making the reply safe", () => {
 
   it("clamps numbers, caps the list and drops ingredients with no weight", () => {
     const many = Array.from({ length: 55 }, (_, i) => ing(`ingredient ${i}`, 10));
-    const out = sanitiseParse(reply({ kind: "recipe", recipe: { name: "Big", servings: 6, ingredients: [...many, ing("salt", 0), { name: "lard", lookup: "lard", grams: 50, per100: { kcal: 1500, proteinG: -2, fatG: 160, carbsG: 0, fibreG: 0 } }] } }), "recipe");
+    const out = sanitiseParse(reply({ kind: "recipe", recipe: { name: "Big", servings: 6, ingredients: [...many, ing("salt", 0), { name: "lard", lookup: "lard", grams: 50, per100: { kcal: 1500, proteinG: -2, fatG: 160, carbsG: 0, fibreG: 0, ...NONE } }] } }), "recipe");
     expect(out.recipe?.ingredients.length).toBe(MAX_INGREDIENTS);
     expect(out.recipe?.ingredients.some((g) => g.name === "salt")).toBe(false);
-    const lard = sanitiseParse(reply({ kind: "recipe", recipe: { name: "Lard", servings: 1, ingredients: [{ name: "lard", lookup: "lard", grams: 50, per100: { kcal: 1500, proteinG: -2, fatG: 160, carbsG: 0, fibreG: 400 } }] } }), "recipe").recipe!.ingredients[0];
+    const lard = sanitiseParse(reply({ kind: "recipe", recipe: { name: "Lard", servings: 1, ingredients: [{ name: "lard", lookup: "lard", grams: 50, per100: { kcal: 1500, proteinG: -2, fatG: 160, carbsG: 0, fibreG: 400, ...NONE } }] } }), "recipe").recipe!.ingredients[0];
     expect(lard.per100).toEqual({ kcal: 900, proteinG: 0, fatG: 100, carbsG: 0, fibreG: 60 });
   });
 
@@ -114,7 +115,7 @@ describe("energy check on estimates", () => {
   });
 
   it("is applied to every estimate in a reply", () => {
-    const out = sanitiseParse(reply({ kind: "recipe", recipe: { name: "Curry", servings: 4, ingredients: [{ name: "chicken thighs", lookup: "chicken thigh raw", grams: 1000, per100: { kcal: 120, proteinG: 19, fatG: 100, carbsG: 0, fibreG: 0 } }] } }), "recipe");
+    const out = sanitiseParse(reply({ kind: "recipe", recipe: { name: "Curry", servings: 4, ingredients: [{ name: "chicken thighs", lookup: "chicken thigh raw", grams: 1000, per100: { kcal: 120, proteinG: 19, fatG: 100, carbsG: 0, fibreG: 0, ...NONE } }] } }), "recipe");
     expect(out.recipe!.ingredients[0].per100.fatG).toBeCloseTo(4.9);
   });
 });

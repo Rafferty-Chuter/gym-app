@@ -6,6 +6,7 @@
  */
 
 import type { Macros, Portion } from "@/lib/food/types";
+import { scaleExtras } from "@/lib/food/extras";
 
 /** One ounce in grams (exact, avoirdupois). */
 export const G_PER_OZ = 28.349523125;
@@ -60,5 +61,5 @@ export function stepAmount(amount: number, unit: ServingUnit, dir: 1 | -1): numb
 export function scaleServings(food: Macros, servings: number): Macros {
   const s = Number.isFinite(servings) && servings > 0 ? servings : 0;
   const r1 = (v: number) => Math.round(v * s * 10) / 10;
-  return { kcal: Math.round(food.kcal * s), proteinG: r1(food.proteinG), carbsG: r1(food.carbsG), fatG: r1(food.fatG), ...(food.fibreG != null ? { fibreG: r1(food.fibreG) } : {}) };
+  return { kcal: Math.round(food.kcal * s), proteinG: r1(food.proteinG), carbsG: r1(food.carbsG), fatG: r1(food.fatG), ...(food.fibreG != null ? { fibreG: r1(food.fibreG) } : {}), ...scaleExtras(food, s) };
 }

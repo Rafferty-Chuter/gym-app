@@ -12,9 +12,10 @@
  */
 
 import type { FoodItem } from "@/lib/food/types";
+import { per100Extras } from "@/lib/food/extras";
 
-/** [code, name, group, kcal, proteinG, fatG, carbsG, fibreG | null] */
-export type CofidRow = [string, string, string, number, number, number, number, number | null];
+/** [code, name, group, kcal, proteinG, fatG, carbsG, fibreG, sodiumMg?, sugarG?, satFatG?, alcoholG?]; the extras (IN6) are null when not determined and absent in lists built before them. */
+export type CofidRow = [string, string, string, number, number, number, number, number | null, (number | null)?, (number | null)?, (number | null)?, (number | null)?];
 export type CofidData = { meta: { source: string; licence: string; url: string; columns: string[]; foods: number }; foods: CofidRow[] };
 
 /**
@@ -34,14 +35,14 @@ function fibreFor(group: string, carbsG: number, fibreG: number | null): number 
 }
 
 export function cofidToItems(rows: readonly CofidRow[]): FoodItem[] {
-  return rows.map(([code, name, group, kcal, proteinG, fatG, carbsG, fibreG]) => {
+  return rows.map(([code, name, group, kcal, proteinG, fatG, carbsG, fibreG, sodiumMg, sugarG, satFatG, alcoholG]) => {
     const fibre = fibreFor(group, carbsG, fibreG);
     return {
       id: `cofid:${code}`,
       source: "cofid" as const,
       name,
       group,
-      per100: { kcal, proteinG, carbsG, fatG, ...(fibre == null ? {} : { fibreG: fibre }) },
+      per100: { kcal, proteinG, carbsG, fatG, ...(fibre == null ? {} : { fibreG: fibre }), ...per100Extras({ sodiumMg, sugarG, satFatG, alcoholG }) },
       portions: [],
     };
   });

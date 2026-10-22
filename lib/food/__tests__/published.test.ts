@@ -3,7 +3,7 @@ import { applyPublished, dishesToCheck, MAX_PUBLISHED_DISHES, PUBLISHED_MAX_RATI
 import type { ResolvedItem } from "@/lib/food/recipe";
 
 const dish = (label: string, over: Partial<ResolvedItem> = {}): ResolvedItem => ({ label, serving: "1 main", lookup: "", grams: 520, kcal: 880, proteinG: 35, fatG: 30, carbsG: 115, fibreG: 6, confidence: "medium", portions: [], chain: true, ...over });
-const found = (index: number, over: Partial<PublishedOutputData["dishes"][number]> = {}) => ({ index, found: true, kcal: 988, proteinG: 43.9, fatG: 41.8, carbsG: 110, fibreG: null, source: "https://www.wagamama.com/menu/curry/chicken-katsu-curry", ...over });
+const found = (index: number, over: Partial<PublishedOutputData["dishes"][number]> = {}) => ({ index, found: true, kcal: 988, proteinG: 43.9, fatG: 41.8, carbsG: 110, fibreG: null, saltG: null, sugarG: null, satFatG: null, source: "https://www.wagamama.com/menu/curry/chicken-katsu-curry", ...over });
 
 describe("which dishes are checked (F8)", () => {
   it("only chain dishes the base list did not match, at most three", () => {

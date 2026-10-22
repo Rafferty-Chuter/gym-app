@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import SavedFoodRow, { PlusButton } from "@/components/food/SavedFoodRow";
 import MacroText from "@/components/food/MacroText";
+import NutrientList from "@/components/food/NutrientList";
 import BarcodeScanner from "@/components/food/BarcodeScanner";
 import { ErrorLine, PrimaryButton } from "@/components/physique/ui";
 import { loadCofid, searchFoods } from "@/lib/food/cofid";
 import { portionChoices, scaleMacros } from "@/lib/food/portions";
 import { amountAfterSwitch, formatAmount, gramsFor, servingName, stepAmount, type ServingUnit } from "@/lib/food/servings";
 import type { FoodItem } from "@/lib/food/types";
+import { pickExtras } from "@/lib/food/extras";
 import { hourLabel } from "@/lib/physique/food/timeline";
 import { recentLists } from "@/lib/physique/food/goTos";
-import type { FoodInput } from "@/lib/physique/io/foodData";
+import { savedFoodInput, type FoodInput } from "@/lib/physique/io/foodData";
 import type { FoodEntry, SavedFood } from "@/lib/physique/types";
 import type { LocalDate } from "@/lib/dates";
 
@@ -115,7 +117,8 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
   async function logAmount(item: FoodItem, grams: number, portionLabel: string | null, viaBarcode: boolean): Promise<boolean> {
     const m = scaleMacros(item, grams);
     const serving = portionLabel && portionLabel !== "100 g" ? `${portionLabel} · ${Math.round(grams)} g` : `${Math.round(grams)} g`;
-    return onLog({ label: labelFor(item), kcal: m.kcal, proteinG: m.proteinG, fatG: m.fatG, carbsG: m.carbsG, fibreG: m.fibreG, serving, method: viaBarcode ? "barcode" : "search" });
+    // IN6: the extras, the weight and the database food ride along, so they can be read (and filled in) later.
+    return onLog({ label: labelFor(item), kcal: m.kcal, proteinG: m.proteinG, fatG: m.fatG, carbsG: m.carbsG, fibreG: m.fibreG, ...pickExtras(m), grams: Math.round(grams), sourceId: item.id, serving, method: viaBarcode ? "barcode" : "search" });
   }
 
   const resultRow = (item: FoodItem) => {
@@ -214,7 +217,7 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {recent.goTos.length > 0 && section(`Go-tos for ${hourLabel(hour)}`, <ul className={list} style={listStyle}>{recent.goTos.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>)}
+          {recent.goTos.length > 0 && section(`Go-tos for ${hourLabel(hour)}`, <ul className={list} style={listStyle}>{recent.goTos.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog(savedFoodInput(s), s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>)}
           {section(
             "Latest",
             recent.latest.length === 0 && recent.goTos.length === 0 ? (
@@ -222,7 +225,7 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
                 Foods you log show here for one tap next time.
               </p>
             ) : (
-              <ul className={list} style={listStyle}>{recent.latest.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog({ label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, serving: s.serving, method: "saved" }, s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>
+              <ul className={list} style={listStyle}>{recent.latest.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog(savedFoodInput(s), s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>
             )
           )}
         </div>
@@ -324,6 +327,7 @@ function AmountPanel({ item, busy, onBack, onLog }: { item: FoodItem; busy: bool
         <span>{n(m.kcal)} kcal</span>
         <MacroText kcal={m.kcal} proteinG={m.proteinG} fatG={m.fatG} carbsG={m.carbsG} showKcal={false} size={15} />
       </p>
+      <NutrientList food={m} />
       <ErrorLine text={error} />
       <PrimaryButton
         onClick={async () => {

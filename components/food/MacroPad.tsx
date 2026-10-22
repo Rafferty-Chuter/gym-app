@@ -3,6 +3,7 @@
 import NumberPad, { parsePadValue } from "@/components/ui/NumberPad";
 import { CARBS_COLOR, FAT_COLOR, KCAL_COLOR, PROTEIN_COLOR } from "@/components/food/EnergyCharts";
 import { macroKcal } from "@/lib/physique/food/timeline";
+import { KCAL_PER_G_ALCOHOL } from "@/lib/food/extras";
 
 export type MacroField = "kcal" | "proteinG" | "fatG" | "carbsG";
 export type MacroValues = Record<MacroField, string>;
@@ -36,6 +37,8 @@ type Props = {
   field: MacroField;
   onField: (f: MacroField) => void;
   onChange: (next: MacroValues) => void;
+  /** IN6: the food's alcohol in g when known, so a drink's calories are not read as a slip. */
+  alcoholG?: number;
 };
 
 /**
@@ -43,9 +46,10 @@ type Props = {
  * "Macro sum is N kcal" line under them (MacroFactor's Quick Add). Used by
  * Quick add, the entry editor and Describe rows. Never the system keyboard.
  */
-export default function MacroPad({ values, field, onField, onChange }: Props) {
+export default function MacroPad({ values, field, onField, onChange, alcoholG }: Props) {
   const nums = macroNumbers(values);
-  const sum = macroKcal(nums);
+  const alcohol = alcoholG != null && alcoholG > 0 ? alcoholG : 0;
+  const sum = Math.round(macroKcal(nums) + alcohol * KCAL_PER_G_ALCOHOL);
   const kcal = parsePadValue(values.kcal);
   const anyMacro = nums.proteinG + nums.fatG + nums.carbsG > 0;
   const gap = kcal != null && anyMacro ? Math.round(kcal - sum) : null;
@@ -77,7 +81,7 @@ export default function MacroPad({ values, field, onField, onChange }: Props) {
         })}
       </div>
       <p className="min-h-[16px] text-[11px]" style={{ color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-        {anyMacro ? `Macro sum is ${sum.toLocaleString("en-GB")} kcal${gap != null && Math.abs(gap) > Math.max(30, sum * 0.1) ? ` · ${Math.abs(gap)} kcal ${gap > 0 ? "above" : "below"} the kcal entered` : ""}` : " "}
+        {anyMacro ? `${alcohol ? "Macros and alcohol sum to" : "Macro sum is"} ${sum.toLocaleString("en-GB")} kcal${gap != null && Math.abs(gap) > Math.max(30, sum * 0.1) ? ` · ${Math.abs(gap)} kcal ${gap > 0 ? "below" : "above"} the kcal entered` : ""}` : " "}
       </p>
       <NumberPad value={values[field]} onChange={(v) => onChange({ ...values, [field]: v })} decimals={0} maxIntDigits={4} />
     </div>

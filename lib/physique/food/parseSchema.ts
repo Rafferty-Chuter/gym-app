@@ -26,6 +26,11 @@ export const FoodItemSchema = z.object({
   carbsG: z.number(),
   /** Dietary fibre (AOAC, as UK labels give it) in grams for the item as eaten (F7). */
   fibreG: z.number(),
+  /** Sodium in mg, total sugars, saturated fat and alcohol in g, for the item as eaten; null when it cannot be judged (IN6). */
+  sodiumMg: z.number().nullable(),
+  sugarG: z.number().nullable(),
+  satFatG: z.number().nullable(),
+  alcoholG: z.number().nullable(),
   confidence: z.enum(["high", "medium", "low"]),
   /** Two to four other common sizes of the same food, each a multiple of `serving` ("1 slice" 0.125 of a whole pizza); empty for foods counted plainly (F8). */
   portions: z.array(z.object({ label: z.string(), factor: z.number() })),
@@ -39,6 +44,10 @@ export const Per100Schema = z.object({
   fatG: z.number(),
   carbsG: z.number(),
   fibreG: z.number(),
+  sodiumMg: z.number().nullable(),
+  sugarG: z.number().nullable(),
+  satFatG: z.number().nullable(),
+  alcoholG: z.number().nullable(),
 });
 
 export const RecipeIngredientSchema = z.object({

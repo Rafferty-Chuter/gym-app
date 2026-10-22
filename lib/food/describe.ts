@@ -6,6 +6,7 @@
  */
 
 import { MAX_SERVINGS, type IngredientDraft, type ItemDraft, type PortionOption } from "@/lib/food/recipe";
+import { EXTRA_MAX_PER_100, fittedExtras, scaleExtras } from "@/lib/food/extras";
 import type { FoodParseError, FoodParseOutputData, ParseKind, ParseMode } from "@/lib/physique/food/parseSchema";
 
 // ── Limits ──
@@ -32,6 +33,8 @@ export const MAX_KCAL_PER_100 = 900;
 export const MAX_FIBRE_PER_100 = 60;
 /** Fibre in one described food above this is not a meal (three times a day's target). OURS. */
 export const MAX_ITEM_FIBRE_G = 100;
+/** Sodium in one described food above this is a slip (IN6). OURS: a large takeaway pizza is about 6,000 mg. */
+export const MAX_ITEM_SODIUM_MG = 10_000;
 /** Other sizes offered per food: a slice, a half, the whole and one more is plenty (F8). OURS. */
 export const MAX_PORTIONS = 4;
 export const MAX_PORTION_LABEL_CHARS = 30;
@@ -143,7 +146,7 @@ export type SanitisedParse = {
  */
 export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): SanitisedParse {
   const items: ItemDraft[] = out.items
-    .map((i) => reconcileEnergy({
+    .map((i) => withExtras(i, reconcileEnergy({
       label: shortText(i.label, MAX_NAME_CHARS),
       serving: shortText(i.serving, MAX_SERVING_CHARS),
       lookup: shortText(i.lookup, MAX_LOOKUP_CHARS),
@@ -156,7 +159,7 @@ export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): Saniti
       confidence: i.confidence,
       portions: cleanPortions(i.portions),
       chain: i.chain === true,
-    }))
+    }), MAX_ITEM_SODIUM_MG))
     .filter((i) => i.label.length > 0)
     .slice(0, MAX_ITEMS);
   let ingredients: IngredientDraft[] = out.recipe.ingredients
@@ -164,7 +167,7 @@ export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): Saniti
       name: shortText(g.name, MAX_NAME_CHARS),
       lookup: shortText(g.lookup, MAX_LOOKUP_CHARS),
       grams: Math.round(clamp(g.grams, MAX_INGREDIENT_GRAMS)),
-      per100: reconcileEnergy({ kcal: clamp(g.per100.kcal, MAX_KCAL_PER_100), proteinG: clamp(g.per100.proteinG, 100), fatG: clamp(g.per100.fatG, 100), carbsG: clamp(g.per100.carbsG, 100), ...(Number.isFinite(g.per100.fibreG) ? { fibreG: Math.round(clamp(g.per100.fibreG, MAX_FIBRE_PER_100) * 10) / 10 } : {}) }),
+      per100: withExtras(g.per100, reconcileEnergy({ kcal: clamp(g.per100.kcal, MAX_KCAL_PER_100), proteinG: clamp(g.per100.proteinG, 100), fatG: clamp(g.per100.fatG, 100), carbsG: clamp(g.per100.carbsG, 100), ...(Number.isFinite(g.per100.fibreG) ? { fibreG: Math.round(clamp(g.per100.fibreG, MAX_FIBRE_PER_100) * 10) / 10 } : {}) }), EXTRA_MAX_PER_100.sodiumMg),
     }))
     .filter((g) => g.name.length > 0 && g.grams > 0)
     .slice(0, MAX_INGREDIENTS);
@@ -182,6 +185,11 @@ export function sanitiseParse(out: FoodParseOutputData, mode: ParseMode): Saniti
   if (out.kind === "recipe" && ingredients.length > 0) return { kind: "recipe", items: [], recipe: { name, servings, ingredients } };
   if (items.length === 0 && ingredients.length > 0) return { kind: "recipe", items: [], recipe: { name, servings, ingredients } };
   return { kind: out.kind === "recipe" ? "meal" : out.kind, items, recipe: null };
+}
+
+/** The model's sodium, sugars, saturated fat and alcohol (IN6), null when it gave none, fitted to the numbers already cleaned. */
+function withExtras<T extends { kcal: number; carbsG: number; fatG: number }>(raw: Partial<Record<"sodiumMg" | "sugarG" | "satFatG" | "alcoholG", number | null>>, m: T, maxSodiumMg: number): T {
+  return { ...m, ...fittedExtras(raw, m, maxSodiumMg) };
 }
 
 /**
@@ -203,12 +211,13 @@ export function cleanPortions(portions: readonly PortionOption[] | undefined): P
 
 function itemToIngredient(i: ItemDraft): IngredientDraft {
   const f = 100 / i.grams;
-  return { name: i.label, lookup: i.lookup, grams: i.grams, per100: { kcal: Math.min(MAX_KCAL_PER_100, i.kcal * f), proteinG: Math.min(100, i.proteinG * f), fatG: Math.min(100, i.fatG * f), carbsG: Math.min(100, i.carbsG * f), ...(i.fibreG != null ? { fibreG: Math.min(MAX_FIBRE_PER_100, i.fibreG * f) } : {}) } };
+  const per100 = { kcal: Math.min(MAX_KCAL_PER_100, i.kcal * f), proteinG: Math.min(100, i.proteinG * f), fatG: Math.min(100, i.fatG * f), carbsG: Math.min(100, i.carbsG * f), ...(i.fibreG != null ? { fibreG: Math.min(MAX_FIBRE_PER_100, i.fibreG * f) } : {}) };
+  return { name: i.label, lookup: i.lookup, grams: i.grams, per100: withExtras(scaleExtras(i, f), per100, EXTRA_MAX_PER_100.sodiumMg) };
 }
 
 function ingredientToItem(g: IngredientDraft): ItemDraft {
   const f = g.grams / 100;
-  return { label: g.name, serving: `${g.grams} g`, lookup: g.lookup, grams: g.grams, kcal: g.per100.kcal * f, proteinG: g.per100.proteinG * f, fatG: g.per100.fatG * f, carbsG: g.per100.carbsG * f, ...(g.per100.fibreG != null ? { fibreG: g.per100.fibreG * f } : {}), confidence: "medium" };
+  return { label: g.name, serving: `${g.grams} g`, lookup: g.lookup, grams: g.grams, kcal: g.per100.kcal * f, proteinG: g.per100.proteinG * f, fatG: g.per100.fatG * f, carbsG: g.per100.carbsG * f, ...(g.per100.fibreG != null ? { fibreG: g.per100.fibreG * f } : {}), ...scaleExtras(g.per100, f), confidence: "medium" };
 }
 
 // ── Failures ──

@@ -6,8 +6,10 @@
  *   npx tsx scripts/build-cofid.ts /path/to/McCance_Widdowsons_Composition_of_Foods_Integrated_Dataset_2021..xlsx
  *
  * Reads the "1.3 Proximates" sheet: one row per food with energy, protein,
- * fat and carbohydrate per 100 g as eaten. "Tr" (trace) becomes 0, "N"
- * (not determined) drops the value; a food without energy is skipped.
+ * fat and carbohydrate per 100 g as eaten, then fibre, total sugars,
+ * saturated fat and alcohol, and sodium from "1.4 Inorganics" by food code
+ * (IN6). "Tr" (trace) becomes 0, "N" (not determined) drops the value; a
+ * food without energy and macros is skipped.
  * Output is a compact array so the whole list ships with the app and
  * searches offline.
  */
@@ -23,8 +25,8 @@ if (!SOURCE) {
 }
 const OUT = resolve(__dirname, "../lib/food/data/cofid.json");
 
-/** [code, name, group, kcal, proteinG, fatG, carbsG, fibreG | null] */
-export type CofidRow = [string, string, string, number, number, number, number, number | null];
+/** [code, name, group, kcal, proteinG, fatG, carbsG, fibreG, sodiumMg, sugarG, satFatG, alcoholG], the last five null when not determined. */
+export type CofidRow = [string, string, string, number, number, number, number, number | null, number | null, number | null, number | null, number | null];
 
 function num(v: unknown): number | null {
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -55,7 +57,21 @@ const C = {
   fat: col(/^Fat \(g\)/i),
   carbs: col(/^Carbohydrate \(g\)/i),
   fibre: header.findIndex((h) => /AOAC fibre/i.test(h)),
+  sugars: header.findIndex((h) => /^Total sugars \(g\)/i.test(h)),
+  satFat: header.findIndex((h) => /^Satd FA \/100g fd/i.test(h)),
+  alcohol: header.findIndex((h) => /^Alcohol \(g\)/i.test(h)),
 };
+
+// Sodium, from the inorganics sheet, by food code.
+const inorganic = wb.Sheets["1.4 Inorganics"];
+const sodiumByCode = new Map<string, number | null>();
+if (inorganic) {
+  const irows = XLSX.utils.sheet_to_json<unknown[]>(inorganic, { header: 1, raw: false });
+  const ih = (irows[0] ?? []).map((h) => String(h ?? "").trim());
+  const iCode = Math.max(0, ih.findIndex((h) => /food code/i.test(h)));
+  const iNa = ih.findIndex((h) => /^Sodium \(mg\)/i.test(h));
+  if (iNa >= 0) for (const r of irows.slice(3)) sodiumByCode.set(String(r[iCode] ?? "").trim(), num(r[iNa]));
+}
 
 const out: CofidRow[] = [];
 let skipped = 0;
@@ -71,9 +87,10 @@ for (const r of rows.slice(3)) {
     skipped++;
     continue;
   }
-  const fibre = C.fibre >= 0 ? num(r[C.fibre]) : null;
-  const r1 = (n: number) => Math.round(n * 10) / 10;
-  out.push([code, name, String(r[C.group] ?? "").trim(), Math.round(kcal), r1(protein), r1(fat), r1(carbs), fibre == null ? null : r1(fibre)]);
+  const at = (i: number) => (i >= 0 ? num(r[i]) : null);
+  const r1 = (n: number | null) => (n == null ? null : Math.round(n * 10) / 10);
+  const sodium = sodiumByCode.get(code) ?? null;
+  out.push([code, name, String(r[C.group] ?? "").trim(), Math.round(kcal), r1(protein) as number, r1(fat) as number, r1(carbs) as number, r1(at(C.fibre)), sodium == null ? null : Math.round(sodium), r1(at(C.sugars)), r1(at(C.satFat)), r1(at(C.alcohol))]);
 }
 
 mkdirSync(dirname(OUT), { recursive: true });
@@ -84,7 +101,7 @@ writeFileSync(
       source: "McCance and Widdowson's The Composition of Foods Integrated Dataset 2021, Public Health England",
       licence: "Open Government Licence v3.0",
       url: "https://www.gov.uk/government/publications/composition-of-foods-integrated-dataset-cofid",
-      columns: ["code", "name", "group", "kcalPer100g", "proteinG", "fatG", "carbsG", "fibreG"],
+      columns: ["code", "name", "group", "kcalPer100g", "proteinG", "fatG", "carbsG", "fibreG", "sodiumMg", "sugarG", "satFatG", "alcoholG"],
       foods: out.length,
     },
     foods: out,

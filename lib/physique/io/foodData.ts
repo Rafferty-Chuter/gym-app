@@ -7,6 +7,7 @@
  */
 
 import { perServing } from "@/lib/food/recipe";
+import { EXTRA_KEYS, pickExtras, type Extras } from "@/lib/food/extras";
 import { draftMacros, toSavedRecipe, unitLabel, type RecipeDraft } from "@/lib/food/recipeDraft";
 import { createSingleton } from "@/lib/storage/repo";
 import { useSingleton } from "@/lib/storage/useStored";
@@ -53,7 +54,7 @@ export async function setFoodPrefs(patch: Partial<FoodPrefs>): Promise<SaveResul
 
 // ── Entries ──
 
-export type FoodInput = {
+export type FoodInput = Extras & {
   label: string;
   kcal: number;
   proteinG: number;
@@ -66,6 +67,9 @@ export type FoodInput = {
   confidence?: FoodEntry["confidence"];
   /** Fibre in g when the source has it (B3). */
   fibreG?: number;
+  /** IN6: grams eaten when the amount was a weight, and the database food it came from. */
+  grams?: number;
+  sourceId?: string;
   /** Present when the log is servings of a recipe; the saved food keeps one serving and the ingredients. */
   recipe?: SavedFood["recipe"];
   /** C6: the log is several servings of a saved food, so the saved food keeps its own serving name. */
@@ -75,7 +79,38 @@ export type FoodInput = {
 function clean(food: FoodInput) {
   const r = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0);
   const fibre = food.fibreG != null && Number.isFinite(food.fibreG) ? Math.max(0, Math.round(food.fibreG * 10) / 10) : null;
-  return { label: food.label.trim() || "Food", kcal: r(food.kcal), proteinG: r(food.proteinG), carbsG: r(food.carbsG), fatG: r(food.fatG), ...(fibre != null ? { fibreG: fibre } : {}) };
+  const grams = typeof food.grams === "number" && Number.isFinite(food.grams) && food.grams > 0 ? Math.round(food.grams) : null;
+  const sourceId = typeof food.sourceId === "string" && /^(cofid|off):\S+$/.test(food.sourceId) ? food.sourceId : null;
+  return {
+    label: food.label.trim() || "Food",
+    kcal: r(food.kcal),
+    proteinG: r(food.proteinG),
+    carbsG: r(food.carbsG),
+    fatG: r(food.fatG),
+    ...(fibre != null ? { fibreG: fibre } : {}),
+    ...pickExtras(food),
+    ...(grams != null ? { grams } : {}),
+    ...(sourceId ? { sourceId } : {}),
+  };
+}
+
+/**
+ * IN6: what a saved food lacks and this log has (extras, grams, its
+ * database food), as fibre is filled in (B3); only from a log of the same
+ * amount, so two servings never fill in one serving's numbers.
+ */
+function fillIn(match: SavedFood, food: ReturnType<typeof clean>): Partial<SavedFood> {
+  const out: Partial<SavedFood> = {};
+  if (food.kcal !== match.kcal) return out;
+  for (const k of EXTRA_KEYS) if (match[k] == null && food[k] != null) out[k] = food[k];
+  if (match.grams == null && food.grams != null) out.grams = food.grams;
+  if (match.sourceId == null && food.sourceId) out.sourceId = food.sourceId;
+  return out;
+}
+
+/** A saved food logged as one of its servings, with everything it carries (B3, IN6). */
+export function savedFoodInput(s: SavedFood): FoodInput {
+  return { label: s.label, kcal: s.kcal, proteinG: s.proteinG, fatG: s.fatG, carbsG: s.carbsG, fibreG: s.fibreG, ...pickExtras(s), grams: s.grams, sourceId: s.sourceId, serving: s.serving, method: "saved" };
 }
 
 /** Remember a logged food for Recent and Saved; a same-label-and-kcal match is reused. */
@@ -85,7 +120,7 @@ async function rememberSaved(food: ReturnType<typeof clean>, serving: string | u
     (savedFoodId ? saved.find((s) => s.id === savedFoodId) : undefined) ??
     saved.find((s) => s.label.toLowerCase() === food.label.toLowerCase() && s.kcal === food.kcal);
   const next: SavedFood = match
-    ? { ...match, lastUsedAt: nowIso, useCount: match.useCount + 1, serving: serving ?? match.serving, ...(recipe ? { recipe, fibreG: food.fibreG } : match.fibreG == null && food.fibreG != null ? { fibreG: food.fibreG } : {}) }
+    ? { ...match, lastUsedAt: nowIso, useCount: match.useCount + 1, serving: serving ?? match.serving, ...(recipe ? { recipe, fibreG: food.fibreG, ...pickExtras(food) } : match.fibreG == null && food.fibreG != null ? { fibreG: food.fibreG } : {}), ...(recipe ? {} : fillIn(match, food)) }
     : { id: newId(), ...food, serving, lastUsedAt: nowIso, useCount: 1, schemaVersion: 1, ...(recipe ? { recipe } : {}) };
   await savedFoodsRepo.upsert(next);
   return next.id;
@@ -133,8 +168,9 @@ export async function saveRecipe(draft: RecipeDraft, nowIso: string): Promise<Sa
       serving: unitLabel(draft),
       recipe: toSavedRecipe(draft),
     };
-    // An edit can leave too little of the recipe with a fibre value: the old number must not stay (F7).
+    // An edit can leave too little of the recipe with a fibre value: the old number must not stay (F7). The same for the extras (IN6).
     if (one.fibreG == null) delete next.fibreG;
+    for (const k of EXTRA_KEYS) if (one[k] == null) delete next[k];
     await savedFoodsRepo.upsert(next);
   });
   return r.ok ? { ...r, id } : r;
@@ -150,6 +186,13 @@ export async function updateFoodEntry(id: string, patch: Partial<FoodInput>): Pr
     // Fibre was known for the numbers first logged; once energy or carbs are edited it is unknown (B3).
     const edited = (["kcal", "carbsG"] as const).some((k) => patch[k] !== undefined && merged[k] !== existing[k]);
     if (edited && patch.fibreG === undefined) delete next.fibreG;
+    // IN6: the extras, the weight and the database food were known for the numbers first logged; any edited macro makes them unknown.
+    const anyEdited = (["kcal", "proteinG", "carbsG", "fatG"] as const).some((k) => patch[k] !== undefined && merged[k] !== existing[k]);
+    if (anyEdited) {
+      for (const k of EXTRA_KEYS) if (patch[k] === undefined) delete next[k];
+      if (patch.grams === undefined) delete next.grams;
+      if (patch.sourceId === undefined) delete next.sourceId;
+    }
     if (patch.time !== undefined) {
       if (patch.time) next.time = patch.time;
       else delete next.time;

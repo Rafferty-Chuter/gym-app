@@ -10,6 +10,7 @@
 import { MAX_SERVINGS, eatenMacros, perServing, servingLabel, type Recipe, type RecipeIngredient } from "@/lib/food/recipe";
 import { formatAmount, type PlateItem } from "@/lib/food/plate";
 import type { Macros } from "@/lib/food/types";
+import { scaleExtras } from "@/lib/food/extras";
 import type { SavedFood } from "@/lib/physique/types";
 
 export type RecipeDraft = {
@@ -47,7 +48,7 @@ export function draftFromPlate(items: readonly PlateItem[]): RecipeDraft {
 
 function plateIngredient(p: PlateItem): RecipeIngredient {
   const base = { name: p.label, source: p.matched ? ("cofid" as const) : ("estimate" as const), ...(p.matched ? { matched: p.matched } : {}) };
-  const fibre = (f: number) => (p.fibreG != null ? { fibreG: p.fibreG * f } : {});
+  const fibre = (f: number) => ({ ...(p.fibreG != null ? { fibreG: p.fibreG * f } : {}), ...scaleExtras(p, f) });
   if (p.grams > 0) {
     const f = 100 / p.grams;
     return { ...base, grams: Math.round(p.grams * p.amount), per100: { kcal: p.kcal * f, proteinG: p.proteinG * f, carbsG: p.carbsG * f, fatG: p.fatG * f, ...fibre(f) } };

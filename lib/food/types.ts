@@ -5,13 +5,15 @@
  * only ever sees a `FoodItem`.
  */
 
+import type { Extras } from "@/lib/food/extras";
+
 export type FoodSource = "cofid" | "off" | "user";
 
 /** A named amount of a food, in grams of the food as eaten. */
 export type Portion = { label: string; grams: number };
 
-/** Per 100 g of the food as eaten. kcal, g; fibre when the source has it. */
-export type Per100 = { kcal: number; proteinG: number; carbsG: number; fatG: number; fibreG?: number };
+/** Per 100 g of the food as eaten. kcal, g; fibre and the extras (sodium in mg) when the source has them (IN6). */
+export type Per100 = { kcal: number; proteinG: number; carbsG: number; fatG: number; fibreG?: number } & Extras;
 
 export type FoodItem = {
   /** Stable: `cofid:<code>` or `off:<barcode>`. */
@@ -27,5 +29,5 @@ export type FoodItem = {
   group?: string;
 };
 
-/** Macros for an amount of a food; fibre only when the source has it. */
-export type Macros = { kcal: number; proteinG: number; carbsG: number; fatG: number; fibreG?: number };
+/** Macros for an amount of a food; fibre and the extras only when the source has them. */
+export type Macros = { kcal: number; proteinG: number; carbsG: number; fatG: number; fibreG?: number } & Extras;
