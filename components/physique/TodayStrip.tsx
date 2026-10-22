@@ -80,8 +80,8 @@ export default function TodayStrip() {
   const tile = "flex flex-col rounded-[16px] px-3.5 pb-3 pt-3.5 text-left transition-colors active:bg-[var(--surface-raised)] disabled:opacity-60";
   const tileStyle = { background: "var(--surface)" };
 
-  // Weight tile words: the average (the smoothed trend, named plainly) under today's weigh-in; the rate is on the Weight tile below.
-  const weightSub = !ready || !day ? " " : day.trend ? `Average ${formatBodyWeight(day.trend.trendKg, unit)}` : day.lastWeighIn ? `Last ${formatBodyWeight(day.lastWeighIn.kg, unit)}` : "No entries yet";
+  // Weight tile words: the current weight leads (IN12, the founder: not the trend or an average); before today's weigh-in, the last one.
+  const weightSub = !ready || !day ? " " : day.weighIn ? "Today" : day.lastWeighIn ? `Last ${formatBodyWeight(day.lastWeighIn.kg, unit)}` : "No entries yet";
   const sleepSub = !ready || !day ? " " : "Last night";
   const weightValue = ready && day?.weighIn ? splitValue(formatBodyWeight(day.weighIn.kg, unit)) : null;
   const sleepValue = ready && day?.night ? splitValue(formatHoursMin(day.night.asleepMin)) : null;

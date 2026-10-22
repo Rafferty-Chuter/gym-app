@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import type { Unlock, UnlockId } from "@/lib/physique/progressUnlocks";
 
 const META: Record<UnlockId, { label: string; color: string; icon: string[]; href?: string }> = {
@@ -80,7 +81,9 @@ export default function FirstUse({ unlocks, onLogWeight, onExample }: { unlocks:
               ? "Log sleep or food alongside your sessions"
               : u.id === "sleep" && u.have === 0
                 ? "Log a night, or connect Apple Health on Sleep"
-                : u.etaDays != null && u.etaDays > 0
+                : u.startsOn
+                  ? `Starting guess; your log takes over ${longLocalDate(u.startsOn)}`
+                  : u.etaDays != null && u.etaDays > 0
                   ? etaWords(u.etaDays, u.id === "connections")
                   : locked
                     ? "Sessions with sleep or food logged alongside"

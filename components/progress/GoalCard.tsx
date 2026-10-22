@@ -6,7 +6,7 @@ import { Chevron, StatusDot } from "@/components/physique/ui";
 import { longLocalDate, shortLocalDate } from "@/components/charts/TimeSeriesChart";
 import { addDays, type LocalDate } from "@/lib/dates";
 import { goalEta, type GoalEta } from "@/lib/physique/goalEta";
-import { goalProgress } from "@/lib/physique/goalProgress";
+import { currentWeight, goalDistanceAt } from "@/lib/physique/goalProgress";
 import { latestTrend } from "@/lib/physique/weight";
 import { defaultReportWeek } from "@/lib/physique/weekReport";
 import type { DayFlags, PhysiqueAnalysis, PhysiqueGoal, WeighIn } from "@/lib/physique/types";
@@ -47,7 +47,7 @@ function etaWords(eta: GoalEta, today: LocalDate): string {
 const NOT_COACHED = new Set(["SAFE-0", "SAFE-3", "SAFE-4", "SAFE-5"]);
 
 /**
- * The goal (PR3), the top of Progress: where the trend weight is against
+ * The goal (PR3), the top of Progress: where the current weight is against
  * the target, how much is left and when it lands, the rate in kilos a week
  * against the plan with the judge's word for it, and the way into the
  * weekly report. Facts first; the long reasoning lives in the report and,
@@ -56,7 +56,9 @@ const NOT_COACHED = new Set(["SAFE-0", "SAFE-3", "SAFE-4", "SAFE-5"]);
 export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, unit, example = false, why = null }: { analysis: PhysiqueAnalysis | null; goal: PhysiqueGoal | null; weighIns: readonly WeighIn[]; dayFlags: Readonly<Record<string, DayFlags>>; today: LocalDate; unit: WeightUnit; /** Drawn from the made-up example (PR5): no links into the person's own goal or report. */ example?: boolean; /** IN3: one fact behind a rate off the plan ("Steps 11,200 → 6,900 a day since 2 Jul"); the weekly report has the rest. */ why?: string | null }) {
   const active = goal && !goal.completedAt ? goal : null;
   const trend = useMemo(() => latestTrend(weighIns.filter((w) => w.date <= today)), [weighIns, today]);
-  const progress = useMemo(() => goalProgress(active, weighIns, today), [active, weighIns, today]);
+  const current = useMemo(() => currentWeight(weighIns, today), [weighIns, today]);
+  // The headline is the current weight (IN12): "to go" and "lost" count from it, so the numbers on the card add up. The rate and date stay on the trend.
+  const progress = useMemo(() => (current ? goalDistanceAt(active, current.kg) : null), [active, current]);
   const eta = useMemo(() => goalEta(active, weighIns, dayFlags, today), [active, weighIns, dayFlags, today]);
   const reportWeek = defaultReportWeek(today);
 
@@ -88,10 +90,10 @@ export default function GoalCard({ analysis, goal, weighIns, dayFlags, today, un
         <div className="mt-1.5 flex items-end justify-between gap-3">
           <span className="flex flex-col">
             <span className="text-[34px] font-semibold leading-none tracking-[-0.02em]" style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
-              {trendKg != null ? formatBodyWeight(trendKg, unit) : "—"}
+              {current ? formatBodyWeight(current.kg, unit) : "—"}
             </span>
             <span className="mt-1 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
-              {trendKg != null ? "Average of your recent weigh-ins" : "No weigh-ins yet"}
+              {current ? (current.date === today ? "Current weight" : `Last weighed ${shortLocalDate(current.date)}`) : "No weigh-ins yet"}
             </span>
           </span>
           {coached && progress && !eta?.reached && (

@@ -10,7 +10,7 @@
 
 import { addDays, dayDiff, type LocalDate, type Now } from "@/lib/dates";
 import { CONN_MIN_SESSIONS, type ConnectionsResult } from "@/lib/physique/connections";
-import { SETTLING_UPDATING_DAYS, type ExpenditureResult } from "@/lib/physique/expenditure";
+import { INITIAL_HOLD_DAYS, SETTLING_UPDATING_DAYS, type ExpenditureResult } from "@/lib/physique/expenditure";
 import { nightsByDate, SLEEP_USUAL_MIN_NIGHTS } from "@/lib/physique/sleep";
 import { isCompoundLift, liftSeries, MAIN_LIFT_MIN_WEEKS_TRAINED, MAIN_LIFT_WEEKS, pickMainLifts } from "@/lib/physique/strength";
 import { MIN_DAYS_FOR_RATE, MIN_WEIGHIN_RATIO, MIN_WEIGHINS_FOR_RATE, weighInsNeededForRate } from "@/lib/physique/weight";
@@ -30,6 +30,8 @@ export type Unlock = {
   etaDays: number | null;
   /** Connections only: enough sessions, but no sleep or food logged alongside them to compare. */
   needsAlongside?: boolean;
+  /** Maintenance only: the day the estimate starts moving with the person's own food and weight, while it still holds its starting guess. */
+  startsOn?: LocalDate;
 };
 
 export type UnlockInputs = {
@@ -62,9 +64,22 @@ export function progressUnlocks(i: UnlockInputs, now: Now): Unlock[] {
       ? { id: "weight", done: false, have: needCount - missing, need: needCount, unit: "weigh-ins", etaDays: needCount - missing > 0 ? Math.max(missing, MIN_DAYS_FOR_RATE - spanDays) : null }
       : { id: "weight", done: spanDays >= MIN_DAYS_FOR_RATE, have: Math.min(spanDays, MIN_DAYS_FOR_RATE), need: MIN_DAYS_FOR_RATE, unit: "days", etaDays: Math.max(0, MIN_DAYS_FOR_RATE - spanDays) };
 
-  // ── Maintenance: the expenditure estimate's warm-up of updating days ──
+  // ── Maintenance: the starting guess's hold, then the estimate's warm-up of updating days ──
+  // Counted from the day the estimate started, so the first week shows as days done, not "0 of 21" with no reason (IN12).
   const updating = i.expenditure?.maturity.updatingDays ?? 0;
-  const maintenance: Unlock = { id: "maintenance", done: updating >= SETTLING_UPDATING_DAYS, have: Math.min(updating, SETTLING_UPDATING_DAYS), need: SETTLING_UPDATING_DAYS, unit: "days", etaDays: updating > 0 ? SETTLING_UPDATING_DAYS - Math.min(updating, SETTLING_UPDATING_DAYS) : null };
+  const seedDate = i.expenditure?.seed.date ?? null;
+  const held = seedDate && seedDate <= today ? Math.min(INITIAL_HOLD_DAYS, dayDiff(seedDate, today) + 1) : 0;
+  const maintenanceNeed = INITIAL_HOLD_DAYS + SETTLING_UPDATING_DAYS;
+  const maintenanceHave = Math.min(held + updating, maintenanceNeed);
+  const maintenance: Unlock = {
+    id: "maintenance",
+    done: updating >= SETTLING_UPDATING_DAYS,
+    have: maintenanceHave,
+    need: maintenanceNeed,
+    unit: "days",
+    etaDays: maintenanceHave > 0 ? maintenanceNeed - maintenanceHave : null,
+    ...(seedDate && updating === 0 && held < INITIAL_HOLD_DAYS ? { startsOn: addDays(seedDate, INITIAL_HOLD_DAYS) } : {}),
+  };
 
   // ── Lifts: a compound lift trained in enough of the last six weeks becomes a main lift ──
   const mainLifts = pickMainLifts(i.workouts, i.unit, now);

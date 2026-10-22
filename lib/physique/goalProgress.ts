@@ -7,7 +7,7 @@
 
 import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
 import type { PhysiqueGoal, WeighIn } from "@/lib/physique/types";
-import { trendSeries } from "@/lib/physique/weight";
+import { trendSeries, weighInsByDate } from "@/lib/physique/weight";
 
 export type GoalWeekBar = {
   week: number;
@@ -30,6 +30,31 @@ export type GoalProgress = {
   /** Weeks to go at the goal rate; null when the rate can't get there. */
   weeksLeft: number | null;
 };
+
+/** Distance done and left on the way to the target, from the goal's start to one weight. */
+export type GoalDistance = { totalKg: number; doneKg: number; remainingKg: number; share: number };
+
+/** The latest day's weight on or before `today` (that day's first reading, as the trend takes it), or null. */
+export function currentWeight(weighIns: readonly WeighIn[], today: LocalDate): { date: LocalDate; kg: number } | null {
+  let out: { date: LocalDate; kg: number } | null = null;
+  for (const [date, kg] of weighInsByDate(weighIns)) if (date <= today && (!out || date > out.date)) out = { date, kg };
+  return out;
+}
+
+/**
+ * The goal's distance at the current weight, for the Progress headline:
+ * the founder wants the current weight there, not the trend, and "to go"
+ * and "lost" must add up with the number shown (IN12). The rate and the
+ * date stay on the trend, where one salty day can't move them. Null
+ * without a cut or gain goal.
+ */
+export function goalDistanceAt(goal: PhysiqueGoal | null, kg: number): GoalDistance | null {
+  if (!goal || goal.type === "maintain") return null;
+  const dir = Math.sign(goal.targetKg - goal.startTrendKg) || 1;
+  const totalKg = Math.abs(goal.targetKg - goal.startTrendKg);
+  const doneKg = Math.max(0, Math.min(totalKg, (kg - goal.startTrendKg) * dir));
+  return { totalKg, doneKg, remainingKg: Math.max(0, totalKg - doneKg), share: totalKg > 0 ? doneKg / totalKg : 0 };
+}
 
 /** Weekly bars and totals for the goal, as of `today`. Null without a goal or a trend. */
 export function goalProgress(goal: PhysiqueGoal | null, weighIns: readonly WeighIn[], today: LocalDate): GoalProgress | null {

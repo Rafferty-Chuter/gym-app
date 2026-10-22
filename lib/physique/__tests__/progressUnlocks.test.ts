@@ -7,7 +7,7 @@ import { exampleScenario } from "@/lib/physique/exampleData";
 import { progressUnlocks, type UnlockInputs } from "@/lib/physique/progressUnlocks";
 import { CONN_MIN_SESSIONS } from "@/lib/physique/connections";
 import { MAIN_LIFT_MIN_WEEKS_TRAINED } from "@/lib/physique/strength";
-import { SETTLING_UPDATING_DAYS } from "@/lib/physique/expenditure";
+import { INITIAL_HOLD_DAYS, SETTLING_UPDATING_DAYS } from "@/lib/physique/expenditure";
 
 const today = "2026-10-21";
 const now = { today, tz: "UTC" };
@@ -28,7 +28,8 @@ describe("What Progress needs before each part shows (PR5)", () => {
     expect(Object.keys(u)).toEqual(["goal", "weight", "maintenance", "lifts", "sleep", "connections"]);
     for (const x of Object.values(u)) expect(x.done).toBe(false);
     expect(u.weight).toMatchObject({ have: 0, need: 6, unit: "weigh-ins" });
-    expect(u.maintenance).toMatchObject({ have: 0, need: SETTLING_UPDATING_DAYS, unit: "days" });
+    expect(u.maintenance).toMatchObject({ have: 0, need: INITIAL_HOLD_DAYS + SETTLING_UPDATING_DAYS, unit: "days", etaDays: null });
+    expect(u.maintenance.startsOn).toBeUndefined();
     expect(u.lifts).toMatchObject({ have: 0, need: MAIN_LIFT_MIN_WEEKS_TRAINED, unit: "weeks" });
     expect(u.sleep).toMatchObject({ have: 0, need: 7, unit: "nights" });
     expect(u.connections).toMatchObject({ have: 0, need: CONN_MIN_SESSIONS, unit: "sessions" });
@@ -47,6 +48,19 @@ describe("What Progress needs before each part shows (PR5)", () => {
     expect(u.lifts.have).toBeLessThan(MAIN_LIFT_MIN_WEEKS_TRAINED);
     expect(u.connections.done).toBe(false);
     expect(u.connections.etaDays).toBeGreaterThan(21);
+  });
+
+  it("counts maintenance from its first day, and says when the starting guess gives way to the log (IN12)", () => {
+    const start = addDays(today, -5);
+    const sc = makeScenario({ seed: 3, days: 6, startDate: start, bodyweightKg: 79, trueTdeeKcal: 2500, intake: "toTarget", goal: { ratePctPerWeek: -0.5, targetKg: 75 } });
+    const inputs = inputsOf(sc);
+    const u = byId(progressUnlocks(inputs, { today: sc.today, tz: "UTC" }));
+    expect(inputs.expenditure?.maturity.updatingDays).toBe(0);
+    expect(u.maintenance).toMatchObject({ done: false, have: 6, need: INITIAL_HOLD_DAYS + SETTLING_UPDATING_DAYS, etaDays: INITIAL_HOLD_DAYS + SETTLING_UPDATING_DAYS - 6, startsOn: addDays(inputs.expenditure!.seed.date, INITIAL_HOLD_DAYS) });
+    // Ten days in, it has started moving: the hold's 7 days plus the updating days, and no start date.
+    const later = byId(progressUnlocks(inputsOf(makeScenario({ seed: 3, days: 10, startDate: addDays(today, -9), bodyweightKg: 79, trueTdeeKcal: 2500, intake: "toTarget", goal: { ratePctPerWeek: -0.5, targetKg: 75 } })), now));
+    expect(later.maintenance.have).toBeGreaterThan(INITIAL_HOLD_DAYS);
+    expect(later.maintenance.startsOn).toBeUndefined();
   });
 
   it("with the 16-week example, everything is ready", () => {
