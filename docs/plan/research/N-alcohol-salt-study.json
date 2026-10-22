@@ -1,0 +1,502 @@
+{
+  "seeds": 30,
+  "today": "2026-10-21",
+  "rows": [
+    {
+      "study": "nights and scale",
+      "persona": "Heavy evenings (54 g, about 3 pints), 1.4 a week: resting HR +8.7 bpm, HRV −20%, sleep −35 min",
+      "weeks": 6,
+      "medianDrinkingNights": 13,
+      "read": "30/30",
+      "found": {
+        "rhr": "30/30",
+        "hrv": "23/30",
+        "sleep": "17/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": 8.5,
+        "hrv": -10.7,
+        "sleep": -48.4,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "2/30",
+      "falseLinksBy": {
+        "scale2": 2
+      },
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Heavy evenings (54 g, about 3 pints), 1.4 a week: resting HR +8.7 bpm, HRV −20%, sleep −35 min",
+      "weeks": 12,
+      "medianDrinkingNights": 22,
+      "read": "30/30",
+      "found": {
+        "rhr": "30/30",
+        "hrv": "30/30",
+        "sleep": "24/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": 8.4,
+        "hrv": -10.6,
+        "sleep": -33.7,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Heavy evenings (54 g, about 3 pints), 1.4 a week: resting HR +8.7 bpm, HRV −20%, sleep −35 min",
+      "weeks": 26,
+      "medianDrinkingNights": 35,
+      "read": "30/30",
+      "found": {
+        "rhr": "30/30",
+        "hrv": "30/30",
+        "sleep": "30/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": 8.7,
+        "hrv": -11,
+        "sleep": -33.8,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Moderate evenings (36 g, about 2 pints), 1.4 a week: resting HR +4 bpm, HRV −10%, sleep −15 min",
+      "weeks": 6,
+      "medianDrinkingNights": 13,
+      "read": "30/30",
+      "found": {
+        "rhr": "30/30",
+        "hrv": "6/30",
+        "sleep": "7/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": 3.7,
+        "hrv": -8.9,
+        "sleep": -40.5,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "2/30",
+      "falseLinksBy": {
+        "scale2": 2
+      },
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Moderate evenings (36 g, about 2 pints), 1.4 a week: resting HR +4 bpm, HRV −10%, sleep −15 min",
+      "weeks": 12,
+      "medianDrinkingNights": 22,
+      "read": "30/30",
+      "found": {
+        "rhr": "30/30",
+        "hrv": "11/30",
+        "sleep": "3/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": 3.6,
+        "hrv": -7.6,
+        "sleep": -26.1,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Moderate evenings (36 g, about 2 pints), 1.4 a week: resting HR +4 bpm, HRV −10%, sleep −15 min",
+      "weeks": 26,
+      "medianDrinkingNights": 35,
+      "read": "30/30",
+      "found": {
+        "rhr": "30/30",
+        "hrv": "23/30",
+        "sleep": "12/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": 4,
+        "hrv": -5.8,
+        "sleep": -19.6,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Heavy evenings, once a fortnight: resting HR +8.7 bpm, HRV −20%, sleep −35 min",
+      "weeks": 6,
+      "medianDrinkingNights": 5,
+      "read": "15/30",
+      "found": {
+        "rhr": "11/30",
+        "hrv": "4/30",
+        "sleep": "3/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": 8.2,
+        "hrv": -13.3,
+        "sleep": -43.1,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Heavy evenings, once a fortnight: resting HR +8.7 bpm, HRV −20%, sleep −35 min",
+      "weeks": 12,
+      "medianDrinkingNights": 8,
+      "read": "29/30",
+      "found": {
+        "rhr": "27/30",
+        "hrv": "15/30",
+        "sleep": "7/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": 8.4,
+        "hrv": -12.7,
+        "sleep": -43.2,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "2/30",
+      "falseLinksBy": {
+        "scale1": 1,
+        "scale2": 1
+      },
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Heavy evenings, once a fortnight: resting HR +8.7 bpm, HRV −20%, sleep −35 min",
+      "weeks": 26,
+      "medianDrinkingNights": 12,
+      "read": "30/30",
+      "found": {
+        "rhr": "30/30",
+        "hrv": "25/30",
+        "sleep": "15/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": 8.6,
+        "hrv": -10.7,
+        "sleep": -38.4,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Scale +0.8 kg the morning after, +0.4 kg two mornings after; nights unchanged",
+      "weeks": 6,
+      "medianDrinkingNights": 13,
+      "read": "30/30",
+      "found": {
+        "rhr": "0/30",
+        "hrv": "0/30",
+        "sleep": "0/30",
+        "scale1": "29/30",
+        "scale2": "6/30"
+      },
+      "meanShown": {
+        "rhr": null,
+        "hrv": null,
+        "sleep": null,
+        "scale1": 0.7,
+        "scale2": 0.4
+      },
+      "runsWithAFalseLink": "1/30",
+      "falseLinksBy": {
+        "rhr": 1
+      },
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Scale +0.8 kg the morning after, +0.4 kg two mornings after; nights unchanged",
+      "weeks": 12,
+      "medianDrinkingNights": 22,
+      "read": "30/30",
+      "found": {
+        "rhr": "0/30",
+        "hrv": "0/30",
+        "sleep": "0/30",
+        "scale1": "30/30",
+        "scale2": "9/30"
+      },
+      "meanShown": {
+        "rhr": null,
+        "hrv": null,
+        "sleep": null,
+        "scale1": 0.7,
+        "scale2": 0.3
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Scale +0.8 kg the morning after, +0.4 kg two mornings after; nights unchanged",
+      "weeks": 26,
+      "medianDrinkingNights": 35,
+      "read": "30/30",
+      "found": {
+        "rhr": "0/30",
+        "hrv": "0/30",
+        "sleep": "0/30",
+        "scale1": "30/30",
+        "scale2": "7/30"
+      },
+      "meanShown": {
+        "rhr": null,
+        "hrv": null,
+        "sleep": null,
+        "scale1": 0.7,
+        "scale2": 0.3
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Control: drinks 1.4 evenings a week, nothing changes",
+      "weeks": 6,
+      "medianDrinkingNights": 13,
+      "read": "30/30",
+      "found": {
+        "rhr": "0/30",
+        "hrv": "0/30",
+        "sleep": "0/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": null,
+        "hrv": null,
+        "sleep": null,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Control: drinks 1.4 evenings a week, nothing changes",
+      "weeks": 12,
+      "medianDrinkingNights": 22,
+      "read": "30/30",
+      "found": {
+        "rhr": "0/30",
+        "hrv": "0/30",
+        "sleep": "0/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": null,
+        "hrv": null,
+        "sleep": null,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Control: drinks 1.4 evenings a week, nothing changes",
+      "weeks": 26,
+      "medianDrinkingNights": 35,
+      "read": "30/30",
+      "found": {
+        "rhr": "0/30",
+        "hrv": "0/30",
+        "sleep": "0/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": null,
+        "hrv": null,
+        "sleep": null,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Weekend control: drinks on Friday and Saturday, no effect of drink, but those nights are 40 min shorter and 2.5 bpm higher anyway",
+      "weeks": 6,
+      "medianDrinkingNights": 14,
+      "read": "30/30",
+      "found": {
+        "rhr": "0/30",
+        "hrv": "0/30",
+        "sleep": "0/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": null,
+        "hrv": null,
+        "sleep": null,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "2/30",
+      "falseLinksBy": {
+        "rhr": 1,
+        "sleep": 2
+      },
+      "falseRunsWithWeekdayNote": 2
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Weekend control: drinks on Friday and Saturday, no effect of drink, but those nights are 40 min shorter and 2.5 bpm higher anyway",
+      "weeks": 12,
+      "medianDrinkingNights": 21,
+      "read": "30/30",
+      "found": {
+        "rhr": "0/30",
+        "hrv": "0/30",
+        "sleep": "0/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": null,
+        "hrv": null,
+        "sleep": null,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "0/30",
+      "falseLinksBy": {},
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "nights and scale",
+      "persona": "Weekend control: drinks on Friday and Saturday, no effect of drink, but those nights are 40 min shorter and 2.5 bpm higher anyway",
+      "weeks": 26,
+      "medianDrinkingNights": 36,
+      "read": "30/30",
+      "found": {
+        "rhr": "0/30",
+        "hrv": "0/30",
+        "sleep": "0/30",
+        "scale1": "0/30",
+        "scale2": "0/30"
+      },
+      "meanShown": {
+        "rhr": null,
+        "hrv": null,
+        "sleep": null,
+        "scale1": null,
+        "scale2": null
+      },
+      "runsWithAFalseLink": "1/30",
+      "falseLinksBy": {
+        "scale1": 1
+      },
+      "falseRunsWithWeekdayNote": 0
+    },
+    {
+      "study": "next session",
+      "persona": "Lifts 3% weaker the day after drinking",
+      "weeks": 26,
+      "found": "30/30",
+      "meanShownPct": -2.8,
+      "falseAlcoholLinks": "0/30"
+    },
+    {
+      "study": "next session",
+      "persona": "Lifts 3% weaker the day after drinking",
+      "weeks": 52,
+      "found": "30/30",
+      "meanShownPct": -3,
+      "falseAlcoholLinks": "0/30"
+    },
+    {
+      "study": "next session",
+      "persona": "Strength holds the day after drinking",
+      "weeks": 26,
+      "found": "–",
+      "meanShownPct": null,
+      "falseAlcoholLinks": "0/30"
+    },
+    {
+      "study": "next session",
+      "persona": "Strength holds the day after drinking",
+      "weeks": 52,
+      "found": "–",
+      "meanShownPct": null,
+      "falseAlcoholLinks": "0/30"
+    },
+    {
+      "study": "salt in the scale jump",
+      "persona": "Salty days hold 0.25 kg per g of sodium",
+      "saltMornings": 207,
+      "spokenUp": 110,
+      "saltNamedWhenSpoken": "109/110",
+      "otherMornings": 1611,
+      "saltNamedOnOtherMornings": 0
+    },
+    {
+      "study": "salt in the scale jump",
+      "persona": "Control: salty days, the scale doesn't follow",
+      "saltMornings": 207,
+      "spokenUp": 3,
+      "saltNamedWhenSpoken": "2/3",
+      "otherMornings": 1611,
+      "saltNamedOnOtherMornings": 0
+    }
+  ]
+}

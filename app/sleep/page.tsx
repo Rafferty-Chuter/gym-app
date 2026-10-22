@@ -13,6 +13,9 @@ import { formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { trendBars } from "@/lib/physique/sleepView";
 import { nightAverages, nightScore, wakeConsistency, type NightAverages } from "@/lib/physique/sleepScore";
 import { recoveryRead } from "@/lib/physique/recovery";
+import { alcoholLinks } from "@/lib/physique/alcohol";
+import { vitalsRepo } from "@/lib/physique/io/repos";
+import { useRepo } from "@/lib/storage/useStored";
 import PageHeader from "@/components/ui/PageHeader";
 import SleepSheet from "@/components/physique/SleepSheet";
 import NightHero, { nightLabel } from "@/components/sleep/NightHero";
@@ -20,6 +23,7 @@ import { longLocalDate } from "@/components/charts/TimeSeriesChart";
 import ConsistencyCard from "@/components/sleep/ConsistencyCard";
 import NightBars from "@/components/sleep/NightBars";
 import RecoveryCard from "@/components/sleep/RecoveryCard";
+import AlcoholCard from "@/components/sleep/AlcoholCard";
 import { Chevron } from "@/components/sleep/parts";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
 import { useHealthAutoPull, useHealthLink } from "@/lib/physique/io/healthLink";
@@ -33,7 +37,8 @@ import { useNativeHealth, useNativeHealthSync } from "@/lib/physique/io/nativeHe
  * Data here, reading in the weekly report (S10): no sentences about the
  * average and no week-against-month trends.
  * The Tonight planner and sleep debt went in S9: the goal and a steady
- * wake time are what a person can act on.
+ * wake time are what a person can act on. IN9 adds what followed drinking
+ * evenings, for people who log drinks.
  */
 export default function SleepPage() {
   const hydrated = useIsHydrated();
@@ -78,6 +83,13 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
     };
   }, [data.sleepNights, today, night, now, analysis]);
 
+  // IN9: drinking evenings against the night and the mornings after; vitals fill nights without HRV or resting HR.
+  const vitals = useRepo(vitalsRepo);
+  const alcohol = useMemo(
+    () => alcoholLinks({ foodEntries: data.foodEntries, dayFlags: data.dayFlags, sleepNights: data.sleepNights, vitals, weighIns: data.weighIns }, now),
+    [data.foodEntries, data.dayFlags, data.sleepNights, data.weighIns, vitals, now]
+  );
+
   const nowIso = () => new Date().toISOString();
 
   return (
@@ -101,6 +113,8 @@ function SleepContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         )}
 
         <RecoveryCard read={model.recovery} />
+
+        <AlcoholCard read={alcohol} unit={unit} />
 
         {/* Set up from here until connected; after that it is managed in Profile (B2). */}
         {!healthLink && !nativeHealth && (

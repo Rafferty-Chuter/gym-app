@@ -6,7 +6,7 @@
  */
 
 import { formatWeight, type WeightUnit } from "@/lib/units";
-import { CARB_WATER_KG_PER_G, FOOD_MASS_KG_PER_KCAL, LIST_CARBS_G, LIST_KCAL, type JumpCause, type ScaleJump } from "@/lib/physique/scaleJump";
+import { CARB_WATER_KG_PER_G, FOOD_MASS_KG_PER_KCAL, LIST_CARBS_G, LIST_KCAL, LIST_SALT_G, SALT_PER_SODIUM, SODIUM_WATER_KG_PER_G, type JumpCause, type ScaleJump } from "@/lib/physique/scaleJump";
 import { addDays, weekday, type LocalDate } from "@/lib/dates";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -31,15 +31,28 @@ export function jumpHeadline(j: ScaleJump, unit: WeightUnit, isToday: boolean): 
   return `${j.direction === "up" ? "Up" : "Down"} ${formatWeight(Math.abs(j.changeKg), unit, 1)} on ${previous(j, isToday)}`;
 }
 
-/** The food parts in the jump's direction: "160 g more carbs", "700 more kcal". */
+/** Salt in g from sodium in mg, to 0.1 g under 10 g: "4.5 g". */
+const saltG = (mg: number) => {
+  const g = (Math.abs(mg) * SALT_PER_SODIUM) / 1000;
+  return g < 10 ? (Math.round(g * 10) / 10).toLocaleString("en-GB") : n(g);
+};
+
+/**
+ * The food parts in the jump's direction, the one that moved the scale most
+ * first by the evidence's sizes: "160 g more carbs", "700 more kcal",
+ * "4.5 g more salt" (IN9: salt as food labels give it). Each past its
+ * listing floor; with none past it, the largest alone.
+ */
 function foodParts(c: Extract<JumpCause, { kind: "food" }>, up: boolean): string[] {
   const sign = up ? 1 : -1;
-  const parts: string[] = [];
-  if (sign * c.carbsDeltaG >= LIST_CARBS_G) parts.push(`${n(c.carbsDeltaG)} g ${up ? "more" : "fewer"} carbs`);
-  if (sign * c.kcalDelta >= LIST_KCAL) parts.push(`${n(c.kcalDelta)} ${up ? "more" : "fewer"} kcal`);
-  // Neither past its listing floor: the one that moved the scale more, by the evidence's sizes.
-  if (!parts.length) parts.push(sign * c.carbsDeltaG * CARB_WATER_KG_PER_G >= sign * c.kcalDelta * FOOD_MASS_KG_PER_KCAL ? `${n(c.carbsDeltaG)} g ${up ? "more" : "fewer"} carbs` : `${n(c.kcalDelta)} ${up ? "more" : "fewer"} kcal`);
-  return parts;
+  const sodium = c.sodiumDeltaMg ?? 0;
+  const all = [
+    { words: `${n(c.carbsDeltaG)} g ${up ? "more" : "fewer"} carbs`, listed: sign * c.carbsDeltaG >= LIST_CARBS_G, kg: sign * c.carbsDeltaG * CARB_WATER_KG_PER_G },
+    { words: `${n(c.kcalDelta)} ${up ? "more" : "fewer"} kcal`, listed: sign * c.kcalDelta >= LIST_KCAL, kg: sign * c.kcalDelta * FOOD_MASS_KG_PER_KCAL },
+    { words: `${saltG(sodium)} g ${up ? "more" : "less"} salt`, listed: (sign * sodium * SALT_PER_SODIUM) / 1000 >= LIST_SALT_G, kg: (sign * sodium * SODIUM_WATER_KG_PER_G) / 1000 },
+  ].sort((x, y) => y.kg - x.kg);
+  const listed = all.filter((x) => x.listed);
+  return (listed.length ? listed : all.slice(0, 1)).map((x) => x.words);
 }
 
 function eventWords(c: Extract<JumpCause, { kind: "event" }>): string {
@@ -57,9 +70,13 @@ function eventWords(c: Extract<JumpCause, { kind: "event" }>): string {
   }
 }
 
+/** IN9: "54 g of alcohol": what was logged, nothing more. */
+const drinkWords = (c: Extract<JumpCause, { kind: "drinks" }>) => `${n(c.alcoholG)} g of alcohol`;
+
 /** One cause in a line: "Yesterday: 160 g more carbs and 700 more kcal than usual". */
 function causeWords(c: JumpCause, up: boolean, isToday: boolean): string {
   if (c.kind === "food") return `${when(c.daysAgo, isToday)}: ${foodParts(c, up).join(" and ")} than usual`;
+  if (c.kind === "drinks") return `${when(1, isToday)}: ${drinkWords(c)}`;
   if (c.kind === "legs") return `${when(c.daysAgo, isToday)}: legs, ${c.hardSets} hard sets`;
   return eventWords(c);
 }
@@ -91,6 +108,7 @@ export function jumpShort(j: ScaleJump, unit: WeightUnit, isToday: boolean): str
   const c = j.causes[0];
   if (!c) return head;
   if (c.kind === "food") return `${head} · ${foodParts(c, up)[0]} ${when(c.daysAgo, isToday).toLowerCase()}`;
+  if (c.kind === "drinks") return `${head} · ${drinkWords(c)} ${when(1, isToday).toLowerCase()}`;
   if (c.kind === "legs") return `${head} · legs ${when(c.daysAgo, isToday).toLowerCase()}`;
   return `${head} · ${eventWords(c).charAt(0).toLowerCase()}${eventWords(c).slice(1)}`;
 }
