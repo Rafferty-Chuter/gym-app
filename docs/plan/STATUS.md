@@ -133,7 +133,7 @@ Record wrong verdicts here as `YYYY-MM-DD · rule id · what it said · what was
 |---|---|---|---|
 | FT1 Apple Developer Program (founder) | todo | | |
 | FT2 Xcode (founder) | todo | | macOS 15.7.3 on the founder's Mac: Xcode 26.x, or Tahoe 26.6+ for Xcode 27 |
-| FT3 Deploys that work (founder) | todo | | |
+| FT3 Deploys that work (founder) | done | 2026-10-22 | GitHub repo connected to the Vercel project; a push to `main` deploys production. `vercel.json` lets only `main` deploy (the Hobby limit of 100 a day is shared with a client site). First ship: `main` fast-forwarded to `8357307` (everything since A2); both hosts served it within minutes (`/welcome/sign-in` 404 → 200, every tab 200, `/privacy` says Frankfurt, the delete route 401 without a token, no console errors). Hobby deploys only commits authored by the founder, so ship from a session on the founder's Mac (cloud sessions commit as Claude). |
 | FT4 Accounts switched on (founder, after TR1) | in progress | 2026-10-22 | Done: `0003_sync.sql` run (checked: `sync_records` and `sync_push` refuse a signed-out caller), Email provider on, custom SMTP through Resend with the test sender `onboarding@resend.dev` (reaches only the Resend account's email), the publishable key in the local `.env.local`. Left: the two email templates with `{{ .Token }}`, a first sign-in, the two `NEXT_PUBLIC_SUPABASE_*` variables on Vercel and a deploy (FT3), and a domain verified in Resend before testers. The project is in Frankfurt, not London (Decisions changed, 22 Oct). |
 | FT5 Rotate keys (founder) | todo | | |
 | FT6 Feedback form and support email (founder) | todo | | |
