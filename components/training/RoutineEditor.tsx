@@ -176,7 +176,7 @@ export default function RoutineEditor({ mode, initialTemplate }: { mode: "create
 
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
-      <header className="sticky top-0 z-30" style={{ background: "var(--background)", borderBottom: "1px solid var(--surface-raised)" }}>
+      <header className="sticky top-[var(--safe-top)] z-30" style={{ background: "var(--background)", borderBottom: "1px solid var(--surface-raised)" }}>
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-5 py-3 sm:px-6">
           <button type="button" onClick={cancel} className="min-w-[64px] text-left text-[15px]" style={{ color: confirmLeave ? "var(--status-attention)" : "var(--text-secondary)" }}>
             {confirmLeave ? "Discard?" : "Cancel"}

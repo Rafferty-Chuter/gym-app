@@ -44,6 +44,14 @@ In Xcode:
 2. Plug in the iPhone, pick it as the run destination at the top, and press **Run** (⌘R). The first build fetches the Swift packages, which takes a few minutes.
 3. On the phone, the app opens the live site.
 
+## Test in the simulator (no Apple account needed)
+
+```sh
+npx cap sync ios        # the app loads the live site
+```
+
+Then build the **App** scheme for an iPhone simulator (Xcode, or `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination 'platform=iOS Simulator,name=iPhone 18 Pro' build`). To try changes before they are deployed, point the app at the dev server: `CAP_SERVER_URL=http://localhost:3000 npx cap sync ios`, rebuild, and **run `npx cap sync ios` again without it before any real build** so the app loads the live site. The simulator's Health app works for the Apple Health connection; Apple's permission sheet takes a few seconds to appear.
+
 ## Move your data in, once
 
 The app does not share storage with the home-screen web app.

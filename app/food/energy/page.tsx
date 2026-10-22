@@ -61,7 +61,7 @@ function EnergyContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <header className="sticky top-0 z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--background)" }}>
+        <header className="sticky top-[var(--safe-top)] z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--background)" }}>
           <Link href="/food" className="flex items-center gap-1 text-[13px]" style={{ color: "var(--text-secondary)" }} aria-label="Back to Food">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
               <path d="M15 6l-6 6 6 6" />

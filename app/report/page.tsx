@@ -169,7 +169,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
   return (
     <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 px-5 sm:px-6">
-        <header className="sticky top-0 z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--page-bg)" }}>
+        <header className="sticky top-[var(--safe-top)] z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--page-bg)" }}>
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
               <span className="block truncate text-[11px] font-medium uppercase tracking-[0.04em]" style={{ color: "var(--text-tertiary)" }}>

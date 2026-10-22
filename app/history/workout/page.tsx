@@ -137,7 +137,7 @@ function WorkoutDetail() {
   if (draft) {
     return (
       <main className="min-h-screen pb-28" style={{ background: "var(--page)", color: "var(--text)" }}>
-        <div className="sticky top-0 z-30 border-b" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+        <div className="sticky top-[var(--safe-top)] z-30 border-b" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
           <div className="mx-auto flex h-[52px] max-w-2xl items-center justify-between px-5 sm:px-6">
             <button type="button" onClick={() => setDraft(null)} className="text-[15px]" style={{ color: "var(--text-secondary)" }}>
               Cancel

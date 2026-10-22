@@ -22,7 +22,7 @@ export default function ErrorScreen({ error, source }: { error: Error; source: C
   const feedbackUrl = FEEDBACK_URL;
   return (
     <main className="min-h-screen" style={{ background: "var(--page)", color: "var(--text)" }}>
-      <div className="mx-auto flex max-w-md flex-col gap-6 px-5 pb-28" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 96px)" }}>
+      <div className="mx-auto flex max-w-md flex-col gap-6 px-5 pb-28" style={{ paddingTop: "96px" }}>
         <div role="alert" className="flex flex-col gap-2">
           <h1 className="text-[28px] font-semibold leading-[1.15] tracking-[-0.02em]">Something went wrong</h1>
           <p className="text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>

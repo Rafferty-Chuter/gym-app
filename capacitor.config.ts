@@ -16,7 +16,8 @@ const config: CapacitorConfig = {
   // Shown only when the live site can't load (offline on first open).
   webDir: "native/www",
   server: {
-    url: "https://gym-app-eta-nine.vercel.app",
+    // CAP_SERVER_URL=http://localhost:3000 npx cap sync ios points a simulator build at the dev server; sync again without it before any real build.
+    url: process.env.CAP_SERVER_URL || "https://gym-app-eta-nine.vercel.app",
     errorPath: "offline.html",
   },
   ios: {

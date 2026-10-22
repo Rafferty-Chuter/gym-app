@@ -37,6 +37,8 @@ export const viewport: Viewport = {
   ],
   width: "device-width",
   initialScale: 1,
+  // The iPhone app draws under the status bar (capacitor.config.ts contentInset "never"); "cover" makes iOS report its height as env(safe-area-inset-top), which globals.css pads for. In Safari the inset is 0.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

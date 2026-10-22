@@ -183,6 +183,35 @@ body {
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* The iPhone app draws under the status bar: pages start below it (0 in a browser). Sticky headers sit at top: var(--safe-top). */
+  padding-top: var(--safe-top);
+}
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+/* A full-height page is the screen less that padding, so its foot (the welcome buttons, the setup's Continue) stays on screen. Unlayered, so it wins over Tailwind's utility. */
+.min-h-screen {
+  min-height: calc(100vh - var(--safe-top));
+}
+
+/* Behind the clock in the iPhone app, a strip in the page's top colour, so content scrolling up never shows under the status bar. Under sheets and dialogs (z 50+), over headers and tabs. */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--safe-top);
+  background: var(--page-bg);
+  z-index: 45;
+  pointer-events: none;
+}
+
+/* Sleep's sky starts higher (its theme sits on <main>, which the strip can't see). */
+body:has(.theme-sleep)::before {
+  background: var(--sleep-top);
 }
 
 @layer utilities {

@@ -168,6 +168,11 @@ Acceptance:
 - [x] A returning person on a fresh device lands on Home with their data; the welcome doesn't come back.
 - [x] An empty account says so; Set up and Use another email both work.
 
+### TR10 · iPhone app: pages clear the status bar
+S · done 2026-10-22 (found on the first simulator run)
+
+The shell draws under the status bar, and pages didn't pad for it, so Home's title sat under the clock. `viewport-fit=cover`, a body padding and a strip behind the clock, sticky headers pinned below it. Web only: it reaches the app with a deploy. Checked in the simulator in light and dark; details in STATUS.
+
 ### TR8 · Real-device check (after FT7)
 S · depends on: FT7 · a session with the founder holding the phone
 Checklist on the TestFlight build: first run and setup; email code autofills from Mail and signs in; consent shows before sync; Apple Health connect and the first read; weigh-in, food and a workout logged; Progress in light and dark, the example view; safe areas and the keyboard on every input; offline start; delete account; feedback link. Record pass or fail per line in STATUS; anything failing becomes its own ticket.

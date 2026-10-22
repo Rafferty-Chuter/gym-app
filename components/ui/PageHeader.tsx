@@ -51,7 +51,7 @@ export default function PageHeader({
   const plusClass = "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors active:bg-[var(--primary-pressed)]";
   const plusStyle = { background: "var(--primary)", color: "var(--text-on-primary)" };
   return (
-    <header className="sticky top-0 z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--page-bg, var(--background))" }}>
+    <header className="sticky top-[var(--safe-top)] z-30 -mx-5 px-5 pb-3 pt-4 sm:-mx-6 sm:px-6" style={{ background: "var(--page-bg, var(--background))" }}>
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           {backNode ? (
