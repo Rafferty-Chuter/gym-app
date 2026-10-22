@@ -9,6 +9,7 @@
 
 import { weekday, type LocalDate } from "@/lib/dates";
 import type { GoalType, Recommendation, RuleId, StrengthStatus } from "@/lib/physique/types";
+import { kgToDisplay, type WeightUnit } from "@/lib/units";
 
 // ── Banned phrases (02 §10) ──
 
@@ -57,6 +58,22 @@ export function fmtSignedRate(ratePctPerWeek: number): string {
   if (ratePctPerWeek < 0) return `−${s}`;
   if (ratePctPerWeek > 0) return `+${s}`;
   return s;
+}
+
+/**
+ * A weekly change as the scale reads it (TR12, the founder: kilos first,
+ * percent second): "0.4 kg", unsigned, one decimal as Progress shows it;
+ * two below 0.05 so a slow rate never reads "0.0".
+ */
+export function fmtKgWeek(kgPerWeek: number, unit: WeightUnit = "kg"): string {
+  const v = Math.abs(kgToDisplay(kgPerWeek, unit));
+  return `${v.toFixed(v > 0 && v < 0.05 ? 2 : 1)} ${unit}`;
+}
+
+/** Signed weekly change: "−0.4 kg", "+0.2 kg". */
+export function fmtSignedKgWeek(kgPerWeek: number, unit: WeightUnit = "kg"): string {
+  const s = fmtKgWeek(kgPerWeek, unit);
+  return kgPerWeek < 0 ? `−${s}` : kgPerWeek > 0 ? `+${s}` : s;
 }
 
 /** "over 28 days (24 weigh-ins)". */
@@ -129,6 +146,8 @@ export type LiftFact = { name: string; changePct: number };
  */
 export type VerdictFacts = {
   phase: GoalType | "none";
+  /** The scale's unit, for rates in kilos (TR12); kg when absent. */
+  unit?: WeightUnit;
   /** Signed goal rate. */
   goalRate?: number | null;
   /** The rule's own window. */
@@ -174,11 +193,27 @@ export type VerdictCopy = { title: string; detail: string };
 
 // ── Shared clauses ──
 
+/** A rate as kilos a week on the current trend weight; null without one. */
+function kgWeek(f: VerdictFacts, ratePctPerWeek: number): number | null {
+  return f.trendKg != null && f.trendKg > 0 ? (ratePctPerWeek * f.trendKg) / 100 : null;
+}
+
+/** "Losing 0.4 kg a week (0.5 %) over 28 days (24 weigh-ins)": kilos first, percent second (TR12); percent alone without a trend weight. */
 function rateClause(f: VerdictFacts, verb?: string): string {
   const r = f.rate;
   if (!r) return "";
   const v = verb ?? (r.ratePctPerWeek < 0 ? "Losing" : r.ratePctPerWeek > 0 ? "Gaining" : "Holding");
-  return `${v} ${fmtRate(r.ratePctPerWeek)} %/wk ${fmtWindow(r.windowDays, r.n)}`;
+  const kg = kgWeek(f, r.ratePctPerWeek);
+  const amount = kg != null ? `${fmtKgWeek(kg, f.unit)} a week (${fmtRate(r.ratePctPerWeek)} %)` : `${fmtRate(r.ratePctPerWeek)} %/wk`;
+  return `${v} ${amount} ${fmtWindow(r.windowDays, r.n)}`;
+}
+
+/** The goal's rate: "a planned loss of 0.5 kg" (TR12), or "a −0.6 %/wk goal" without a trend weight. */
+function goalClause(f: VerdictFacts): string {
+  const g = f.goalRate ?? 0;
+  const kg = kgWeek(f, g);
+  if (kg == null) return `a ${fmtSignedRate(g)} %/wk goal`;
+  return `a planned ${g < 0 ? "loss" : "gain"} of ${fmtKgWeek(kg, f.unit)}`;
 }
 
 function liftsHoldingClause(f: VerdictFacts): string {
@@ -244,7 +279,7 @@ const COPY: Record<RuleId, CopyFn> = {
   "LOSS-1": (f) => {
     const down = f.lifts?.length ? `, and ${joinNames(f.lifts.map((l) => l.name))} ${f.lifts.length > 1 ? "are" : "is"} ${fmtDrop(f.lifts.map((l) => l.changePct))}${sinceClause(f)}` : "";
     const adherent = f.adherent ? ", while eating to target" : "";
-    return { title: "Losing faster than planned", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal${adherent}${down}.` };
+    return { title: "Losing faster than planned", detail: `${rateClause(f)} against ${goalClause(f)}${adherent}${down}.` };
   },
 
   "LOSS-3": (f) => ({ title: "Losing very fast", detail: `${rateClause(f)}.` }),
@@ -254,30 +289,32 @@ const COPY: Record<RuleId, CopyFn> = {
     return { title: f.lifts?.length ? "Losing fast, lifts down" : "Losing fast", detail: `${rateClause(f)}${down}.` };
   },
 
-  "LOSS-2": (f) => ({ title: "Losing faster than planned", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal, lifts holding.` }),
+  "LOSS-2": (f) => ({ title: "Losing faster than planned", detail: `${rateClause(f)} against ${goalClause(f)}, lifts holding.` }),
 
-  "LOSS-2u": (f) => ({ title: "Losing faster than planned", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal.` }),
+  "LOSS-2u": (f) => ({ title: "Losing faster than planned", detail: `${rateClause(f)} against ${goalClause(f)}.` }),
 
   "LOSS-6": (f) => {
     const adherent = f.adherent ? ", while eating to target" : "";
     const r = f.rate;
-    const lead = r ? `${fmtSignedRate(r.ratePctPerWeek)} %/wk ${fmtWindow(r.windowDays, r.n)}` : "The trend is flat";
+    const kg = r ? kgWeek(f, r.ratePctPerWeek) : null;
+    const amount = r ? (kg != null ? `${fmtSignedKgWeek(kg, f.unit)} a week (${fmtSignedRate(r.ratePctPerWeek)} %)` : `${fmtSignedRate(r.ratePctPerWeek)} %/wk`) : null;
+    const lead = r ? `${amount} ${fmtWindow(r.windowDays, r.n)}` : "The trend is flat";
     return {
       title: "Weight loss has stalled",
-      detail: `${lead} against a ${fmtSignedRate(f.goalRate ?? 0)} goal${adherent}.`,
+      detail: `${lead} against ${goalClause(f)}${adherent}.`,
     };
   },
 
-  "GAIN-1": (f) => ({ title: "Gaining faster than planned", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal.` }),
+  "GAIN-1": (f) => ({ title: "Gaining faster than planned", detail: `${rateClause(f)} against ${goalClause(f)}.` }),
 
   "GAIN-2": (f) => {
     const adherent = f.adherent ? ", while eating to target" : "";
-    return { title: "Not gaining, lifts flat", detail: `${rateClause(f)} against a ${fmtRate(f.goalRate ?? 0)} goal${adherent}.` };
+    return { title: "Not gaining, lifts flat", detail: `${rateClause(f)} against ${goalClause(f)}${adherent}.` };
   },
 
   "GAIN-3": (f) => {
     const up = f.lifts?.length ? `, but lifts are ${fmtRise(f.lifts.map((l) => l.changePct))}` : "";
-    return { title: "Gaining slower than planned", detail: `${rateClause(f)}, below your ${fmtRate(f.goalRate ?? 0)} goal${up}.` };
+    return { title: "Gaining slower than planned", detail: `${rateClause(f)}, below ${goalClause(f)}${up}.` };
   },
 
   "GAIN-4": (f) => ({
@@ -353,7 +390,7 @@ const COPY: Record<RuleId, CopyFn> = {
   "NO-CHANGE": (f) => {
     // A rate off plan with no rule to act on (research H): shown as it is, never called on track.
     if (f.rate && f.goalRate != null) {
-      return { title: f.rateClear ? "Off the planned rate" : "Not clear yet", detail: `${rateClause(f)} against a ${fmtSignedRate(f.goalRate)} %/wk goal.` };
+      return { title: f.rateClear ? "Off the planned rate" : "Not clear yet", detail: `${rateClause(f)} against ${goalClause(f)}.` };
     }
     return { title: "Steady", detail: "Nothing new this week." };
   },

@@ -347,7 +347,7 @@ describe("cut outcome rules", () => {
     const mild = analyse(fixedCut({ deficit: 1400, goalRate: -0.6, lifts: stepLifts(-4, 35, 0) }));
     expect(ids(mild)).not.toContain("LOSS-1");
     expect(mild.verdict).toMatchObject({ id: "NO-CHANGE", title: "Off the planned rate" });
-    expect(mild.verdict.detail).toMatch(/^Losing 1\.\d %\/wk over 28 days \(\d+ weigh-ins\) against a −0\.6 %\/wk goal\.$/);
+    expect(mild.verdict.detail).toMatch(/^Losing \d\.\d kg a week \(1\.\d %\) over 28 days \(\d+ weigh-ins\) against a planned loss of 0\.\d kg\.$/);
     const adh = analyse(makeScenario({ ...SCENARIO_TABLE[2].spec(5), lifts: stepLifts(-8, 35, 0) }));
     expect(adh.verdict.id).toBe("ADH-1");
     expect(adh.flags.map((f) => f.id)).toContain("LOSS-1");
@@ -382,7 +382,7 @@ describe("cut outcome rules", () => {
     const a = analyse(fixedCut({ deficit: 1300, lifts: FLAT_LIFTS }));
     expect(a.verdict.id).toBe("LOSS-2");
     expect(a.recommendation).toBeNull();
-    expect(a.verdict.detail).toMatch(/against a 1\.0 goal, lifts holding\.$/);
+    expect(a.verdict.detail).toMatch(/against a planned loss of \d\.\d kg, lifts holding\.$/);
     const near = analyse(fixedCut({ deficit: 1300, targetKg: 78, lifts: FLAT_LIFTS }));
     expect(near.verdict.id).toBe("LOSS-2");
     expect(near.recommendation).toEqual(expect.objectContaining({ kind: "change_rate", toPctPerWeek: -0.5 }));
@@ -391,7 +391,7 @@ describe("cut outcome rules", () => {
     // −1.0 against −0.6 is outside the ±0.25 band but not confidently so: shown as it is, not called on track.
     expect(slow.verdict).toMatchObject({ id: "NO-CHANGE", title: "Not clear yet" });
     expect(slow.status.state).toBe("watch");
-    expect(slow.verdict.detail).toMatch(/^Losing \d\.\d %\/wk over 28 days \(\d+ weigh-ins\) against a −0\.6 %\/wk goal\.$/);
+    expect(slow.verdict.detail).toMatch(/^Losing \d\.\d kg a week \(\d\.\d %\) over 28 days \(\d+ weigh-ins\) against a planned loss of 0\.\d kg\.$/);
     const fast = analyse(fixedCut({ deficit: 2200, days: 49, lifts: FLAT_LIFTS }));
     expect(fast.verdict.id).toBe("LOSS-3");
     expect(fast.flags.map((f) => f.id)).toContain("LOSS-2");
@@ -401,7 +401,7 @@ describe("cut outcome rules", () => {
     const a = analyse(fixedCut({ deficit: 1300 }));
     expect(a.verdict.id).toBe("LOSS-2u");
     expect(a.strength.status).toBe("unclear");
-    expect(a.verdict.detail).toMatch(/against a 1\.0 goal\.$/);
+    expect(a.verdict.detail).toMatch(/against a planned loss of \d\.\d kg\.$/);
     expect(ids(analyse(fixedCut({ deficit: 1300, lifts: FLAT_LIFTS })))).not.toContain("LOSS-2u");
   });
 
@@ -409,7 +409,7 @@ describe("cut outcome rules", () => {
     const a = analyse(fixedCut({ deficit: 0, goalRate: -0.6 }));
     expect(a.verdict.id).toBe("LOSS-6");
     expect(a.verdict.title).toBe("Weight loss has stalled");
-    expect(a.verdict.detail).toMatch(/against a −0\.6 goal\.$/);
+    expect(a.verdict.detail).toMatch(/against a planned loss of 0\.\d kg\.$/);
     expect(a.recommendation).toBeNull();
     expect(a.status.state).toBe("watch");
     expect(ids(analyse(fixedCut({ deficit: 300, goalRate: -0.6 })))).not.toContain("LOSS-6");
@@ -434,7 +434,7 @@ describe("cut outcome rules", () => {
   it("ON-TRACK cites its window and lifts; NO-CHANGE is the floor; a maintain goal reads the band", () => {
     const a = analyse(fixedCut({ deficit: 1000, goalRate: -1.0, lifts: FLAT_LIFTS }));
     expect(a.verdict.id).toBe("ON-TRACK");
-    expect(a.verdict.detail).toMatch(/^Losing \d\.\d %\/wk over 28 days \(\d+ weigh-ins\), lifts holding\.$/);
+    expect(a.verdict.detail).toMatch(/^Losing \d\.\d kg a week \(\d\.\d %\) over 28 days \(\d+ weigh-ins\), lifts holding\.$/);
     expect(a.status).toEqual({ state: "good", label: "On track" });
     const noLifts = analyse(fixedCut({ deficit: 1000, goalRate: -1.0 }));
     expect(noLifts.verdict.detail).not.toContain("lifts");
@@ -512,7 +512,7 @@ describe("bulk outcome rules", () => {
   it("ON-TRACK on a bulk reads 'Gaining … lifts rising'", () => {
     const a = analyse(fixedBulk({ surplus: 220, goalRate: 0.25, lifts: stepLifts(4, 21, 0) }));
     expect(["ON-TRACK", "GAIN-3"]).toContain(a.verdict.id);
-    if (a.verdict.id === "ON-TRACK") expect(a.verdict.detail).toMatch(/^Gaining 0\.\d\d %\/wk over 28 days \(\d+ weigh-ins\), lifts rising\.$/);
+    if (a.verdict.id === "ON-TRACK") expect(a.verdict.detail).toMatch(/^Gaining 0\.\d kg a week \(0\.\d\d %\) over 28 days \(\d+ weigh-ins\), lifts rising\.$/);
   });
 });
 

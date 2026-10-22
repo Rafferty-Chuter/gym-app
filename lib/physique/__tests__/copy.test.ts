@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeScenario } from "@/lib/physique/fixtures";
-import { BANNED_PHRASES, bannedPhrasesIn, fmtDrop, fmtHours, fmtKcalDelta, fmtRate, fmtWindow, recommendationLabel, STATUS_LABEL, verdictCopy, type VerdictFacts } from "@/lib/physique/copy";
+import { BANNED_PHRASES, bannedPhrasesIn, fmtDrop, fmtHours, fmtKcalDelta, fmtKgWeek, fmtRate, fmtSignedKgWeek, fmtWindow, recommendationLabel, STATUS_LABEL, verdictCopy, type VerdictFacts } from "@/lib/physique/copy";
 import { RULE_EVIDENCE } from "@/lib/physique/evidence";
 import type { PhysiqueAnalysis, Recommendation, RuleId } from "@/lib/physique/types";
 import { analyse, fixedBulk, fixedCut, FLAT_LIFTS, runRow, SCENARIO_TABLE, stepLifts } from "@/lib/physique/__tests__/judgeHelpers";
@@ -171,7 +171,21 @@ describe("formatting", () => {
     expect(fmtDrop([-3.2, -4.4])).toBe("down 3 to 4%");
   });
 
-  it("copy matches the design library examples", () => {
+  it("reads rates in kilos a week first, the percentage second (TR12)", () => {
+    const rate = { ratePctPerWeek: -0.25, windowDays: 28, n: 24 };
+    expect(verdictCopy("ON-TRACK", { phase: "lose", strength: "holding", trendKg: 84, unit: "kg", rate: { ...rate, ratePctPerWeek: -0.6 } }).detail).toBe("Losing 0.5 kg a week (0.6 %) over 28 days (24 weigh-ins), lifts holding.");
+    // The founder's week: −0.2 kg a week against −0.4, inside the band only thanks to the margin.
+    expect(verdictCopy("NO-CHANGE", { phase: "lose", goalRate: -0.5, rateClear: false, trendKg: 84, unit: "kg", rate })).toEqual({
+      title: "Not clear yet",
+      detail: "Losing 0.2 kg a week (0.3 %) over 28 days (24 weigh-ins) against a planned loss of 0.4 kg.",
+    });
+    expect(verdictCopy("GAIN-3", { phase: "gain", goalRate: 0.25, trendKg: 80, unit: "lb", rate: { ...rate, ratePctPerWeek: 0.05 } }).detail).toBe("Gaining 0.1 lb a week (0.05 %) over 28 days (24 weigh-ins), below a planned gain of 0.4 lb.");
+    expect(verdictCopy("LOSS-6", { phase: "lose", goalRate: -0.6, trendKg: 84, rate: { ...rate, ratePctPerWeek: 0.1 } }).detail).toBe("+0.1 kg a week (+0.10 %) over 28 days (24 weigh-ins) against a planned loss of 0.5 kg.");
+    expect(fmtKgWeek(0.03)).toBe("0.03 kg");
+    expect(fmtSignedKgWeek(-0.42, "kg")).toBe("−0.4 kg");
+  });
+
+    it("copy matches the design library examples", () => {
     // Z3: facts only, no advice.
     expect(verdictCopy("NO-GOAL", { phase: "none" })).toEqual({ title: "No goal set", detail: "Add a target weight in Progress to read the trend against it." });
     expect(verdictCopy("DATA-EXP", { phase: "lose", updatingDays: 8 }).detail).toBe("Maintenance estimate: day 9 of about 21.");
@@ -179,6 +193,7 @@ describe("formatting", () => {
     const partial = verdictCopy("DATA-PARTIAL", { phase: "lose", partialDays: [{ date: "2026-09-15", kcal: 640 }, { date: "2026-09-17", kcal: 900 }] });
     expect(partial.title).toBe("Confirm two days");
     expect(partial.detail).toBe("Tue and Thu look incomplete (640 and 900 kcal). Confirm them first.");
+    // Without a trend weight the rate stays in percent.
     expect(verdictCopy("ON-TRACK", { phase: "lose", strength: "holding", rate: { ratePctPerWeek: -0.6, windowDays: 28, n: 24 } }).detail).toBe("Losing 0.6 %/wk over 28 days (24 weigh-ins), lifts holding.");
     expect(verdictCopy("ADH-1", { phase: "lose", adherenceDeltaKcal: -320 })).toEqual({ title: "320 kcal under target", detail: "On average over the last 14 days." });
     expect(verdictCopy("SLEEP-1", { phase: "lose", sleepMeanH: 6.07, sleepNights: 14, lifts: [{ name: "Squat", changePct: -3 }, { name: "Bench", changePct: -4 }] }).detail).toBe(

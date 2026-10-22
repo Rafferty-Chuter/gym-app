@@ -23,7 +23,7 @@ import { RHR_FLAG_BPM } from "@/lib/physique/recovery";
 import { WAKE_SPREAD_MIN } from "@/lib/physique/sleepScore";
 import { formatBodyWeight, kgToDisplay, type WeightUnit } from "@/lib/units";
 import type { GoalType } from "@/lib/physique/types";
-import { FIBRE_GOOD_SHARE, FIBRE_TARGET_G, INTAKE_ON_TARGET_KCAL, MAINTAIN_BAND_KG, PROTEIN_GOOD_SHARE, sleepAgainstUsual, STEPS_GOOD, TRAINING_DAYS_GOOD, WAIST_HOLD_CM, focusFor, planMargin, rateVsPlan, type Focus, type Tone } from "@/lib/physique/weekScorecard";
+import { FIBRE_GOOD_SHARE, FIBRE_TARGET_G, INTAKE_ON_TARGET_KCAL, MAINTAIN_BAND_KG, PROTEIN_GOOD_SHARE, sleepAgainstUsual, STEPS_GOOD, TRAINING_DAYS_GOOD, WAIST_HOLD_CM, focusFor, planMargin, rateKgFirst, rateVsPlan, type Focus, type Tone } from "@/lib/physique/weekScorecard";
 
 // ── Thresholds ──
 
@@ -171,13 +171,12 @@ function sleepRow({ recent }: PulseInputs): PulseRow | null {
   return { id: "sleep", label: "Sleep", value: `${minutes(s.meanH)} a night`, href: "/sleep", note: read.text, tone: read.tone };
 }
 
-const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)} %/wk`;
-
-function rateRow({ recent, goalType, planRatePct, gainCeilingPct }: PulseInputs): PulseRow | null {
+/** The rate in kilos a week (TR12: kilos first, as Progress shows it), with the same judgement as the report's weight tile. */
+function rateRow({ recent, goalType, planRatePct, gainCeilingPct, unit = "kg" }: PulseInputs): PulseRow | null {
   const rate = recent.weight.ratePctPerWeek;
   const vs = rateVsPlan(rate, planRatePct, focusFor(goalType), gainCeilingPct, planMargin(recent, planRatePct));
   if (!vs || rate == null) return null;
-  return { id: "rate", label: "Weight", value: signedPct(rate), note: vs.text, tone: vs.tone, href: "/body" };
+  return { id: "rate", label: "Weight", value: rateKgFirst(rate, recent.weight.endTrendKg, unit), note: vs.text, tone: vs.tone, href: "/body" };
 }
 
 function waistRow({ recent }: PulseInputs): PulseRow | null {

@@ -31,7 +31,7 @@ import { ON_TRACK_TOLERANCE, PRO2_MIN_G_PER_KG } from "@/lib/physique/judge";
 import type { RecoveryRead } from "@/lib/physique/recovery";
 import { REVIEW_MIN_FOOD_DAYS, REVIEW_MIN_NIGHTS, REVIEW_SHORT_NIGHTS, REVIEW_SLEEP_SHORTFALL_H } from "@/lib/physique/review";
 import { CUT_GREEN_MAX, rateBands } from "@/lib/physique/targets";
-import { CORROBORATE_MIN_FOOD_SHARE, planMargin, rateVsPlan } from "@/lib/physique/weekScorecard";
+import { CORROBORATE_MIN_FOOD_SHARE, planMargin, RATE_UNCLEAR, rateVsPlan } from "@/lib/physique/weekScorecard";
 import type { WeekReport } from "@/lib/physique/weekReport";
 import type { PhysiqueAnalysis, PhysiqueGoal } from "@/lib/physique/types";
 import { bandLabel } from "@/lib/training/volumeTargets";
@@ -180,11 +180,14 @@ export function weightLink(i: LinkInputs): Link | null {
   let slower = false;
   let faster = false;
   let drift = false;
+  // TR12: inside the plan only thanks to the rate's margin is "not clear yet", as the scorecard and the judge say, never "as planned".
+  let unclear = false;
   if (goal.type === "maintain") drift = Math.abs(rate) > LINK_ON_PLAN_PCT + margin;
   else {
     const vs = rateVsPlan(rate, goal.ratePctPerWeek, goal.type === "lose" ? "cut" : "gain", goal.type === "gain" ? rateBands(goal.trainingStatusAtCreation).gain.ceiling : null, margin);
     slower = vs?.text === "Slower than plan";
     faster = vs?.text === "Faster than plan" || vs?.text === "Above lean range";
+    unclear = vs?.text === RATE_UNCLEAR;
   }
   const gap = actual - planned;
   const span = windowLabel(w.days);
@@ -208,6 +211,19 @@ export function weightLink(i: LinkInputs): Link | null {
       ? `This week alone averaged ${fmtKcal(wk.meanKcal)} kcal a day, ${Math.abs(wk.deltaKcal) <= ADHERENCE_TOLERANCE_KCAL ? "close to target" : `${fmtKcal(Math.abs(wk.deltaKcal))} ${wk.deltaKcal > 0 ? "over" : "under"} target`}.`
       : null;
   const intakeCauses = weekLine ? [intakeLine, weekLine] : [intakeLine];
+
+  if (unclear) {
+    return {
+      id: "weight",
+      state: "watch",
+      title: "Weight against the plan: not clear yet",
+      detail: "The gap is inside the trend's margin of error.",
+      causes: intakeCauses,
+      figures,
+      figuresCaption,
+      note: null,
+    };
+  }
 
   if (!slower && !faster && !drift) {
     return {

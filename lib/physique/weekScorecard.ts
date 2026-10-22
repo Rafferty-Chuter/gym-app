@@ -15,6 +15,7 @@
  * positives: a core tile without data says so and stays neutral.
  */
 
+import { fmtSignedKgWeek } from "@/lib/physique/copy";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { ON_TRACK_TOLERANCE } from "@/lib/physique/judge";
 import { ADHERENCE_TOLERANCE_KCAL } from "@/lib/physique/intake";
@@ -154,14 +155,20 @@ function minutes(h: number): string {
 
 // ── Tiles ──
 
+/** The words for a rate inside plan ± ON_TRACK_TOLERANCE only thanks to its margin (TR12), the judge's own NO-CHANGE title. */
+export const RATE_UNCLEAR = "Not clear yet";
+
 /**
  * "On plan", or which side of it, from the rate and the goal's planned
- * rate. Null without both. As the judge's ON-TRACK does, a rate is only
- * off plan when it is confidently outside plan ± ON_TRACK_TOLERANCE, given
- * the rate's own margin, so a noisy week never reads "Slower than plan"
- * under an "On track" verdict. On a gain, a rate confidently above the
- * lean-gain ceiling for the user's training status says so whatever the
- * plan, as GAIN-1 does.
+ * rate. Null without both. As the judge's ON-TRACK does, "On plan" needs
+ * the rate itself inside plan ± ON_TRACK_TOLERANCE, and a rate is only off
+ * plan when it is confidently outside that, given the rate's own margin,
+ * so a noisy week never reads "Slower than plan" under an "On track"
+ * verdict. In between it is "Not clear yet" (TR12: the judge's word for
+ * the same reading, never "On plan" beside it), toned as the side it
+ * leans to would be. On a gain, a rate confidently above the lean-gain
+ * ceiling for the user's training status says so whatever the plan, as
+ * GAIN-1 does.
  */
 export function rateVsPlan(ratePct: number | null, planPct: number | null | undefined, focus: Focus, gainCeilingPct?: number | null, marginPct: number | null = 0): { text: string; tone: Tone } | null {
   if (ratePct == null || planPct == null || (focus !== "cut" && focus !== "gain")) return null;
@@ -172,10 +179,12 @@ export function rateVsPlan(ratePct: number | null, planPct: number | null | unde
     if (ratePct - margin > limit) return { text: "Above lean range", tone: "watch" };
   }
   const diff = ratePct - planPct;
-  if (Math.abs(diff) <= ON_TRACK_TOLERANCE + margin) return { text: "On plan", tone: "good" };
+  if (Math.abs(diff) <= ON_TRACK_TOLERANCE) return { text: "On plan", tone: "good" };
   // On a cut, faster (more negative) risks muscle and slower stalls the goal; on a gain, faster adds fat and slower only delays.
   const faster = focus === "cut" ? diff < 0 : diff > 0;
-  return faster ? { text: "Faster than plan", tone: "watch" } : { text: "Slower than plan", tone: focus === "cut" ? "watch" : "neutral" };
+  const tone: Tone = faster || focus === "cut" ? "watch" : "neutral";
+  if (Math.abs(diff) <= ON_TRACK_TOLERANCE + margin) return { text: RATE_UNCLEAR, tone };
+  return { text: faster ? "Faster than plan" : "Slower than plan", tone };
 }
 
 /** Share of the rate's window with intake logged before intake can back a read of the rate. OURS: half the days keeps one odd week from standing for the month. */
@@ -202,6 +211,14 @@ export function planMargin(report: WeekReport, planPct: number | null | undefine
 
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)} %/wk`;
 
+/**
+ * A weekly rate as the scale reads it, kilos first (TR12): "−0.4 kg a
+ * week", from %/wk on a body weight; "−0.50 %/wk" without one.
+ */
+export function rateKgFirst(ratePct: number, bodyKg: number | null, unit: WeightUnit): string {
+  return bodyKg != null && bodyKg > 0 ? `${fmtSignedKgWeek((ratePct * bodyKg) / 100, unit)} a week` : signedPct(ratePct);
+}
+
 function weightTile({ report, unit, goalType, planRatePct, gainCeilingPct }: ScorecardInputs): Tile {
   const w = report.weight;
   const focus = focusFor(goalType);
@@ -209,7 +226,7 @@ function weightTile({ report, unit, goalType, planRatePct, gainCeilingPct }: Sco
   const weighed = `${w.weighIns} of ${report.daysCovered} weighed`;
   const vsPlan = rateVsPlan(w.ratePctPerWeek, planRatePct, focus, gainCeilingPct, planMargin(report, planRatePct));
   if (vsPlan && w.ratePctPerWeek != null) {
-    return { id: "weight", label: "Weight trend", value, sub: `${signedPct(w.ratePctPerWeek)} · plan ${signedPct(planRatePct as number).replace(" %/wk", "")}`, delta: vsPlan, chart: { kind: "line", values: report.days.map((d) => d.trendKg) }, href: "/body" };
+    return { id: "weight", label: "Weight trend", value, sub: `${rateKgFirst(w.ratePctPerWeek, w.endTrendKg, unit)} · plan ${rateKgFirst(planRatePct as number, w.endTrendKg, unit).replace(/ a week$| %\/wk$/, "")}`, delta: vsPlan, chart: { kind: "line", values: report.days.map((d) => d.trendKg) }, href: "/body" };
   }
   let delta: Tile["delta"] = null;
   if (w.deltaKg != null) {
@@ -218,7 +235,7 @@ function weightTile({ report, unit, goalType, planRatePct, gainCeilingPct }: Sco
     delta = { text: goalType === "maintain" && Math.abs(d) <= MAINTAIN_BAND_KG ? "Holding" : `${kgDelta(d, unit)} this week`, tone };
   }
   // A recomp and a health read leave the weekly rate out: the scale is not what they are judged on.
-  const sub = w.ratePctPerWeek == null || focus === "recomp" || focus === "health" ? `${w.weighIns} of ${report.daysCovered} days weighed` : `${signedPct(w.ratePctPerWeek)} · ${weighed}`;
+  const sub = w.ratePctPerWeek == null || focus === "recomp" || focus === "health" ? `${w.weighIns} of ${report.daysCovered} days weighed` : `${rateKgFirst(w.ratePctPerWeek, w.endTrendKg, unit)} · ${weighed}`;
   return { id: "weight", label: "Weight trend", value, sub, delta, chart: { kind: "line", values: report.days.map((d) => d.trendKg) }, href: "/body" };
 }
 

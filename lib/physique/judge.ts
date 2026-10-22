@@ -486,6 +486,7 @@ export function buildPhysiqueAnalysis(inputs: JudgeInputs, now: Now): PhysiqueAn
 
   const baseFacts: VerdictFacts = {
     phase,
+    unit: inputs.weightUnit,
     goalRate,
     strength: str.status,
     nearGoal,

@@ -49,7 +49,16 @@ describe("How it's going (H1)", () => {
     expect(rows.find((r) => r.id === "training")).toMatchObject({ note: "Lifts holding", tone: "good" });
   });
 
-  it("leaves a pillar out until it has three days, rather than showing it empty", () => {
+  it("reads the weight rate in kilos a week, as Progress does, with the scorecard's judgement (TR12)", () => {
+    const i = build();
+    const rate = howItsGoing(i).find((r) => r.id === "rate")!;
+    const kg = ((i.recent.weight.ratePctPerWeek as number) * (i.recent.weight.endTrendKg as number)) / 100;
+    expect(rate.value).toBe(`${kg < 0 ? "−" : "+"}${Math.abs(kg).toFixed(1)} kg a week`);
+    expect(["On plan", "Not clear yet", "Faster than plan", "Slower than plan"]).toContain(rate.note);
+    expect(howItsGoing({ ...i, unit: "lb" }).find((r) => r.id === "rate")!.value).toMatch(/^[−+]\d\.\d lb a week$/);
+  });
+
+    it("leaves a pillar out until it has three days, rather than showing it empty", () => {
     const rows = howItsGoing(build({ foodEntries: [], sleepNights: [] }));
     expect(rows.map((r) => r.id)).toEqual(["rate", "training"]);
     const cut = addDays(now.today, -1);

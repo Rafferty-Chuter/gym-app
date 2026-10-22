@@ -5,8 +5,7 @@
  * session's estimated 1RM against the lift's own level, so the same share
  * of the lift's current level is the honest translation.
  *
- * Also the two groups' values in a few words ("303 vs 223 g"), for the
- * Connections rows. Pure: data and `now` in.
+ * Pure: data and `now` in. The rows' words are `connectionWords.ts` (TR12).
  */
 
 import { addDays, type Now } from "@/lib/dates";
@@ -59,20 +58,4 @@ export function formatEffect(kg: number, unit: WeightUnit): string {
   const v = Math.round(kgToDisplay(kg, unit) / step) * step;
   const sign = v > 0 ? "+" : v < 0 ? "−" : "";
   return `${sign}${Math.abs(v).toLocaleString("en-GB", { maximumFractionDigits: 1 })} ${unit}`;
-}
-
-// ── Wording ──
-
-const LEAD = /^([−+-]?\d[\d.,]*)(.*)$/;
-
-/**
- * The two groups' values in a few words: a unit both share is said once
- * ("303 vs 223 g", "127 vs 791 under maintenance"); otherwise both in full
- * ("7h 48m vs 6h 10m"). The first letter is capitalised.
- */
-export function compareText(high: string, low: string): string {
-  const a = LEAD.exec(high);
-  const b = LEAD.exec(low);
-  const text = a && b && a[2] === b[2] && a[2].startsWith(" ") ? `${a[1]} vs ${b[1]}${a[2]}` : `${high} vs ${low}`;
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }

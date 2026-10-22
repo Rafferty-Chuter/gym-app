@@ -58,9 +58,13 @@ describe("tailored to the goal (B3)", () => {
     expect(rateVsPlan(0.7, 0.75, "gain", 0.5)).toEqual({ text: "Above lean range", tone: "watch" });
     expect(rateVsPlan(0.6, 0.5, "gain", 0.5)).toEqual({ text: "On plan", tone: "good" });
     expect(rateVsPlan(-0.1, 0, "recomp")).toBeNull();
-    // A noisy rate is only off plan when it is confidently outside, as the judge's ON-TRACK reads it.
-    expect(rateVsPlan(-0.21, -0.6, "cut", null, 0.2)).toEqual({ text: "On plan", tone: "good" });
+    // A noisy rate is only off plan when it is confidently outside, as the judge's ON-TRACK reads it;
+    // inside the tolerance only thanks to its margin it is "Not clear yet", the judge's own word, never "On plan" (TR12).
+    expect(rateVsPlan(-0.21, -0.6, "cut", null, 0.2)).toEqual({ text: "Not clear yet", tone: "watch" });
+    expect(rateVsPlan(-0.36, -0.6, "cut", null, 0.2)).toEqual({ text: "On plan", tone: "good" });
     expect(rateVsPlan(-0.21, -0.6, "cut", null, 0.1)).toEqual({ text: "Slower than plan", tone: "watch" });
+    expect(rateVsPlan(0.05, 0.4, "gain", null, 0.2)).toEqual({ text: "Not clear yet", tone: "neutral" });
+    expect(rateVsPlan(0.7, 0.4, "gain", null, 0.2)).toEqual({ text: "Not clear yet", tone: "watch" });
     expect(rateVsPlan(null, -0.6, "cut")).toBeNull();
   });
 
@@ -74,8 +78,9 @@ describe("tailored to the goal (B3)", () => {
 
   it("states the cut's rate against the plan on the weight tile", () => {
     const tile = scorecard({ report: week(), prev: null, unit: "kg", goalType: "lose", planRatePct: -0.6 }).find((t) => t.id === "weight")!;
-    expect(tile.sub).toMatch(/%\/wk · plan −0\.60$/);
-    expect(["On plan", "Faster than plan", "Slower than plan"]).toContain(tile.delta?.text);
+    // TR12: kilos a week first, as Progress reads it.
+    expect(tile.sub).toMatch(/^[−+]?\d\.\d kg a week · plan −0\.\d kg$/);
+    expect(["On plan", "Not clear yet", "Faster than plan", "Slower than plan"]).toContain(tile.delta?.text);
   });
 
   it("reads the recomp's waist and leaves the weekly rate out", () => {

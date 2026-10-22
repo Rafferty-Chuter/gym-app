@@ -198,7 +198,11 @@ describe("Connections (L1)", () => {
     const food = linked.filter((c) => c.id === "carbs" || c.id === "balance");
     expect(food).toHaveLength(1);
     expect(food[0].movedWith).toBe(food[0].id === "carbs" ? "balance" : "carbs");
+    // TR12: which way the other moved, for "Calories were higher too, so it could be either".
+    expect(food[0].movedWithSign).toBe(1);
     expect(food[0].text).toMatch(/rose and fell with it, so the two can't be told apart\.$/);
+    // Each third keeps its raw mean for the plain-words row.
+    expect(food[0].high.mean).toBeGreaterThan(food[0].low.mean);
   });
 });
 

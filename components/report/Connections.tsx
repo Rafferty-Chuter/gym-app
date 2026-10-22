@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { CONN_MIN_SESSIONS, type Connection, type ConnectionId, type ConnectionsResult, type SessionPoint } from "@/lib/physique/connections";
-import { compareText, effectKg, formatEffect, type ReferenceLift } from "@/lib/physique/liftEffect";
+import { effectKg, formatEffect, type ReferenceLift } from "@/lib/physique/liftEffect";
+import { CONNECTION_NOUN, connectionWords } from "@/lib/physique/connectionWords";
 import type { WeightUnit } from "@/lib/units";
 import { connectionSubject } from "@/lib/physique/askAbout";
 import AskWhy from "@/components/progress/AskWhy";
@@ -42,9 +43,6 @@ const GROUPS: Record<ConnectionId, [high: string, low: string]> = {
   rate: ["Weight trend", "Weight trend"],
   hrv: ["Highest HRV", "Lowest HRV"],
 };
-
-/** The condition as a noun, for "Moved with carbs". */
-const NOUN: Record<ConnectionId, string> = { sleep: "sleep", carbs: "carbs", balance: "calories", protein: "protein", time: "time of day", rest: "rest days", rate: "the weight trend", hrv: "HRV" };
 
 const divider = { borderTop: "1px solid var(--border)" };
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%`;
@@ -132,45 +130,50 @@ function SessionStrip({ c, lift, unit }: { c: Connection; lift: ReferenceLift | 
   );
 }
 
+/**
+ * One thing checked (TR12). A clear link leads with one plain sentence
+ * ("Your squat is about 5 kg heavier the day after a higher-carb day"),
+ * the difference in bold, then both groups' numbers and, when another
+ * condition moved on the same days, that it could be either. A row with
+ * no clear difference stays quiet: its name and "No clear link".
+ */
 function ConnectionRow({ c, result, lift, unit, open, onToggle, mergedWith }: { c: Connection; result: ConnectionsResult; lift: ReferenceLift | null; unit: WeightUnit; open: boolean; onToggle: () => void; /** A clear difference that rose and fell with this one, which carries it (C7). */ mergedWith: ConnectionId | null }) {
   const linked = c.state === "linked";
   const color = linked ? CONNECTION_COLOR[c.id] : "var(--text-tertiary)";
-  const effect = lift ? formatEffect(effectKg(c.diffPct, lift.levelKg), unit) : signedPct(c.diffPct);
-  const compare = compareText(c.high.value, c.low.value);
+  const words = connectionWords(c, lift, unit);
+  const values = words.values.charAt(0).toUpperCase() + words.values.slice(1);
+  const quiet = mergedWith ? `Counted with ${CONNECTION_NOUN[mergedWith]}` : "No clear link";
   return (
     <div style={divider}>
-      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`${c.label}: ${linked ? `${effect}${lift ? ` on ${lift.name}` : ""}, ${compare}` : "no clear link"}. ${open ? "Hide" : "Show"} the sessions`}>
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors active:bg-[var(--surface-raised)]" aria-label={`${linked ? `${words.headline}. ${words.numbers}.${words.overlap ? ` ${words.overlap}` : ""}` : `${c.label}: ${quiet.toLowerCase()}.`} ${open ? "Hide" : "Show"} the sessions`}>
         <Glyph id={c.id} color={color} />
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className={`text-[15px] ${linked ? "font-semibold" : ""}`} style={{ color: linked ? "var(--text)" : "var(--text-secondary)" }}>
-            {c.label}
-          </span>
-          {linked && (
-            <span className="text-[12px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {compare}
-            </span>
-          )}
-          {c.movedWith && (
-            <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-              Moved with {NOUN[c.movedWith]}
-            </span>
-          )}
-        </span>
         {linked ? (
-          <span className="flex shrink-0 flex-col items-end">
-            <span className="text-[17px] font-semibold" style={{ color, fontVariantNumeric: "tabular-nums" }}>
-              {effect}
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-[15px] leading-snug" style={{ color: "var(--text)" }}>
+              {words.parts.before}
+              <span className="font-semibold" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {words.parts.effect}
+              </span>
+              {words.parts.after}
             </span>
-            {lift && (
-              <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                on {lift.name.toLowerCase()}
+            <span className="text-[12px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+              {words.numbers}
+            </span>
+            {words.overlap && (
+              <span className="text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
+                {words.overlap}
               </span>
             )}
           </span>
         ) : (
-          <span className="shrink-0 text-right text-[12px]" style={{ color: "var(--text-tertiary)" }}>
-            {mergedWith ? `With ${NOUN[mergedWith]}` : "No clear link"}
-          </span>
+          <>
+            <span className="min-w-0 flex-1 text-[15px]" style={{ color: "var(--text-secondary)" }}>
+              {c.label}
+            </span>
+            <span className="shrink-0 text-right text-[12px]" style={{ color: "var(--text-tertiary)" }}>
+              {quiet}
+            </span>
+          </>
         )}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 transition-transform" style={{ color: "var(--text-tertiary)", transform: open ? "rotate(180deg)" : undefined }} aria-hidden>
           <path d="M6 9l6 6 6-6" />
@@ -180,12 +183,12 @@ function ConnectionRow({ c, result, lift, unit, open, onToggle, mergedWith }: { 
         <div className="px-4 pb-4">
           {!linked && (
             <p className="mb-1 text-[12px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {mergedWith ? `${compare}. Rose and fell with ${NOUN[mergedWith]}, so the two can't be told apart.` : `${compare}: the two groups overlap.`}
+              {mergedWith ? `${values}. Rose and fell with ${CONNECTION_NOUN[mergedWith]}, so the two can't be told apart.` : `${values}: the two groups overlap.`}
             </p>
           )}
           <SessionStrip c={c} lift={lift} unit={unit} />
           <div className="mt-3">
-            <AskWhy subject={connectionSubject(c, result, lift, unit, mergedWith ? NOUN[mergedWith] : null, c.movedWith ? NOUN[c.movedWith] : null)} />
+            <AskWhy subject={connectionSubject(c, result, lift, unit, mergedWith ? CONNECTION_NOUN[mergedWith] : null, c.movedWith ? CONNECTION_NOUN[c.movedWith] : null)} />
           </div>
         </div>
       )}
@@ -232,9 +235,9 @@ function Building({ sessions, perWeek }: { sessions: number; perWeek: number }) 
 /**
  * Connections (L1, C7, PR3): what lined up with the person's strongest and
  * weakest sessions, from `lib/physique/connections.ts`. One row for each
- * thing checked, clear links first and largest first: what was compared,
- * the two groups' values and the difference in kilos on the lift trained
- * most; the rest say "No clear link", so the search shows. A row opens the
+ * thing checked, clear links first and largest first: a plain sentence
+ * with the difference in kilos on the lift trained most, then the two
+ * groups' values (TR12); the rest say "No clear link", so the search shows. A row opens the
  * sessions behind it. Facts, not advice; the explaining is left to the
  * assistant.
  */

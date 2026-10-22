@@ -119,7 +119,7 @@ function ReportContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     const deload = readDeload({ workouts: [...workouts], unit, now, status: data.goal?.trainingStatusAtCreation ?? "intermediate", record: deloadRecord });
     const sleepShort = analysis.sleep.status === "short" || analysis.sleep.status === "severe";
     const recovery = recoveryRead(data.sleepNights, today, sleepShort);
-    const fmt = { kg: (kg: number) => formatWeight(kg, unit), date: (d: LocalDate) => shortLocalDate(d) };
+    const fmt = { kg: (kg: number) => formatWeight(kg, unit), date: (d: LocalDate) => shortLocalDate(d), unit };
     // On the review's week, a pending decision that starts the deload already says so.
     const decisionDeload = reviewModel && start === reviewWeek && !reviewModel.reviewed && reviewModel.review.decision.kind === "accept" && reviewModel.review.decision.changes.some((c) => c.kind === "deload");
     const out = buildWeeklyInsight({ report, analysis, goal: data.goal, eta, plan, deload, recovery: recovery.status === "none" ? null : recovery, plannedSessions, today, fmt, exclude: decisionDeload ? ["deload"] : [] });

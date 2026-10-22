@@ -108,14 +108,17 @@ describe("linked reasons (W5)", () => {
     expect(weightLink(week({ ratePct: -0.2, win: { meanKcal: 2450 }, food: { meanKcal: 2480, targetKcal: 2150, deltaKcal: 330 } }))!.causes.some((c) => c.startsWith("This week alone"))).toBe(false);
   });
 
-  it("agrees with the scorecard: inside the plan's tolerance plus the rate's margin is on plan", () => {
-    expect(weightLink(week({ ratePct: -0.3 }))!.state).toBe("good");
-    expect(weightLink(week({ ratePct: -0.2 }))!.state).toBe("watch");
+  it("agrees with the scorecard and the judge (TR12): inside the plan's tolerance is as planned; inside it only by the rate's margin is not clear yet", () => {
+    expect(weightLink(week({ ratePct: -0.4 }))!).toMatchObject({ state: "good", title: "Weight moving as planned" });
+    const unclear = weightLink(week({ ratePct: -0.3 }))!;
+    expect(unclear).toMatchObject({ state: "watch", title: "Weight against the plan: not clear yet", detail: "The gap is inside the trend's margin of error." });
+    expect(rateVsPlan(-0.3, -0.6, "cut", null, 0.1)!.text).toBe("Not clear yet");
+    expect(weightLink(week({ ratePct: -0.2 }))!.title).toBe("Weight came down slower than planned");
   });
 
-  it("a wide margin keeps a noisy rate on plan, unless the intake points the same way (and the scorecard agrees)", () => {
+  it("a wide margin keeps a noisy rate from reading off plan (not clear yet), unless the intake points the same way (and the scorecard agrees)", () => {
     const noisy = week({ ratePct: -1.1, marginPct: 0.5 });
-    expect(weightLink(noisy)!.state).toBe("good");
+    expect(weightLink(noisy)!).toMatchObject({ state: "watch", title: "Weight against the plan: not clear yet" });
     expect(planMargin(noisy.report, -0.6)).toBe(0.5);
     const backed = week({ ratePct: -1.1, marginPct: 0.5, win: { meanKcal: 1750 } });
     expect(planMargin(backed.report, -0.6)).toBe(0);

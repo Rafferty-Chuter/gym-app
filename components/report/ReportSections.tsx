@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { WeekReport } from "@/lib/physique/weekReport";
 import type { Chart, Tile, TileId, Tone } from "@/lib/physique/weekScorecard";
 import { FIBRE_TARGET_G, pctOfBodyWeight } from "@/lib/physique/weekScorecard";
+import { fmtSignedKgWeek } from "@/lib/physique/copy";
 import type { PhysiqueGoal } from "@/lib/physique/types";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { bandLabel } from "@/lib/training/volumeTargets";
@@ -128,7 +129,7 @@ function MiniChart({ chart, active }: { chart: Chart; active: number | null }) {
   );
 }
 
-/** The week's weight change in large type with its line beside it; a tap on the line gives one day's trend weight in its place (T1). */
+/** The week's weight change in large type, kilos first and the share of body weight under it (TR12), with its line beside it; a tap on the line gives one day's trend weight in its place (T1). */
 function WeightHeadline({ weekPct, weekKg, chart, dates, unit }: { weekPct: string | null; weekKg: string | null; chart: Chart | null; dates: LocalDate[]; unit: WeightUnit }) {
   const vals = chart?.kind === "line" ? chart.values : [];
   const { active, bind } = usePick({ xs: vals.map((v, i) => (v != null ? (i + 0.5) / 7 : null)), share: true, data: `${dates[0]}:${vals.length}` });
@@ -136,15 +137,15 @@ function WeightHeadline({ weekPct, weekKg, chart, dates, unit }: { weekPct: stri
   return (
     <div className="flex items-end justify-between gap-3">
       <div className="flex min-w-0 flex-col" aria-live="polite">
-        <span className="text-[30px] font-semibold leading-none tracking-[-0.02em]" style={{ color: day || weekPct ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-          {day ? formatBodyWeight(day.kg, unit) : (weekPct ?? "–")}
+        <span className="text-[30px] font-semibold leading-none tracking-[-0.02em]" style={{ color: day || weekKg ? "var(--text)" : "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+          {day ? formatBodyWeight(day.kg, unit) : (weekKg ?? "–")}
         </span>
         <span className="mt-1 text-[12px] leading-snug" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
           {day ? (
             `Trend on ${longLocalDate(day.date)}`
-          ) : weekPct ? (
+          ) : weekKg ? (
             <>
-              of body weight this week · <span className="whitespace-nowrap">{weekKg}</span>
+              this week{weekPct && <> · <span className="whitespace-nowrap">{weekPct} of body weight</span></>}
             </>
           ) : (
             "Needs a trend at both ends of the week"
@@ -192,15 +193,29 @@ export default function ReportSections({ report: r, prev: p, tiles, unit, goal, 
   const weekKg = r.weight.deltaKg == null ? null : `${sign(r.weight.deltaKg)}${Math.abs(kgToDisplay(r.weight.deltaKg, unit)).toFixed(2)} ${unit}`;
   const weightTile = tile("weight");
   const sinceKg = goal && r.weight.endTrendKg != null ? r.weight.endTrendKg - goal.startTrendKg : null;
+  // TR12: a rate reads in kilos a week first, its %/wk under it.
+  const rateCell = (wk: WeekReport["weight"] | undefined) => {
+    if (wk?.ratePctPerWeek == null) return dash;
+    if (wk.endTrendKg == null) return formatRate(wk.ratePctPerWeek);
+    return (
+      <>
+        {fmtSignedKgWeek((wk.ratePctPerWeek * wk.endTrendKg) / 100, unit)}/wk
+        <span className="block text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+          {formatRate(wk.ratePctPerWeek)}
+        </span>
+      </>
+    );
+  };
+  const planKg = goal && goal.type !== "maintain" && r.weight.endTrendKg != null ? fmtSignedKgWeek((goal.ratePctPerWeek * r.weight.endTrendKg) / 100, unit) : null;
   const weightRows: ReportRow[] = [
     { label: "Trend weight", sub: "End of the week", now: w(r.weight.endTrendKg), prev: w(p?.weight.endTrendKg) },
     { label: "Change", sub: "Trend, start to end of the week", now: kgDelta(r.weight.deltaKg), prev: kgDelta(p?.weight.deltaKg) },
     { label: "Change, % of body weight", now: weekPct ?? dash, prev: pct(p?.weight) ?? dash },
     {
       label: r.weight.rateWindowDays ? `Rate over ${Math.round(r.weight.rateWindowDays / 7)} weeks` : "Rate",
-      sub: goal && goal.type !== "maintain" ? `Plan ${formatRate(goal.ratePctPerWeek)}` : r.weight.rateWindowDays ? null : "Early read · not enough weigh-ins yet",
-      now: r.weight.ratePctPerWeek == null ? dash : formatRate(r.weight.ratePctPerWeek),
-      prev: p?.weight.ratePctPerWeek == null ? dash : formatRate(p.weight.ratePctPerWeek),
+      sub: goal && goal.type !== "maintain" ? `Plan ${planKg ? `${planKg}/wk · ` : ""}${formatRate(goal.ratePctPerWeek)}` : r.weight.rateWindowDays ? null : "Early read · not enough weigh-ins yet",
+      now: rateCell(r.weight),
+      prev: rateCell(p?.weight),
       status: weightTile?.delta ?? null,
     },
     { label: "Weigh-ins", now: days(r.weight.weighIns, r.daysCovered), prev: p ? days(p.weight.weighIns, p.daysCovered) : dash },

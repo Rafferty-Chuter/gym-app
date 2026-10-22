@@ -8,7 +8,7 @@ import NumberSheet from "@/components/physique/NumberSheet";
 import RemindersSection from "@/components/physique/RemindersSection";
 import AppleHealthSheet from "@/components/health/AppleHealthSheet";
 import AiConsentSheet from "@/components/account/AiConsentSheet";
-import { AI_CONSENT_VERSION, isConsentActive, useConsents } from "@/lib/consent";
+import { AI_CONSENT_VERSION, isConsentActive, SYNC_CONSENT_VERSION, useConsents } from "@/lib/consent";
 import { ASSISTANT_ENABLED } from "@/lib/features";
 import MusclePrioritiesSheet from "@/components/physique/MusclePrioritiesSheet";
 import { useMusclePriorities } from "@/lib/physique/io/musclePriorities";
@@ -24,6 +24,7 @@ import { receivedLabel, useHealthLink } from "@/lib/physique/io/healthLink";
 import { useNativeHealth } from "@/lib/physique/io/nativeHealth";
 import { BODY_FAT_OPTIONS, SEX_OPTIONS } from "@/lib/physique/profileOptions";
 import { ACCOUNTS_ENABLED } from "@/lib/sync/config";
+import { useSignedIn } from "@/lib/sync/useSignedIn";
 import { useUnit } from "@/lib/unit-preference";
 import { setHeightUnit, useHeightUnit } from "@/lib/ui/heightUnit";
 import { formatHeight } from "@/lib/units";
@@ -78,6 +79,9 @@ export default function ProfilePage() {
   const [sheet, setSheet] = useState<"height" | "age" | "health" | "priorities" | "ai" | null>(null);
   const consents = useConsents();
   const aiOn = isConsentActive(consents?.ai, AI_CONSENT_VERSION);
+  // TR12: signed in with sync ticked, the account keeps the log, so moving it across by hand is not needed.
+  const signedIn = useSignedIn();
+  const inAccount = ACCOUNTS_ENABLED && signedIn && isConsentActive(consents?.sync, SYNC_CONSENT_VERSION);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [rest, setRest] = useState<RestTimerSettings>(() => getRestTimerSettings());
   useEffect(() => {
@@ -243,12 +247,12 @@ export default function ProfilePage() {
         <section className="flex flex-col gap-2" aria-label="Data">
           <Caption>Data</Caption>
           <RowGroup>
-            <Row label="Import" sub="Daily log, sample data, Hevy, Strong, Rep Count" value="" trailing={<Chevron />} onClick={() => router.push("/profile/import")} ariaLabel="Import. Open" />
+            <Row label="Import" sub="MacroFactor, Hevy, Strong, Rep Count or a daily log" value="" trailing={<Chevron />} onClick={() => router.push("/profile/import")} ariaLabel="Import. Open" />
             <Row label="Export workouts" sub={exportStatus ?? "A CSV of every logged set"} value="" trailing={<Chevron />} onClick={exportCsv} ariaLabel="Export workouts as CSV" />
-            <Row label="Move to another phone" sub="Copy everything as text and paste it there" value="" trailing={<Chevron />} onClick={() => router.push("/dev/data-transfer")} ariaLabel="Move to another phone. Open" />
+            {!inAccount && <Row label="Move to another phone" sub="Copy everything as text and paste it there" value="" trailing={<Chevron />} onClick={() => router.push("/dev/data-transfer")} ariaLabel="Move to another phone. Open" />}
           </RowGroup>
           <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-            Your log is stored on this phone. Move it across before switching phones.
+            {inAccount ? "Your log is kept in your account and on this phone." : "Your log is stored on this phone. Move it across before switching phones."}
           </p>
         </section>
 

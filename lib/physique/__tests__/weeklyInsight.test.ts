@@ -43,7 +43,8 @@ describe("weekly insight (W3)", () => {
     const i = inputs(scenario());
     const h = heading(i);
     expect(h.title).toMatch(/^78\.0 kg around \d{4}-\d{2}-\d{2}$/);
-    expect(h.lines[0]).toMatch(/^At −\d\.\d+ %\/wk\. \d+\.\d kg to go\.$/);
+    // TR12: kilos a week first, the percentage second.
+    expect(h.lines[0]).toMatch(/^At −\d\.\d kg a week \(−\d\.\d+ %\)\. \d+\.\d kg to go\.$/);
     expect(h.lines.some((l) => /maintenance|then/.test(l))).toBe(false);
     expect(h.lines.at(-1)).toMatch(/^Lifts holding since your goal started on \d{4}-\d{2}-\d{2}\.$/);
     expect(i.analysis.strength.status).toBe("holding");

@@ -9,7 +9,7 @@
  */
 
 import { dayDiff, type LocalDate } from "@/lib/dates";
-import { fmtKcal, fmtSignedRate, joinNames } from "@/lib/physique/copy";
+import { fmtKcal, fmtSignedKgWeek, fmtSignedRate, joinNames } from "@/lib/physique/copy";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { SLEEP_ADULT_MIN_H } from "@/lib/physique/sleep";
 import { sleepAgainstUsual } from "@/lib/physique/weekScorecard";
@@ -23,6 +23,7 @@ import type { WeekReport } from "@/lib/physique/weekReport";
 import type { PhysiqueAnalysis, PhysiqueGoal, SignalState } from "@/lib/physique/types";
 import { bandLabel } from "@/lib/training/volumeTargets";
 import type { DeloadRead } from "@/lib/training/deload";
+import type { WeightUnit } from "@/lib/units";
 
 // ── Constants ──
 
@@ -70,7 +71,7 @@ export type WeeklyInsight = {
   goingWell: string[];
 };
 
-export type InsightFormat = { kg: (kg: number) => string; date: (d: LocalDate) => string };
+export type InsightFormat = { kg: (kg: number) => string; date: (d: LocalDate) => string; /** The scale's unit, for rates in kilos a week (TR12); kg when absent. */ unit?: WeightUnit };
 
 export type InsightInputs = {
   report: WeekReport;
@@ -151,14 +152,17 @@ export function heading(i: InsightInputs): Heading {
     return { state: "unknown", title: "Early read", lines: ["The first rate needs a week or two of weigh-ins."] };
   }
   const target = fmt.kg(goal.targetKg);
-  const rate = `${fmtSignedRate(eta.ratePctPerWeek)} %/wk`;
-  const goalRate = `${fmtSignedRate(goal.ratePctPerWeek)} %/wk`;
+  // TR12: kilos a week first on the current trend weight, the percentage second.
+  const bodyKg = analysis.weight.trendKg;
+  const kgWeek = (pct: number) => (bodyKg != null && bodyKg > 0 ? `${fmtSignedKgWeek((pct * bodyKg) / 100, fmt.unit)} a week` : null);
+  const rate = kgWeek(eta.ratePctPerWeek) ? `${kgWeek(eta.ratePctPerWeek)} (${fmtSignedRate(eta.ratePctPerWeek)} %)` : `${fmtSignedRate(eta.ratePctPerWeek)} %/wk`;
+  const goalRate = kgWeek(goal.ratePctPerWeek) ?? `${fmtSignedRate(goal.ratePctPerWeek)} %/wk`;
   if (eta.reached) {
     return { state: "good", title: "Target reached", lines: [`Trend at ${target}.`] };
   }
   if (eta.reason === "away") {
     const flat = Math.abs(eta.ratePctPerWeek) < HEADING_FLAT_RATE;
-    lines.push(`The trend is moving ${rate} against a ${goalRate} goal.`, `${fmt.kg(eta.remainingKg)} still to go.`);
+    lines.push(`The trend is moving ${rate} against a planned ${goalRate}.`, `${fmt.kg(eta.remainingKg)} still to go.`);
     if (liftsLine) lines.push(liftsLine);
     return flat ? { state: "watch", title: "Weight is flat", lines } : { state: "attention", title: "Moving away from the target", lines };
   }

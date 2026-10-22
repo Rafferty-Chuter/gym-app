@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDays } from "@/lib/dates";
-import { compareText, effectKg, formatEffect, referenceLift } from "@/lib/physique/liftEffect";
+import { effectKg, formatEffect, referenceLift } from "@/lib/physique/liftEffect";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
 const today = "2026-10-21";
@@ -54,21 +54,5 @@ describe("A connection in kg on a lift (PR3)", () => {
     expect(formatEffect(-2.2, "kg")).toBe("−2 kg");
     expect(formatEffect(4.158, "lb")).toBe("+9 lb");
     expect(formatEffect(0.1, "kg")).toBe("0 kg");
-  });
-});
-
-describe("The two groups in a few words (PR3)", () => {
-  it("states a shared unit once", () => {
-    expect(compareText("303 g", "223 g")).toBe("303 vs 223 g");
-    expect(compareText("127 under maintenance", "791 under maintenance")).toBe("127 vs 791 under maintenance");
-    expect(compareText("3 days", "2 days")).toBe("3 vs 2 days");
-    expect(compareText("−0.3 %/wk", "−0.6 %/wk")).toBe("−0.3 vs −0.6 %/wk");
-  });
-
-  it("keeps both in full when they differ in form", () => {
-    expect(compareText("7h 48m", "6h 10m")).toBe("7h 48m vs 6h 10m");
-    expect(compareText("at maintenance", "791 under maintenance")).toBe("At maintenance vs 791 under maintenance");
-    expect(compareText("18:30", "07:15")).toBe("18:30 vs 07:15");
-    expect(compareText("1 day", "3 days")).toBe("1 day vs 3 days");
   });
 });

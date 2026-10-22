@@ -16,7 +16,7 @@
  *   behind a possible effect on lifting (C7): the night's sleep, the day
  *   before's carbs and calories against maintenance, the three
  *   days' protein, the time of day, days since the last session, the
- *   fortnight's weight trend and the morning's HRV.
+ *   fortnight's weight trend (kg a week) and the morning's HRV.
  * - Sessions are split into thirds by the condition; the top third is
  *   compared with the bottom third (the middle is left out for contrast).
  *
@@ -40,7 +40,7 @@ import { isCompoundLift, liftSeries, workoutDate } from "@/lib/physique/strength
 import { trendSeries } from "@/lib/physique/weight";
 import type { DayFlags, ExpenditurePoint, FoodEntry, SleepNight, WeighIn } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
-import type { WeightUnit } from "@/lib/units";
+import { kgToDisplay, type WeightUnit } from "@/lib/units";
 
 // ── Thresholds (tags as in 02-engine-spec) ──
 
@@ -83,6 +83,8 @@ export type ConnectionEvidence = { text: string; source: string };
 export type ConnectionGroup = {
   /** The third's typical condition, formatted: "7h 50m", "310 g". */
   value: string;
+  /** The same, unformatted, in the condition's own measure (hours, g, kcal against maintenance, g a day, hour of the day, days, kg a week, ms). */
+  mean: number;
   /** Mean strength against the lift's level, %. */
   pct: number;
   sessions: number;
@@ -104,6 +106,8 @@ export type Connection = {
   evidence: ConnectionEvidence | null;
   /** Another clear difference that rose and fell with this one across the same sessions, so the two cannot be told apart (C7). */
   movedWith: ConnectionId | null;
+  /** 1 when `movedWith` was higher in the same sessions as this one, −1 when it was lower; null without one. */
+  movedWithSign: 1 | -1 | null;
   /** The sessions behind each third, for drawing them on the timeline (PR2). */
   points: { high: SessionPoint[]; low: SessionPoint[] };
 };
@@ -197,7 +201,7 @@ export function compareThirds(pairs: readonly Pair[]): { high: Pair[]; low: Pair
 // ── Conditions ──
 
 const n0 = (v: number) => Math.round(v).toLocaleString("en-GB");
-const signedRate = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)} %/wk`;
+const signedRate = (v: number, unit: WeightUnit) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${kgToDisplay(Math.abs(v), unit).toFixed(1)} ${unit}/wk`;
 const days = (v: number) => {
   const d = Math.round(v);
   return `${d} ${d === 1 ? "day" : "days"}`;
@@ -210,7 +214,7 @@ const clock = (h: number) => {
 
 type Wording = {
   label: string;
-  fmt: (v: number) => string;
+  fmt: (v: number, unit: WeightUnit) => string;
   /** "After your longest nights (7h 50m on average)". */
   high: (v: string) => string;
   /** "after your shortest (6h 05m)". */
@@ -350,10 +354,11 @@ function conditionReaders(i: ConnectionInputs, from: LocalDate, now: Now): Recor
       return xs.length >= 2 ? mean(xs) : null;
     },
     time: (d) => hours.get(d) ?? null,
+    // kg a week (TR12: kilos first), so the thirds and their words are the scale's own units.
     rate: (d) => {
       const end = trend.get(addDays(d, -1));
       const start = trend.get(addDays(d, -1 - CONN_RATE_DAYS));
-      return end != null && start != null && start > 0 ? ((end / start - 1) * 100 * 7) / CONN_RATE_DAYS : null;
+      return end != null && start != null && start > 0 ? ((end - start) * 7) / CONN_RATE_DAYS : null;
     },
     rest: (d) => rest.get(d) ?? null,
   };
@@ -422,8 +427,10 @@ export function connections(i: ConnectionInputs, now: Now, opts: { days?: number
     const c = compareThirds(pairs);
     if (!c) continue;
     const w = WORDING[id];
-    const hv = w.fmt(mean(c.high.map((p) => p.v)));
-    const lv = w.fmt(mean(c.low.map((p) => p.v)));
+    const hMean = mean(c.high.map((p) => p.v));
+    const lMean = mean(c.low.map((p) => p.v));
+    const hv = w.fmt(hMean, i.unit);
+    const lv = w.fmt(lMean, i.unit);
     const linked = (c.lo > 0 || c.hi < 0) && Math.abs(c.diff) >= CONN_MIN_EFFECT_PCT;
     const diffPct = round1(c.diff);
     const text = linked
@@ -435,10 +442,11 @@ export function connections(i: ConnectionInputs, now: Now, opts: { days?: number
       state: linked ? "linked" : "none",
       text,
       diffPct,
-      high: { value: hv, pct: round1(mean(c.high.map((p) => p.pct))), sessions: c.high.length },
-      low: { value: lv, pct: round1(mean(c.low.map((p) => p.pct))), sessions: c.low.length },
+      high: { value: hv, mean: hMean, pct: round1(mean(c.high.map((p) => p.pct))), sessions: c.high.length },
+      low: { value: lv, mean: lMean, pct: round1(mean(c.low.map((p) => p.pct))), sessions: c.low.length },
       evidence: w.evidence,
       movedWith: null,
+      movedWithSign: null,
       points: { high: c.high.map((p) => ({ date: p.date as LocalDate, pct: p.pct })), low: c.low.map((p) => ({ date: p.date as LocalDate, pct: p.pct })) },
     });
   }
@@ -454,6 +462,7 @@ export function connections(i: ConnectionInputs, now: Now, opts: { days?: number
       const r = overlapR(values.get(keep.id)!, values.get(other.id)!);
       if (r == null || Math.abs(r) < CONN_OVERLAP_R) continue;
       keep.movedWith = other.id;
+      keep.movedWithSign = r > 0 ? 1 : -1;
       keep.text = `${keep.text} ${WORDING[other.id].label} ${r > 0 ? "rose and fell" : "moved the opposite way"} with it, so the two can't be told apart.`;
       other.state = "none";
     }
