@@ -31,13 +31,19 @@ function coerceSex(v: unknown): Sex | undefined {
   return v === "M" || v === "F" || v === "prefer_not_to_say" ? v : undefined;
 }
 
+function coerceActivity(v: unknown): PhysiqueProfile["generalActivity"] {
+  return v === "low" || v === "moderate" || v === "high" ? v : DEFAULT_PHYSIQUE_PROFILE.generalActivity;
+}
+
 export function resolveProfile(
   onboarding: OnboardingProfile | null,
   stored: PhysiqueProfile | null,
   firstLoggedDate: string | null
 ): ResolvedProfile {
   const base: PhysiqueProfile = { ...DEFAULT_PHYSIQUE_PROFILE, ...(stored ?? {}) };
-  const sex = coerceSex(onboarding?.sex) ?? base.sex;
+  // Stored values are checked as onboarding's are, so a stray value never reaches the maintenance formula as NaN.
+  base.generalActivity = coerceActivity(base.generalActivity);
+  const sex = coerceSex(onboarding?.sex) ?? coerceSex(base.sex);
   const age =
     typeof onboarding?.age === "number" && Number.isFinite(onboarding.age) ? onboarding.age : base.age ?? DEFAULT_AGE;
   const heightCm =

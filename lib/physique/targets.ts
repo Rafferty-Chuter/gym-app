@@ -282,7 +282,7 @@ export function fatFloorG(heightCm: number): number {
 
 /** Calorie and fat floors (02 §5.3–5.4). No "none" floor in M1. */
 export function floors(sex: Sex | undefined, heightCm: number): Floors {
-  return { kcal: CALORIE_FLOOR[sex ?? "prefer_not_to_say"], fatG: fatFloorG(heightCm) };
+  return { kcal: CALORIE_FLOOR[sex ?? "prefer_not_to_say"] ?? CALORIE_FLOOR.prefer_not_to_say, fatG: fatFloorG(heightCm) };
 }
 
 export type WeeklyTargetInput = {
@@ -321,7 +321,7 @@ export function weeklyTarget(input: WeeklyTargetInput): WeeklyTarget {
     capped = step !== raw - input.prevTargetKcal;
     target = input.prevTargetKcal + step;
   }
-  const floor = CALORIE_FLOOR[input.sex ?? "prefer_not_to_say"];
+  const floor = CALORIE_FLOOR[input.sex ?? "prefer_not_to_say"] ?? CALORIE_FLOOR.prefer_not_to_say;
   const floorBound = target < floor;
   if (floorBound) target = floor;
   return { kcal: Math.round(target), raw, goalDeltaKcal: delta, cap, capped, floor, floorBound };

@@ -317,3 +317,21 @@ describe("convergence (research A §G.6 #3)", () => {
     expect(Math.abs(r.series[r.series.length - 1].tdee - 2800)).toBeLessThan(25);
   });
 });
+
+describe("a seed outside the stored codes never gives NaN", () => {
+  it("reads an unknown sex as prefer-not-to-say and an unknown activity as moderate", () => {
+    const odd = seed({ sex: "male" as unknown as ExpenditureSeed["sex"], generalActivity: undefined as unknown as ExpenditureSeed["generalActivity"] });
+    expect(initialTdee(odd)).toBe(initialTdee(seed({ sex: "prefer_not_to_say", generalActivity: "moderate" })));
+    expect(Number.isFinite(initialTdee(odd))).toBe(true);
+  });
+
+  it("keeps the whole series finite", () => {
+    const profile = { ...PROFILE, sex: "male" as unknown as PhysiqueProfile["sex"] };
+    const weighIns = Array.from({ length: 30 }, (_, i) => w(day(i), 90 - i * 0.02));
+    const foodEntries = Array.from({ length: 30 }, (_, i) => f(day(i), 2600));
+    const s = snapshotSeed({ profile, goals: [], weighIns, startDate: D0 })!;
+    const series = expenditureSeries({ seed: s, weighIns, intake: dailyIntakeSeries(foodEntries, {}, D0, day(29)), today: day(29) });
+    expect(series.length).toBeGreaterThan(0);
+    expect(series.every((p) => Number.isFinite(p.tdee))).toBe(true);
+  });
+});

@@ -55,3 +55,12 @@ describe("profile resolution", () => {
     expect(firstLoggedDate(["2026-10-01"], [])).toBeNull();
   });
 });
+
+describe("stored profile values are checked", () => {
+  it("drops a sex or activity outside the stored codes", () => {
+    const r = resolveProfile(null, { generalActivity: "very" as unknown as "moderate", sex: "male" as unknown as "M", checkInWeekday: 1, proteinLevel: "moderate", dietType: "balanced", sleepGoalH: 8, schemaVersion: 1 }, null);
+    expect(r.generalActivity).toBe("moderate");
+    expect(r.sex).toBe("prefer_not_to_say");
+    expect(r.missing).toContain("sex");
+  });
+});

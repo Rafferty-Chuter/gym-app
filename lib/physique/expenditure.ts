@@ -87,7 +87,8 @@ export function exerciseAddOn(sessionsPerWeek: number): number {
 /** MacroFactor's height/weight BMR. PUB. Units: kg, cm, years. */
 export function bmrHeightWeight(weightKg: number, heightCm: number, age: number, sex: Sex): number {
   const a = 1.96 * Math.min(age, BMR_AGE_KNEE) + 4.9 * Math.max(0, age - BMR_AGE_KNEE);
-  return 129.6 * Math.pow(weightKg, 0.55) + 0.011 * heightCm * heightCm - a - 213.8 * BMR_SEX_TERM[sex];
+  // A sex outside the stored codes (hand-edited or old data) reads as prefer-not-to-say, never NaN.
+  return 129.6 * Math.pow(weightKg, 0.55) + 0.011 * heightCm * heightCm - a - 213.8 * (BMR_SEX_TERM[sex] ?? BMR_SEX_TERM.prefer_not_to_say);
 }
 
 /** MacroFactor's body-composition BMR, only with a measured body-fat %. PUB. */
@@ -198,7 +199,8 @@ export function initialTdee(seed: ExpenditureSeed): number {
     bmr = bmrHeightWeight(seed.weightKg, seed.heightCm, seed.age, seed.sex);
   }
   if (seed.goalRatePctPerWeek < 0) bmr *= BMR_DEFICIT_MULT;
-  const af = ACTIVITY_FACTOR[seed.generalActivity] + exerciseAddOn(seed.sessionsPerWeek);
+  // Likewise an unknown activity reads as moderate, the profile's default.
+  const af = (ACTIVITY_FACTOR[seed.generalActivity] ?? ACTIVITY_FACTOR.moderate) + exerciseAddOn(seed.sessionsPerWeek);
   const tdee0 = bmr * af * (1 + (GOAL_PRED_FACTOR * seed.goalRatePctPerWeek) / 100);
   return Math.round(tdee0);
 }
