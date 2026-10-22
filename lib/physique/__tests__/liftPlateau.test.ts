@@ -169,5 +169,6 @@ describe("the stuck lift, and what changed (IN4)", () => {
     expect(flatCaught / N).toBeGreaterThanOrEqual(0.5);
     expect(flat10Caught / N).toBeGreaterThanOrEqual(0.8);
     expect(dropCaught / N).toBeGreaterThanOrEqual(0.7);
-  });
+    // About 1.5 s alone; the full suite runs files in parallel, so it gets room past vitest's 5 s default.
+  }, 30_000);
 });

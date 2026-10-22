@@ -79,8 +79,11 @@ const GENERIC_PORTIONS: ReadonlyArray<{ re: RegExp; portions: Portion[] }> = [
   { re: /^(oats|porridge oats)/, portions: [{ label: "1 serving (dry)", grams: 40 }] },
   { re: /^porridge, /, portions: [{ label: "1 bowl", grams: 200 }] },
   { re: /^(almonds|cashew|peanuts|walnuts|nuts|mixed nuts)/, portions: [{ label: "small handful", grams: 30 }] },
-  { re: /^(beer|cider|lager)/, portions: [{ label: "1 pint", grams: 568 }, { label: "330 ml", grams: 330 }] },
-  { re: /^wine/, portions: [{ label: "small glass (125 ml)", grams: 125 }, { label: "large glass (250 ml)", grams: 250 }] },
+  // Drinks (IN7): UK measures, the pint and the pub's 175 ml glass first; beer and wine at 1 g per ml, spirits at 0.95 (lib/food/drinks.ts).
+  { re: /^(beer|cider|lager|stout)/, portions: [{ label: "1 pint", grams: 568 }, { label: "half pint", grams: 284 }, { label: "1 can (440 ml)", grams: 440 }, { label: "330 ml bottle", grams: 330 }] },
+  { re: /^wine/, portions: [{ label: "175 ml glass", grams: 175 }, { label: "small glass (125 ml)", grams: 125 }, { label: "large glass (250 ml)", grams: 250 }, { label: "bottle (750 ml)", grams: 750 }] },
+  { re: /^spirits/, portions: [{ label: "single (25 ml)", grams: 24 }, { label: "double (50 ml)", grams: 48 }] },
+  { re: /^(port|sherry)/, portions: [{ label: "1 glass (50 ml)", grams: 50 }] },
 ];
 
 /** Household portions for a generic food; empty when none is well known. */

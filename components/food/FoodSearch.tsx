@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import SavedFoodRow, { PlusButton } from "@/components/food/SavedFoodRow";
 import MacroText from "@/components/food/MacroText";
 import NutrientList from "@/components/food/NutrientList";
+import DrinksRow, { type DrinkTally } from "@/components/food/DrinksRow";
+import type { Drink } from "@/lib/food/drinks";
 import BarcodeScanner from "@/components/food/BarcodeScanner";
 import { ErrorLine, PrimaryButton } from "@/components/physique/ui";
 import { loadCofid, searchFoods } from "@/lib/food/cofid";
@@ -26,6 +28,9 @@ type Props = {
   busy: boolean;
   onLog: (food: FoodInput, savedFoodId?: string) => Promise<boolean>;
   onPrefill: (s: SavedFood) => void;
+  /** IN7: this sheet's drinks, and setting one's count (0 removes it). */
+  drinkTally: DrinkTally;
+  onDrink: (d: Drink, item: FoodItem, count: number) => void;
 };
 
 /** Wait this long after typing stops before asking Open Food Facts. OURS. */
@@ -42,10 +47,10 @@ type OffState = { status: "idle" | "loading" | "error"; items: FoodItem[] };
 /**
  * The logger's Search tab (M4): the UK base list answers as you type, UK
  * products from Open Food Facts follow, a barcode goes straight to its
- * product. Empty, it shows the go-tos for the hour and the latest foods.
+ * product. Empty, it shows the drinks row (IN7), the go-tos for the hour and the latest foods.
  * A row's plus logs the usual portion; the row itself opens the amount.
  */
-export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLog, onPrefill }: Props) {
+export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLog, onPrefill, drinkTally, onDrink }: Props) {
   const [query, setQuery] = useState("");
   const [cofid, setCofid] = useState<FoodItem[] | null>(null);
   const [off, setOff] = useState<OffState>({ status: "idle", items: [] });
@@ -217,6 +222,7 @@ export default function FoodSearch({ hour, today, tz, entries, saved, busy, onLo
         </div>
       ) : (
         <div className="flex flex-col gap-4">
+          {cofid && section("Drinks", <DrinksRow items={cofid} tally={drinkTally} busy={busy} onCount={onDrink} />)}
           {recent.goTos.length > 0 && section(`Go-tos for ${hourLabel(hour)}`, <ul className={list} style={listStyle}>{recent.goTos.map((s) => <SavedFoodRow key={s.id} food={s} onPrefill={onPrefill} trailing={<PlusButton onClick={() => void onLog(savedFoodInput(s), s.id)} label={`Log ${s.label}`} disabled={busy} />} />)}</ul>)}
           {section(
             "Latest",

@@ -144,7 +144,7 @@ M · `lib/food/`, `scripts/build-cofid.ts`, `lib/physique/types.ts`
 ### IN7 · Drinks in one tap
 S · after IN6
 - A Drinks row in the food logger: pint, glass of wine, single, can, with a count; alcohol and calories from CoFID.
-- Mobbin: how MyFitnessPal, Cronometer, Reframe and Sunnyside log drinks. No moralising words (must-not-claim 15).
+- Mobbin: how MyFitnessPal, Cronometer, Reframe and Sunnyside log drinks. No moralising words (must-not-claim 15). (Done: a row of chips under the search box; see the STATUS row.)
 
 ### IN8 · More from Apple Health
 M · `lib/health/*`, `ios/`

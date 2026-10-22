@@ -173,6 +173,8 @@ function FoodContent({ now, unit }: { now: Now; unit: "kg" | "lb" }) {
         entries={data.foodEntries}
         saved={data.savedFoods}
         onLog={(food: FoodInput, savedFoodId?: string) => logFood(date, food, nowIso(), savedFoodId)}
+        onUpdateEntry={updateFoodEntry}
+        onRemoveEntry={removeFoodEntry}
         onToggleFavourite={toggleFavourite}
         onRemoveSaved={removeSavedFood}
         onSaveRecipe={(draft) => saveRecipe(draft, nowIso())}

@@ -8,7 +8,7 @@ import { useUnit } from "@/lib/unit-preference";
 import { useNow } from "@/lib/ui/useToday";
 import { useIsHydrated } from "@/lib/ui/useIsHydrated";
 import { deleteWeighIn, saveSleepNight, saveWeighIn, useBodyData, type SleepInput } from "@/lib/physique/io/bodyData";
-import { logFood, removeSavedFood, saveRecipe, setFoodPrefs, toggleFavourite, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
+import { logFood, removeFoodEntry, removeSavedFood, saveRecipe, setFoodPrefs, toggleFavourite, updateFoodEntry, useFoodPrefs, type FoodInput } from "@/lib/physique/io/foodData";
 import { dayTotals, formatHoursMin, sleepPrefill } from "@/lib/physique/dayTotals";
 import { latestTrend } from "@/lib/physique/weight";
 import { scaleJump, withWeighIn, type ScaleJumpInputs } from "@/lib/physique/scaleJump";
@@ -152,6 +152,8 @@ export default function TodayStrip() {
             entries={data.foodEntries}
             saved={data.savedFoods}
             onLog={(food: FoodInput, savedFoodId?: string) => logFood(today, food, nowIso(), savedFoodId)}
+            onUpdateEntry={updateFoodEntry}
+            onRemoveEntry={removeFoodEntry}
             onToggleFavourite={toggleFavourite}
             onRemoveSaved={removeSavedFood}
             onSaveRecipe={(draft) => saveRecipe(draft, nowIso())}

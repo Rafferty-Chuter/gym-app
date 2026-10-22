@@ -127,15 +127,16 @@ async function rememberSaved(food: ReturnType<typeof clean>, serving: string | u
 }
 
 /** Log a food to a date at a meal time. Quick adds are remembered as saved foods. */
-export async function logFood(date: LocalDate, food: FoodInput, nowIso: string, savedFoodId?: string): Promise<SaveResult> {
-  return attempt(async () => {
+export async function logFood(date: LocalDate, food: FoodInput, nowIso: string, savedFoodId?: string): Promise<SaveResult & { id?: string }> {
+  const entryId = newId();
+  const r = await attempt(async () => {
     const base = clean(food);
     // A recipe is remembered as one serving, whatever was eaten this time.
     const savedBase = food.recipe ? clean({ ...food, ...perServing(food.recipe.ingredients, food.recipe.servings) }) : base;
     const savedServing = food.recipe ? unitLabel({ servings: food.recipe.servings, totalGrams: food.recipe.totalGrams ?? null }) : food.keepSavedServing && savedFoodId ? undefined : food.serving;
     const id = await rememberSaved(savedBase, savedServing, nowIso, savedFoodId, food.recipe);
     const entry: FoodEntry = {
-      id: newId(),
+      id: entryId,
       date,
       loggedAt: nowIso,
       source: "manual",
@@ -149,6 +150,8 @@ export async function logFood(date: LocalDate, food: FoodInput, nowIso: string, 
     if (food.confidence) entry.confidence = food.confidence;
     await foodEntriesRepo.upsert(entry);
   });
+  // IN7: the entry's id, so a second tap on a drink can raise its count.
+  return r.ok ? { ...r, id: entryId } : r;
 }
 
 /**

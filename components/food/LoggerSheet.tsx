@@ -12,6 +12,9 @@ import { recipeConfidence } from "@/lib/food/recipe";
 import { hourLabel, localClock, macroKcal } from "@/lib/physique/food/timeline";
 import { filterSaved } from "@/lib/physique/food/goTos";
 import FoodSearch from "@/components/food/FoodSearch";
+import type { DrinkTally } from "@/components/food/DrinksRow";
+import { drinkFood, drinkToast, type Drink } from "@/lib/food/drinks";
+import type { FoodItem } from "@/lib/food/types";
 import SavedFoodRow, { PlusButton } from "@/components/food/SavedFoodRow";
 import { savedFoodInput, type FoodInput } from "@/lib/physique/io/foodData";
 import { formatAmount, scaleServings } from "@/lib/food/servings";
@@ -34,7 +37,10 @@ type Props = {
   targetKcal: number | null;
   entries: readonly FoodEntry[];
   saved: readonly SavedFood[];
-  onLog: (food: FoodInput, savedFoodId?: string) => Promise<SaveResult>;
+  onLog: (food: FoodInput, savedFoodId?: string) => Promise<SaveResult & { id?: string }>;
+  /** IN7: a drink's second tap raises its entry's count; taking the last one back removes it. */
+  onUpdateEntry: (id: string, patch: Partial<FoodInput>) => Promise<SaveResult>;
+  onRemoveEntry: (id: string) => Promise<SaveResult>;
   onToggleFavourite: (id: string) => Promise<SaveResult>;
   onRemoveSaved: (id: string) => Promise<SaveResult>;
   /** Saves a recipe from Create Recipe; the id is the saved food's. */
@@ -73,7 +79,7 @@ export default function LoggerSheet(props: Props) {
   return state ? <Inner key={`${props.date}-${state.hour ?? "now"}-${state.tab ?? "search"}`} {...props} state={state} /> : null;
 }
 
-function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entries, saved, onLog, onToggleFavourite, onRemoveSaved, onSaveRecipe }: Props & { state: NonNullable<LoggerOpen> }) {
+function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entries, saved, onLog, onUpdateEntry, onRemoveEntry, onToggleFavourite, onRemoveSaved, onSaveRecipe }: Props & { state: NonNullable<LoggerOpen> }) {
   const [tab, setTab] = useState<LoggerTab>(state.tab ?? "search");
   const [time, setTime] = useState<string>(() => {
     if (state.hour != null) return hourLabel(state.hour);
@@ -102,6 +108,9 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
   // Create Recipe
   const [recipeView, setRecipeView] = useState<RecipeView | null>(null);
 
+  // Drinks (IN7): one entry per drink while the sheet is open, so another round later gets its own time.
+  const [drinkTally, setDrinkTally] = useState<DrinkTally>({});
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), TOAST_MS);
@@ -118,6 +127,33 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
     if (r.ok) setToast(`Logged ${food.label} · ${n(food.kcal)} kcal`);
     else setError(r.error);
     return r.ok;
+  }
+
+  /** A drink at `count`: the first tap logs it, later taps change that entry's count, 0 removes it. */
+  async function setDrink(d: Drink, item: FoodItem, count: number) {
+    const prev = drinkTally[d.id];
+    const food = drinkFood(item, d, count);
+    setBusy(true);
+    setError(null);
+    let r: SaveResult & { id?: string };
+    if (count <= 0) r = prev ? await onRemoveEntry(prev.id) : { ok: true };
+    else if (prev) r = await onUpdateEntry(prev.id, food);
+    else r = await onLog({ ...food, time });
+    setBusy(false);
+    if (!r.ok) {
+      setError(r.error);
+      // The entry has gone (removed elsewhere): the next tap starts a new one rather than failing again.
+      if (prev && !entries.some((e) => e.id === prev.id)) setDrinkTally((t) => Object.fromEntries(Object.entries(t).filter(([k]) => k !== d.id)));
+      return;
+    }
+    const id = prev?.id ?? r.id;
+    setDrinkTally((t) => {
+      const next = { ...t };
+      if (count <= 0 || !id) delete next[d.id];
+      else next[d.id] = { id, count };
+      return next;
+    });
+    setToast(drinkToast(d, food, count));
   }
 
   function logSaved(s: SavedFood) {
@@ -329,7 +365,7 @@ function Inner({ state, onClose, date, today, tz, consumedKcal, targetKcal, entr
           {toast ?? " "}
         </p>
 
-        {tab === "search" && <FoodSearch hour={hour} today={today} tz={tz} entries={entries} saved={saved} busy={busy} onLog={log} onPrefill={prefill} />}
+        {tab === "search" && <FoodSearch hour={hour} today={today} tz={tz} entries={entries} saved={saved} busy={busy} onLog={log} onPrefill={prefill} drinkTally={drinkTally} onDrink={(d, item, count) => void setDrink(d, item, count)} />}
 
         {tab === "quick" && (
           <div className="flex flex-col gap-3">
