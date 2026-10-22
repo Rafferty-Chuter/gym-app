@@ -21,7 +21,7 @@ function jump(over: Partial<ScaleJump> = {}): ScaleJump {
     previousDate: addDays(TODAY, -1),
     direction: "up",
     spreadKg: 0.3,
-    causes: [{ kind: "food", daysAgo: 1, carbsDeltaG: 220, kcalDelta: 1072, shareKg: 0.7 }],
+    causes: [{ kind: "food", daysAgo: 1, carbsDeltaG: 220, kcalDelta: 1072, sodiumDeltaMg: null, shareKg: 0.7 }],
     foodLog: "logged",
     settle: { jumps: 4, minDays: 1, maxDays: 2 },
     personal: false,
