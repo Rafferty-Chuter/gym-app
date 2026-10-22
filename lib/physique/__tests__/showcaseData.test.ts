@@ -39,12 +39,11 @@ describe("showcase data", () => {
     expect(effectKg(linked[0].diffPct, lift!.levelKg)).toBeGreaterThanOrEqual(5);
   });
 
-  it("finds one food link and nothing that wasn't built in", () => {
+  it("finds the four links built in and nothing else", () => {
     const { conn } = read(SHOWCASE_REF_END);
     const linked = conn.items.filter((c) => c.state === "linked").map((c) => c.id);
-    expect(linked.filter((id) => id === "carbs" || id === "balance")).toHaveLength(1);
-    expect(linked.filter((id) => id !== "sleep" && id !== "carbs" && id !== "balance")).toEqual([]);
-    expect(conn.items.find((c) => c.id === "protein")?.state).toBe("none");
+    expect([...linked].sort()).toEqual(["carbs", "hrv", "rest", "sleep"]);
+    for (const id of ["protein", "balance", "rate"]) expect(conn.items.find((c) => c.id === id)?.state).toBe("none");
   });
 
   it("catches short sleep on a cut with the lifts down", () => {
