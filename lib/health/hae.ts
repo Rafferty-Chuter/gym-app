@@ -15,10 +15,16 @@
  * per stage segment with `startDate`, `endDate` and `value`, research D
  * §2.1). Unaggregated rows are folded into nights here (S8) and keep their
  * segments for the stage chart.
+ *
+ * IN8 adds the day's totals (active energy, water, caffeine, sodium,
+ * drinks), wrist temperature, and the payload's `workouts` and
+ * `cycleTracking` lists, which Health Auto Export sends from their own
+ * automations (data types Workouts and Cycle Tracking).
  */
 
 import { HK_MAIN_SLEEP_END_HOUR, HK_MERGE_GAP_MIN } from "@/lib/physique/sleep";
-import type { SleepSegment, SleepStage } from "@/lib/physique/types";
+import { cleanWorkout, entryDays, menstrualFlow, sortWorkouts, toCelsius, toKcal, toMetres, toMg, toMl, wristTempDay } from "@/lib/health/extras";
+import type { HealthWorkout, MenstrualFlow, SleepSegment, SleepStage } from "@/lib/physique/types";
 
 export type SleepSample = {
   kind: "sleep";
@@ -35,17 +41,29 @@ export type SleepSample = {
   source: string | null;
 };
 
+/** IN8: a day's total from Apple Health: kcal, ml, mg, mg, drinks. */
+export type DayTotalKind = "activeEnergy" | "water" | "caffeine" | "sodium" | "alcohol";
+
 export type ScalarSample = {
-  kind: "weight" | "bodyFat" | "hrv" | "rhr" | "steps";
+  kind: "weight" | "bodyFat" | "hrv" | "rhr" | "steps" | DayTotalKind | "wristTemp";
   day: string;
-  /** kg, %, ms, bpm, count. */
+  /** kg, %, ms, bpm, count; IN8: the day totals' units above, °C for wrist temperature. */
   value: number;
   /** ISO-like local timestamp from the export, for `loggedAt`. */
   at: string;
   source: string | null;
 };
 
-export type HealthSample = SleepSample | ScalarSample;
+/** IN8: the workouts that started on a local day. */
+export type WorkoutsSample = { kind: "workouts"; day: string; workouts: HealthWorkout[]; source: null };
+
+/** IN8 (opt-in): one day of a recorded period. */
+export type CycleSample = { kind: "cycle"; day: string; flow: MenstrualFlow; cycleStart: boolean; source: string | null };
+
+export type HealthSample = SleepSample | ScalarSample | WorkoutsSample | CycleSample;
+
+/** IN8: the kinds read only when the person opts in. */
+export const OPT_IN_KINDS: ReadonlySet<string> = new Set(["wristTemp", "cycle"]);
 
 /** Day, hour (one or two digits), minute, optional seconds, optional AM/PM (iOS puts a narrow no-break space before it, which `\s` matches). */
 const DATE_RE = /^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*([AaPp][Mm])?/;
@@ -91,7 +109,24 @@ function metricKind(name: string): ScalarSample["kind"] | "sleep" | null {
   if (n === "heart_rate_variability" || n === "hrv") return "hrv";
   if (n === "resting_heart_rate") return "rhr";
   if (n === "step_count" || n === "steps") return "steps";
+  // IN8. Health Auto Export names a metric after Apple Health's, so each takes the spellings seen for it.
+  if (n === "active_energy" || n === "active_energy_burned") return "activeEnergy";
+  if (n === "dietary_water" || n === "water") return "water";
+  if (n === "dietary_caffeine" || n === "caffeine") return "caffeine";
+  if (n === "dietary_sodium" || n === "sodium") return "sodium";
+  if (n === "number_of_alcoholic_beverages" || n === "alcoholic_beverages" || n === "alcohol_consumption") return "alcohol";
+  if (n === "apple_sleeping_wrist_temperature" || n === "sleeping_wrist_temperature" || n === "wrist_temperature") return "wristTemp";
   return null;
+}
+
+/** A metric's value in its stored unit, from the units the export names (IN8; weight in lb before). */
+function canonical(kind: ScalarSample["kind"], raw: number, units: string): number {
+  if (kind === "weight") return units === "lb" || units === "lbs" ? raw * LB_TO_KG : raw;
+  if (kind === "activeEnergy") return toKcal(raw, units);
+  if (kind === "water") return toMl(raw, units);
+  if (kind === "caffeine" || kind === "sodium") return toMg(raw, units);
+  if (kind === "wristTemp") return toCelsius(raw, units);
+  return raw;
 }
 
 // ── Unaggregated sleep (S8) ──
@@ -212,13 +247,76 @@ export function cleanScalar(kind: ScalarSample["kind"], value: number): number |
   }
   if (kind === "hrv") return value <= 0 || value > 500 ? null : Math.round(value * 10) / 10;
   if (kind === "rhr") return value < 25 || value > 200 ? null : Math.round(value);
+  // IN8: a day total of zero is a day nothing was logged, so unknown; the caps are past anything a person logs in a day.
+  if (kind === "activeEnergy") return value <= 0 || value > 10_000 ? null : Math.round(value);
+  if (kind === "water") return value <= 0 || value > 20_000 ? null : Math.round(value);
+  if (kind === "caffeine") return value <= 0 || value > 5_000 ? null : Math.round(value);
+  if (kind === "sodium") return value <= 0 || value > 50_000 ? null : Math.round(value);
+  if (kind === "alcohol") return value <= 0 || value > 50 ? null : Math.round(value * 10) / 10;
+  if (kind === "wristTemp") return value < 30 || value > 42 ? null : Math.round(value * 100) / 100;
   return value < 0 ? null : Math.round(value);
 }
 
 /** The stored `value` of a sample: the night's fields, or `{value, at}`. Shared by the ingest route and the iPhone app's merge (B11). */
 export function sampleValue(s: HealthSample): Record<string, unknown> {
   if (s.kind === "sleep") return { asleepMin: s.asleepMin, inBedMin: s.inBedMin, bedtime: s.bedtime, wakeTime: s.wakeTime, stages: s.stages, ...(s.segments?.length ? { segments: s.segments } : {}) };
+  if (s.kind === "workouts") return { workouts: s.workouts };
+  if (s.kind === "cycle") return { flow: s.flow, cycleStart: s.cycleStart };
   return { value: s.value, at: s.at };
+}
+
+// ── Workouts and cycle (IN8) ──
+
+const unitsOf = (v: unknown): string => (v && typeof v === "object" && typeof (v as { units?: unknown }).units === "string" ? (v as { units: string }).units : "");
+const qtyOf = (v: unknown): number | null => (v && typeof v === "object" ? num((v as { qty?: unknown }).qty) : num(v));
+
+/**
+ * Workouts from the payload's `workouts` list, one sample per local start
+ * day. Version 2 rows carry `duration` in seconds and `activeEnergyBurned`
+ * as `{qty, units}`; version 1 rows only `start` and `end` and
+ * `activeEnergy`.
+ */
+function parseWorkouts(list: readonly unknown[]): WorkoutsSample[] {
+  const days = new Map<string, HealthWorkout[]>();
+  for (const row of list) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as Record<string, unknown>;
+    const start = splitLocalDate(r.start);
+    if (!start || typeof r.name !== "string") continue;
+    const end = splitLocalDate(r.end);
+    const seconds = num(r.duration);
+    const durationMin = seconds != null ? seconds / 60 : end ? localMinute(end) - localMinute(start) : NaN;
+    const energy = r.activeEnergyBurned ?? r.activeEnergy;
+    const kcal = qtyOf(energy);
+    const dist = qtyOf(r.distance);
+    const w = cleanWorkout({
+      name: r.name,
+      start: start.clock,
+      durationMin,
+      activeKcal: kcal != null ? toKcal(kcal, unitsOf(energy)) : null,
+      distanceM: dist != null ? toMetres(dist, unitsOf(r.distance)) : null,
+      app: typeof r.source === "string" ? r.source : null,
+    });
+    if (w) days.set(start.day, [...(days.get(start.day) ?? []), w]);
+  }
+  return [...days.entries()].map(([day, ws]) => ({ kind: "workouts", day, workouts: sortWorkouts(ws), source: null }));
+}
+
+/** Days of a recorded period from the payload's `cycleTracking` list; other cycle entries (ovulation tests and the like) are not read. */
+function parseCycle(list: readonly unknown[]): CycleSample[] {
+  const out = new Map<string, CycleSample>();
+  for (const row of list) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as Record<string, unknown>;
+    if (typeof r.name !== "string" || !/menstrua/i.test(r.name)) continue;
+    const flow = menstrualFlow(r.value);
+    const start = splitLocalDate(r.start ?? r.date);
+    if (!flow || !start) continue;
+    const days = entryDays(start, splitLocalDate(r.end));
+    if (!days) continue;
+    days.forEach((day, i) => out.set(day, { kind: "cycle", day, flow, cycleStart: i === 0 && r.isCycleStart === true, source: typeof r.source === "string" ? r.source : null }));
+  }
+  return [...out.values()];
 }
 
 /**
@@ -226,10 +324,12 @@ export function sampleValue(s: HealthSample): Record<string, unknown> {
  * are skipped silently; the caller reports the count it kept.
  */
 export function parseHaePayload(payload: unknown): HealthSample[] {
-  const metrics = (payload as { data?: { metrics?: unknown } } | null)?.data?.metrics;
-  if (!Array.isArray(metrics)) return [];
+  const data = (payload as { data?: { metrics?: unknown; workouts?: unknown; cycleTracking?: unknown } } | null)?.data;
+  const metrics = Array.isArray(data?.metrics) ? data.metrics : [];
   const out: HealthSample[] = [];
   const segs: Seg[] = [];
+  if (Array.isArray(data?.workouts)) out.push(...parseWorkouts(data.workouts));
+  if (Array.isArray(data?.cycleTracking)) out.push(...parseCycle(data.cycleTracking));
   for (const metric of metrics) {
     if (!metric || typeof metric !== "object") continue;
     const m = metric as { name?: unknown; units?: unknown; data?: unknown };
@@ -277,9 +377,10 @@ export function parseHaePayload(payload: unknown): HealthSample[] {
       const at = splitLocalDate(r.date);
       const raw = num(r.qty ?? r.value ?? r.avg);
       if (!at || raw == null) continue;
-      const value = cleanScalar(kind, kind === "weight" && (units === "lb" || units === "lbs") ? raw * LB_TO_KG : raw);
+      const value = cleanScalar(kind, canonical(kind, raw, units));
       if (value == null) continue;
-      out.push({ kind, day: at.day, value, at: `${at.day}T${at.clock}:00`, source });
+      const day = kind === "wristTemp" ? wristTempDay(at) : at.day;
+      out.push({ kind, day, value, at: `${at.day}T${at.clock}:00`, source });
     }
   }
   if (segs.length) out.push(...sleepFromSegments(segs));

@@ -6,13 +6,15 @@
  * Sync" replays are no-ops. A sleep row is merged with the night already
  * stored for its day (`mergeNight`, S11), so a night split across two
  * uploads adds up and a later partial upload never replaces a fuller
- * night. Values are never logged.
+ * night. A day's workouts are merged the same way (IN8): an upload since
+ * the last sync carries only the new one. Values are never logged.
  */
 
 import { NextResponse } from "next/server";
 import { parseHaePayload, sampleValue, type HealthSample } from "@/lib/health/hae";
 import { mergeNight, type StoredNight } from "@/lib/health/sleepMerge";
-import { bearerToken, hashToken, listSleepRows, supabaseConfig, touchDevice, upsertSamples, type SampleRow } from "@/lib/server/supabaseRest";
+import { mergeWorkoutDay, workoutsFromValue } from "@/lib/health/extras";
+import { bearerToken, hashToken, listDayRows, listSleepRows, supabaseConfig, touchDevice, upsertSamples, type SampleRow } from "@/lib/server/supabaseRest";
 
 export const runtime = "nodejs";
 export const preferredRegion = "lhr1";
@@ -59,12 +61,17 @@ export async function POST(request: Request): Promise<Response> {
     const receivedAt = new Date().toISOString();
     const sleepDays = [...new Set(samples.filter((s) => s.kind === "sleep").map((s) => s.day))];
     const stored = new Map((await listSleepRows(cfg, deviceHash, sleepDays)).map((r) => [r.day, r.value as StoredNight] as const));
+    const workoutDays = [...new Set(samples.filter((s) => s.kind === "workouts").map((s) => s.day))];
+    const storedWorkouts = new Map((await listDayRows(cfg, deviceHash, "workouts", workoutDays)).map((r) => [r.day, workoutsFromValue(r.value)] as const));
     for (const s of samples) {
       const row = toRow(deviceHash, s, receivedAt);
       const key = `${row.metric}|${row.day}`;
       if (row.metric === "sleep") {
         const before = (byKey.get(key)?.value as StoredNight | undefined) ?? stored.get(row.day) ?? null;
         row.value = mergeNight(before, row.value as StoredNight);
+      } else if (s.kind === "workouts") {
+        const before = workoutsFromValue(byKey.get(key)?.value) ?? storedWorkouts.get(row.day) ?? null;
+        row.value = { workouts: mergeWorkoutDay(before, s.workouts) };
       }
       byKey.set(key, row);
     }

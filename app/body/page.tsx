@@ -185,7 +185,7 @@ function BodyContent({ now, unit }: { now: Now; unit: WeightUnit }) {
     const through = liveData.weighIns.reduce<LocalDate>((m, x) => (x.date <= today && x.date > m ? x.date : m), "");
     if (!through) return null;
     const read = weightGapFromRecords(
-      { foodEntries: liveData.foodEntries, dayFlags: liveData.dayFlags, steps: liveData.steps, expenditure: liveExpenditure?.series ?? null, goalStart: g.startDate, through, today, bodyKg: w.trendKg, windowDays: w.rateWindowDays, ratePctPerWeek: w.ratePctPerWeek },
+      { foodEntries: liveData.foodEntries, dayFlags: liveData.dayFlags, steps: liveData.steps, vitals: liveData.vitals, expenditure: liveExpenditure?.series ?? null, goalStart: g.startDate, through, today, bodyKg: w.trendKg, windowDays: w.rateWindowDays, ratePctPerWeek: w.ratePctPerWeek },
       LINK_MIN_FOOD_SHARE
     );
     return read ? weightGapShort(read) : null;

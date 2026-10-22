@@ -57,10 +57,15 @@ export async function upsertSamples(cfg: SupabaseConfig, rows: readonly SampleRo
 
 /** Stored sleep rows for these days, so an upload can be merged with what is there (S11). */
 export async function listSleepRows(cfg: SupabaseConfig, deviceHash: string, days: readonly string[]): Promise<Array<{ day: string; value: unknown }>> {
+  return listDayRows(cfg, deviceHash, "sleep", days);
+}
+
+/** The stored rows of one metric for the given days, so an upload can merge with them (sleep S11, workouts IN8). */
+export async function listDayRows(cfg: SupabaseConfig, deviceHash: string, metric: string, days: readonly string[]): Promise<Array<{ day: string; value: unknown }>> {
   if (days.length === 0) return [];
-  const params = new URLSearchParams({ device_hash: `eq.${deviceHash}`, metric: "eq.sleep", day: `in.(${days.join(",")})`, select: "day,value" });
+  const params = new URLSearchParams({ device_hash: `eq.${deviceHash}`, metric: `eq.${metric}`, day: `in.(${days.join(",")})`, select: "day,value" });
   const res = await fetch(`${cfg.url}/rest/v1/health_samples?${params.toString()}`, { headers: headers(cfg) });
-  if (!res.ok) throw new Error(`sleep rows read failed: ${res.status}`);
+  if (!res.ok) throw new Error(`${metric} rows read failed: ${res.status}`);
   return (await res.json()) as Array<{ day: string; value: unknown }>;
 }
 

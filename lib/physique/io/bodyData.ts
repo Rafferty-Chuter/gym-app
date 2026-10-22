@@ -18,11 +18,14 @@ import {
   sleepNightsRepo,
   waistRepo,
   stepsRepo,
+  vitalsRepo,
   weighInsRepo,
 } from "@/lib/physique/io/repos";
 import type { DayFlags, FoodEntry, SavedFood, SleepNight, WaistEntry, WeighIn } from "@/lib/physique/types";
 import { clientNow, type LocalDate } from "@/lib/dates";
 import { localStamp } from "@/lib/health/native";
+import { withHealthPeriods } from "@/lib/physique/healthDays";
+import { useHealthOptIn } from "@/lib/physique/io/healthOptIn";
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
@@ -46,12 +49,17 @@ export function useBodyData() {
   const sleepNights = useRepo(sleepNightsRepo);
   const waist = useRepo(waistRepo);
   const steps = useRepo(stepsRepo);
-  const dayFlags = useRecordStore(dayFlagsStore);
+  // IN8: Apple Health's day records (active energy, workouts, drinks).
+  const vitals = useRepo(vitalsRepo);
+  const storedFlags = useRecordStore(dayFlagsStore);
+  // IN8: period days from Apple Health read as logged ones, only where the cycle opt-in is on on this device (records synced from another device may carry them). Writes always go through the store, never this object.
+  const cycleOn = useHealthOptIn()?.cycle === true;
+  const dayFlags = useMemo(() => (cycleOn ? withHealthPeriods(storedFlags, vitals) : storedFlags), [cycleOn, storedFlags, vitals]);
   const goal = useSingleton(goalStore);
   const program = useSingleton(programStore);
   return useMemo(
-    () => ({ weighIns, foodEntries, savedFoods, sleepNights, waist, steps, dayFlags, goal, program }),
-    [weighIns, foodEntries, savedFoods, sleepNights, waist, steps, dayFlags, goal, program]
+    () => ({ weighIns, foodEntries, savedFoods, sleepNights, waist, steps, vitals, dayFlags, goal, program }),
+    [weighIns, foodEntries, savedFoods, sleepNights, waist, steps, vitals, dayFlags, goal, program]
   );
 }
 

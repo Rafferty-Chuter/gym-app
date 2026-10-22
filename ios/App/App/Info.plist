@@ -27,7 +27,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Liftworks reads your sleep, HRV, resting heart rate, weight, body fat and steps to show them beside your training and food, and to work out your weight trend and maintenance calories.</string>
+	<string>Liftworks reads sleep, HRV, resting heart rate, weight, body fat, steps, active energy and workouts, and the water, caffeine, sodium and drinks you log in other apps, to show them beside your training and food and to work out your weight trend. Wrist temperature and cycle are read only if you turn them on in Liftworks.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Liftworks only reads from Apple Health. It does not write anything.</string>
 	<key>UIApplicationSceneManifest</key>

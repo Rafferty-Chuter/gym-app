@@ -133,12 +133,54 @@ export type WaistEntry = Record_ & { cm: number };
 /** One day's step count from Apple Health (B3), id `hk-s-<date>`. Read only after the day is over. */
 export type DailySteps = Record_ & { steps: number };
 
+/** IN8: the groups Apple Health workouts are told apart by, from HealthKit's activity types and Health Auto Export's names. */
+export type HealthActivity = "run" | "walk" | "cycle" | "swim" | "row" | "strength" | "cardio" | "mobility" | "sport" | "other";
+
+/** IN8: one workout recorded in Apple Health (a run, a ride, a match), on the local day it started. */
+export type HealthWorkout = {
+  activity: HealthActivity;
+  /** The name it came with ("Outdoor Run", "traditionalStrengthTraining"), for display. */
+  name: string;
+  /** HH:MM local start. */
+  start: string;
+  durationMin: number;
+  activeKcal?: number;
+  distanceM?: number;
+  /** The app that recorded it ("Strava", "Hevy"), so a session also logged here can be told apart. */
+  app?: string;
+};
+
+/** IN8: menstrual flow as Apple Health records it. */
+export type MenstrualFlow = "none" | "unspecified" | "light" | "medium" | "heavy";
+
 /**
- * IN1: one wake day's HRV and resting heart rate from Apple Health, id
- * `hk-v-<date>`, kept whether or not a night was recorded. The night of the
- * same date carries the same values, which is what the engines read today.
+ * IN1: one day's readings from Apple Health, id `hk-v-<date>`, kept whether
+ * or not a night was recorded. HRV and resting heart rate are the wake
+ * day's; the night of the same date carries the same values, which is what
+ * the engines read today. IN8 adds the day's totals and workouts and, only
+ * when the person opts in, wrist temperature and cycle. Every field is
+ * optional: absent means unknown, never zero.
  */
-export type DailyVitals = Record_ & { hrvMs?: number; hrvMethod?: "sdnn" | "rmssd"; restingHr?: number };
+export type DailyVitals = Record_ & {
+  hrvMs?: number;
+  hrvMethod?: "sdnn" | "rmssd";
+  restingHr?: number;
+  /** IN8: active energy burned (Apple's Move), kcal. Explains stalls; never an input to the maintenance estimate, which is worked back from intake and the trend. */
+  activeKcal?: number;
+  /** IN8: workouts that started this day, as Apple Health has them. */
+  workouts?: HealthWorkout[];
+  /** IN8: logged in Apple Health by other apps, day totals: water ml, caffeine mg, sodium mg. */
+  waterMl?: number;
+  caffeineMg?: number;
+  sodiumMg?: number;
+  /** IN8: alcoholic drinks logged in Apple Health, a count as logged (Apple sets no size, so no grams). */
+  alcoholDrinks?: number;
+  /** IN8, opt-in: sleeping wrist temperature for the night ending this day, °C (an absolute reading, not Apple's change from baseline). */
+  wristTempC?: number;
+  /** IN8, opt-in: the day's menstrual flow, and whether it was marked as a cycle's start. */
+  menstrualFlow?: MenstrualFlow;
+  cycleStart?: boolean;
+};
 
 export type GoalType = "lose" | "maintain" | "gain";
 export type TrainingStatus = "novice" | "intermediate" | "advanced";
