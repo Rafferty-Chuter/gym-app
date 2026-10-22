@@ -155,3 +155,33 @@ export function leastSquaresSlope(values: readonly number[]): number {
   if (denom === 0) return 0;
   return (n * sumXY - sumX * sumY) / denom;
 }
+
+/**
+ * Solve A x = b by Gauss–Jordan elimination with partial pivoting; null
+ * when A is singular. Small systems only (the engines' regressions have
+ * at most a few dozen terms).
+ */
+export function solveLinear(a: readonly (readonly number[])[], b: readonly number[]): number[] | null {
+  const n = b.length;
+  const m = a.map((row, i) => [...row, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(m[r][c]) > Math.abs(m[p][c])) p = r;
+    if (Math.abs(m[p][c]) < 1e-12) return null;
+    [m[c], m[p]] = [m[p], m[c]];
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const f = m[r][c] / m[c][c];
+      if (f === 0) continue;
+      for (let k = c; k <= n; k++) m[r][k] -= f * m[c][k];
+    }
+  }
+  return m.map((row, i) => row[n] / row[i]);
+}
+
+/** Standard normal cumulative distribution (Abramowitz and Stegun 7.1.26, error under 1.5e-7). */
+export function normalCdf(z: number): number {
+  const t = 1 / (1 + 0.3275911 * (Math.abs(z) / Math.SQRT2));
+  const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-(z * z) / 2);
+  return z >= 0 ? 0.5 * (1 + y) : 0.5 * (1 - y);
+}

@@ -86,7 +86,7 @@ export type ShowcaseEffects = {
  * a lifter's top sets, so the list reads like a real person's.
  */
 export const SHOWCASE_EFFECTS: ShowcaseEffects = {
-  sleepPerHour: 1.8,
+  sleepPerHour: 2.2,
   sleepRefH: 7.2,
   sleepFloorPct: -6,
   sleepCapPct: 1.5,

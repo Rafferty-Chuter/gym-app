@@ -40,7 +40,9 @@ export function connectionSubject(c: Connection, r: ConnectionsResult, lift: Ref
   const facts = [
     `${c.high.sessions} sessions after ${c.high.value} averaged ${pct(c.high.pct)} against each lift's own usual; ${c.low.sessions} sessions after ${c.low.value} averaged ${pct(c.low.pct)}. Difference ${pct(c.diffPct)}.`,
   ];
-  if (lift) facts.push(`On ${lift.name} (estimated 1RM about ${formatWeight(lift.levelKg, unit, 0)}) that difference is about ${formatEffect(effectKg(c.diffPct, lift.levelKg), unit)}.`);
+  // IN5: the same size the row's headline gives: the lift's own read once it has the sessions.
+  const own = lift ? c.perLift?.find((p) => p.name === lift.name && p.own) : undefined;
+  if (lift) facts.push(`On ${lift.name} (estimated 1RM about ${formatWeight(lift.levelKg, unit, 0)}) that difference is about ${formatEffect(effectKg(own?.pct ?? c.diffPct, lift.levelKg), unit)}${own ? `, from its own ${own.sessions} sessions` : ""}.`);
   facts.push(c.state === "linked" ? "The app calls this a clear link: the difference held up to its test for chance across everything it checked." : mergedWithLabel ? `This rose and fell with ${mergedWithLabel} across the same sessions, so the app shows them as one and can't tell them apart.` : "The app calls this no clear link: the two groups overlap.");
   if (movedWithLabel) facts.push(`${movedWithLabel} rose and fell with this across the same sessions, so the two can't be told apart.`);
   facts.push(`Read over ${r.weeks} weeks: ${r.sessions} sessions, ${r.checked} things checked.`);

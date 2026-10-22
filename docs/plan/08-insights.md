@@ -132,7 +132,7 @@ L · after IN1 · `lib/physique/connections.ts`
 - New conditions from data we have: waking an hour or more earlier than usual, two short nights in a row, sleep against the person's usual, HRV against usual, calories against maintenance over 3 days, hard sets in the last 7 days, days since the same lift, hours awake at the session (after IN1).
 - A second outcome: reps at a weight they repeat.
 - All history up to a year, not 16 weeks.
-- `scripts/study-connections.ts` like research J.
+- `scripts/study-connections.ts` like research J. (Done; results in `research/M-connections-study.md`, see the STATUS row.)
 
 ### IN6 · Sodium, sugar and alcohol on every food
 M · `lib/food/`, `scripts/build-cofid.ts`, `lib/physique/types.ts`

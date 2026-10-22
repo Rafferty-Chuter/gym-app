@@ -11,11 +11,17 @@ import AskWhy from "@/components/progress/AskWhy";
 /** Each condition in its measure's colour (DESIGN.md rev 4.2). */
 export const CONNECTION_COLOR: Record<ConnectionId, string> = {
   sleep: "var(--chart-sleep)",
+  wake: "var(--chart-sleep)",
+  shortRun: "var(--chart-sleep)",
   carbs: "var(--macro-carb)",
   balance: "var(--macro-kcal)",
+  balance3: "var(--macro-kcal)",
   protein: "var(--macro-protein)",
   time: "var(--chart-steps)",
+  awake: "var(--chart-steps)",
   rest: "var(--chart-training)",
+  lastSame: "var(--chart-training)",
+  load: "var(--chart-training)",
   rate: "var(--chart-trend)",
   hrv: "var(--chart-heart)",
 };
@@ -30,6 +36,12 @@ const ICON: Record<ConnectionId, string[]> = {
   rest: ["M4 6h16v14H4z", "M4 10h16M8 3v4M16 3v4"],
   rate: ["M4 17l6-6 4 4 6-7", "M15 8h5v5"],
   hrv: ["M3 12h4l2-4 3 8 2-4h7"],
+  wake: ["M3 18h18", "M7 18a5 5 0 0 1 10 0", "M12 7v3", "M5.6 11.6l1.4 1.4", "M18.4 11.6l-1.4 1.4"],
+  shortRun: ["M13 14A6 6 0 0 1 6 7a6 6 0 1 0 7 7z", "M21 17a5 5 0 0 1-6-6 5 5 0 1 0 6 6z"],
+  balance3: ["M12 3c1 3 4.5 5 4.5 9a4.5 4.5 0 0 1-9 0c0-2.2 1.3-3.6 2.2-4.5.3 1.3.9 2.2 1.8 2.7 0-2.7.5-5 .5-7.2z", "M6 21h2M11 21h2M16 21h2"],
+  awake: ["M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z", "M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"],
+  lastSame: ["M4 6h16v14H4z", "M4 10h16M8 3v4M16 3v4", "M9 15h6"],
+  load: ["M6 8v8M18 8v8M3 10v4M21 10v4M6 12h12"],
 };
 
 /** Who the two thirds are, in a word or two, for the session strip. */
@@ -42,6 +54,12 @@ const GROUPS: Record<ConnectionId, [high: string, low: string]> = {
   rest: ["Longest breaks", "Shortest breaks"],
   rate: ["Weight trend", "Weight trend"],
   hrv: ["Highest HRV", "Lowest HRV"],
+  wake: ["Woke early", "Usual wake"],
+  shortRun: ["Two short nights", "The rest"],
+  balance3: ["Most calories", "Fewest calories"],
+  awake: ["Longest awake", "Soonest after waking"],
+  lastSame: ["Longest gaps", "Shortest gaps"],
+  load: ["Heaviest weeks", "Lightest weeks"],
 };
 
 const divider = { borderTop: "1px solid var(--border)" };
@@ -83,7 +101,9 @@ function SessionStrip({ c, lift, unit }: { c: Connection; lift: ReferenceLift | 
   const span = Math.max(4, ...all) * 1.08;
   const x = (pct: number) => 50 + (pct / span) * 46;
   const [hiName, loName] = GROUPS[c.id];
-  const gap = lift ? formatEffect(effectKg(c.diffPct, lift.levelKg), unit) : signedPct(c.diffPct);
+  // IN5: the same size the headline gives: the lift's own read once it has the sessions.
+  const liftPct = (lift ? c.perLift?.find((p) => p.name === lift.name && p.own)?.pct : undefined) ?? c.diffPct;
+  const gap = lift ? formatEffect(effectKg(liftPct, lift.levelKg), unit) : signedPct(c.diffPct);
   const lo = x(c.low.pct);
   const hi = x(c.high.pct);
   const row = (label: string, points: readonly SessionPoint[], mean: number, filled: boolean, top: number) => (
@@ -101,7 +121,7 @@ function SessionStrip({ c, lift, unit }: { c: Connection; lift: ReferenceLift | 
     <div className="pt-1">
       <div className="relative h-[190px]" role="img" aria-label={`${c.low.sessions} sessions after ${c.low.value} averaged ${signedPct(c.low.pct)} against usual; ${c.high.sessions} after ${c.high.value} averaged ${signedPct(c.high.pct)}.`}>
         <span className="absolute border-l border-dashed" style={{ left: "50%", top: 24, bottom: 20, borderColor: "var(--text-tertiary)" }} />
-        {row(`${loName} · ${c.low.value}`, c.points.low, c.low.pct, false, 48)}
+        {row(c.kind === "yesno" ? loName : `${loName} · ${c.low.value}`, c.points.low, c.low.pct, false, 48)}
         {/* The gap between the two averages, for a clear difference only: a gap inside the noise is not one. */}
         {c.state === "linked" && (
           <>
@@ -111,7 +131,7 @@ function SessionStrip({ c, lift, unit }: { c: Connection; lift: ReferenceLift | 
             </span>
           </>
         )}
-        {row(`${hiName} · ${c.high.value}`, c.points.high, c.high.pct, true, 144)}
+        {row(c.kind === "yesno" ? hiName : `${hiName} · ${c.high.value}`, c.points.high, c.high.pct, true, 144)}
         <span className="absolute inset-x-0 bottom-0 flex justify-between text-[11px]" style={{ color: "var(--text-tertiary)" }}>
           <span>Lighter</span>
           <span>Your usual</span>
@@ -119,7 +139,7 @@ function SessionStrip({ c, lift, unit }: { c: Connection; lift: ReferenceLift | 
         </span>
       </div>
       <p className="mt-2 text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
-        Each dot is one session, its lifts against their own usual. {c.low.sessions === c.high.sessions ? `${c.low.sessions} sessions in each group.` : `${c.low.sessions} and ${c.high.sessions} sessions.`}
+        Each dot is one day, its lifts against their own course. {c.low.sessions === c.high.sessions ? `${c.low.sessions} sessions in each group.` : `${c.low.sessions} and ${c.high.sessions} sessions.`}
       </p>
       {c.evidence && (
         <p className="mt-1.5 text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>

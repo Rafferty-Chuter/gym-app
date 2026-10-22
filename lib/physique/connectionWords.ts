@@ -41,15 +41,21 @@ export type ConnectionWords = {
 
 // ── Words per condition ──
 
-/** The upper third, as the end of the sentence. */
+/** The upper third (or the yes group), as the end of the sentence. */
 const WHEN: Record<Exclude<ConnectionId, "rate">, string> = {
   sleep: "after a longer night",
+  wake: "on mornings you wake an hour or more earlier than usual",
+  shortRun: "after two nights under 6 hours in a row",
   carbs: "the day after a higher-carb day",
   balance: "the day after a higher-calorie day",
+  balance3: "after three higher-calorie days",
   protein: "after three higher-protein days",
   time: "when you train later in the day",
+  awake: "when you train longer after waking",
   rest: "after a longer break",
-  hrv: "on mornings with a higher HRV",
+  lastSame: "after a longer gap since that lift",
+  load: "after a week with more hard sets",
+  hrv: "on mornings your HRV is higher than usual",
 };
 
 /** The weight trend's upper third depends on which side of zero both thirds sit. */
@@ -62,11 +68,17 @@ function rateWhen(high: number, low: number): string {
 /** Each condition higher and lower, for the line about another condition that moved with it. */
 const MORE_LESS: Record<ConnectionId, [more: string, less: string]> = {
   sleep: ["Sleep was longer", "Sleep was shorter"],
+  wake: ["Early wakes were more common", "Early wakes were less common"],
+  shortRun: ["Short nights ran together more", "Short nights ran together less"],
   carbs: ["Carbs were higher", "Carbs were lower"],
   balance: ["Calories were higher", "Calories were lower"],
+  balance3: ["Calories over three days were higher", "Calories over three days were lower"],
   protein: ["Protein was higher", "Protein was lower"],
   time: ["Sessions were later", "Sessions were earlier"],
+  awake: ["Sessions came longer after waking", "Sessions came sooner after waking"],
   rest: ["Breaks were longer", "Breaks were shorter"],
+  lastSame: ["Gaps since the lift were longer", "Gaps since the lift were shorter"],
+  load: ["The week before had more sets", "The week before had fewer sets"],
   rate: ["The weight trend was higher", "The weight trend was lower"],
   hrv: ["HRV was higher", "HRV was lower"],
 };
@@ -84,9 +96,21 @@ const days = (v: number) => {
 /** kcal against maintenance, signed; within 50 kcal is maintenance itself. */
 const kcalVsMaintenance = (v: number) => (Math.abs(v) < 50 ? "0" : signed(n0(Math.abs(v)), v));
 
-/** Both thirds' values, upper first, in the condition's own words. */
-function valuesText(id: ConnectionId, high: number, low: number, unit: WeightUnit): string {
+/** Both groups' values, upper first, in the condition's own words; a yes-or-no condition gives its counts. */
+function valuesText(id: ConnectionId, high: number, low: number, unit: WeightUnit, counts: { high: number; low: number }): string {
   switch (id) {
+    case "wake":
+      return `${counts.high} early mornings vs ${counts.low} usual`;
+    case "shortRun":
+      return `${counts.high} days after two short nights vs ${counts.low} after the rest`;
+    case "balance3":
+      return `${kcalVsMaintenance(high)} vs ${kcalVsMaintenance(low)} kcal a day against maintenance over three days`;
+    case "awake":
+      return `${formatHoursMin(Math.round(high * 60))} vs ${formatHoursMin(Math.round(low * 60))} awake before training`;
+    case "lastSame":
+      return `${days(high)} vs ${days(low)} since the same lift`;
+    case "load":
+      return `${n0(high)} vs ${n0(low)} hard sets in the week before`;
     case "sleep":
       return `${formatHoursMin(Math.round(high * 60))} vs ${formatHoursMin(Math.round(low * 60))} of sleep`;
     case "carbs":
@@ -106,8 +130,10 @@ function valuesText(id: ConnectionId, high: number, low: number, unit: WeightUni
       };
       return `${kg(high)} vs ${kg(low)} ${unit} a week`;
     }
-    case "hrv":
-      return `${n0(high)} ms vs ${n0(low)} ms HRV`;
+    case "hrv": {
+      const sd = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}`;
+      return `HRV ${sd(high)} vs ${sd(low)} SD against your usual`;
+    }
   }
 }
 
@@ -130,11 +156,14 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
  * row with no clear difference only `values` is used, under "No clear link".
  */
 export function connectionWords(c: Connection, lift: ReferenceLift | null, unit: WeightUnit): ConnectionWords {
-  const onLift = lift ? effectOnLift(c.diffPct, lift, unit) : null;
+  // IN5: the lift's own read once it has the sessions, else the read across lifts.
+  const own = lift ? c.perLift?.find((p) => p.name === lift.name && p.own) : undefined;
+  const liftPct = own?.pct ?? c.diffPct;
+  const onLift = lift ? effectOnLift(liftPct, lift, unit) : null;
   const before = onLift && lift ? `Your ${lift.name.toLowerCase()} is about ` : "Your top sets are about ";
   const effect = onLift ?? `${Math.abs(c.diffPct).toFixed(1)}% ${c.diffPct > 0 ? "heavier" : "lighter"}`;
   const after = ` ${c.id === "rate" ? rateWhen(c.high.mean, c.low.mean) : WHEN[c.id]}`;
-  const values = valuesText(c.id, c.high.mean, c.low.mean, unit);
+  const values = valuesText(c.id, c.high.mean, c.low.mean, unit, { high: c.high.sessions, low: c.low.sessions });
   const sessions = c.high.sessions + c.low.sessions;
   const overlap = c.movedWith ? `${MORE_LESS[c.movedWith][c.movedWithSign === -1 ? 1 : 0]}${c.movedWithSign === -1 ? " on those days" : " too"}, so it could be either.` : null;
   return {
@@ -147,4 +176,4 @@ export function connectionWords(c: Connection, lift: ReferenceLift | null, unit:
 }
 
 /** The row a merged condition points to, for "Counted with carbs" (C7). */
-export const CONNECTION_NOUN: Record<ConnectionId, string> = { sleep: "sleep", carbs: "carbs", balance: "calories", protein: "protein", time: "time of day", rest: "rest days", rate: "the weight trend", hrv: "HRV" };
+export const CONNECTION_NOUN: Record<ConnectionId, string> = { sleep: "sleep", wake: "early wakes", shortRun: "short nights in a row", carbs: "carbs", balance: "calories", balance3: "calories over three days", protein: "protein", time: "time of day", awake: "hours awake", rest: "rest days", lastSame: "days since the lift", load: "the week's sets", rate: "the weight trend", hrv: "HRV" };

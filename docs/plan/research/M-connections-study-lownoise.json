@@ -1,0 +1,103 @@
+{
+  "seeds": 30,
+  "noisePct": 1.5,
+  "today": "2026-10-21",
+  "rows": [
+    {
+      "persona": "Sleep: 4% weaker after nights under 6.5 h",
+      "weeks": 16,
+      "found": "29/30",
+      "meanShownPct": 3.6,
+      "falseLinksPerRun": 0,
+      "runsWithAFalseLink": "0/30"
+    },
+    {
+      "persona": "Sleep: 4% weaker after nights under 6.5 h",
+      "weeks": 26,
+      "found": "30/30",
+      "meanShownPct": 3.4,
+      "falseLinksPerRun": 0.07,
+      "runsWithAFalseLink": "2/30"
+    },
+    {
+      "persona": "Sleep: 4% weaker after nights under 6.5 h",
+      "weeks": 52,
+      "found": "30/30",
+      "meanShownPct": 3.6,
+      "falseLinksPerRun": 0,
+      "runsWithAFalseLink": "0/30"
+    },
+    {
+      "persona": "Waking early: 4% weaker on mornings an hour and a half early",
+      "weeks": 16,
+      "found": "9/30",
+      "meanShownPct": 4,
+      "falseLinksPerRun": 0.07,
+      "runsWithAFalseLink": "2/30"
+    },
+    {
+      "persona": "Waking early: 4% weaker on mornings an hour and a half early",
+      "weeks": 26,
+      "found": "26/30",
+      "meanShownPct": 3.9,
+      "falseLinksPerRun": 0,
+      "runsWithAFalseLink": "0/30"
+    },
+    {
+      "persona": "Waking early: 4% weaker on mornings an hour and a half early",
+      "weeks": 52,
+      "found": "30/30",
+      "meanShownPct": 4,
+      "falseLinksPerRun": 0,
+      "runsWithAFalseLink": "0/30"
+    },
+    {
+      "persona": "Carbs: 3% stronger after days over 250 g",
+      "weeks": 16,
+      "found": "30/30",
+      "meanShownPct": 2.9,
+      "falseLinksPerRun": 0.1,
+      "runsWithAFalseLink": "3/30"
+    },
+    {
+      "persona": "Carbs: 3% stronger after days over 250 g",
+      "weeks": 26,
+      "found": "30/30",
+      "meanShownPct": 2.9,
+      "falseLinksPerRun": 0,
+      "runsWithAFalseLink": "0/30"
+    },
+    {
+      "persona": "Carbs: 3% stronger after days over 250 g",
+      "weeks": 52,
+      "found": "30/30",
+      "meanShownPct": 3,
+      "falseLinksPerRun": 0,
+      "runsWithAFalseLink": "0/30"
+    },
+    {
+      "persona": "Control: no effect",
+      "weeks": 16,
+      "found": "–",
+      "meanShownPct": null,
+      "falseLinksPerRun": 0,
+      "runsWithAFalseLink": "0/30"
+    },
+    {
+      "persona": "Control: no effect",
+      "weeks": 26,
+      "found": "–",
+      "meanShownPct": null,
+      "falseLinksPerRun": 0,
+      "runsWithAFalseLink": "0/30"
+    },
+    {
+      "persona": "Control: no effect",
+      "weeks": 52,
+      "found": "–",
+      "meanShownPct": null,
+      "falseLinksPerRun": 0,
+      "runsWithAFalseLink": "0/30"
+    }
+  ]
+}

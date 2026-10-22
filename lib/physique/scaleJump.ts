@@ -26,7 +26,7 @@
  */
 
 import { addDays, dayDiff, type LocalDate } from "@/lib/dates";
-import { mad, median, robustSlope } from "@/lib/stats";
+import { mad, median, robustSlope, solveLinear } from "@/lib/stats";
 import { countsAsLogged, dailyIntakeSeries } from "@/lib/physique/intake";
 import { workoutDate } from "@/lib/physique/strength";
 import { weighInsByDate } from "@/lib/physique/weight";
@@ -215,24 +215,6 @@ function driversFor(d: LocalDate, intake: ReadonlyMap<LocalDate, DailyIntake>, l
 type Sizes = { carbs: number; kcal: number; legs: number };
 const PRIOR: Sizes = { carbs: CARB_WATER_KG_PER_G * 100, kcal: FOOD_MASS_KG_PER_KCAL * 1000, legs: LEG_SESSION_KG };
 
-/** Solve A x = b by Gaussian elimination with partial pivoting; null when singular. */
-function solve(a: number[][], b: number[]): number[] | null {
-  const n = b.length;
-  const m = a.map((row, i) => [...row, b[i]]);
-  for (let c = 0; c < n; c++) {
-    let p = c;
-    for (let r = c + 1; r < n; r++) if (Math.abs(m[r][c]) > Math.abs(m[p][c])) p = r;
-    if (Math.abs(m[p][c]) < 1e-12) return null;
-    [m[c], m[p]] = [m[p], m[c]];
-    for (let r = 0; r < n; r++) {
-      if (r === c) continue;
-      const f = m[r][c] / m[c][c];
-      for (let k = c; k <= n; k++) m[r][k] -= f * m[c][k];
-    }
-  }
-  return m.map((row, i) => row[n] / row[i]);
-}
-
 /**
  * The person's own sizes: ridge regression of each morning's move on its
  * drivers (with a free intercept), shrunk towards the evidence by
@@ -250,7 +232,7 @@ function fitSizes(rows: ReadonlyArray<{ dev: number; x: Drivers }>): Sizes {
       for (let j = 0; j < 4; j++) a[i][j] += v[i] * v[j];
     }
   }
-  const s = solve(a, b);
+  const s = solveLinear(a, b);
   if (!s) return PRIOR;
   const clamp = (v: number) => Math.min(MAX_SIZE_KG, Math.max(0, v));
   return { carbs: clamp(s[1]), kcal: clamp(s[2]), legs: clamp(s[3]) };

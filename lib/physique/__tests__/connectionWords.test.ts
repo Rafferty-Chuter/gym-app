@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { connectionWords } from "@/lib/physique/connectionWords";
-import type { Connection, ConnectionId } from "@/lib/physique/connections";
+import { CONNECTION_IDS, type Connection, type ConnectionId } from "@/lib/physique/connections";
 import { bannedPhrasesIn } from "@/lib/physique/copy";
 
 /** A clear link as the engine returns it, with the founder's numbers from 22 Oct by default. */
@@ -8,6 +8,7 @@ function conn(id: ConnectionId, over: Partial<Connection> = {}, high = 312, low 
   return {
     id,
     label: "Carbs the day before",
+    kind: "range",
     state: "linked",
     text: "",
     diffPct: 3.3,
@@ -17,6 +18,9 @@ function conn(id: ConnectionId, over: Partial<Connection> = {}, high = 312, low 
     movedWith: null,
     movedWithSign: null,
     points: { high: [], low: [] },
+    perLift: [],
+    z: 4,
+    q: 0.01,
     ...over,
   };
 }
@@ -40,7 +44,27 @@ describe("Connections in plain words (TR12)", () => {
     expect(connectionWords(conn("balance", {}, 20, -600), squat, "kg").values).toBe("0 vs −600 kcal against maintenance");
     expect(connectionWords(conn("time", {}, 18.5, 7.25), squat, "kg")).toMatchObject({ headline: "Your squat is about 5 kg heavier when you train later in the day", values: "around 18:30 vs 07:15" });
     expect(connectionWords(conn("protein", {}, 185, 140), squat, "kg").values).toBe("185 g vs 140 g of protein a day");
-    expect(connectionWords(conn("hrv", {}, 62, 48), squat, "kg").headline).toBe("Your squat is about 5 kg heavier on mornings with a higher HRV");
+    expect(connectionWords(conn("hrv", {}, 1.1, -1.2), squat, "kg")).toMatchObject({ headline: "Your squat is about 5 kg heavier on mornings your HRV is higher than usual", values: "HRV +1.1 vs −1.2 SD against your usual" });
+  });
+
+  it("IN5: the new conditions, yes-or-no ones by their counts", () => {
+    expect(connectionWords(conn("wake", { kind: "yesno", diffPct: -3, high: { value: "Woke early", mean: 1, pct: -2, sessions: 12 }, low: { value: "Usual wake", mean: 0, pct: 0.4, sessions: 60 } }), squat, "kg")).toMatchObject({
+      headline: "Your squat is about 4.5 kg lighter on mornings you wake an hour or more earlier than usual",
+      values: "12 early mornings vs 60 usual",
+    });
+    expect(connectionWords(conn("shortRun", { kind: "yesno", diffPct: -4, high: { value: "", mean: 1, pct: -3, sessions: 11 }, low: { value: "", mean: 0, pct: 0.3, sessions: 70 } }), squat, "kg").values).toBe("11 days after two short nights vs 70 after the rest");
+    expect(connectionWords(conn("load", { diffPct: -2 }, 42, 24), squat, "kg")).toMatchObject({ headline: "Your squat is about 3 kg lighter after a week with more hard sets", values: "42 vs 24 hard sets in the week before" });
+    expect(connectionWords(conn("lastSame", {}, 5, 2), squat, "kg").values).toBe("5 days vs 2 days since the same lift");
+    expect(connectionWords(conn("awake", {}, 10.5, 2.25), squat, "kg").values).toBe("10h 30m vs 2h 15m awake before training");
+    expect(connectionWords(conn("balance3", {}, -150, -700), squat, "kg").values).toBe("−150 vs −700 kcal a day against maintenance over three days");
+  });
+
+  it("IN5: on a lift with its own read, its own size", () => {
+    const c = conn("sleep", { diffPct: 4, perLift: [{ name: "Squat", pct: 2, kg: 3, sessions: 40, own: true }] }, 7.8, 6.1);
+    expect(connectionWords(c, squat, "kg").parts.effect).toBe("3 kg heavier");
+    // A pooled read put on the lift's level is not its own: the read across lifts stands.
+    const pooled = conn("sleep", { diffPct: 4, perLift: [{ name: "Squat", pct: 4, kg: 6, sessions: 12, own: false }] }, 7.8, 6.1);
+    expect(connectionWords(pooled, squat, "kg").parts.effect).toBe("6 kg heavier");
   });
 
   it("reads the weight trend by which side of zero it sits, in kilos a week", () => {
@@ -61,7 +85,7 @@ describe("Connections in plain words (TR12)", () => {
   });
 
   it("says what moved together, never a cause or advice", () => {
-    for (const id of ["sleep", "carbs", "balance", "protein", "time", "rest", "rate", "hrv"] as ConnectionId[]) {
+    for (const id of CONNECTION_IDS) {
       const w = connectionWords(conn(id, { diffPct: -2.5 }), squat, "kg");
       expect(`${w.headline} ${w.numbers}`).not.toMatch(/because|better|should|try|so you|causes?/i);
       expect(bannedPhrasesIn(`${w.headline} ${w.numbers}`)).toEqual([]);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDays } from "@/lib/dates";
-import { CONN_MIN_GROUP, compareThirds, connections, sessionStrength, type ConnectionInputs } from "@/lib/physique/connections";
+import { CONN_MIN_HISTORY_DAYS, CONN_PER_LIFT_MIN, CONNECTION_IDS, connections, type ConnectionInputs } from "@/lib/physique/connections";
 import type { FoodEntry, SleepNight } from "@/lib/physique/types";
 import type { StoredWorkout } from "@/lib/trainingAnalysis";
 
@@ -16,31 +16,90 @@ function rng(seed: number) {
   };
 }
 
+type Opts = {
+  days?: number;
+  /** % weaker a session is after a night under 6.5 hours. */
+  sleepEffectPct?: number;
+  /** Short nights come in runs (a week of short, then a week or two of long), as real ones do. */
+  clustered?: boolean;
+  /** Wake time 07:00, or 05:30 on about a day in five; % weaker on those days. */
+  wakeEarlyPct?: number;
+  /** % weaker after two nights under 6 hours in a row. */
+  shortRunPct?: number;
+  /** Only the squat feels the sleep effect (per-lift reads). */
+  squatOnly?: boolean;
+  /** Session noise, % (1.5 by default). */
+  noisePct?: number;
+};
+
 /**
- * Sixteen weeks of squat and bench three days a week (Mon, Wed, Fri), each
- * lift's top set progressing slowly with 1.5% noise, and a night of sleep
- * before every day. `sleepEffectPct` is how much weaker a session is after
- * a night under 6.5 hours.
+ * Squat and bench three days a week (Mon, Wed, Fri), each lift's top set
+ * progressing slowly with session noise, and a night of sleep before every
+ * day, with the effects asked for.
  */
-function history(seed: number, sleepEffectPct: number): ConnectionInputs {
+function history(seed: number, sleepEffectPct = 0, o: Opts = {}): ConnectionInputs {
   const r = rng(seed);
+  const days = o.days ?? 112;
   const workouts: StoredWorkout[] = [];
   const sleepNights: SleepNight[] = [];
-  const start = addDays(today, -111);
-  for (let d = 0; d < 112; d++) {
+  const start = addDays(today, -(days - 1));
+  let prevH = 7.5;
+  let longRun = true;
+  for (let d = 0; d < days; d++) {
     const date = addDays(start, d);
-    const hours = 5.6 + r() * 2.8;
-    sleepNights.push({ id: `n-${date}`, date, asleepMin: Math.round(hours * 60), source: "manual", loggedAt: `${date}T08:00:00.000Z`, schemaVersion: 1 } as SleepNight);
+    if (o.clustered && d % 7 === 0) longRun = r() < 0.6;
+    const hours = o.clustered ? (longRun ? 7.4 + r() * 0.8 : 5.4 + r() * 0.8) : o.shortRunPct != null ? (r() < 0.35 ? 5.3 + r() * 0.5 : 7.2 + r() * 1.2) : 5.6 + r() * 2.8;
+    const early = o.wakeEarlyPct != null && r() < 0.2;
+    sleepNights.push({ id: `n-${date}`, date, asleepMin: Math.round(hours * 60), source: "manual", loggedAt: `${date}T08:00:00.000Z`, schemaVersion: 1, ...(o.wakeEarlyPct != null ? { wakeTime: early ? "05:30" : "07:00", bedtime: "23:00" } : {}) } as SleepNight);
     const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const prev = prevH;
+    prevH = hours;
     if (dow !== 1 && dow !== 3 && dow !== 5) continue;
-    const short = hours < 6.5 ? 1 - sleepEffectPct / 100 : 1;
-    const lift = (base: number) => {
-      const level = base * (1 + 0.0004 * d);
-      const noise = 1 + (r() - 0.5) * 0.03;
-      return Math.round(level * noise * short * 2) / 2;
+    const effect = (lift: "squat" | "bench") => {
+      let f = 1;
+      if (hours < 6.5 && (!o.squatOnly || lift === "squat")) f *= 1 - (o.sleepEffectPct ?? sleepEffectPct) / 100;
+      if (early) f *= 1 - (o.wakeEarlyPct ?? 0) / 100;
+      if (o.shortRunPct != null && hours < 6 && prev < 6) f *= 1 - o.shortRunPct / 100;
+      return f;
     };
+    const noise = (o.noisePct ?? 1.5) / 100;
+    const lift = (base: number, which: "squat" | "bench") => Math.round(base * (1 + 0.0004 * d) * (1 + (r() - 0.5) * 2 * noise) * effect(which) * 2) / 2;
     workouts.push({
       completedAt: `${date}T18:00:00.000Z`,
+      name: "Full body",
+      exercises: [
+        { name: "Squat", sets: [{ weight: String(lift(120, "squat")), reps: "5" }] },
+        { name: "Bench Press", sets: [{ weight: String(lift(90, "bench")), reps: "5" }] },
+      ],
+    });
+  }
+  return { workouts, sleepNights, foodEntries: [], dayFlags: {}, weighIns: [], unit: "kg" };
+}
+
+/** Sixteen weeks of three sessions a week with food every day and sessions at random hours; `carbEffect` and `eveningEffect` make sessions after high-carb days, or late in the day, stronger. */
+function richHistory(seed: number, carbEffectPct: number, eveningEffectPct: number): ConnectionInputs {
+  const r = rng(seed);
+  const workouts: StoredWorkout[] = [];
+  const foodEntries: FoodEntry[] = [];
+  const start = addDays(today, -111);
+  const carbsByDate = new Map<string, number>();
+  for (let d = -1; d < 112; d++) {
+    const date = addDays(start, d);
+    const carbs = Math.round(120 + r() * 260);
+    carbsByDate.set(date, carbs);
+    foodEntries.push({ id: `f-${date}`, date, loggedAt: `${date}T20:00:00.000Z`, source: "manual", schemaVersion: 1, label: "Day", kcal: Math.round(2300 + r() * 600), proteinG: Math.round(140 + r() * 60), carbsG: carbs, fatG: 80, method: "manual" } as unknown as FoodEntry);
+  }
+  for (let d = 0; d < 112; d++) {
+    const date = addDays(start, d);
+    const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+    if (dow !== 1 && dow !== 3 && dow !== 5) continue;
+    const evening = r() < 0.5;
+    const hour = evening ? 18 + Math.floor(r() * 3) : 6 + Math.floor(r() * 3);
+    const highCarb = (carbsByDate.get(addDays(date, -1)) ?? 0) > 250;
+    const effect = (highCarb ? 1 + carbEffectPct / 100 : 1) * (evening ? 1 + eveningEffectPct / 100 : 1);
+    const lift = (base: number) => Math.round(base * (1 + 0.0004 * d) * (1 + (r() - 0.5) * 0.03) * effect * 2) / 2;
+    workouts.push({
+      completedAt: `${date}T${String(hour).padStart(2, "0")}:15:00.000Z`,
       name: "Full body",
       exercises: [
         { name: "Squat", sets: [{ weight: String(lift(120)), reps: "5" }] },
@@ -48,18 +107,10 @@ function history(seed: number, sleepEffectPct: number): ConnectionInputs {
       ],
     });
   }
-  return { workouts, sleepNights, foodEntries: [], dayFlags: {}, weighIns: [], unit: "kg" };
+  return { workouts, sleepNights: [], foodEntries, dayFlags: {}, weighIns: [], unit: "kg" };
 }
 
-describe("Connections (L1)", () => {
-  it("reads each session against the lift's own level, so steady progress is not a difference", () => {
-    const h = history(1, 0);
-    const s = sessionStrength(h.workouts, "kg", now, addDays(today, -111));
-    expect(s.length).toBeGreaterThan(40);
-    const avg = s.reduce((a, x) => a + x.pct, 0) / s.length;
-    expect(Math.abs(avg)).toBeLessThan(0.5);
-  });
-
+describe("Connections (L1, rebuilt in IN5)", () => {
   it("finds a 5% cost of short nights, with both groups' numbers in one factual sentence", () => {
     const res = connections(history(2, 5), now);
     const sleep = res.items.find((c) => c.id === "sleep");
@@ -79,79 +130,75 @@ describe("Connections (L1)", () => {
     expect(linked).toBeLessThanOrEqual(1);
   });
 
-  it("stays silent with too few sessions, and leaves out conditions that were never recorded", () => {
+  it("stays silent with too few sessions or under twelve weeks, and leaves out conditions never recorded", () => {
     const h = history(3, 5);
-    const short = { ...h, workouts: h.workouts.slice(-12) };
-    expect(connections(short, now).items).toEqual([]);
+    expect(connections({ ...h, workouts: h.workouts.slice(-12) }, now).items).toEqual([]);
+    const shortHistory = history(3, 5, { days: CONN_MIN_HISTORY_DAYS - 7 });
+    expect(connections(shortHistory, now).items).toEqual([]);
     const ids = connections(h, now).items.map((c) => c.id);
-    expect(ids).not.toContain("calories");
-    expect(ids).not.toContain("hrv");
+    for (const id of ["balance", "hrv", "carbs", "wake"]) expect(ids).not.toContain(id);
   });
 
-  it("returns the sessions behind each third, and reads longer history only when asked (PR2)", () => {
+  it("IN5: short nights in runs are no longer halved by the lift's own level", () => {
+    // The old neighbour median took a run of short nights as the lift's level and read a true −4% as about −2%.
+    let found = 0;
+    let sum = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      const sleep = connections(history(100 + seed, 0, { clustered: true, sleepEffectPct: 4, days: 182 }), now).items.find((c) => c.id === "sleep");
+      if (sleep?.state === "linked") found++;
+      sum += sleep?.diffPct ?? 0;
+    }
+    expect(found).toBeGreaterThanOrEqual(7);
+    // About 4%, a little under after shrinking towards zero.
+    expect(sum / 10).toBeGreaterThan(3);
+  });
+
+  it("IN5: waking an hour early, a yes-or-no condition, read against the rest", () => {
+    const c = connections(history(7, 0, { wakeEarlyPct: 5, days: 182 }), now).items.find((x) => x.id === "wake");
+    expect(c).toMatchObject({ kind: "yesno", state: "linked", high: { value: "Woke early" }, low: { value: "Usual wake" } });
+    expect(c!.diffPct).toBeLessThan(-2.5);
+    expect(c!.text).toMatch(/^On mornings you woke an hour or more earlier than usual, your lifts were \d+\.\d% weaker than on the rest\.$/);
+  });
+
+  it("IN5: two short nights in a row", () => {
+    const c = connections(history(8, 0, { shortRunPct: 6, days: 182 }), now).items.find((x) => x.id === "shortRun");
+    expect(c?.state).toBe("linked");
+    expect(c!.diffPct).toBeLessThan(-3);
+  });
+
+  it("IN5: each main lift's own share, once it has the sessions", () => {
+    const res = connections(history(9, 0, { sleepEffectPct: 6, squatOnly: true, days: 182 }), now);
+    const sleep = res.items.find((c) => c.id === "sleep")!;
+    expect(sleep.state).toBe("linked");
+    const squat = sleep.perLift.find((l) => l.name === "Squat")!;
+    const bench = sleep.perLift.find((l) => l.name === "Bench Press")!;
+    expect(squat.own && bench.own).toBe(true);
+    expect(squat.sessions).toBeGreaterThanOrEqual(CONN_PER_LIFT_MIN);
+    expect(squat.pct).toBeGreaterThan(bench.pct + 2);
+    expect(Math.abs(bench.pct)).toBeLessThan(2);
+    expect(squat.kg).toBeGreaterThan(3);
+  });
+
+  it("IN5: a link must hold a week earlier too", () => {
+    // Twelve weeks and a day: the gate is met today but not a week ago, so nothing links yet.
+    const h = history(2, 8, { days: CONN_MIN_HISTORY_DAYS + 2 });
+    const sleep = connections(h, now).items.find((c) => c.id === "sleep");
+    expect(sleep?.state).toBe("none");
+  });
+
+  it("returns the days behind each group, and reads up to a year", () => {
     const h = history(2, 5);
     const res = connections(h, now);
     expect(res.weeks).toBe(16);
     const sleep = res.items.find((c) => c.id === "sleep")!;
     expect(sleep.points.high).toHaveLength(sleep.high.sessions);
     expect(sleep.points.low).toHaveLength(sleep.low.sessions);
-    for (const p of [...sleep.points.high, ...sleep.points.low]) {
-      expect(p.date >= res.from && p.date <= res.through).toBe(true);
-    }
+    for (const p of [...sleep.points.high, ...sleep.points.low]) expect(p.date >= res.from && p.date <= res.through).toBe(true);
     const meanHigh = sleep.points.high.reduce((a, p) => a + p.pct, 0) / sleep.points.high.length;
     expect(Math.round(meanHigh * 10) / 10).toBe(sleep.high.pct);
-    expect(connections(h, now, { days: 30 }).weeks).toBe(16);
-    const longer = connections(h, now, { days: 182 });
-    expect(longer.weeks).toBe(26);
-    expect(longer.from < res.from).toBe(true);
+    const longer = connections(history(2, 5, { days: 300 }), now);
+    expect(longer.weeks).toBe(43);
   });
-
-  it("compares thirds only when they separate and each holds the minimum", () => {
-    const tied = Array.from({ length: 3 * CONN_MIN_GROUP + 3 }, (_, i) => ({ pct: i % 2, v: 2 }));
-    expect(compareThirds(tied)).toBeNull();
-    const few = Array.from({ length: 3 * CONN_MIN_GROUP - 1 }, (_, i) => ({ pct: 0, v: i }));
-    expect(compareThirds(few)).toBeNull();
-    const ok = Array.from({ length: 3 * CONN_MIN_GROUP }, (_, i) => ({ pct: i < CONN_MIN_GROUP ? -3 : 3, v: i }));
-    const c = compareThirds(ok);
-    expect(c?.low).toHaveLength(CONN_MIN_GROUP);
-    expect(c?.diff).toBeCloseTo(6, 5);
-  });
-
-  // ── C7: more conditions, each with its evidence ──
-
-  /** Sixteen weeks of three sessions a week with food every day and sessions at random hours; `carbEffect` and `eveningEffect` make sessions after high-carb days, or late in the day, stronger. */
-  function richHistory(seed: number, carbEffectPct: number, eveningEffectPct: number): ConnectionInputs {
-    const r = rng(seed);
-    const workouts: StoredWorkout[] = [];
-    const foodEntries: FoodEntry[] = [];
-    const start = addDays(today, -111);
-    const carbsByDate = new Map<string, number>();
-    for (let d = -1; d < 112; d++) {
-      const date = addDays(start, d);
-      const carbs = Math.round(120 + r() * 260);
-      carbsByDate.set(date, carbs);
-      foodEntries.push({ id: `f-${date}`, date, loggedAt: `${date}T20:00:00.000Z`, source: "manual", schemaVersion: 1, label: "Day", kcal: Math.round(2300 + r() * 600), proteinG: Math.round(140 + r() * 60), carbsG: carbs, fatG: 80, method: "manual" } as unknown as FoodEntry);
-    }
-    for (let d = 0; d < 112; d++) {
-      const date = addDays(start, d);
-      const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
-      if (dow !== 1 && dow !== 3 && dow !== 5) continue;
-      const evening = r() < 0.5;
-      const hour = evening ? 18 + Math.floor(r() * 3) : 6 + Math.floor(r() * 3);
-      const highCarb = (carbsByDate.get(addDays(date, -1)) ?? 0) > 250;
-      const effect = (highCarb ? 1 + carbEffectPct / 100 : 1) * (evening ? 1 + eveningEffectPct / 100 : 1);
-      const lift = (base: number) => Math.round(base * (1 + 0.0004 * d) * (1 + (r() - 0.5) * 0.03) * effect * 2) / 2;
-      workouts.push({
-        completedAt: `${date}T${String(hour).padStart(2, "0")}:15:00.000Z`,
-        name: "Full body",
-        exercises: [
-          { name: "Squat", sets: [{ weight: String(lift(120)), reps: "5" }] },
-          { name: "Bench Press", sets: [{ weight: String(lift(90)), reps: "5" }] },
-        ],
-      });
-    }
-    return { workouts, sleepNights: [], foodEntries, dayFlags: {}, weighIns: [], unit: "kg" };
-  }
 
   it("finds a carbs effect and a time-of-day effect, each with what studies found and no advice", () => {
     const carbs = connections(richHistory(5, 4, 0), now).items.find((c) => c.id === "carbs");
@@ -170,7 +217,7 @@ describe("Connections (L1)", () => {
     expect(t2!.low.mean).toBeCloseTo(time!.low.mean - 1, 5);
   });
 
-  it("rarely links anything by chance with eight conditions read at once", () => {
+  it("rarely links anything by chance with every condition read at once", () => {
     let linked = 0;
     let checked = 0;
     for (let seed = 40; seed < 70; seed++) {
@@ -178,7 +225,6 @@ describe("Connections (L1)", () => {
       linked += res.items.filter((c) => c.state === "linked").length;
       checked += res.checked;
     }
-    // Carbs, protein, time and rest are read on every seed; calories against maintenance needs the estimate.
     expect(checked).toBeGreaterThanOrEqual(30 * 3);
     expect(linked).toBeLessThanOrEqual(3);
   });
@@ -189,7 +235,6 @@ describe("Connections (L1)", () => {
     const expenditure = h.foodEntries.map((e) => ({ date: e.date, tdee: 2800, state: "updating" as const, trendKg: 80, base: 2800, offset: 0, updatingDays: 1 }));
     const bal = connections({ ...h, expenditure }, now).items.find((c) => c.id === "balance");
     expect(bal).toBeDefined();
-    // Intake runs 2,300 to 2,900 against 2,800, so the highest-calorie days sit near maintenance and the lowest well under.
     expect(bal!.high.value).toMatch(/^(\d+ (under|over) maintenance|at maintenance)$/);
     expect(bal!.low.value).toMatch(/^\d+ under maintenance$/);
   });
@@ -201,14 +246,17 @@ describe("Connections (L1)", () => {
     const expenditure = foodEntries.map((e) => ({ date: e.date, tdee: 2800, state: "updating" as const, trendKg: 80, base: 2800, offset: 0, updatingDays: 1 }));
     const res = connections({ ...h, foodEntries, expenditure }, now);
     const linked = res.items.filter((c) => c.state === "linked");
-    const food = linked.filter((c) => c.id === "carbs" || c.id === "balance");
+    const food = linked.filter((c) => c.id === "carbs" || c.id === "balance" || c.id === "balance3");
     expect(food).toHaveLength(1);
-    expect(food[0].movedWith).toBe(food[0].id === "carbs" ? "balance" : "carbs");
-    // TR12: which way the other moved, for "Calories were higher too, so it could be either".
+    expect(["carbs", "balance", "balance3"]).toContain(food[0].movedWith);
     expect(food[0].movedWithSign).toBe(1);
     expect(food[0].text).toMatch(/rose and fell with it, so the two can't be told apart\.$/);
-    // Each third keeps its raw mean for the plain-words row.
     expect(food[0].high.mean).toBeGreaterThan(food[0].low.mean);
+  });
+
+  it("lists every condition it knows, in a fixed order", () => {
+    expect(CONNECTION_IDS).toHaveLength(14);
+    expect(new Set(CONNECTION_IDS).size).toBe(14);
   });
 });
 
@@ -216,7 +264,6 @@ describe("Connections: the pace towards the first read (PR3d)", () => {
   it("counts the sessions of the last four weeks, a week", () => {
     const h = history(3, 0);
     const res = connections({ ...h, workouts: h.workouts.slice(-12) }, now);
-    // Three sessions a week (Mon, Wed, Fri) over the last four weeks.
     expect(res.recentPerWeek).toBe(3);
     expect(connections({ ...h, workouts: [] }, now).recentPerWeek).toBe(0);
   });

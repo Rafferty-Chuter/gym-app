@@ -39,11 +39,14 @@ describe("showcase data", () => {
     expect(effectKg(linked[0].diffPct, lift!.levelKg)).toBeGreaterThanOrEqual(5);
   });
 
-  it("finds the four links built in and nothing else", () => {
+  it("finds the links built in and nothing else", () => {
     const { conn } = read(SHOWCASE_REF_END);
     const linked = conn.items.filter((c) => c.state === "linked").map((c) => c.id);
-    expect([...linked].sort()).toEqual(["carbs", "hrv", "rest", "sleep"]);
-    for (const id of ["protein", "balance", "rate"]) expect(conn.items.find((c) => c.id === id)?.state).toBe("none");
+    // IN5: the +1% after a long break is built in too, but days off are read both ways (no expected direction), which a 1% effect over 16 weeks doesn't clear.
+    expect([...linked].sort()).toEqual(["carbs", "hrv", "sleep"]);
+    for (const id of ["protein", "balance"]) expect(conn.items.find((c) => c.id === id)?.state).toBe("none");
+    // The weight trend moves slowly, so its thirds sit in too few weeks to be compared (CONN_MIN_GROUP_WEEKS): left out, not "none".
+    expect(conn.items.find((c) => c.id === "rate")).toBeUndefined();
   });
 
   it("catches short sleep on a cut with the lifts down", () => {
@@ -52,8 +55,8 @@ describe("showcase data", () => {
   });
 
   it("reads the same whatever day it is loaded", () => {
-    // Time of day is left out: sessions are logged at 18:00 UTC, so a move across a clock change shifts their local hour.
-    const links = (today: string) => read(today).conn.items.filter((c) => c.id !== "time").map((c) => [c.id, c.state, c.diffPct]);
+    // Time of day and hours awake are left out: sessions are logged at 18:00 UTC, so a move across a clock change shifts their local hour.
+    const links = (today: string) => read(today).conn.items.filter((c) => c.id !== "time" && c.id !== "awake").map((c) => [c.id, c.state, c.diffPct]);
     const base = links(SHOWCASE_REF_END);
     for (const n of [1, 3, 6, 40]) expect(links(addDays(SHOWCASE_REF_END, n))).toEqual(base);
   });

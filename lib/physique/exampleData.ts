@@ -10,7 +10,7 @@
 
 import { addDays, type LocalDate, type Now } from "@/lib/dates";
 import { computeExpenditure, type ExpenditureResult } from "@/lib/physique/expenditure";
-import { makeScenario, type ScenarioSpec } from "@/lib/physique/fixtures";
+import { gaussian, makeScenario, mulberry32, type ScenarioSpec } from "@/lib/physique/fixtures";
 import { buildPhysiqueAnalysis } from "@/lib/physique/judge";
 import type { PhysiqueAnalysis } from "@/lib/physique/types";
 import type { WeightUnit } from "@/lib/units";
@@ -30,7 +30,8 @@ export function connectionsSpec(today: LocalDate): ScenarioSpec {
     trueTdeeKcal: 2800,
     intake: "toTarget",
     goal: { ratePctPerWeek: -0.5, targetKg: 78 },
-    sleep: { meanH: 7.0, sdH: 0.7, source: "manual", loggedShare: 1 },
+    // IN5: a night's spread wide enough that about a third fall under 6.5 h, so the sleep link has the ten or more sessions each way it needs.
+    sleep: { meanH: 7.0, sdH: 1.0, source: "manual", loggedShare: 1 },
     lifts: [
       { name: "Squat", startE1rm: 150, profile: "linear", changePct: 3, perWeek: 3, cv: 0.015 },
       { name: "Bench Press", startE1rm: 110, profile: "linear", changePct: 2, perWeek: 3, cv: 0.015 },
@@ -67,9 +68,25 @@ export function higherCarbsHelp(sc: ExampleScenario): ExampleScenario {
   };
 }
 
+/**
+ * Carbs swinging from day to day at the same calories, fat making up the
+ * difference, as a real log does (as the showcase's `varyMacros`). Without
+ * it carbs are a fixed share of calories, and the two can't be told apart.
+ */
+function swingCarbs(sc: ExampleScenario, sdG = 45): ExampleScenario {
+  const rand = mulberry32(7919);
+  return {
+    ...sc,
+    foodEntries: sc.foodEntries.map((e) => {
+      const carbsG = Math.max(60, Math.round(e.carbsG + gaussian(rand) * sdG));
+      return { ...e, carbsG, fatG: Math.max(25, Math.round(e.fatG - ((carbsG - e.carbsG) * 4) / 9)) };
+    }),
+  };
+}
+
 /** The example history to `today`. */
 export function exampleScenario(today: LocalDate): ExampleScenario {
-  return higherCarbsHelp(shortNightsCost(makeScenario(connectionsSpec(today))));
+  return higherCarbsHelp(shortNightsCost(swingCarbs(makeScenario(connectionsSpec(today)))));
 }
 
 // ── Everything Progress reads, for the example ──
