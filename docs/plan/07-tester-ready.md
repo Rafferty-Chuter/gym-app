@@ -41,7 +41,7 @@ Testers get the link only when TR1, TR2, TR3, FT4 and FT7 are done.
 ### FT4 · Switch accounts on (after TR1 for testers)
 1. Supabase → SQL Editor: run `supabase/migrations/0003_sync.sql`. *(Done 22 Oct.)*
 2. **Custom SMTP first.** Supabase's built-in sender only emails your own team's addresses (2 an hour) and won't let you edit the templates. Resend (free, 3,000 a month): Authentication → Emails → Set up SMTP, host `smtp.resend.com`, port 465, user `resend`, password a Resend API key. *(Done 22 Oct with the test sender `onboarding@resend.dev`, which only reaches the Resend account's own email; **before testers, buy a domain and verify it in Resend**, then change the sender to an address on it.)*
-3. Authentication → Sign In / Providers: Email on. Emails → "Magic link or OTP" **and** "Confirm signup": subject "Your sign-in code", body with `{{ .Token }}` so the email carries the 6-digit code (no link: on an iPhone it opens Safari).
+3. Authentication → Sign In / Providers: Email on, and in its settings **Email OTP length 6** (this project defaulted to 8, which the app's 6-digit field refuses; fixed 22 Oct). Emails → "Magic link or OTP" **and** "Confirm signup": subject "Your sign-in code", body with `{{ .Token }}` so the email carries the 6-digit code (no link: on an iPhone it opens Safari).
 4. Vercel: set `NEXT_PUBLIC_SUPABASE_URL` (same value as `SUPABASE_URL`) and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Project Settings → API), redeploy.
 5. Sign in on your own phone first (Profile → Account): your data goes up to your account. Then sign in on a second browser and check it arrives.
 
