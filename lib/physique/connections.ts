@@ -32,6 +32,10 @@
  * Silence beats false positives: below the gates a condition is left out
  * or reads "no clear link". What moved together, never what caused what.
  *
+ * IN9 adds drinks the evening before (a drinking evening against a dry
+ * one, `dayExtras.ts`), expected to weaken, read as strictly as the rest;
+ * its studies line says strength often holds.
+ *
  * Pure: data and `now` in, connections out.
  */
 
@@ -40,6 +44,7 @@ import { mean, median, normalCdf, solveLinear, stdev } from "@/lib/stats";
 import { formatHoursMin } from "@/lib/physique/dayTotals";
 import { countsForBalance } from "@/lib/physique/food/energy";
 import { dailyIntakeSeries } from "@/lib/physique/intake";
+import { drinkingEvenings } from "@/lib/physique/dayExtras";
 import { nightsByDate } from "@/lib/physique/sleep";
 import { deloadWeeks, isCompoundLift, liftSeries, MAIN_LIFT_WEEKS, pickMainLifts, workoutDate } from "@/lib/physique/strength";
 import { trendSeries } from "@/lib/physique/weight";
@@ -119,7 +124,7 @@ export const CONN_MIN_SESSIONS = CONN_MIN_GROUP * 3;
 
 // ── Types ──
 
-export type ConnectionId = "sleep" | "wake" | "shortRun" | "hrv" | "carbs" | "balance" | "balance3" | "protein" | "time" | "awake" | "rest" | "lastSame" | "load" | "rate";
+export type ConnectionId = "sleep" | "wake" | "shortRun" | "hrv" | "carbs" | "balance" | "balance3" | "protein" | "alcohol" | "time" | "awake" | "rest" | "lastSame" | "load" | "rate";
 
 /** What studies found about a condition and lifting, one sentence, with the source. */
 export type ConnectionEvidence = { text: string; source: string };
@@ -232,6 +237,8 @@ type Spec = {
 };
 
 const CRAVEN: ConnectionEvidence = { text: "Across 69 studies, a night of 6 hours or less lowered performance, strength included.", source: "Craven J et al. Sports Med 2022;52:2669–90" };
+/** IN9: the honest read for drinks the evening before; strength often holds. */
+export const SHAW: ConnectionEvidence = { text: "In a trial, jumps, a mid-thigh pull and curls held the morning after an evening's drinking; a hard cycling test ended 11% sooner.", source: "Shaw AG et al. Int J Sports Physiol Perform 2022;17:44–9" };
 const MURPHY: ConnectionEvidence = { text: "Over weeks, training in a deficit gained less muscle, while strength gains held up.", source: "Murphy C, Koehler K. Scand J Med Sci Sports 2022;32:125–37" };
 
 /**
@@ -248,6 +255,8 @@ const SPEC: Record<ConnectionId, Spec> = {
   balance: { label: "Calories the day before", kind: "range", dir: 1, fmt: balanceWords, high: (v) => `After your highest-calorie days (${v} on average)`, low: (v) => `after your lowest (${v})`, pair: "your highest- and lowest-calorie days", evidence: MURPHY },
   balance3: { label: "Calories over three days", kind: "range", dir: 1, fmt: balanceWords, high: (v) => `After your highest-calorie three days (${v} on average)`, low: (v) => `after your lowest (${v})`, pair: "your highest- and lowest-calorie three days", evidence: MURPHY },
   protein: { label: "Protein over three days", kind: "range", dir: 1, fmt: (v) => `${n0(v)} g a day`, high: (v) => `After your highest-protein three days (${v} on average)`, low: (v) => `after your lowest (${v})`, pair: "your highest- and lowest-protein days", evidence: { text: "Across 49 trials, more protein added to strength and muscle gains, levelling off at about 1.6 g per kg a day.", source: "Morton RW et al. Br J Sports Med 2018;52:376–84" } },
+  // IN9: a drinking evening (0.25 g of alcohol per kg or more) against a dry one, the day after; evenings with a little, or unlogged, are left out.
+  alcohol: { label: "Drinks the evening before", kind: "yesno", dir: -1, fmt: (v) => (v >= 0.5 ? "Drank" : "None"), high: () => "The day after an evening's drinking", low: () => "after evenings with none", pair: "days after drinking and days after none", evidence: SHAW },
   time: { label: "Time of day", kind: "range", dir: 1, fmt: clock, high: (v) => `In your latest sessions (around ${v})`, low: (v) => `in your earliest (around ${v})`, pair: "your earliest and latest sessions", evidence: { text: "Strength tests higher in the evening than the morning, a gap that narrows with morning training.", source: "Grgic J et al. Chronobiol Int 2019;36:449–60" } },
   awake: { label: "Hours awake before training", kind: "range", dir: 0, fmt: (v) => formatHoursMin(Math.round(v * 60)), high: (v) => `When you trained longest after waking (${v} on average)`, low: (v) => `when soonest (${v})`, pair: "your sessions soonest and longest after waking", evidence: null },
   rest: { label: "Days since the last session", kind: "range", dir: 0, fmt: days, high: (v) => `After your longest breaks (${v} on average)`, low: (v) => `after your shortest (${v})`, pair: "your longest and shortest breaks", evidence: { text: "After sets taken to failure, strength and bar speed took longer to come back, beyond 24 to 48 hours.", source: "Morán-Navarro R et al. Eur J Appl Physiol 2017;117:2387–99" } },
@@ -257,7 +266,7 @@ const SPEC: Record<ConnectionId, Spec> = {
 };
 
 /** The order conditions are read and listed in. */
-export const CONNECTION_IDS: readonly ConnectionId[] = ["sleep", "wake", "shortRun", "hrv", "carbs", "balance", "balance3", "protein", "time", "awake", "rest", "lastSame", "load", "rate"];
+export const CONNECTION_IDS: readonly ConnectionId[] = ["sleep", "wake", "shortRun", "hrv", "carbs", "balance", "balance3", "protein", "alcohol", "time", "awake", "rest", "lastSame", "load", "rate"];
 
 // ── Readers ──
 
@@ -285,6 +294,7 @@ function readers(i: ConnectionInputs, from: LocalDate, now: Now, sameLiftGap: Re
   const intake = new Map(dailyIntakeSeries(i.foodEntries, i.dayFlags, addDays(from, -lead), now.today).map((d) => [d.date, d]));
   const maintenance = new Map((i.expenditure ?? []).map((p) => [p.date, p.tdee]));
   const trend = new Map(trendSeries(i.weighIns).map((p) => [p.date, p.trendKg]));
+  const evenings = drinkingEvenings(i.foodEntries, i.dayFlags, i.weighIns, addDays(from, -lead), now.today);
   const workoutDays = [...new Set(i.workouts.map((w) => workoutDate(w, now.tz)).filter((d): d is LocalDate => d != null))].sort();
   const firstWorkout = workoutDays[0] ?? null;
   const rest = new Map<LocalDate, number>();
@@ -368,6 +378,10 @@ function readers(i: ConnectionInputs, from: LocalDate, now: Now, sameLiftGap: Re
         if (x) xs.push(x.proteinG);
       }
       return xs.length >= 2 ? mean(xs) : null;
+    },
+    alcohol: (_l, d) => {
+      const e = evenings.get(addDays(d, -1));
+      return e ? (e.kind === "drink" ? 1 : 0) : null;
     },
     time: (_l, d) => hours.get(d) ?? null,
     awake: (_l, d) => {

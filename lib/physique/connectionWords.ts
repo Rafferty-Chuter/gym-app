@@ -50,6 +50,7 @@ const WHEN: Record<Exclude<ConnectionId, "rate">, string> = {
   balance: "the day after a higher-calorie day",
   balance3: "after three higher-calorie days",
   protein: "after three higher-protein days",
+  alcohol: "the day after drinking",
   time: "when you train later in the day",
   awake: "when you train longer after waking",
   rest: "after a longer break",
@@ -74,6 +75,7 @@ const MORE_LESS: Record<ConnectionId, [more: string, less: string]> = {
   balance: ["Calories were higher", "Calories were lower"],
   balance3: ["Calories over three days were higher", "Calories over three days were lower"],
   protein: ["Protein was higher", "Protein was lower"],
+  alcohol: ["Drinking evenings were more common", "Drinking evenings were less common"],
   time: ["Sessions were later", "Sessions were earlier"],
   awake: ["Sessions came longer after waking", "Sessions came sooner after waking"],
   rest: ["Breaks were longer", "Breaks were shorter"],
@@ -103,6 +105,8 @@ function valuesText(id: ConnectionId, high: number, low: number, unit: WeightUni
       return `${counts.high} early mornings vs ${counts.low} usual`;
     case "shortRun":
       return `${counts.high} days after two short nights vs ${counts.low} after the rest`;
+    case "alcohol":
+      return `${counts.high} days after drinking vs ${counts.low} after none`;
     case "balance3":
       return `${kcalVsMaintenance(high)} vs ${kcalVsMaintenance(low)} kcal a day against maintenance over three days`;
     case "awake":
@@ -176,4 +180,4 @@ export function connectionWords(c: Connection, lift: ReferenceLift | null, unit:
 }
 
 /** The row a merged condition points to, for "Counted with carbs" (C7). */
-export const CONNECTION_NOUN: Record<ConnectionId, string> = { sleep: "sleep", wake: "early wakes", shortRun: "short nights in a row", carbs: "carbs", balance: "calories", balance3: "calories over three days", protein: "protein", time: "time of day", awake: "hours awake", rest: "rest days", lastSame: "days since the lift", load: "the week's sets", rate: "the weight trend", hrv: "HRV" };
+export const CONNECTION_NOUN: Record<ConnectionId, string> = { sleep: "sleep", wake: "early wakes", shortRun: "short nights in a row", carbs: "carbs", balance: "calories", balance3: "calories over three days", protein: "protein", alcohol: "drinks the evening before", time: "time of day", awake: "hours awake", rest: "rest days", lastSame: "days since the lift", load: "the week's sets", rate: "the weight trend", hrv: "HRV" };

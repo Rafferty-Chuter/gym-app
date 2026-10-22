@@ -30,6 +30,14 @@ type Person = {
   /** Days with no food logged. */
   unlogged?: ReadonlySet<number>;
   flags?: Record<string, DayFlags>;
+  /** IN9: sodium logged on every food (about 3,000 mg a day), extra on salt days, and water held per g above 3,000 mg, kg (half gone each day). */
+  sodium?: boolean;
+  saltDays?: ReadonlySet<number>;
+  saltMg?: number;
+  saltWaterKgPerG?: number;
+  /** IN9: evenings with 54 g of alcohol (three pints) logged, and what the scale does the morning after, kg. The day's other food is cut by the drinks' calories, so they don't add to them. */
+  drinkDays?: ReadonlySet<number>;
+  drinkKg?: number;
 };
 
 /**
@@ -51,20 +59,32 @@ function person(seed: number, p: Person = {}): ScaleJumpInputs & { spikes: Set<L
   let prevCarbs = 250;
   let prevKcal = 2400;
   let prevLeg = false;
+  let salt = 0;
+  let prevSodium = 3000;
+  let prevDrink = false;
   for (let k = 0; k < days; k++) {
     const date = day(k);
     water = 0.5 * water + (p.carbWaterKgPerG ?? 0.003) * (prevCarbs - 250);
+    salt = 0.5 * salt + ((p.saltWaterKgPerG ?? 0) * (prevSodium - 3000)) / 1000;
     const gut = 0.0003 * (prevKcal - 2400);
     const leg = prevLeg ? (p.legKg ?? 0) : 0;
     noise = 0.4 * noise + (p.noiseKg ?? 0.3) * gaussian(r);
-    const kg = 85 + (p.slopeKgPerDay ?? -0.057) * k + water + gut + leg + noise;
+    const kg = 85 + (p.slopeKgPerDay ?? -0.057) * k + water + gut + leg + noise + salt + (prevDrink ? (p.drinkKg ?? 0) : 0);
     foodKg.set(date, water + gut);
     if (r() < (p.weighShare ?? 1)) weighIns.push({ id: `w${k}`, date, loggedAt: `${date}T07:00:00.000Z`, source: "manual", schemaVersion: 1, kg: Math.round(kg * 100) / 100 });
     const spike = p.spikeDays?.has(k) ?? false;
     if (spike) spikes.add(date);
     const carbs = 250 + 35 * gaussian(r) + (spike ? (p.spikeCarbsG ?? 180) : 0);
     const kcal = 2400 + 4 * (carbs - 250) + 150 * gaussian(r) + (spike ? (p.spikeKcal ?? 900) - 4 * (p.spikeCarbsG ?? 180) : 0);
-    if (!p.unlogged?.has(k)) foodEntries.push({ id: `f${k}`, date, loggedAt: `${date}T20:00:00.000Z`, source: "manual", schemaVersion: 1, label: "Day", kcal: Math.round(kcal), proteinG: 160, carbsG: Math.round(carbs), fatG: 80, method: "quick" });
+    // Drawn only when sodium is logged, so the other lifters' noise is as before.
+    const sodium = 3000 + (p.sodium ? 300 * gaussian(r) : 0) + (p.saltDays?.has(k) ? (p.saltMg ?? 3000) : 0);
+    const drink = p.drinkDays?.has(k) ?? false;
+    if (!p.unlogged?.has(k)) {
+      foodEntries.push({ id: `f${k}`, date, loggedAt: `${date}T20:00:00.000Z`, source: "manual", schemaVersion: 1, label: "Day", kcal: Math.round(kcal) - (drink ? 409 : 0), proteinG: 160, carbsG: Math.round(carbs) - (drink ? 30 : 0), fatG: 80, method: "quick", ...(p.sodium ? { sodiumMg: Math.round(sodium) } : {}) });
+      if (drink) foodEntries.push({ id: `d${k}`, date, loggedAt: `${date}T21:00:00.000Z`, source: "manual", schemaVersion: 1, label: "Lager, standard", kcal: 409, proteinG: 3, carbsG: 30, fatG: 0, method: "search", time: "21:00", alcoholG: 54 });
+    }
+    prevSodium = sodium;
+    prevDrink = drink;
     prevCarbs = carbs;
     prevKcal = kcal;
     prevLeg = p.legDays?.has(k) ?? false;
@@ -180,6 +200,43 @@ describe("why the scale jumped (IN2)", () => {
     }
     const settled = reads.find((x) => x.settle);
     expect(settled && jumpSettleLine(settled)).toMatch(/^Your last \d+ (jumps|drops) like this were (gone|back) in \d+( to \d+)? days?$/);
+  });
+
+  it("IN9: names a salty day the day before, in grams of salt as food labels give it", () => {
+    const p = person(20, { sodium: true, saltDays: new Set([60]), saltMg: 4000, saltWaterKgPerG: 0.25, noiseKg: 0.12 });
+    const j = scaleJump(p, day(61));
+    expect(j?.direction).toBe("up");
+    const food = j?.causes.find((c) => c.kind === "food");
+    expect(food && food.kind === "food" ? food.sodiumDeltaMg : 0).toBeGreaterThan(3400);
+    // With carbs up a little too, salt still leads: it moved the scale more.
+    const both = { ...j!, causes: [{ kind: "food" as const, daysAgo: 1 as const, carbsDeltaG: 55, kcalDelta: 200, sodiumDeltaMg: 3500, shareKg: 0.9 }] };
+    expect(jumpCauseLine(both, true)).toBe("Yesterday: 8.8 g more salt and 55 g more carbs than usual");
+    expect(jumpShort(both, "kg", true)).toMatch(/· 8\.8 g more salt yesterday$/);
+    expect(jumpCauseLine(j!, true)).toMatch(/^Yesterday: \d+(\.\d)? g more salt than usual$/);
+    expect(jumpShort(j!, "kg", true)).toMatch(/^Up \d\.\d kg · \d+(\.\d)? g more salt yesterday$/);
+  });
+
+  it("IN9: a day whose foods mostly don't carry sodium is not read for salt", () => {
+    // The same salty day, but sodium is logged on no food at all.
+    const p = person(20, { saltDays: new Set([60]), saltMg: 4000, saltWaterKgPerG: 0.25, noiseKg: 0.12 });
+    const j = scaleJump(p, day(61));
+    expect(j?.causes.some((c) => c.kind === "food") ?? false).toBe(false);
+  });
+
+  it("IN9: drinks are named for a jump only once the person's own mornings show it, and never sized from the evidence", () => {
+    const drinkDays = new Set(Array.from({ length: 30 }, (_, i) => 2 + i * 4));
+    const none = person(21, { drinkDays, drinkKg: 0, noiseKg: 0.25 });
+    const named = [...scaleJumps(none, day(30), day(119)).values()].filter((j) => j.causes.some((c) => c.kind === "drinks"));
+    expect(named).toEqual([]);
+    const holds = person(22, { drinkDays, drinkKg: 0.9, noiseKg: 0.2 });
+    const reads = [...scaleJumps(holds, day(90), day(119)).values()].filter((j) => j.personal && j.causes.some((c) => c.kind === "drinks"));
+    expect(reads.length).toBeGreaterThan(0);
+    expect(jumpCauseLine(reads[0], true)).toMatch(/^Yesterday: 54 g of alcohol/);
+    expect(jumpShort(reads[0], "kg", true)).toMatch(/^Up \d\.\d kg · 54 g of alcohol yesterday$/);
+    for (const t of [jumpCauseLine(reads[0], true), jumpShort(reads[0], "kg", true)]) {
+      expect(bannedPhrasesIn(t)).toEqual([]);
+      expect(t).not.toMatch(/\bfat\b|because|should|too many|binge|limit|cut back/i);
+    }
   });
 
   // ── The acceptance study ──

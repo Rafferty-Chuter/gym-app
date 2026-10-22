@@ -59,6 +59,13 @@ describe("Connections in plain words (TR12)", () => {
     expect(connectionWords(conn("balance3", {}, -150, -700), squat, "kg").values).toBe("−150 vs −700 kcal a day against maintenance over three days");
   });
 
+  it("IN9: drinks the evening before, by the counts", () => {
+    expect(connectionWords(conn("alcohol", { kind: "yesno", diffPct: -3, high: { value: "Drank", mean: 1, pct: -2, sessions: 14 }, low: { value: "None", mean: 0, pct: 0.5, sessions: 52 } }), squat, "kg")).toMatchObject({
+      headline: "Your squat is about 4.5 kg lighter the day after drinking",
+      values: "14 days after drinking vs 52 after none",
+    });
+  });
+
   it("IN5: on a lift with its own read, its own size", () => {
     const c = conn("sleep", { diffPct: 4, perLift: [{ name: "Squat", pct: 2, kg: 3, sessions: 40, own: true }] }, 7.8, 6.1);
     expect(connectionWords(c, squat, "kg").parts.effect).toBe("3 kg heavier");

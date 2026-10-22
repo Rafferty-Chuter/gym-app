@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ewma, leastSquaresSlope, mad, mean, median, olsSlope, robustSlope, stdev, winsorize } from "@/lib/stats";
+import { ewma, leastSquaresSlope, mad, mean, median, olsSlope, robustSlope, stdev, tCdf, winsorize } from "@/lib/stats";
 
 describe("basic stats", () => {
   it("mean / median / stdev / mad", () => {
@@ -73,5 +73,21 @@ describe("leastSquaresSlope (index-based)", () => {
     expect(leastSquaresSlope([5])).toBe(0);
     expect(leastSquaresSlope([1, 2, 3])).toBeCloseTo(1, 10);
     expect(leastSquaresSlope([100, 100, 100, 100])).toBe(0);
+  });
+});
+
+describe("Student's t (IN9)", () => {
+  it("matches published quantiles", () => {
+    expect(tCdf(0, 4)).toBeCloseTo(0.5, 6);
+    // Two-sided 5% at 4 df is 2.776; one-sided 1% at 10 df is 2.764; at 1 df the Cauchy.
+    expect(tCdf(2.776, 4)).toBeCloseTo(0.975, 3);
+    expect(tCdf(2.764, 10)).toBeCloseTo(0.99, 3);
+    expect(tCdf(1, 1)).toBeCloseTo(0.75, 6);
+    expect(tCdf(-2.776, 4)).toBeCloseTo(0.025, 3);
+    // Large df: the normal.
+    expect(tCdf(1.96, 1e6)).toBeCloseTo(0.975, 3);
+    // Fractional df (Welch).
+    expect(tCdf(2.5, 7.3)).toBeGreaterThan(tCdf(2.5, 7));
+    expect(tCdf(2.5, 7.3)).toBeLessThan(tCdf(2.5, 8));
   });
 });

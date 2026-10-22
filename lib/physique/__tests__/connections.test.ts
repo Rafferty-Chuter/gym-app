@@ -110,6 +110,62 @@ function richHistory(seed: number, carbEffectPct: number, eveningEffectPct: numb
   return { workouts, sleepNights: [], foodEntries, dayFlags: {}, weighIns: [], unit: "kg" };
 }
 
+/**
+ * IN9: forty weeks of three sessions a week, food every day, and drinks
+ * (54 g of alcohol) on about one evening in three; sessions the day after a
+ * drinking evening are `effectPct` weaker.
+ */
+function drinkHistory(seed: number, effectPct: number, weeks = 40): ConnectionInputs {
+  const r = rng(seed);
+  const days = weeks * 7;
+  const workouts: StoredWorkout[] = [];
+  const foodEntries: FoodEntry[] = [];
+  const start = addDays(today, -(days - 1));
+  const drank = new Set<string>();
+  for (let d = -1; d < days; d++) {
+    const date = addDays(start, d);
+    foodEntries.push({ id: `f-${date}`, date, loggedAt: `${date}T20:00:00.000Z`, source: "manual", schemaVersion: 1, label: "Day", kcal: 2400, proteinG: 160, carbsG: 250, fatG: 80, method: "quick", time: "13:00" });
+    if (r() < 0.33) {
+      drank.add(date);
+      foodEntries.push({ id: `d-${date}`, date, loggedAt: `${date}T21:00:00.000Z`, source: "manual", schemaVersion: 1, label: "Lager, standard", kcal: 409, proteinG: 3, carbsG: 30, fatG: 0, method: "search", time: "21:00", alcoholG: 54 });
+    }
+  }
+  for (let d = 0; d < days; d++) {
+    const date = addDays(start, d);
+    const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+    if (dow !== 1 && dow !== 3 && dow !== 5) continue;
+    const f = drank.has(addDays(date, -1)) ? 1 - effectPct / 100 : 1;
+    const lift = (base: number) => Math.round(base * (1 + 0.0004 * d) * (1 + (r() - 0.5) * 0.05) * f * 2) / 2;
+    workouts.push({ completedAt: `${date}T18:00:00.000Z`, name: "Full body", exercises: [{ name: "Squat", sets: [{ weight: String(lift(120)), reps: "5" }] }, { name: "Bench Press", sets: [{ weight: String(lift(90)), reps: "5" }] }] });
+  }
+  return { workouts, sleepNights: [], foodEntries, dayFlags: {}, weighIns: [], unit: "kg" };
+}
+
+describe("Connections: drinks the evening before (IN9)", () => {
+  it("links lifts 4% lighter the day after drinking, in the session counts", () => {
+    const c = connections(drinkHistory(41, 4), now).items.find((x) => x.id === "alcohol");
+    expect(c?.state).toBe("linked");
+    expect(c!.diffPct).toBeLessThan(-2);
+    expect(c!.kind).toBe("yesno");
+    expect(c!.high.sessions).toBeGreaterThanOrEqual(10);
+    expect(c!.evidence?.source).toMatch(/Shaw/);
+  });
+
+  it("strength that holds after drinking reads as no clear link", () => {
+    for (const seed of [42, 43, 44]) {
+      const c = connections(drinkHistory(seed, 0), now).items.find((x) => x.id === "alcohol");
+      expect(c?.state).toBe("none");
+    }
+  });
+
+  it("is not read without drinks logged, or from days whose food isn't logged", () => {
+    const h = drinkHistory(45, 4);
+    const dry = { ...h, foodEntries: h.foodEntries.filter((e) => !e.alcoholG) };
+    expect(connections(dry, now).items.find((x) => x.id === "alcohol")).toBeUndefined();
+    expect(connections({ ...h, foodEntries: [] }, now).items.find((x) => x.id === "alcohol")).toBeUndefined();
+  });
+});
+
 describe("Connections (L1, rebuilt in IN5)", () => {
   it("finds a 5% cost of short nights, with both groups' numbers in one factual sentence", () => {
     const res = connections(history(2, 5), now);
@@ -255,8 +311,8 @@ describe("Connections (L1, rebuilt in IN5)", () => {
   });
 
   it("lists every condition it knows, in a fixed order", () => {
-    expect(CONNECTION_IDS).toHaveLength(14);
-    expect(new Set(CONNECTION_IDS).size).toBe(14);
+    expect(CONNECTION_IDS).toHaveLength(15);
+    expect(new Set(CONNECTION_IDS).size).toBe(15);
   });
 });
 

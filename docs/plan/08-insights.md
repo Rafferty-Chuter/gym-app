@@ -156,7 +156,7 @@ M · `lib/health/*`, `ios/`
 M · after IN6 to IN8
 - Alcohol against that night's resting HR, HRV and sleep (the effect is big enough to see after about 5 drinking nights and 5 without).
 - Alcohol against the next session and the next 2 days on the scale, said honestly: strength often holds.
-- Salt feeds IN2's scale-jump drivers.
+- Salt feeds IN2's scale-jump drivers. (Done before IN8, from drinks logged as food: a card on the Sleep page, a drinks row in Connections, salt and drinks in the scale-jump causes; study in `research/N-alcohol-salt-study.md`, see the STATUS row.)
 
 ### IN10 · Progress leads with what was spotted
 L · after IN2 to IN5 · `app/body/page.tsx`, `components/progress/`, `components/report/`
