@@ -4,7 +4,7 @@ Thanks for testing. This takes about five minutes to set up, then a minute or tw
 
 ## 1. Install
 1. On your iPhone (iOS 15 or later), install **TestFlight** from the App Store.
-2. Open the link we sent you on the iPhone, tap **Accept**, then **Install**.
+2. Open the TestFlight invitation email on the iPhone, tap **View in TestFlight**, then **Accept** and **Install**.
 3. In TestFlight, turn on **Automatic Updates** so fixes arrive on their own.
 
 ## 2. Set up

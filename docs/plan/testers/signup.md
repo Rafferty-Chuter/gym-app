@@ -32,6 +32,7 @@ One Tally form, linked from every message in `recruit.md`. It picks about 20 tes
 - **Then fill the mix:** at least 3 already logging in Hevy, Strong or MacroFactor (6), at least 3 with a watch (7), some cutting and some bulking (9), and more than one source (11) so one community's habits don't decide the result. Prefer a year or more of lifting (5) and people who already weigh in (8).
 - **Wave 1:** the 3 who replied fastest and fit best, a week before everyone else, to find what breaks. Offer each a 10-minute video call for setup.
 - **Wave 2:** the rest. Offer the same 10-minute call (install, goal, import, Apple Health); `guide.md` for anyone who'd rather not. Message each person on day 3: with strangers, that first week decides who stays.
+- **Invite by email, not the public link:** App Store Connect → TestFlight → the external group → add each picked person with the form's email. Public-link testers show up anonymous and the link can be passed on.
 - **Everyone else** with "Yes" on 13 is the launch waitlist, the people the founding price is for.
 - Email everyone the outcome, picked or not.
 
