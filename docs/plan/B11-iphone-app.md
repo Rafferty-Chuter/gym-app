@@ -87,7 +87,6 @@ Every upload needs a higher build number than the last (App target â†’ General â
 
 ## Not in the app yet (B11 step 2)
 
-- **Reminders.** The app's web view has no web push, so Profile says so. Native push needs APNs keys, `@capacitor/push-notifications` and a server change to send through APNs.
 - **Android.** `npx cap add android` and Health Connect through the same plugin.
 
 ## How it fits together
@@ -105,3 +104,4 @@ Every upload needs a higher build number than the last (App target â†’ General â
 Plugins (pinned):
 - `@capgo/capacitor-health` 8.10.6 (MPL-2.0) reads HealthKit.
 - `@capacitor/filesystem` 8.1.3 holds the data copy.
+- `@capacitor/local-notifications` 8.3.1 (MIT) schedules the daily reminder on the phone (TR11): `lib/physique/localReminders.ts` (pure plan), `lib/physique/io/nativeReminders.ts`, `components/physique/NativeReminderSync.tsx`. No APNs or server.

@@ -101,6 +101,8 @@ const NATIVE_PACKAGES: Record<string, readonly string[]> = {
   "@capacitor/filesystem": ["NSPrivacyAccessedAPICategoryFileTimestamp"],
   // HealthKit only: no UserDefaults, file timestamps, boot time, disk space or keyboards.
   "@capgo/capacitor-health": [],
+  // UserNotifications only (TR11, checked 22 Oct 2026): no UserDefaults, file timestamps, boot time, disk space or keyboards.
+  "@capacitor/local-notifications": [],
 };
 
 const manifest = parsePlist(read("ios/App/App/PrivacyInfo.xcprivacy")) as Record<string, Plist>;

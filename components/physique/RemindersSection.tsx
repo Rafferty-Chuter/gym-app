@@ -8,6 +8,7 @@ import { useBodyData } from "@/lib/physique/io/bodyData";
 import { disableReminders, enableReminders, pushSupport, setReminderTime, usePushLink, type PushError, type PushSupport } from "@/lib/physique/io/pushLink";
 import { DEFAULT_REMINDER_HHMM, buildGapSummary } from "@/lib/physique/reminder";
 import { isNativeApp } from "@/lib/nativeApp";
+import { deviceClock, disableNativeReminders, enableNativeReminders, setNativeReminderTime, useNativeReminders, type NativeReminderError } from "@/lib/physique/io/nativeReminders";
 
 function errorCopy(e: PushError | null | undefined): string | null {
   switch (e) {
@@ -32,48 +33,54 @@ function errorCopy(e: PushError | null | undefined): string | null {
   }
 }
 
+function nativeErrorCopy(e: NativeReminderError | null | undefined): string | null {
+  if (e === "denied") return "Notifications are off for Gym AI. Turn them on in Settings → Notifications → Gym AI, then try again.";
+  if (e === "failed") return "Couldn't set the reminder on this phone.";
+  return null;
+}
+
 /**
  * Profile → Reminders (G5, restyled in CL1, today only since B2): one
  * notification a day at a chosen time, only when today is missing its
  * weigh-in (morning) or food (from noon). Off until turned on. A switch, a
- * time, and the exact reason when it cannot.
+ * time, and the exact reason when it cannot. In the iPhone app the phone
+ * schedules them itself (TR11); in a browser the server sends a web push.
  */
 export default function RemindersSection() {
   const hydrated = useIsHydrated();
   const now = useNow();
   const data = useBodyData();
   const link = usePushLink();
+  const nativeSettings = useNativeReminders();
   const [busy, setBusy] = useState(false);
+  const native = hydrated && isNativeApp();
   // A plain read of the browser's capabilities; only after hydration so the server and first client render agree.
   const support: PushSupport | null = hydrated ? pushSupport() : null;
 
-  const enabled = link?.enabled === true;
-  const time = link?.reminderHHMM ?? DEFAULT_REMINDER_HHMM;
+  const enabled = native ? nativeSettings?.enabled === true : link?.enabled === true;
+  const time = (native ? nativeSettings?.reminderHHMM : link?.reminderHHMM) ?? DEFAULT_REMINDER_HHMM;
   const summary = () => buildGapSummary({ foodEntries: data.foodEntries, dayFlags: data.dayFlags, weighIns: data.weighIns, sleepNights: data.sleepNights }, now?.today ?? "");
   const nowIso = () => new Date().toISOString();
 
   async function toggle() {
     if (!now || busy) return;
     setBusy(true);
-    if (enabled) await disableReminders();
+    if (native) {
+      if (enabled) await disableNativeReminders();
+      else await enableNativeReminders(time, summary(), deviceClock(now.today));
+    } else if (enabled) await disableReminders();
     else await enableReminders(time, summary(), nowIso());
     setBusy(false);
   }
 
-  const err = errorCopy(link?.lastError);
-  const iosNote = support && support.ios && !support.standalone && !enabled ? errorCopy("needs_home_screen") : null;
-
-  // The iPhone app's web view has no web push; native reminders come with B11 step 2.
-  if (hydrated && isNativeApp()) {
-    return (
-      <section className="flex flex-col gap-2" aria-label="Reminders">
-        <Caption>Reminders</Caption>
-        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-          Reminders aren&apos;t in the iPhone app yet. The Home Screen web app can still send them.
-        </p>
-      </section>
-    );
+  function changeTime(v: string) {
+    if (!/^\d{2}:\d{2}$/.test(v) || !now) return;
+    if (native) void setNativeReminderTime(v, summary(), deviceClock(now.today));
+    else void setReminderTime(v, summary(), nowIso());
   }
+
+  const err = native ? nativeErrorCopy(nativeSettings?.lastError) : errorCopy(link?.lastError);
+  const iosNote = !native && support && support.ios && !support.standalone && !enabled ? errorCopy("needs_home_screen") : null;
 
   return (
     <section className="flex flex-col gap-2" aria-label="Reminders">
@@ -97,10 +104,7 @@ export default function RemindersSection() {
               value={time}
               step={900}
               disabled={!hydrated || busy}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (/^\d{2}:\d{2}$/.test(v) && now) void setReminderTime(v, summary(), nowIso());
-              }}
+              onChange={(e) => changeTime(e.target.value)}
               className="h-9 rounded-[10px] px-2 text-[13px] outline-none"
               style={{ background: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" }}
               aria-label="Reminder time"

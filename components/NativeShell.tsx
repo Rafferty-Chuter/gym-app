@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { isNativeApp } from "@/lib/nativeApp";
 import { restoreNativeMirrorIfEmpty, writeNativeMirror } from "@/lib/storage/nativeMirror";
+import { useIsHydrated } from "@/lib/ui/useIsHydrated";
+import NativeReminderSync from "@/components/physique/NativeReminderSync";
 
 /** Copy the app's data to the phone's disk this often while it is open, as well as on going to the background. OURS. */
 const MIRROR_INTERVAL_MS = 5 * 60 * 1000;
@@ -10,9 +12,11 @@ const MIRROR_INTERVAL_MS = 5 * 60 * 1000;
 /**
  * The iPhone app's housekeeping (B11), mounted once in the layout and
  * inert in a browser: restore the data copy if iOS cleared the page's
- * storage, then keep the copy current.
+ * storage, then keep the copy current; and keep the reminders scheduled
+ * on the phone current (TR11).
  */
 export default function NativeShell() {
+  const hydrated = useIsHydrated();
   useEffect(() => {
     if (!isNativeApp()) return;
     let cancelled = false;
@@ -33,5 +37,5 @@ export default function NativeShell() {
       window.clearInterval(timer);
     };
   }, []);
-  return null;
+  return hydrated && isNativeApp() ? <NativeReminderSync /> : null;
 }

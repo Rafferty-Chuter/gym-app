@@ -193,7 +193,7 @@ Acceptance: a person who has never seen the app reads each Connections row and c
 
 ### TR8 · Real-device check (after FT7)
 S · depends on: FT7 · a session with the founder holding the phone
-Checklist on the TestFlight build: first run and setup; email code autofills from Mail and signs in; consent shows before sync; Apple Health connect and the first read; weigh-in, food and a workout logged; Progress in light and dark, the example view; safe areas and the keyboard on every input; offline start; delete account; feedback link. Record pass or fail per line in STATUS; anything failing becomes its own ticket.
+Checklist on the TestFlight build: first run and setup; turn on the daily reminder (iOS asks once), and a reminder opens the right screen when tapped (TR11); email code autofills from Mail and signs in; consent shows before sync; Apple Health connect and the first read; weigh-in, food and a workout logged; Progress in light and dark, the example view; safe areas and the keyboard on every input; offline start; delete account; feedback link. Record pass or fail per line in STATUS; anything failing becomes its own ticket.
 
 ---
 

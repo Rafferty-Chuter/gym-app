@@ -106,7 +106,9 @@ export default function PrivacyPage() {
           </li>
           <li>
             {/* src: app/api/push/subscribe/route.ts, lib/server/pushSchemas.ts; lib/physique/reminder.ts buildGapSummary (logged dates over SUMMARY_DAYS = 9, and the first date of each kind) and reminderMessage (no numbers) */}
-            <strong>Reminders:</strong>{" "}your push address, time zone, reminder time and which days have food, a weigh-in or sleep logged (dates only, no amounts).
+            <strong>Reminders:</strong>{" "}your push address, time zone, reminder time and which days have food, a weigh-in or sleep logged (dates only, no amounts).{" "}
+            {/* src: lib/physique/io/nativeReminders.ts (local notifications scheduled on the phone; no server call) */}
+            In the iPhone app, reminders are set on the phone itself and nothing is sent.
           </li>
         </ul>
       ),
