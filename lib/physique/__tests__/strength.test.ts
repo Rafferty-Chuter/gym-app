@@ -9,11 +9,13 @@ import {
   liftChangeVsPhaseStart,
   liftDerivedTrainingStatus,
   liftSeries,
+  MAIN_LIFT_RULE,
   pickMainLifts,
   repRangeChanges,
   strengthStatus,
   STR_DROP_PCT,
   type LiftExposure,
+  type MainLiftRule,
 } from "@/lib/physique/strength";
 import { nightsByDate } from "@/lib/physique/sleep";
 import type { PhysiqueGoal } from "@/lib/physique/types";
@@ -331,5 +333,85 @@ describe("lift-derived training status (02 §5.2)", () => {
     const r = liftDerivedTrainingStatus({ workouts: build(2.0), weightUnit: "kg", now: NOW(today), goals: [done] });
     expect(r?.status).toBe("novice");
     expect(r?.exposures).toBe(36);
+  });
+});
+
+// ── IN14: the main-lift bar for a lifter who trains each lift once a week ──
+
+describe("main lifts at 4 of 6 weeks with a 7-day hold (IN14)", () => {
+  const OLD: MainLiftRule = { minWeeks: 5, holdDays: 0 };
+  const THREE = ["Squat", "Bench Press", "Seated Cable Row"];
+  const lifts = (perWeek: number, attendance: number) => THREE.map((name) => ({ name, startE1rm: name === "Squat" ? 150 : 110, profile: "step" as const, changePct: 0, atDay: 0, perWeek, cv: 0.03, attendance }));
+
+  /** Main-lift set changes over 20 weeks, read daily, and the share of days with ≥2 main lifts (what STR-1 needs). */
+  function churn(rule: MainLiftRule, seeds: number) {
+    let changes = 0;
+    let covered = 0;
+    let days = 0;
+    for (let seed = 1; seed <= seeds; seed++) {
+      const sc = makeScenario({ seed, days: 182, preDays: 0, bodyweightKg: 85, goal: null, lifts: lifts(1, 0.8) });
+      let prev: string | null = null;
+      for (let d = 42; d < 182; d++) {
+        const m = pickMainLifts(sc.workouts, "kg", NOW(addDays(sc.startDate, d)), rule).map((x) => x.key).sort();
+        const key = m.join("|");
+        if (prev !== null && key !== prev) changes++;
+        if (m.length >= 2) covered++;
+        prev = key;
+        days++;
+      }
+    }
+    return { changes: changes / seeds, coverage: covered / days };
+  }
+
+  it("a once-a-week lifter who misses one week in five keeps steady main lifts: fewer changes, reads on nearly every day", () => {
+    const old = churn(OLD, 20);
+    const now = churn(MAIN_LIFT_RULE, 20);
+    // Measured at 50 seeds: old 6.4 changes per 20 weeks and 74 % of days covered; new 2.5 and 99 %.
+    expect(now.changes, `changes per 20 weeks: old ${old.changes.toFixed(1)}, new ${now.changes.toFixed(1)}`).toBeLessThanOrEqual(old.changes / 2);
+    expect(now.coverage, `days with 2+ main lifts: old ${old.coverage.toFixed(3)}, new ${now.coverage.toFixed(3)}`).toBeGreaterThanOrEqual(0.95);
+    expect(now.coverage).toBeGreaterThan(old.coverage);
+  });
+
+  it("holds a lift for a week after a missed week, then lets it go", () => {
+    // Four weekly Monday sessions, then none: main from the fourth, until the first leaves the 6-week window on day 42, then held 7 more days.
+    const START6 = "2026-09-07";
+    const days = [0, 7, 14, 21].map((d) => addDays(START6, d));
+    const path = () => 100;
+    const workouts = liftWorkouts({ startDate: START6, days: 22, lifts: [{ name: "Squat", e1rmOnDay: path }, { name: "Bench Press", e1rmOnDay: path }] }).filter((w) => days.includes(w.completedAt.slice(0, 10)));
+    expect(workouts.length).toBeGreaterThan(0);
+    const lastMet = days[3];
+    expect(pickMainLifts(workouts, "kg", NOW(lastMet)).length).toBe(2);
+    const metUntil = addDays(days[0], 41);
+    expect(pickMainLifts(workouts, "kg", NOW(addDays(metUntil, 7))).length).toBe(2);
+    expect(pickMainLifts(workouts, "kg", NOW(addDays(metUntil, 8))).length).toBe(0);
+  });
+
+  /** Flat lifts through a cut, read daily over cut days 35–56: false "down" share of reads, and status changes. */
+  function falseDrops(perWeek: number, attendance: number, seeds: number) {
+    let reads = 0;
+    let down = 0;
+    let flips = 0;
+    for (let seed = 1; seed <= seeds; seed++) {
+      const sc = makeScenario({ seed, days: 21 + 57, preDays: 21, bodyweightKg: 85, goal: { ratePctPerWeek: -0.6 }, lifts: lifts(perWeek, attendance) });
+      let prev: string | null = null;
+      for (let d = 35; d <= 56; d++) {
+        const r = strengthStatus({ workouts: sc.workouts, weightUnit: "kg", goal: sc.goal, sleepNights: [], now: NOW(addDays(sc.goal!.startDate, d)) });
+        if (r.status !== "unclear") {
+          reads++;
+          if (r.status === "dropping" || r.status === "one-lift") down++;
+        }
+        if (prev !== null && r.status !== prev) flips++;
+        prev = r.status;
+      }
+    }
+    return { falseDown: down / Math.max(1, reads), flips: flips / seeds };
+  }
+
+  it("STR-1 on flat lifts is no jumpier once a week than at the twice-a-week design case", () => {
+    const base = falseDrops(2, 1, 60);
+    const weekly = falseDrops(1, 0.8, 60);
+    // Measured at 200 seeds: 7.9 % false "down" reads twice a week, 7.6 % once a week at 80 % (9.5 % at 90 %); status changes 0.89 vs 0.35 per 3 weeks.
+    expect(weekly.falseDown, `false down: twice a week ${base.falseDown.toFixed(3)}, once a week ${weekly.falseDown.toFixed(3)}`).toBeLessThanOrEqual(base.falseDown + 0.03);
+    expect(weekly.flips, `status changes per 3 weeks: twice a week ${base.flips.toFixed(2)}, once a week ${weekly.flips.toFixed(2)}`).toBeLessThanOrEqual(base.flips);
   });
 });

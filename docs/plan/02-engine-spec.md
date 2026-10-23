@@ -72,7 +72,7 @@ Workouts come from the existing `StoredWorkout` history (`lib/trainingAnalysis.t
 - **Main lifts.** The user's 2–4 most frequently logged lifts that are:
   - compound (role/pattern from `lib/exerciseMetadataLibrary.ts`, else a name list: squat, bench, deadlift, overhead press, row, pull-up variants);
   - **loaded** (weight > 0; bodyweight-only sets are excluded);
-  - trained in **≥5 of the last 6 weeks**.
+  - trained in **≥4 of the last 6 weeks** on today or any of the 7 days before (IN14: was ≥5 with no hold; a once-a-week lifter on a split rarely met it, and the set changed every few days).
 
   With fewer than 2 main lifts, strength status is `unclear`.
 - **Phase segment.** The analysis segment for rate rules starts at the latest of:

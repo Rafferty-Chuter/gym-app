@@ -25,11 +25,29 @@ import type { PhysiqueGoal, SleepNight, StrengthStatus, TrainingStatus } from "@
 export const EPLEY_DIVISOR = 30;
 /** Sets with reps + RIR above this predict 1RM poorly and are skipped. EVID (Reynolds 2006). */
 export const MAX_REPS_PLUS_RIR = 12;
-/** Main lifts: the 2–4 most logged loaded compounds trained in ≥5 of the last 6 weeks. OURS (02 §1.2). */
+/** Main lifts: the 2–4 most logged loaded compounds trained in ≥4 of the last 6 weeks. OURS (02 §1.2). */
 export const MAIN_LIFTS_MIN = 2;
 export const MAIN_LIFTS_MAX = 4;
 export const MAIN_LIFT_WEEKS = 6;
-export const MAIN_LIFT_MIN_WEEKS_TRAINED = 5;
+/**
+ * Weeks of the last 6 a lift must be trained in to be a main lift. OURS
+ * (IN14): was 5, which a lifter on a split who trains each lift once a
+ * week and misses a week now and then rarely meets; the founder's six
+ * months had main lifts on 71 of 183 days. STR-1 reads medians of 3
+ * exposures either way, so its noise doesn't depend on this.
+ */
+export const MAIN_LIFT_MIN_WEEKS_TRAINED = 4;
+/**
+ * A lift stays main for this many days after it last met
+ * MAIN_LIFT_MIN_WEEKS_TRAINED, so one missed week doesn't drop it from
+ * Progress and bring it back days later. OURS (IN14): on the founder's
+ * six months the main-lift set changed 20 times instead of 65.
+ */
+export const MAIN_LIFT_HOLD_DAYS = 7;
+
+/** The main-lift bar: weeks trained out of MAIN_LIFT_WEEKS, and the days a lift is held after it last met it. */
+export type MainLiftRule = { minWeeks: number; holdDays: number };
+export const MAIN_LIFT_RULE: MainLiftRule = { minWeeks: MAIN_LIFT_MIN_WEEKS_TRAINED, holdDays: MAIN_LIFT_HOLD_DAYS };
 /** Library roles that count as compound. OURS (02 §1.2). */
 export const COMPOUND_ROLES: ReadonlySet<ExerciseRole> = new Set(["main_compound", "secondary_compound", "machine_compound"]);
 /** Name fallback when the library has no entry. OURS (02 §1.2 list). */
@@ -211,20 +229,28 @@ function weekBlock(date: LocalDate, today: LocalDate): number {
   return Math.floor(dayDiff(date, today) / 7);
 }
 
+/** Exposures in the MAIN_LIFT_WEEKS weeks ending `day`, and the distinct 7-day blocks they fall in. */
+function trainedBy(exposures: readonly LiftExposure[], day: LocalDate): { recent: number; weeks: number } {
+  const from = addDays(day, -(MAIN_LIFT_WEEKS * 7 - 1));
+  const recent = exposures.filter((e) => e.date >= from && e.date <= day);
+  return { recent: recent.length, weeks: new Set(recent.map((e) => weekBlock(e.date, day))).size };
+}
+
 /**
  * The user's 2–4 main lifts (02 §1.2): loaded compounds, ranked by sessions
- * in the last 6 weeks, trained in ≥5 of those weeks. Fewer than 2 means the
- * strength status is `unclear`.
+ * in the last 6 weeks, trained in ≥`rule.minWeeks` of those weeks on today
+ * or any of the `rule.holdDays` days before (IN14). Fewer than 2 means
+ * the strength status is `unclear`.
  */
-export function pickMainLifts(workouts: readonly StoredWorkout[], unit: WeightUnit, now: Now): MainLift[] {
-  const from = addDays(now.today, -(MAIN_LIFT_WEEKS * 7 - 1));
+export function pickMainLifts(workouts: readonly StoredWorkout[], unit: WeightUnit, now: Now, rule: MainLiftRule = MAIN_LIFT_RULE): MainLift[] {
   const candidates: MainLift[] = [];
   for (const s of liftSeries(workouts, unit, now)) {
     if (!isCompoundLift(s.name, s.exerciseId)) continue;
-    const recent = s.exposures.filter((e) => e.date >= from);
-    const weeks = new Set(recent.map((e) => weekBlock(e.date, now.today)));
-    if (weeks.size < MAIN_LIFT_MIN_WEEKS_TRAINED) continue;
-    candidates.push({ ...s, recentExposures: recent.length, weeksTrained: weeks.size });
+    let met = false;
+    for (let back = 0; back <= rule.holdDays && !met; back++) met = trainedBy(s.exposures, addDays(now.today, -back)).weeks >= rule.minWeeks;
+    if (!met) continue;
+    const { recent, weeks } = trainedBy(s.exposures, now.today);
+    candidates.push({ ...s, recentExposures: recent, weeksTrained: weeks });
   }
   // Ties go by name, so the order reads alphabetically whatever the identity key looks like.
   candidates.sort((a, b) => b.recentExposures - a.recentExposures || b.weeksTrained - a.weeksTrained || a.name.localeCompare(b.name) || a.key.localeCompare(b.key));

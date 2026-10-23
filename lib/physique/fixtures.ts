@@ -64,6 +64,8 @@ export type LiftSpec = {
   perWeek: number;
   /** Per-session noise as a coefficient of variation. */
   cv?: number;
+  /** Share of scheduled sessions that happen (IN14: a lifter who misses a week now and then). 1 when absent; only below 1 draws, so other scenarios are unchanged. */
+  attendance?: number;
 };
 
 export type ScenarioSpec = {
@@ -385,6 +387,7 @@ export function makeScenario(input: ScenarioSpec): Scenario {
     for (let d = 0; d < days; d++) {
       const date = addDays(startDate, d);
       if (!daysOfWeek.includes(weekday(date))) continue;
+      if (lift.attendance != null && lift.attendance < 1 && rand() >= lift.attendance) continue;
       let path = lift.startE1rm;
       if (lift.profile === "linear") {
         path = lift.startE1rm * (1 + (lift.changePct / 100) * (d / Math.max(1, days - 1)));
